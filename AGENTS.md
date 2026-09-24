@@ -72,6 +72,26 @@
 
 ---
 
+## 提交与推送（每次改完必做）
+
+**每次改动完成后，自动提交并推送到 GitHub，commit message 用中文。**
+
+- 收尾顺序固定：改完 → 跑验证 → `git add` → `git commit` → `git push origin main`。
+  验证按改动范围选：碰前端跑 `pnpm test`，碰单文件产物跑 `pnpm verify:release`，
+  碰 `storymaker-server.ps1` 跑 `pnpm verify:server`。
+- **commit message 必须是中文**，一句话说清「改了什么、为什么」，跟仓库现有风格一致。
+  例：`补充 README：项目定位、快速开始与常用命令`
+- **只提交这次改动涉及的文件**，不要用 `git add -A` 把无关文件顺手带进去
+  （`node_modules/`、临时产物、别人的半成品都不该进）。
+- 推送目标是 `origin main`。GitHub 直连不通，本仓库的 `.git/config` 里已配好代理
+  （`http://127.0.0.1:7890`）；换机器或代理端口变了要重新配，否则会报连接被重置。
+- **推送失败不要静默跳过**：凭据失效或代理没起时，把原始报错贴出来告诉用户，
+  不要谎称已上传。
+- `pnpm build:single` 会重写 `release/` 下的三个文件，这是**预期的**——
+  `release/` 按仓库约定纳入版本控制，构建产物要一并提交，好让策划直接从仓库拿到能双击的那份。
+
+---
+
 # 项目说明：StoryMaker
 
 ## 这是什么
