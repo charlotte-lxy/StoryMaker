@@ -1,0 +1,1683 @@
+{
+  "version": 1,
+  "name": "B.S.Game",
+  "characters": [
+    {
+      "uid": "seed-1",
+      "id": "CHA_主角",
+      "name": "主角",
+      "expressions": [
+        "默认",
+        "开心",
+        "生气",
+        "悲伤",
+        "害羞"
+      ],
+      "actions": [
+        "默认"
+      ]
+    },
+    {
+      "uid": "seed-2",
+      "id": "CHA_旁白",
+      "name": "旁白",
+      "expressions": [
+        "默认",
+        "开心",
+        "生气",
+        "悲伤",
+        "害羞"
+      ],
+      "actions": [
+        "默认"
+      ]
+    },
+    {
+      "uid": "seed-3",
+      "id": "CHA_宫本奈奈",
+      "name": "宫本奈奈",
+      "expressions": [
+        "默认",
+        "开心",
+        "生气",
+        "悲伤",
+        "害羞"
+      ],
+      "actions": [
+        "默认"
+      ]
+    },
+    {
+      "uid": "seed-4",
+      "id": "CHA_佐藤阳菜",
+      "name": "佐藤阳菜",
+      "expressions": [
+        "默认",
+        "开心",
+        "生气",
+        "悲伤",
+        "害羞"
+      ],
+      "actions": [
+        "默认"
+      ]
+    },
+    {
+      "uid": "seed-5",
+      "id": "CHA_铃木凛",
+      "name": "铃木凛",
+      "expressions": [
+        "默认",
+        "开心",
+        "生气",
+        "悲伤",
+        "害羞"
+      ],
+      "actions": [
+        "默认"
+      ]
+    },
+    {
+      "uid": "seed-6",
+      "id": "CHA_铃木葵",
+      "name": "铃木葵",
+      "expressions": [
+        "默认",
+        "开心",
+        "生气",
+        "悲伤",
+        "害羞"
+      ],
+      "actions": [
+        "默认"
+      ]
+    },
+    {
+      "uid": "seed-7",
+      "id": "CHA_西园寺雪",
+      "name": "西园寺雪",
+      "expressions": [
+        "默认",
+        "开心",
+        "生气",
+        "悲伤",
+        "害羞"
+      ],
+      "actions": [
+        "默认"
+      ]
+    },
+    {
+      "uid": "seed-8",
+      "id": "CHA_白鸟凛子",
+      "name": "白鸟凛子",
+      "expressions": [
+        "默认",
+        "开心",
+        "生气",
+        "悲伤",
+        "害羞"
+      ],
+      "actions": [
+        "默认"
+      ]
+    },
+    {
+      "uid": "seed-9",
+      "id": "CHA_田中美代子",
+      "name": "田中美代子",
+      "expressions": [
+        "默认",
+        "开心",
+        "生气",
+        "悲伤",
+        "害羞"
+      ],
+      "actions": [
+        "默认"
+      ]
+    },
+    {
+      "uid": "seed-10",
+      "id": "CHA_田中小花",
+      "name": "田中小花",
+      "expressions": [
+        "默认",
+        "开心",
+        "生气",
+        "悲伤",
+        "害羞"
+      ],
+      "actions": [
+        "默认"
+      ]
+    },
+    {
+      "uid": "seed-11",
+      "id": "CHA_藤原静",
+      "name": "藤原静",
+      "expressions": [
+        "默认",
+        "开心",
+        "生气",
+        "悲伤",
+        "害羞"
+      ],
+      "actions": [
+        "默认"
+      ]
+    },
+    {
+      "uid": "seed-12",
+      "id": "CHA_影山菖蒲",
+      "name": "影山菖蒲",
+      "expressions": [
+        "默认",
+        "开心",
+        "生气",
+        "悲伤",
+        "害羞"
+      ],
+      "actions": [
+        "默认"
+      ]
+    },
+    {
+      "uid": "seed-13",
+      "id": "CHA_宫本晴子",
+      "name": "宫本晴子",
+      "expressions": [
+        "默认",
+        "开心",
+        "生气",
+        "悲伤",
+        "害羞"
+      ],
+      "actions": [
+        "默认"
+      ]
+    },
+    {
+      "uid": "seed-14",
+      "id": "CHA_神代雪音",
+      "name": "神代雪音",
+      "expressions": [
+        "默认",
+        "开心",
+        "生气",
+        "悲伤",
+        "害羞"
+      ],
+      "actions": [
+        "默认"
+      ]
+    },
+    {
+      "uid": "seed-15",
+      "id": "CHA_蕾娜・莉希特娜瓦",
+      "name": "蕾娜・莉希特娜瓦",
+      "expressions": [
+        "默认",
+        "开心",
+        "生气",
+        "悲伤",
+        "害羞"
+      ],
+      "actions": [
+        "默认"
+      ]
+    },
+    {
+      "uid": "seed-16",
+      "id": "CHA_小偷",
+      "name": "小偷",
+      "expressions": [
+        "默认",
+        "开心",
+        "生气",
+        "悲伤",
+        "害羞"
+      ],
+      "actions": [
+        "默认"
+      ]
+    },
+    {
+      "uid": "seed-17",
+      "id": "CHA_警察",
+      "name": "警察",
+      "expressions": [
+        "默认",
+        "开心",
+        "生气",
+        "悲伤",
+        "害羞"
+      ],
+      "actions": [
+        "默认"
+      ]
+    }
+  ],
+  "items": [
+    {
+      "uid": "seed-18",
+      "id": "Item_Coin",
+      "name": "钱"
+    },
+    {
+      "uid": "seed-19",
+      "id": "Item_Test_01",
+      "name": "1元钢镚"
+    },
+    {
+      "uid": "seed-20",
+      "id": "Item_Test_02",
+      "name": "10元纸币"
+    },
+    {
+      "uid": "seed-21",
+      "id": "Item_Test_03",
+      "name": "100元纸币"
+    },
+    {
+      "uid": "seed-22",
+      "id": "Item_Test_04",
+      "name": "一千元红包"
+    },
+    {
+      "uid": "seed-23",
+      "id": "Item_Test_05",
+      "name": "一万元红包"
+    },
+    {
+      "uid": "seed-24",
+      "id": "Item_Test_06",
+      "name": "十万元支票"
+    },
+    {
+      "uid": "seed-25",
+      "id": "Item_Test_07",
+      "name": "一百万元支票"
+    },
+    {
+      "uid": "seed-26",
+      "id": "Item_Test_08",
+      "name": "一千万元支票"
+    },
+    {
+      "uid": "seed-27",
+      "id": "Like_宫本奈奈",
+      "name": "宫本奈奈 好感度"
+    },
+    {
+      "uid": "seed-28",
+      "id": "Like_佐藤阳菜",
+      "name": "佐藤阳菜 好感度"
+    },
+    {
+      "uid": "seed-29",
+      "id": "Like_铃木凛",
+      "name": "铃木凛 好感度"
+    },
+    {
+      "uid": "seed-30",
+      "id": "Like_铃木葵",
+      "name": "铃木葵 好感度"
+    },
+    {
+      "uid": "seed-31",
+      "id": "Like_西园寺雪",
+      "name": "西园寺雪 好感度"
+    },
+    {
+      "uid": "seed-32",
+      "id": "Like_白鸟凛子",
+      "name": "白鸟凛子 好感度"
+    },
+    {
+      "uid": "seed-33",
+      "id": "Like_田中美代子",
+      "name": "田中美代子 好感度"
+    },
+    {
+      "uid": "seed-34",
+      "id": "Like_田中小花",
+      "name": "田中小花 好感度"
+    },
+    {
+      "uid": "seed-35",
+      "id": "Like_藤原静",
+      "name": "藤原静 好感度"
+    },
+    {
+      "uid": "seed-36",
+      "id": "Like_影山菖蒲",
+      "name": "影山菖蒲 好感度"
+    },
+    {
+      "uid": "seed-37",
+      "id": "Like_宫本晴子",
+      "name": "宫本晴子 好感度"
+    },
+    {
+      "uid": "seed-38",
+      "id": "Like_神代雪音",
+      "name": "神代雪音 好感度"
+    },
+    {
+      "uid": "seed-39",
+      "id": "Like_蕾娜・莉希特娜瓦",
+      "name": "蕾娜・莉希特娜瓦 好感度"
+    }
+  ],
+  "quests": [
+    {
+      "uid": "seed-40",
+      "id": "Task_Test_01",
+      "name": "凑齐医药费"
+    },
+    {
+      "uid": "seed-41",
+      "id": "Task_Test_01-1",
+      "name": "拥有10金币"
+    },
+    {
+      "uid": "seed-42",
+      "id": "Task_Test_01-2",
+      "name": "拥有100金币"
+    },
+    {
+      "uid": "seed-43",
+      "id": "Task_Test_01-3",
+      "name": "拥有1000金币"
+    },
+    {
+      "uid": "seed-44",
+      "id": "Task_Test_01-4",
+      "name": "与雪对话"
+    },
+    {
+      "uid": "seed-45",
+      "id": "Task_Test_02",
+      "name": "支线任务测试"
+    }
+  ],
+  "images": [
+    {
+      "uid": "seed-46",
+      "id": "CHA_1010101",
+      "name": "日漫，宫本奈奈，站立，微笑，常服"
+    },
+    {
+      "uid": "seed-47",
+      "id": "SCE_City_Night",
+      "name": "城市，晚上"
+    },
+    {
+      "uid": "seed-48",
+      "id": "SCE_Home_Bathroom_Day",
+      "name": "家中厕所，白天"
+    },
+    {
+      "uid": "seed-49",
+      "id": "DIABG_CheZhanZhanTai",
+      "name": "车站站台"
+    },
+    {
+      "uid": "seed-50",
+      "id": "SCE_Home_001",
+      "name": "测试用图片"
+    },
+    {
+      "uid": "seed-51",
+      "id": "SCE_Home_002",
+      "name": "测试用图片"
+    },
+    {
+      "uid": "seed-52",
+      "id": "SCE_Home_003",
+      "name": "测试用图片"
+    },
+    {
+      "uid": "seed-53",
+      "id": "SCE_Home_004",
+      "name": "测试用图片"
+    },
+    {
+      "uid": "seed-54",
+      "id": "SCE_Home_005",
+      "name": "测试用图片"
+    },
+    {
+      "uid": "seed-55",
+      "id": "SCE_Home_006",
+      "name": "测试用图片"
+    },
+    {
+      "uid": "seed-56",
+      "id": "SCE_Home_007",
+      "name": "测试用图片"
+    },
+    {
+      "uid": "seed-57",
+      "id": "SCE_Home_008",
+      "name": "测试用图片"
+    },
+    {
+      "uid": "seed-58",
+      "id": "SCE_Home_009",
+      "name": "测试用图片"
+    },
+    {
+      "uid": "seed-59",
+      "id": "Icon_Arrow",
+      "name": "箭头图标"
+    },
+    {
+      "uid": "seed-60",
+      "id": "Icon_Heart",
+      "name": "箭头图标"
+    },
+    {
+      "uid": "seed-61",
+      "id": "Dia_010101",
+      "name": ""
+    },
+    {
+      "uid": "seed-62",
+      "id": "Dia_020101",
+      "name": ""
+    },
+    {
+      "uid": "seed-63",
+      "id": "Dia_030101",
+      "name": ""
+    },
+    {
+      "uid": "seed-64",
+      "id": "Dia_040101",
+      "name": ""
+    },
+    {
+      "uid": "seed-65",
+      "id": "Dia_050101",
+      "name": ""
+    },
+    {
+      "uid": "seed-66",
+      "id": "Dia_060101",
+      "name": ""
+    },
+    {
+      "uid": "seed-67",
+      "id": "Dia_070101",
+      "name": ""
+    },
+    {
+      "uid": "seed-68",
+      "id": "Dia_080101",
+      "name": ""
+    },
+    {
+      "uid": "seed-69",
+      "id": "Dia_090101",
+      "name": ""
+    },
+    {
+      "uid": "seed-70",
+      "id": "Dia_100101",
+      "name": ""
+    },
+    {
+      "uid": "seed-71",
+      "id": "Dia_110101",
+      "name": ""
+    },
+    {
+      "uid": "seed-72",
+      "id": "Dia_120101",
+      "name": ""
+    },
+    {
+      "uid": "seed-73",
+      "id": "Dia_130101",
+      "name": ""
+    },
+    {
+      "uid": "seed-74",
+      "id": "Dia_135101",
+      "name": ""
+    },
+    {
+      "uid": "seed-75",
+      "id": "Head_010",
+      "name": ""
+    },
+    {
+      "uid": "seed-76",
+      "id": "Head_020",
+      "name": ""
+    },
+    {
+      "uid": "seed-77",
+      "id": "Head_030",
+      "name": ""
+    },
+    {
+      "uid": "seed-78",
+      "id": "Head_040",
+      "name": ""
+    },
+    {
+      "uid": "seed-79",
+      "id": "Head_050",
+      "name": ""
+    },
+    {
+      "uid": "seed-80",
+      "id": "Head_060",
+      "name": ""
+    },
+    {
+      "uid": "seed-81",
+      "id": "Head_070",
+      "name": ""
+    },
+    {
+      "uid": "seed-82",
+      "id": "Head_080",
+      "name": ""
+    },
+    {
+      "uid": "seed-83",
+      "id": "Head_090",
+      "name": ""
+    },
+    {
+      "uid": "seed-84",
+      "id": "Head_100",
+      "name": ""
+    },
+    {
+      "uid": "seed-85",
+      "id": "Head_110",
+      "name": ""
+    },
+    {
+      "uid": "seed-86",
+      "id": "Head_120",
+      "name": ""
+    },
+    {
+      "uid": "seed-87",
+      "id": "Head_130",
+      "name": ""
+    },
+    {
+      "uid": "seed-88",
+      "id": "Head_135",
+      "name": ""
+    },
+    {
+      "uid": "seed-89",
+      "id": "Dia_050104",
+      "name": ""
+    },
+    {
+      "uid": "seed-90",
+      "id": "Dia_050105",
+      "name": ""
+    },
+    {
+      "uid": "seed-91",
+      "id": "Dia_100102",
+      "name": ""
+    },
+    {
+      "uid": "seed-92",
+      "id": "Dia_100105",
+      "name": ""
+    }
+  ],
+  "sounds": [],
+  "commands": [
+    {
+      "uid": "a6a00a22-2cf1-41a0-83a6-448570ab1453",
+      "category": "条件",
+      "head": "背包",
+      "branch": "",
+      "target": "item",
+      "attribute": "",
+      "operator": ">=",
+      "value": "number",
+      "fixedValues": [],
+      "note": "物品数量判断：大于等于"
+    },
+    {
+      "uid": "119c2419-e3c2-42e7-b0df-fd243afd1579",
+      "category": "条件",
+      "head": "背包",
+      "branch": "",
+      "target": "item",
+      "attribute": "",
+      "operator": "<=",
+      "value": "number",
+      "fixedValues": [],
+      "note": "物品数量判断：小于等于"
+    },
+    {
+      "uid": "94c34483-f93b-459c-a819-d84c7cc5ad70",
+      "category": "条件",
+      "head": "背包",
+      "branch": "",
+      "target": "item",
+      "attribute": "",
+      "operator": "==",
+      "value": "number",
+      "fixedValues": [],
+      "note": "物品数量判断：等于"
+    },
+    {
+      "uid": "303820b1-38a7-46a6-b920-8774438db833",
+      "category": "条件",
+      "head": "背包",
+      "branch": "",
+      "target": "item",
+      "attribute": "",
+      "operator": ">",
+      "value": "number",
+      "fixedValues": [],
+      "note": "物品数量判断：大于"
+    },
+    {
+      "uid": "9ca663ee-a0f9-40b8-be73-7423bab11238",
+      "category": "条件",
+      "head": "背包",
+      "branch": "",
+      "target": "item",
+      "attribute": "",
+      "operator": "<",
+      "value": "number",
+      "fixedValues": [],
+      "note": "物品数量判断：小于"
+    },
+    {
+      "uid": "40b63cfc-88a5-4aeb-aeed-84cc2e14e75f",
+      "category": "条件",
+      "head": "任务",
+      "branch": "",
+      "target": "quest",
+      "attribute": "",
+      "operator": "=",
+      "value": "fixed",
+      "fixedValues": [
+        "1"
+      ],
+      "note": "任务完成判断：完成"
+    },
+    {
+      "uid": "def83218-c24c-464a-a20a-c1e4e38caeb4",
+      "category": "条件",
+      "head": "任务",
+      "branch": "",
+      "target": "quest",
+      "attribute": "",
+      "operator": "=",
+      "value": "fixed",
+      "fixedValues": [
+        "0"
+      ],
+      "note": "任务完成判断：未完成"
+    },
+    {
+      "uid": "cc929223-6faa-48c3-ae83-3079d1efea40",
+      "category": "条件",
+      "head": "剧情",
+      "branch": "",
+      "target": "line",
+      "attribute": "",
+      "operator": "=",
+      "value": "fixed",
+      "fixedValues": [
+        "1"
+      ],
+      "note": "对话完成判断：完成"
+    },
+    {
+      "uid": "7729a314-6e8e-4122-a0f9-e1c413b9cf9e",
+      "category": "条件",
+      "head": "剧情",
+      "branch": "",
+      "target": "line",
+      "attribute": "",
+      "operator": "=",
+      "value": "fixed",
+      "fixedValues": [
+        "0"
+      ],
+      "note": "对话完成判断：未完成"
+    },
+    {
+      "uid": "9b5f92a6-8657-489c-a309-c2f1fbaba236",
+      "category": "条件",
+      "head": "特殊",
+      "branch": "",
+      "target": "manual",
+      "attribute": "",
+      "operator": "=",
+      "value": "fixed",
+      "fixedValues": [
+        "1"
+      ],
+      "note": "特殊条件，正常表达式判断不了的情况，需和程序提前沟通"
+    },
+    {
+      "uid": "86492eda-62c5-4087-ac57-a5136a683d95",
+      "category": "条件",
+      "head": "特殊",
+      "branch": "",
+      "target": "manual",
+      "attribute": "",
+      "operator": "=",
+      "value": "fixed",
+      "fixedValues": [
+        "0"
+      ],
+      "note": "特殊条件（未完成）"
+    },
+    {
+      "uid": "f2f91aec-791a-4a36-9e56-7180c0276423",
+      "category": "指令",
+      "head": "剧情.演出",
+      "branch": "立绘进入",
+      "target": "character",
+      "attribute": "进入",
+      "operator": "=",
+      "value": "fixed",
+      "fixedValues": [
+        "1"
+      ],
+      "note": "角色需先进入后才能操作表情与动作"
+    },
+    {
+      "uid": "bb5e207b-0561-41af-867c-3a1fb06ec6ae",
+      "category": "指令",
+      "head": "剧情.演出",
+      "branch": "立绘退出",
+      "target": "character",
+      "attribute": "退出",
+      "operator": "=",
+      "value": "fixed",
+      "fixedValues": [
+        "1"
+      ],
+      "note": "角色下场"
+    },
+    {
+      "uid": "5262a715-92e3-45fd-a4d5-2e9a84453390",
+      "category": "指令",
+      "head": "剧情.演出",
+      "branch": "设置表情",
+      "target": "character",
+      "attribute": "表情",
+      "operator": "=",
+      "value": "expression",
+      "fixedValues": [],
+      "note": "表情清单在角色表里配置"
+    },
+    {
+      "uid": "d3ffbd22-cbaa-4021-a064-538769a83a76",
+      "category": "指令",
+      "head": "剧情.演出",
+      "branch": "设置动作",
+      "target": "character",
+      "attribute": "动作",
+      "operator": "=",
+      "value": "action",
+      "fixedValues": [],
+      "note": "动作清单在角色表里配置"
+    },
+    {
+      "uid": "d16c065d-3bdd-4ec5-b775-52b9d1a6189f",
+      "category": "指令",
+      "head": "剧情.图片",
+      "branch": "",
+      "target": "image",
+      "attribute": "",
+      "operator": "",
+      "value": "none",
+      "fixedValues": [],
+      "note": "展示图片，图片 ID 来自立绘表"
+    },
+    {
+      "uid": "d8097f6b-47eb-4c72-ab01-00487862fab7",
+      "category": "指令",
+      "head": "剧情.图片",
+      "branch": "移除图片",
+      "target": "manual",
+      "attribute": "",
+      "operator": "",
+      "value": "none",
+      "fixedValues": [],
+      "note": "填「移除」，清掉当前图片"
+    },
+    {
+      "uid": "32f760df-624c-4aab-a288-354bdd01c795",
+      "category": "指令",
+      "head": "剧情.播放对话",
+      "branch": "",
+      "target": "line",
+      "attribute": "",
+      "operator": "",
+      "value": "none",
+      "fixedValues": [],
+      "note": "直接跳去播另一段对话"
+    },
+    {
+      "uid": "70dcb95c-13ec-405a-8dc4-88dffb66a8e6",
+      "category": "指令",
+      "head": "背包",
+      "branch": "",
+      "target": "item",
+      "attribute": "",
+      "operator": "+",
+      "value": "number",
+      "fixedValues": [],
+      "note": "增加物品数量"
+    },
+    {
+      "uid": "5b14d267-5cc3-4631-9112-04ef23f5437a",
+      "category": "指令",
+      "head": "背包",
+      "branch": "",
+      "target": "item",
+      "attribute": "",
+      "operator": "-",
+      "value": "number",
+      "fixedValues": [],
+      "note": "减少物品数量"
+    },
+    {
+      "uid": "5778da79-132b-4afd-b87e-d847776bd4ce",
+      "category": "指令",
+      "head": "背包",
+      "branch": "",
+      "target": "item",
+      "attribute": "",
+      "operator": "=",
+      "value": "number",
+      "fixedValues": [],
+      "note": "直接设置物品数量"
+    },
+    {
+      "uid": "36dd301e-991e-4f30-94f1-fc4da3d3ff68",
+      "category": "指令",
+      "head": "任务.接取",
+      "branch": "",
+      "target": "quest",
+      "attribute": "",
+      "operator": "",
+      "value": "none",
+      "fixedValues": [],
+      "note": "接取任务"
+    },
+    {
+      "uid": "f0db26f8-8fd3-4e67-8bec-16d75da5c3f1",
+      "category": "指令",
+      "head": "特殊",
+      "branch": "",
+      "target": "manual",
+      "attribute": "",
+      "operator": "",
+      "value": "none",
+      "fixedValues": [],
+      "note": "正常表达式写不出来的指令，需和程序提前沟通"
+    },
+    {
+      "uid": "seed-93",
+      "category": "指令",
+      "head": "剧情.音效",
+      "branch": "",
+      "target": "sound",
+      "attribute": "",
+      "operator": "",
+      "value": "none",
+      "fixedValues": [],
+      "note": "播放音效，音效 ID 来自音效表"
+    }
+  ],
+  "chapters": [
+    {
+      "uid": "seed-125",
+      "id": "ch01",
+      "title": "序章",
+      "groups": [
+        {
+          "uid": "seed-122",
+          "id": "001",
+          "title": "段落 001",
+          "lines": [
+            {
+              "uid": "99b11911-c4d6-4077-8592-cbc38b09310c",
+              "readableId": "Dia_ch01_001-1",
+              "kind": "指令",
+              "characterId": "",
+              "displayName": "",
+              "text": {
+                "zh": "",
+                "en": "",
+                "ja": ""
+              },
+              "autoAdvance": false,
+              "command": "剧情.演出# CHA_西园寺雪.进入=0",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "6a141b81-498e-4791-934e-d7f642916572",
+              "readableId": "Dia_ch01_001-2",
+              "kind": "指令",
+              "characterId": "",
+              "displayName": "",
+              "text": {
+                "zh": "",
+                "en": "",
+                "ja": ""
+              },
+              "autoAdvance": false,
+              "command": "剧情.演出# CHA_影山菖蒲.进入=0",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "seed-94",
+              "readableId": "Dia_ch01_001-3",
+              "kind": "对话",
+              "characterId": "CHA_主角",
+              "displayName": "",
+              "text": {
+                "zh": "你们俩还真是像啊，明明都那么在乎对方，却都不肯说出口。",
+                "en": "You two are really alike. You clearly care so much about each other, yet neither of you is willing to say it out loud.",
+                "ja": "二人とも本当に似ているね。お互いをこんなに大切に思っているのに、なかなか言い出せないんだから。"
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "seed-95",
+              "readableId": "Dia_ch01_001-4",
+              "kind": "对话",
+              "characterId": "CHA_西园寺雪",
+              "displayName": "",
+              "text": {
+                "zh": "谁、谁跟她像了！我只是……只是让她别烦我而已。",
+                "en": "W-Who's like her! I just... just pay her to stop bothering me.",
+                "ja": "だ、誰が彼女なんかと似てるものか！私はただ…ただ金を払って、私に構わせないようにしているだけよ。"
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "9b13807d-585a-4909-a985-de0f032be3d9",
+              "readableId": "Dia_ch01_001-5",
+              "kind": "指令",
+              "characterId": "",
+              "displayName": "",
+              "text": {
+                "zh": "",
+                "en": "",
+                "ja": ""
+              },
+              "autoAdvance": false,
+              "command": "剧情.CG# CG_Test_01",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "seed-96",
+              "readableId": "Dia_ch01_001-6",
+              "kind": "对话",
+              "characterId": "CHA_影山菖蒲",
+              "displayName": "",
+              "text": {
+                "zh": "……",
+                "en": "……",
+                "ja": "……"
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "4070d17f-d9f1-43ce-a7ce-2739acd1023a",
+              "readableId": "Dia_ch01_001-7",
+              "kind": "指令",
+              "characterId": "",
+              "displayName": "",
+              "text": {
+                "zh": "",
+                "en": "",
+                "ja": ""
+              },
+              "autoAdvance": false,
+              "command": "剧情.演出# CHA_西园寺雪.退出=0",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "seed-97",
+              "readableId": "Dia_ch01_001-8",
+              "kind": "对话",
+              "characterId": "CHA_旁白",
+              "displayName": "",
+              "text": {
+                "zh": "病床上的菖蒲沉默了片刻",
+                "en": "Shoubu was silent for a moment.",
+                "ja": "菖蒲はしばらく沈黙した。"
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "seed-98",
+              "readableId": "Dia_ch01_001-9",
+              "kind": "对话",
+              "characterId": "CHA_影山菖蒲",
+              "displayName": "",
+              "text": {
+                "zh": "雪小姐说得对，我只是在执行任务。",
+                "en": "Miss Yuki is right. I'm just carrying out a mission.",
+                "ja": "雪さんの言う通りです。私はただ任務を遂行しているだけです。"
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "seed-99",
+              "readableId": "Dia_ch01_001-10",
+              "kind": "对话",
+              "characterId": "CHA_主角",
+              "displayName": "",
+              "text": {
+                "zh": "菖蒲，你明明为了她连命都不要了，还说什么任务？",
+                "en": "Shoubu, you've even risked your life for her, yet you call it a mission?",
+                "ja": "菖蒲、あなたは彼女のために命さえ惜しまないのに、よく任務なんて言えるね？"
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "411709a5-6d93-4fe9-a942-591fb49a08fe",
+              "readableId": "Dia_ch01_001-11",
+              "kind": "指令",
+              "characterId": "",
+              "displayName": "",
+              "text": {
+                "zh": "",
+                "en": "",
+                "ja": ""
+              },
+              "autoAdvance": false,
+              "command": "剧情.演出# CHA_西园寺雪.进入=0",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "3ec8d515-5041-475e-8031-822fad4d01f1",
+              "readableId": "Dia_ch01_001-12",
+              "kind": "指令",
+              "characterId": "",
+              "displayName": "",
+              "text": {
+                "zh": "",
+                "en": "",
+                "ja": ""
+              },
+              "autoAdvance": false,
+              "command": "剧情.演出# CHA_影山菖蒲.退出=0",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "seed-100",
+              "readableId": "Dia_ch01_001-13",
+              "kind": "对话",
+              "characterId": "CHA_主角",
+              "displayName": "",
+              "text": {
+                "zh": "雪，你也知道，她不是为了钱才留在你身边的吧？",
+                "en": "Yuki, you know too, don't you? She's not staying by your side for the money.",
+                "ja": "雪、あなたも分かっているでしょう？彼女はお金のためにあなたのそばにいるわけじゃないって。"
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "seed-101",
+              "readableId": "Dia_ch01_001-14",
+              "kind": "对话",
+              "characterId": "CHA_西园寺雪",
+              "displayName": "",
+              "text": {
+                "zh": "……我知道",
+                "en": "... I know.",
+                "ja": "……分かってる。"
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "seed-102",
+              "readableId": "Dia_ch01_001-15",
+              "kind": "对话",
+              "characterId": "CHA_西园寺雪",
+              "displayName": "",
+              "text": {
+                "zh": "可是我不懂。为什么有人愿意为我做到这种地步？",
+                "en": "But I don't understand. Why would someone be willing to go this far for me?",
+                "ja": "でも、私には分からない。どうして誰かが私のためにここまでしてくれるの？"
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "2a9fc64c-e76f-410f-82ce-e1924296768b",
+              "readableId": "Dia_ch01_001-16",
+              "kind": "指令",
+              "characterId": "",
+              "displayName": "",
+              "text": {
+                "zh": "",
+                "en": "",
+                "ja": ""
+              },
+              "autoAdvance": false,
+              "command": "剧情.演出# CHA_西园寺雪.表情=悲伤",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "seed-103",
+              "readableId": "Dia_ch01_001-17",
+              "kind": "对话",
+              "characterId": "CHA_西园寺雪",
+              "displayName": "",
+              "text": {
+                "zh": "我又没给她什么……",
+                "en": "I haven't given her anything...",
+                "ja": "私、彼女に何も与えていないのに……"
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "f645571e-2e04-471a-b9dd-fe965312b0b7",
+              "readableId": "Dia_ch01_001-18",
+              "kind": "指令",
+              "characterId": "",
+              "displayName": "",
+              "text": {
+                "zh": "",
+                "en": "",
+                "ja": ""
+              },
+              "autoAdvance": false,
+              "command": "剧情.演出# CHA_影山菖蒲.进入=0",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "seed-104",
+              "readableId": "Dia_ch01_001-19",
+              "kind": "对话",
+              "characterId": "CHA_影山菖蒲",
+              "displayName": "",
+              "text": {
+                "zh": "因为……你对我来说，不是“任务”，也不是“恩情”。",
+                "en": "Because... to me, you are neither a \"mission\" nor a \"debt of gratitude.\"",
+                "ja": "だって…あなたは私にとって、「任務」でも「恩」でもないから。"
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "seed-105",
+              "readableId": "Dia_ch01_001-20",
+              "kind": "对话",
+              "characterId": "CHA_影山菖蒲",
+              "displayName": "",
+              "text": {
+                "zh": "你是……我选择的家人。",
+                "en": "You are... the family I chose.",
+                "ja": "あなたは…私が選んだ家族です。"
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "seed-108",
+              "readableId": "Dia_ch01_001-21",
+              "kind": "对话",
+              "characterId": "CHA_主角",
+              "displayName": "",
+              "text": {
+                "zh": "看吧，你们早就不是主仆，也不是敌人了。",
+                "en": "See? You two are no longer master-servant, nor enemies.",
+                "ja": "見ての通り、あなたたちはもう主従でも敵でもない。"
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "9142ec6c-4db9-4fc5-bcb3-6bb21af12031",
+              "readableId": "Dia_ch01_001-22",
+              "kind": "选项",
+              "characterId": "",
+              "displayName": "",
+              "text": {
+                "zh": "",
+                "en": "",
+                "ja": ""
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [
+                "seed-106",
+                "seed-107"
+              ],
+              "note": ""
+            }
+          ],
+          "options": [
+            {
+              "uid": "seed-106",
+              "readableId": "Dia_ch01_001-22A",
+              "text": {
+                "zh": "不如……试着一起留下，一起幸福。",
+                "en": "How about... trying to stay together, and be happy together?",
+                "ja": "いっそ……一緒に残って、一緒に幸せになってみない？"
+              },
+              "nextId": "seed-109",
+              "appearConditions": [],
+              "enableConditions": [],
+              "results": []
+            },
+            {
+              "uid": "seed-107",
+              "readableId": "Dia_ch01_001-22B",
+              "text": {
+                "zh": "(结束对话)",
+                "en": "(End conversation)",
+                "ja": "（会話を終了）"
+              },
+              "nextId": "",
+              "appearConditions": [],
+              "enableConditions": [],
+              "results": []
+            }
+          ]
+        },
+        {
+          "uid": "seed-123",
+          "id": "002",
+          "title": "段落 002",
+          "lines": [
+            {
+              "uid": "57ac8714-53f5-4b56-8745-a3c0839861a7",
+              "readableId": "Dia_ch01_002-1",
+              "kind": "指令",
+              "characterId": "",
+              "displayName": "",
+              "text": {
+                "zh": "",
+                "en": "",
+                "ja": ""
+              },
+              "autoAdvance": false,
+              "command": "剧情.演出# CHA_西园寺雪.表情=害羞",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "c41187af-6620-407d-96c8-7422540cf4f6",
+              "readableId": "Dia_ch01_002-2",
+              "kind": "指令",
+              "characterId": "",
+              "displayName": "",
+              "text": {
+                "zh": "",
+                "en": "",
+                "ja": ""
+              },
+              "autoAdvance": false,
+              "command": "背包# Like_西园寺雪+1",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "seed-109",
+              "readableId": "Dia_ch01_002-3",
+              "kind": "对话",
+              "characterId": "CHA_西园寺雪",
+              "displayName": "",
+              "text": {
+                "zh": "谁、谁要跟你一起幸福啊……我只是暂时没地方去而已。",
+                "en": "W-Who wants to be happy with you... I just don't have anywhere else to go for now.",
+                "ja": "だ、誰があなたと一緒に幸せになんてなるもんか……ただ一時的に行く場所がないだけよ。"
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "seed-110",
+              "readableId": "Dia_ch01_002-4",
+              "kind": "对话",
+              "characterId": "CHA_主角",
+              "displayName": "",
+              "text": {
+                "zh": "好好好，那你就“暂时”住着，等你想走的时候我也不拦你。",
+                "en": "Fine, fine. Then you can stay here \"for now.\" When you want to leave, I won't stop you.",
+                "ja": "はいはい。じゃあ、その「一時的に」住めばいい。出たいって言うときは止めないから。"
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "seed-111",
+              "readableId": "Dia_ch01_002-5",
+              "kind": "对话",
+              "characterId": "CHA_影山菖蒲",
+              "displayName": "",
+              "text": {
+                "zh": "……雪小姐，其实我……也不想回那个家了。",
+                "en": "...Miss Yuki, actually I... don't want to go back to that home either.",
+                "ja": "……雪さん、実は私……あの家にも戻りたくないんです。"
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "b2b181af-afab-48a8-b3a2-590faba04282",
+              "readableId": "Dia_ch01_002-6",
+              "kind": "指令",
+              "characterId": "",
+              "displayName": "",
+              "text": {
+                "zh": "",
+                "en": "",
+                "ja": ""
+              },
+              "autoAdvance": false,
+              "command": "剧情.演出# CHA_西园寺雪.表情=默认",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "seed-112",
+              "readableId": "Dia_ch01_002-7",
+              "kind": "对话",
+              "characterId": "CHA_西园寺雪",
+              "displayName": "",
+              "text": {
+                "zh": "菖蒲……你怎么也……你不是一直劝我回去联姻吗？",
+                "en": "Shoubu... you too... Weren't you the one always urging me to go back for an arranged marriage?",
+                "ja": "菖蒲……あなたまで……いつも私に戻って政略結婚しろって言ってたのはあなたじゃない。"
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "seed-113",
+              "readableId": "Dia_ch01_002-8",
+              "kind": "对话",
+              "characterId": "CHA_影山菖蒲",
+              "displayName": "",
+              "text": {
+                "zh": "因为那时候我以为，只有那样你才能幸福。现在我明白了……",
+                "en": "Because back then I thought that was the only way you could be happy. Now I understand...",
+                "ja": "だってあの頃は、それでしかあなたが幸せになれないと思っていたから。今は分かった……"
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "seed-114",
+              "readableId": "Dia_ch01_002-9",
+              "kind": "对话",
+              "characterId": "CHA_西园寺雪",
+              "displayName": "",
+              "text": {
+                "zh": "明白什么？",
+                "en": "Understand what?",
+                "ja": "何が分かったの？"
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "4de65eec-ce5c-4732-be3b-67e44ee8c4bc",
+              "readableId": "Dia_ch01_002-10",
+              "kind": "指令",
+              "characterId": "",
+              "displayName": "",
+              "text": {
+                "zh": "",
+                "en": "",
+                "ja": ""
+              },
+              "autoAdvance": false,
+              "command": "剧情.演出# CHA_影山菖蒲.表情=开心",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "seed-115",
+              "readableId": "Dia_ch01_002-11",
+              "kind": "对话",
+              "characterId": "CHA_影山菖蒲",
+              "displayName": "",
+              "text": {
+                "zh": "幸福不是别人安排的，是自己选的。就像雪小姐选择逃出来一样。",
+                "en": "Happiness isn't something others arrange for you. It's something you choose for yourself. Just like Miss Yuki chose to run away.",
+                "ja": "幸せは誰かに与えられるものじゃない。自分で選ぶものだ。雪さんが逃げ出す道を選んだように。"
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "seed-116",
+              "readableId": "Dia_ch01_002-12",
+              "kind": "对话",
+              "characterId": "CHA_西园寺雪",
+              "displayName": "",
+              "text": {
+                "zh": "菖蒲……你真的变了。以前你从来不会说这种话。",
+                "en": "Shoubu... you've really changed. You never used to say things like that.",
+                "ja": "菖蒲……本当に変わったね。昔のあなたはそんなこと言わなかった。"
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "seed-117",
+              "readableId": "Dia_ch01_002-13",
+              "kind": "对话",
+              "characterId": "CHA_主角",
+              "displayName": "",
+              "text": {
+                "zh": "那你们俩以后打算怎么办？",
+                "en": "So what do you two plan to do from now on?",
+                "ja": "じゃあ、二人はこれからどうするつもり？"
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "4473ba79-c34d-48a8-99da-c8848f6a42de",
+              "readableId": "Dia_ch01_002-14",
+              "kind": "指令",
+              "characterId": "",
+              "displayName": "",
+              "text": {
+                "zh": "",
+                "en": "",
+                "ja": ""
+              },
+              "autoAdvance": false,
+              "command": "剧情.演出# CHA_影山菖蒲.表情=害羞",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "seed-120",
+              "readableId": "Dia_ch01_002-15",
+              "kind": "对话",
+              "characterId": "CHA_影山菖蒲",
+              "displayName": "",
+              "text": {
+                "zh": "我想……和雪小姐一起，留在这里。如果……你愿意的话。",
+                "en": "I think... I want to stay here, with Miss Yuki. If... you're willing.",
+                "ja": "私は……雪さんと一緒に、ここに残りたい。もし……あなたがよければ。"
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "826d1f06-a37e-46df-bf1f-5407c859dfb1",
+              "readableId": "Dia_ch01_002-16",
+              "kind": "选项",
+              "characterId": "",
+              "displayName": "",
+              "text": {
+                "zh": "",
+                "en": "",
+                "ja": ""
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [
+                "seed-118",
+                "seed-119"
+              ],
+              "note": ""
+            }
+          ],
+          "options": [
+            {
+              "uid": "seed-118",
+              "readableId": "Dia_ch01_002-16A",
+              "text": {
+                "zh": "当然可以",
+                "en": "Sure, why not.",
+                "ja": "もちろんいいよ。"
+              },
+              "nextId": "seed-121",
+              "appearConditions": [],
+              "enableConditions": [],
+              "results": []
+            },
+            {
+              "uid": "seed-119",
+              "readableId": "Dia_ch01_002-16B",
+              "text": {
+                "zh": "......恕我拒绝，我可养不起两活爹",
+                "en": "...Sorry, but no. I can't afford to support two deadbeat dads.",
+                "ja": "……でもお断りする。二人分の“生きてる親父”なんて養えないからね。"
+              },
+              "nextId": "",
+              "appearConditions": [],
+              "enableConditions": [],
+              "results": []
+            }
+          ]
+        },
+        {
+          "uid": "seed-124",
+          "id": "003",
+          "title": "段落 003",
+          "lines": [
+            {
+              "uid": "c2c334ce-f33c-471a-a474-bdffbbcfa985",
+              "readableId": "Dia_ch01_003-1",
+              "kind": "指令",
+              "characterId": "",
+              "displayName": "",
+              "text": {
+                "zh": "",
+                "en": "",
+                "ja": ""
+              },
+              "autoAdvance": false,
+              "command": "背包# Like_影山菖蒲+1",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "seed-121",
+              "readableId": "Dia_ch01_003-2",
+              "kind": "对话",
+              "characterId": "CHA_影山菖蒲",
+              "displayName": "",
+              "text": {
+                "zh": "......谢谢",
+                "en": "",
+                "ja": ""
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [],
+              "note": ""
+            }
+          ],
+          "options": []
+        }
+      ]
+    }
+  ],
+  "variables": []
+}

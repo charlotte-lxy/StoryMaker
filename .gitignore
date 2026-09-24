@@ -1,0 +1,8 @@
+node_modules/
+dist/
+release/
+app-release/
+build/*.log
+*.local
+*.tsbuildinfo
+.DS_Store

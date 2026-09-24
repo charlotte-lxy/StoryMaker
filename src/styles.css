@@ -1,0 +1,2298 @@
+:root {
+  --bg: #f4f6fa;
+  --panel: #ffffff;
+  --rail: #eceff5;
+  --border: #e2e6ee;
+  --border-strong: #c9cfdb;
+  --text: #1f2633;
+  --text-dim: #737d8f;
+  --accent: #3b6ef5;
+  --accent-dark: #2b58d0;
+  --accent-soft: #e9f0ff;
+  --danger: #d1414c;
+  --danger-soft: #fdecee;
+  --warn: #b26a00;
+  --warn-soft: #fff5e6;
+  --ok: #1f8a4c;
+  --ok-soft: #e8f7ee;
+  --shadow-sm: 0 1px 2px rgba(23, 32, 52, 0.06);
+  --shadow-md: 0 6px 22px rgba(23, 32, 52, 0.14);
+  --mono: ui-monospace, SFMono-Regular, Consolas, 'Courier New', monospace;
+
+  /* 下面这些是给深色主题留的接口：浅色的值写在这里，深色的值整体覆盖一次 */
+  --control-bg: #ffffff;
+  --head-bg: #f7f9fc;
+  --row-hover: #fafbfe;
+  --id-text: #3d4759;
+  --rail-hover: rgba(255, 255, 255, 0.75);
+  --hairline: #f1f3f7;
+  --mask: rgba(23, 30, 44, 0.42);
+  --flash-bg: #fff2c9;
+  --flash-edge: #e0a300;
+  --toast-bg: #212936;
+  --toast-text: #ffffff;
+  --on-accent: #ffffff;
+  --danger-solid: #d1414c;
+  --danger-solid-hover: #b83843;
+  --chip-hover: rgba(0, 0, 0, 0.08);
+  /* 三种脚本类型的配色：对话=蓝、选项=紫、指令=橙 */
+  --type-对话: var(--accent-dark);
+  --type-对话-soft: var(--accent-soft);
+  --type-选项: #6b4bd8;
+  --type-选项-soft: #f0ebff;
+  --type-指令: var(--warn);
+  --type-指令-soft: var(--warn-soft);
+  color-scheme: light;
+}
+
+/* 深色主题：只换变量，布局和尺寸一个字都不动 */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #14181f;
+  --panel: #1d222b;
+  --rail: #171b23;
+  --border: #2b323e;
+  --border-strong: #3b4453;
+  --text: #e5e9f0;
+  --text-dim: #98a2b3;
+  --accent: #5c88f7;
+  --accent-dark: #82a5ff;
+  --accent-soft: #23304d;
+  --danger: #ff8189;
+  --danger-soft: #3a2226;
+  --warn: #e0a94a;
+  --warn-soft: #3a2f1c;
+  --ok: #58c98b;
+  --ok-soft: #1d3327;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow-md: 0 8px 26px rgba(0, 0, 0, 0.55);
+
+  --control-bg: #252c37;
+  --head-bg: #222933;
+  --row-hover: #232a35;
+  --id-text: #c3ccdb;
+  --rail-hover: rgba(255, 255, 255, 0.07);
+  --hairline: #262d38;
+  --mask: rgba(0, 0, 0, 0.62);
+  --flash-bg: rgba(224, 163, 0, 0.3);
+  --flash-edge: #e0a300;
+  --toast-bg: #2c3542;
+  --toast-text: #eef2f8;
+  --on-accent: #ffffff;
+  --danger-solid: #b8384a;
+  --danger-solid-hover: #a02f40;
+  --chip-hover: rgba(255, 255, 255, 0.16);
+  --type-选项: #b49bff;
+  --type-选项-soft: #2c2745;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- 通用控件 ---------- */
+
+button {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--control-bg);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+button.primary:hover:not(:disabled) {
+  background: var(--accent-dark);
+  border-color: var(--accent-dark);
+  color: var(--on-accent);
+}
+
+button.mini {
+  padding: 1px 6px;
+  font-size: 11px;
+  line-height: 16px;
+  border-radius: 4px;
+  border-color: var(--border);
+  background: transparent;
+  color: var(--text-dim);
+}
+
+button.mini.danger:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text);
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  padding: 4px 6px;
+  width: 100%;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+input:hover,
+select:hover,
+textarea:hover {
+  border-color: var(--border);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--control-bg);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+textarea {
+  resize: vertical;
+  line-height: 1.55;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* ---------- 顶部工具栏 ---------- */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  flex-wrap: wrap;
+  z-index: 5;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.01em;
+}
+
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: linear-gradient(135deg, var(--accent), #7a5cf0);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.project-name {
+  width: 200px;
+  border-color: var(--border);
+  background: var(--control-bg);
+  font-weight: 600;
+}
+
+.toolbar-group {
+  display: flex;
+  gap: 6px;
+}
+
+.toolbar .spacer {
+  flex: 1;
+}
+
+/* 桌面模式下显示当前项目文件名 */
+.file-chip {
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--text-dim);
+  font-size: 12px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge.error {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.badge.warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.badge.ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+/* ---------- 主体三栏 ---------- */
+
+.body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.rail {
+  width: 78px;
+  flex-shrink: 0;
+  background: var(--rail);
+  border-right: 1px solid var(--border);
+  padding: 10px 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rail-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 4px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.rail-item:hover:not(.active) {
+  background: var(--rail-hover);
+  color: var(--text);
+}
+
+.rail-item.active {
+  background: var(--panel);
+  color: var(--accent);
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
+.rail-icon {
+  font-size: 17px;
+  line-height: 1;
+}
+
+/* 设置固定贴在模块栏最下方（左下角） */
+.rail-item-bottom {
+  margin-top: auto;
+}
+
+/* ---------- 章节树 ---------- */
+
+.sidebar {
+  width: 244px;
+  flex-shrink: 0;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  /* 上下两个区域：上面章节树，下面脚本块 */
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.sidebar-tree {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 14px;
+}
+
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 12px 9px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  z-index: 2;
+}
+
+.sidebar-head h3 {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  color: var(--text-dim);
+  font-weight: 700;
+}
+
+.tree-chapter-block {
+  padding-top: 6px;
+}
+
+.tree-chapter {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px 5px 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tree-chapter:hover {
+  background: var(--bg);
+}
+
+/* 正在看流程图的章节 */
+.tree-chapter.active {
+  background: var(--accent-soft);
+}
+
+.tree-chapter.active .chapter-title {
+  color: var(--accent-dark);
+}
+
+.chapter-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chapter-id {
+  font-family: var(--mono);
+  color: var(--text-dim);
+  font-weight: 400;
+  font-size: 11px;
+}
+
+.tree-chapter .mini {
+  margin-left: auto;
+}
+
+.tree-chapter .mini + .mini {
+  margin-left: 2px;
+}
+
+.tree-group {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px 5px 22px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: background 0.12s;
+}
+
+.tree-group:hover {
+  background: var(--bg);
+}
+
+.tree-group.active {
+  background: var(--accent-soft);
+  border-left-color: var(--accent);
+}
+
+.group-id {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.group-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-group .count {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.tree-group .mini {
+  opacity: 0;
+}
+
+.tree-group:hover .mini,
+.tree-group.active .mini {
+  opacity: 1;
+}
+
+/* 章节行的 ＋ / × / ✎ 平时淡一点，鼠标移到这一行再全部显出来 */
+.tree-chapter .mini {
+  opacity: 0.35;
+}
+
+.tree-chapter:hover .mini,
+.tree-chapter.active .mini {
+  opacity: 1;
+}
+
+/* 重命名时的行内输入框 */
+.rename-input {
+  flex: 1;
+  min-width: 0;
+  padding: 1px 5px;
+  border-color: var(--accent);
+  background: var(--control-bg);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tree-empty {
+  padding: 8px 14px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+/* ---------- 脚本块（侧边栏下半区） ---------- */
+
+.palette {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.palette-head {
+  flex-shrink: 0;
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  color: var(--text-dim);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* 横向排布的脚本块：整条固定贴在对话列表最下方 */
+.script-block {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: 8px;
+  background: var(--control-bg);
+  box-shadow: var(--shadow-sm);
+  cursor: grab;
+  white-space: normal;
+  text-align: left;
+}
+
+.script-block:hover {
+  border-color: var(--accent);
+}
+
+.script-block:active {
+  cursor: grabbing;
+}
+
+.block-对话 {
+  border-left-color: var(--type-对话);
+}
+
+.block-选项 {
+  border-left-color: var(--type-选项);
+}
+
+.block-指令 {
+  border-left-color: var(--type-指令);
+}
+
+.script-block .type-tag {
+  flex-shrink: 0;
+  height: 20px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+.script-block-note {
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- 章节流程图 + 对话列表的分栏 ---------- */
+
+.story-split {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.flow-pane {
+  flex: 0 0 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.flow-head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.flow-head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.flow-head .hint {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.flow-head .spacer {
+  flex: 1;
+}
+
+.flow-canvas {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--bg);
+}
+
+/* 块和线共用同一套坐标，所以画布本身只是个定位容器 */
+.flow-board {
+  position: relative;
+}
+
+.flow-lines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* 加宽的透明命中线：鼠标悬浮到细细的线上也能触发高亮 */
+.flow-line-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 14;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.flow-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.6;
+  transition: opacity 0.12s, stroke-width 0.12s;
+}
+
+.flow-arrow-head {
+  fill: var(--accent);
+}
+
+/* 悬浮某条线时：它加粗，其他线和其他标签一起淡下去 */
+.flow-board.dimming .flow-line {
+  opacity: 0.16;
+}
+
+.flow-board.dimming .flow-line.active {
+  opacity: 1;
+  stroke-width: 3;
+}
+
+.flow-board.dimming .flow-edge-label {
+  opacity: 0.25;
+}
+
+.flow-board.dimming .flow-edge-label.active {
+  opacity: 1;
+}
+
+.flow-block {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow-sm);
+  text-align: left;
+  white-space: normal;
+  cursor: pointer;
+  /* 高度由内容决定（注释换行会把它撑高），布局会量这个高度 */
+  height: auto;
+  transition: opacity 0.12s, border-color 0.12s, background 0.12s;
+}
+
+.flow-block:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* 当前正在编辑的那一段 */
+.flow-block.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* 悬浮时与当前这条线/这个块有关的段落，加个圈更显眼 */
+.flow-block.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+/* 悬浮某条线时，两端之外的段落块淡下去 */
+.flow-board.dimming .flow-block {
+  opacity: 0.25;
+}
+
+.flow-board.dimming .flow-block.active {
+  opacity: 1;
+}
+
+/* 改名 / 注释两个小按钮，平时淡显，鼠标移到块上或正在编辑时显出来 */
+.flow-block-tools {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  display: flex;
+  gap: 2px;
+  opacity: 0.3;
+}
+
+.flow-block:hover .flow-block-tools,
+.flow-block.editing .flow-block-tools {
+  opacity: 1;
+}
+
+.flow-block-tools .mini {
+  padding: 0 4px;
+  font-size: 11px;
+  line-height: 16px;
+  border-color: transparent;
+  background: var(--panel);
+}
+
+.flow-block-title {
+  font-size: 13px;
+  font-weight: 600;
+  padding-right: 34px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flow-block-meta {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* 段落注释：跟着内容往下长 */
+.flow-block-note {
+  margin-top: 2px;
+  padding-left: 6px;
+  border-left: 2px solid var(--border-strong);
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.flow-block-note-input {
+  margin-top: 3px;
+  padding: 3px 5px;
+  border-color: var(--accent);
+  background: var(--control-bg);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* 块里改名用的输入框 */
+.flow-block .rename-input {
+  font-size: 13px;
+  padding: 0 5px;
+}
+
+/* 线上的选项标签：点它跳到那个选项 */
+.flow-edge-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  max-width: 190px;
+  padding: 2px 8px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--accent);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: opacity 0.12s, background 0.12s, color 0.12s;
+}
+
+.flow-edge-label:hover,
+.flow-edge-label.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+/* 中间那条可以左右拖的分隔线 */
+.split-handle {
+  position: relative;
+  flex: 0 0 7px;
+  cursor: col-resize;
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  touch-action: none;
+}
+
+.split-handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 3px;
+  height: 36px;
+  border-radius: 2px;
+  background: var(--border-strong);
+}
+
+.split-handle:hover::after,
+.split-handle.dragging::after {
+  background: var(--accent);
+}
+
+.list-pane {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- 对话列表（三种脚本类型各占一行） ---------- */
+
+/* 类型标签：对话 / 选项 / 指令 */
+.type-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.type-对话 {
+  background: var(--type-对话-soft);
+  color: var(--type-对话);
+}
+
+.type-选项 {
+  background: var(--type-选项-soft);
+  color: var(--type-选项);
+}
+
+.type-指令 {
+  background: var(--type-指令-soft);
+  color: var(--type-指令);
+}
+
+.line-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.line-card {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px 10px 8px 2px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  box-shadow: var(--shadow-sm);
+  /* 整行空白处都能按住拖动排序 */
+  cursor: grab;
+}
+
+.line-card:active {
+  cursor: grabbing;
+}
+
+/* 输入控件还是各用各的光标，别被上面的抓手光标盖掉 */
+.line-card input,
+.line-card textarea,
+.line-card select {
+  cursor: auto;
+}
+
+/* 左侧色条：不读文字也能分清这一行是什么类型 */
+.line-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--type-color);
+}
+
+.type-card-对话 {
+  --type-color: var(--type-对话);
+}
+
+.type-card-选项 {
+  --type-color: var(--type-选项);
+}
+
+.type-card-指令 {
+  --type-color: var(--type-指令);
+}
+
+.line-card.dragging {
+  opacity: 0.45;
+}
+
+/* 正在编辑的这一行整块换色，一眼看出改的是哪一行 */
+.line-card.editing {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.line-card.flash {
+  animation: row-flash 1.8s ease-out;
+}
+
+/* 新行会插在这条线的位置。用内阴影画线，不占布局高度，
+   免得标记自己把行挤动、导致指针下的目标来回跳。 */
+.line-card.drop-before {
+  border-color: var(--accent);
+  box-shadow: inset 0 3px 0 var(--accent);
+}
+
+.line-card.drop-after {
+  border-color: var(--accent);
+  box-shadow: inset 0 -3px 0 var(--accent);
+}
+
+/* 选择器带上 .line-card：不然会被后面 .drag-handle 的 opacity: 0 盖掉 */
+.line-card .line-drag {
+  flex-shrink: 0;
+  align-self: stretch;
+  width: 14px;
+  margin: 2px 2px 2px 5px;
+  /* 只是个"这里能拖"的提示，常驻淡显 */
+  opacity: 0.28;
+}
+
+.line-card:hover .line-drag {
+  opacity: 0.6;
+}
+
+/* 正在编辑的行拖不动，就把提示收起来 */
+.line-card.editing .line-drag {
+  opacity: 0;
+}
+
+.line-fields {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: flex-start;
+}
+
+/* 条目左侧的段内序号：完整 ID 太长，这里只标 "-" 后面那截 */
+.line-seq {
+  flex-shrink: 0;
+  align-self: center;
+  min-width: 26px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.line-card.editing .line-seq {
+  background: var(--panel);
+  color: var(--accent-dark);
+}
+
+.line-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+/* 每个输入框的上面就是它的名字 */
+.line-field-name {
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.line-field-kind,
+.line-field-auto,
+.line-field-actions {
+  flex: 0 0 auto;
+}
+
+.line-field-character {
+  flex: 0 1 170px;
+}
+
+.line-field-text {
+  flex: 1 1 260px;
+}
+
+.line-field-options {
+  flex: 1 1 420px;
+}
+
+.line-field-command {
+  flex: 1 1 460px;
+}
+
+.line-field-actions {
+  margin-left: auto;
+}
+
+.line-field select,
+.line-field input,
+.line-field textarea {
+  border-color: var(--border);
+  background: var(--control-bg);
+}
+
+.line-field input[type='checkbox'] {
+  width: auto;
+  margin-top: 3px;
+  cursor: pointer;
+}
+
+/* 备注：有备注的按钮会被标出来，悬浮时把内容弹出来 */
+.note-button {
+  position: relative;
+}
+
+.note-button.has-note {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.note-button.has-note::before {
+  content: '●';
+  margin-right: 3px;
+  font-size: 8px;
+  vertical-align: middle;
+}
+
+.note-button.has-note::after {
+  content: attr(data-note);
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 20;
+  display: none;
+  max-width: 320px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow-md);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.6;
+  text-align: left;
+  white-space: pre-wrap;
+  pointer-events: none;
+}
+
+.note-button.has-note:hover::after {
+  display: block;
+}
+
+.line-note {
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 2px 6px 2px 21px;
+}
+
+.line-note textarea {
+  border-color: var(--border);
+  background: var(--control-bg);
+}
+
+.line-empty {
+  padding: 38px 20px;
+  color: var(--text-dim);
+  text-align: center;
+  background: var(--panel);
+  border: 1px dashed var(--border-strong);
+  border-radius: 10px;
+}
+
+/* 列表末尾的追加区：把块拖到空白处就等于加到最后 */
+.line-tail {
+  min-height: 30px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  opacity: 0.55;
+}
+
+.line-tail:hover,
+.line-tail.drop-tail {
+  opacity: 1;
+  border-color: var(--accent);
+}
+
+.line-tail.drop-tail {
+  box-shadow: inset 0 3px 0 var(--accent);
+}
+
+/* ---------- 内容区 ---------- */
+
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.editor {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px 18px 22px;
+}
+
+.editor-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.editor-head h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.editor-head .hint {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.editor-head .primary {
+  margin-left: auto;
+}
+
+.empty-state {
+  padding: 44px 20px;
+  color: var(--text-dim);
+  text-align: center;
+  background: var(--panel);
+  border: 1px dashed var(--border-strong);
+  border-radius: 10px;
+}
+
+/* ---------- 表格 ---------- */
+
+table.lines {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+table.lines th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  padding: 9px 9px;
+  background: var(--head-bg);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  letter-spacing: 0.03em;
+}
+
+table.lines td {
+  border-bottom: 1px solid var(--border);
+  padding: 4px 6px;
+  vertical-align: middle;
+}
+
+table.lines tr:last-child td {
+  border-bottom: none;
+}
+
+table.lines tbody tr.line-row:hover {
+  background: var(--row-hover);
+}
+
+.cell-id {
+  font-family: var(--mono);
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--id-text);
+}
+
+.row-actions {
+  display: flex;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+.row-actions button {
+  padding: 2px 7px;
+  font-size: 11px;
+  line-height: 1.5;
+  border-radius: 5px;
+}
+
+.col-mid {
+  min-width: 132px;
+}
+
+.col-narrow {
+  width: 100px;
+}
+
+/* 角色列：列宽由最长的角色名决定，见 .col-measure */
+.usage-cell {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+/* ---------- 选项编辑区 ---------- */
+
+.option-editor {
+  padding: 2px 0 0;
+}
+
+.option-add {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 3px 14px;
+  font-size: 12px;
+  border-style: dashed;
+  color: var(--text-dim);
+}
+
+.option-add:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.option-empty {
+  padding: 8px 10px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  color: var(--text-dim);
+  font-size: 12px;
+  text-align: center;
+}
+
+.option-item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--control-bg);
+  padding: 10px 12px;
+  margin-bottom: 9px;
+  box-shadow: var(--shadow-sm);
+}
+
+.option-item:last-child {
+  margin-bottom: 0;
+}
+
+/* 从流程图点选项标签跳过来的那个选项，闪一下 */
+.option-item.flash {
+  animation: row-flash 1.8s ease-out;
+}
+
+.option-item.dangling {
+  border-color: var(--danger);
+  border-style: dashed;
+  color: var(--danger);
+  text-align: center;
+  padding: 14px;
+}
+
+.option-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 9px;
+}
+
+.option-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.option-id {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.option-head button {
+  margin-left: auto;
+  padding: 3px 9px;
+  font-size: 11px;
+}
+
+/* 条件与结果都改成了条目式（含下拉），一列放不下，改成自适应换行 */
+.option-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field > span {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.field input,
+.field select,
+.field textarea {
+  border-color: var(--border);
+  background: var(--control-bg);
+}
+
+.field-error {
+  color: var(--danger);
+  font-size: 11px;
+  margin-top: 3px;
+}
+
+.expr-input textarea {
+  border-color: var(--border);
+  background: var(--control-bg);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.expr-error {
+  color: var(--danger);
+  font-size: 11px;
+  margin-top: 3px;
+}
+
+/* 跳转目标：两级下拉竖排 */
+.jump-selects {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.jump-selects select {
+  border-color: var(--border);
+  background: var(--control-bg);
+  font-size: 12px;
+}
+
+.jump-selects select:disabled {
+  background: var(--bg);
+  color: var(--text-dim);
+  cursor: not-allowed;
+}
+
+/* 第二级下拉与「跳转」按钮同一行 */
+.jump-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.jump-row select {
+  flex: 1;
+  min-width: 0;
+}
+
+.jump-button {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 5px;
+  border-color: var(--border);
+  color: var(--accent);
+}
+
+.jump-button:hover:not(:disabled) {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* 从跳转按钮过来的目标行，短暂闪一下 */
+@keyframes row-flash {
+  0%,
+  55% {
+    background: var(--flash-bg);
+    box-shadow: inset 3px 0 0 var(--flash-edge);
+  }
+  100% {
+    background: transparent;
+    box-shadow: inset 3px 0 0 transparent;
+  }
+}
+
+/* ---------- 校验面板 ---------- */
+
+.issues {
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+  max-height: 216px;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.issues-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 18px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  z-index: 2;
+}
+
+.issues-head h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.issues-head .hint {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.issues-head .spacer {
+  flex: 1;
+}
+
+.issue-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.issue-list li {
+  border-bottom: 1px solid var(--hairline);
+}
+
+.issue-list li:last-child {
+  border-bottom: none;
+}
+
+/* 每条问题都能点：点了跳到出问题的那一行 */
+.issue-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 18px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  text-align: left;
+  white-space: normal;
+}
+
+.issue-row:hover:not(:disabled) {
+  background: var(--row-hover);
+  color: inherit;
+}
+
+.issue-list .where {
+  color: var(--text-dim);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.issue-list .target {
+  font-family: var(--mono);
+  font-size: 12px;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.issue-list .msg {
+  flex: 1;
+}
+
+.issue-list li.error .target,
+.issue-list li.error .msg {
+  color: var(--danger);
+}
+
+.issues-hint {
+  padding: 7px 18px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+/* ---------- 浮层 ---------- */
+
+.toast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  background: var(--toast-bg);
+  color: var(--toast-text);
+  padding: 12px 17px;
+  border-radius: 9px;
+  box-shadow: var(--shadow-md);
+  max-width: 480px;
+  z-index: 50;
+  animation: toast-in 0.18s ease-out;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  background: var(--mask);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+}
+
+.modal {
+  background: var(--panel);
+  border-radius: 11px;
+  width: 640px;
+  max-width: 92vw;
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+
+.modal header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.modal .modal-body {
+  padding: 14px 18px;
+  overflow: auto;
+}
+
+.modal-note {
+  margin-top: 0;
+  color: var(--text-dim);
+}
+
+.modal footer {
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ---------- 拖拽排序 ---------- */
+
+.drag-handle {
+  display: inline-block;
+  width: 12px;
+  height: 20px;
+  opacity: 0;
+  cursor: grab;
+  transition: opacity 0.12s;
+  background-image: radial-gradient(circle, var(--text-dim) 1.3px, transparent 1.4px);
+  background-size: 6px 6px;
+  background-position: 0 2px;
+}
+
+tr:hover .drag-handle {
+  opacity: 0.45;
+}
+
+.drag-handle:hover {
+  opacity: 1;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+tr.dragging {
+  opacity: 0.4;
+}
+
+tr.drop-target {
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+/* ---------- 本地化模块 ---------- */
+
+.col-key {
+  width: 250px;
+}
+
+.loc-key {
+  white-space: nowrap;
+}
+
+.kind-chip {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 9px;
+  background: var(--bg);
+  color: var(--text-dim);
+  font-size: 10px;
+  font-family: inherit;
+  font-weight: 400;
+  vertical-align: middle;
+}
+
+tr.group-heading td {
+  background: var(--head-bg);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+tr.needs-work .loc-key {
+  color: var(--warn);
+}
+
+.warn-text {
+  color: var(--warn);
+}
+
+/* ---------- 指令模块 ---------- */
+
+.command-text {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 12px;
+  cursor: text;
+  padding: 2px 4px;
+  border-radius: 4px;
+  border: 1px dashed transparent;
+}
+
+.command-text:hover {
+  border-color: var(--border-strong);
+  background: var(--control-bg);
+}
+
+.command-cell {
+  font-size: 12px;
+  color: var(--text-dim);
+  padding-top: 8px !important;
+  white-space: nowrap;
+}
+
+.command-locations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.loc-chip {
+  padding: 1px 6px;
+  font-size: 11px;
+  font-family: var(--mono);
+  border-radius: 4px;
+  border-color: var(--border);
+  color: var(--text-dim);
+}
+
+.loc-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.command-note {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.command-note code {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--text);
+  align-self: flex-start;
+}
+
+/* ---------- 角色表情差分 ---------- */
+
+.expression-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 0;
+}
+
+.expression-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 4px 2px 8px;
+  border-radius: 11px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.expression-chip button {
+  border: none;
+  background: transparent;
+  padding: 0 3px;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--accent-dark);
+  border-radius: 50%;
+  opacity: 0.6;
+}
+
+.expression-chip button:hover {
+  background: var(--chip-hover);
+  color: var(--danger);
+  opacity: 1;
+}
+
+.expression-add {
+  width: 148px;
+  border-color: var(--border);
+  background: var(--control-bg);
+  font-size: 12px;
+  border-style: dashed;
+}
+
+/* ---------- 标签页 ---------- */
+
+.tab-row {
+  display: flex;
+  gap: 4px;
+}
+
+.tab {
+  padding: 4px 12px;
+  border-radius: 7px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.tab:hover:not(.active) {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.fixed-values {
+  margin-top: 3px;
+  border-color: var(--border);
+  background: var(--control-bg);
+  font-size: 12px;
+  font-family: var(--mono);
+}
+
+/* ---------- 指令填写 ---------- */
+
+.command-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  /* 限制整个指令块的宽度。三个下拉横排会累加宽度，
+     不设上限的话它们会把表格里的指令列一路撑开。 */
+  max-width: 264px;
+}
+
+/* 指令 / 目标 / 结果 三个下拉水平排列，宽度按内容自适应 */
+.command-pickers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* 「指令」行：预览与下拉全部横排，占满一行 */
+.command-list.inline {
+  max-width: none;
+  flex-direction: row;
+  align-items: center;
+}
+
+.command-item.inline {
+  flex: 1;
+  min-width: 0;
+  flex-direction: row;
+  align-items: center;
+}
+
+.command-item.inline .command-item-head {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* 下拉紧跟预览框，不要被推到行尾 */
+.command-item.inline .command-pickers {
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
+}
+
+.command-pickers > select,
+.command-pickers > input {
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 0;
+  max-width: 124px;
+}
+
+/* 第一行：宽度由不可见的文本副本决定，输入框绝对定位铺满 */
+.command-field {
+  position: relative;
+  display: inline-flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* 「指令」行的预览框：宽度固定，字重正常，不跟着内容忽宽忽窄 */
+.command-text-inline {
+  width: 260px;
+  flex: 0 0 auto;
+  border-color: var(--border);
+  background: var(--control-bg);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text);
+}
+
+.command-probe {
+  visibility: hidden;
+  white-space: pre;
+  overflow: hidden;
+  max-width: 100%;
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.command-text-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  border-color: var(--border);
+  background: var(--control-bg);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.command-item {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--control-bg);
+  padding: 5px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.command-item-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.command-item-head .command-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 第一行：可手写，也会被下面的下拉覆盖。
+   宽度交给上面的 .command-field / .command-probe 控制。 */
+
+.command-item-head button {
+  margin-left: auto;
+  padding: 0 6px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-dim);
+}
+
+.command-item-head button:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.command-item select,
+.command-item input {
+  border-color: var(--border);
+  background: var(--control-bg);
+  font-size: 12px;
+}
+
+.command-preview {
+  font-size: 11px;
+  color: var(--accent-dark);
+  font-family: var(--mono);
+  padding-left: 2px;
+}
+
+.command-custom input {
+  border-style: dashed;
+  color: var(--text-dim);
+}
+
+.command-add {
+  align-self: flex-start;
+  padding: 3px 10px;
+  font-size: 12px;
+  border-style: dashed;
+  color: var(--text-dim);
+}
+
+.command-add:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.command-add.empty {
+  width: 100%;
+  padding: 5px 10px;
+  text-align: center;
+}
+
+/* 条件 / 指令 分区标题 */
+.section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 16px 0 8px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.section-head span {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+.command-drag {
+  opacity: 0.35;
+  height: 16px;
+}
+
+.command-item:hover .command-drag {
+  opacity: 0.7;
+}
+
+.command-item.dragging {
+  opacity: 0.4;
+}
+
+.command-item.drop-target {
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+/* ---------- 崩溃兜底页 ---------- */
+
+.crash {
+  max-width: 860px;
+  margin: 40px auto;
+  padding: 24px 28px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+}
+
+.crash h1 {
+  margin: 0 0 8px;
+  font-size: 20px;
+  color: var(--danger);
+}
+
+.crash-hint {
+  margin: 0 0 16px;
+  color: var(--text-dim);
+}
+
+.crash-meta {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 6px 14px;
+  margin: 0 0 16px;
+  font-size: 13px;
+}
+
+.crash-meta dt {
+  color: var(--text-dim);
+}
+
+.crash-meta dd {
+  margin: 0;
+  font-family: var(--mono);
+  word-break: break-all;
+}
+
+.crash-stack {
+  max-height: 320px;
+  overflow: auto;
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  background: var(--head-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.crash-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.crash-actions .danger {
+  margin-left: auto;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.crash-actions .danger:hover {
+  background: var(--danger-solid);
+  border-color: var(--danger-solid);
+  color: var(--on-accent);
+}
+
+/* ---------- 确认框 ---------- */
+
+.confirm-modal {
+  width: 480px;
+}
+
+.confirm-message {
+  margin: 0;
+  /* 文案里带换行，按原样显示 */
+  white-space: pre-line;
+  line-height: 1.7;
+}
+
+.confirm-modal footer .danger {
+  background: var(--danger-solid);
+  border-color: var(--danger-solid);
+  color: var(--on-accent);
+}
+
+.confirm-modal footer .danger:hover {
+  background: var(--danger-solid-hover);
+  border-color: var(--danger-solid-hover);
+  color: var(--on-accent);
+}
+
+/* ---------- 设置 ---------- */
+
+.settings {
+  max-width: 720px;
+}
+
+.settings-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  box-shadow: var(--shadow-sm);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+
+.settings-item {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.settings-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.settings-text span {
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+/* 开关和主题选择都靠右，和左边的说明文字拉开距离 */
+.settings-item > .switch,
+.settings-item > .theme-picker {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+/* 真正的 checkbox 藏起来，外观交给下面的轨道 */
+.switch input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  padding: 0;
+  border: none;
+  opacity: 0;
+}
+
+.switch-track {
+  position: relative;
+  width: 38px;
+  height: 20px;
+  border-radius: 10px;
+  background: var(--border-strong);
+  transition: background 0.15s;
+}
+
+.switch-track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.15s;
+}
+
+.switch input:checked + .switch-track {
+  background: var(--accent);
+}
+
+.switch input:checked + .switch-track::after {
+  transform: translateX(18px);
+}
+
+.switch input:focus-visible + .switch-track {
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.switch-label {
+  width: 42px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.theme-picker {
+  display: flex;
+  gap: 8px;
+}
+
+.theme-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--control-bg);
+}
+
+.theme-option.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.theme-swatch {
+  width: 52px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+}
+
+.theme-swatch.light {
+  background: linear-gradient(135deg, #ffffff 0 55%, #eceff5 55% 100%);
+}
+
+.theme-swatch.dark {
+  background: linear-gradient(135deg, #1d222b 0 55%, #14181f 55% 100%);
+}

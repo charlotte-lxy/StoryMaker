@@ -1,0 +1,386 @@
+{
+  "version": 1,
+  "name": "未命名项目",
+  "characters": [
+    {
+      "uid": "c3450102-05ed-4ed9-9e0e-a4bb98997402",
+      "id": "CHA_角色1",
+      "name": "角色1",
+      "expressions": [
+        "默认",
+        "开心",
+        "生气",
+        "悲伤",
+        "害羞"
+      ],
+      "actions": [
+        "默认"
+      ]
+    }
+  ],
+  "items": [],
+  "quests": [],
+  "images": [],
+  "sounds": [],
+  "commands": [
+    {
+      "uid": "e53c79a1-a810-4516-b217-9e9730a224de",
+      "category": "条件",
+      "head": "背包",
+      "branch": "",
+      "target": "item",
+      "attribute": "",
+      "operator": ">=",
+      "value": "number",
+      "fixedValues": [],
+      "note": "物品数量判断：大于等于"
+    },
+    {
+      "uid": "84faca2d-dd96-4c4c-9313-5ffb8b5080a8",
+      "category": "条件",
+      "head": "背包",
+      "branch": "",
+      "target": "item",
+      "attribute": "",
+      "operator": "<=",
+      "value": "number",
+      "fixedValues": [],
+      "note": "物品数量判断：小于等于"
+    },
+    {
+      "uid": "ee5c76d0-74e6-4ffa-9220-7699fb60533e",
+      "category": "条件",
+      "head": "背包",
+      "branch": "",
+      "target": "item",
+      "attribute": "",
+      "operator": "==",
+      "value": "number",
+      "fixedValues": [],
+      "note": "物品数量判断：等于"
+    },
+    {
+      "uid": "2f73e53c-d0ca-454e-aa20-6d1717667ab7",
+      "category": "条件",
+      "head": "背包",
+      "branch": "",
+      "target": "item",
+      "attribute": "",
+      "operator": ">",
+      "value": "number",
+      "fixedValues": [],
+      "note": "物品数量判断：大于"
+    },
+    {
+      "uid": "175d3af5-f91a-4acf-90eb-304d45d5e4a8",
+      "category": "条件",
+      "head": "背包",
+      "branch": "",
+      "target": "item",
+      "attribute": "",
+      "operator": "<",
+      "value": "number",
+      "fixedValues": [],
+      "note": "物品数量判断：小于"
+    },
+    {
+      "uid": "2e29bad3-54b9-4dde-ab3e-53354980d360",
+      "category": "条件",
+      "head": "任务",
+      "branch": "",
+      "target": "quest",
+      "attribute": "",
+      "operator": "=",
+      "value": "fixed",
+      "fixedValues": [
+        "1"
+      ],
+      "note": "任务完成判断：完成"
+    },
+    {
+      "uid": "a742420c-9f0c-4526-93b0-247a487f6c6e",
+      "category": "条件",
+      "head": "任务",
+      "branch": "",
+      "target": "quest",
+      "attribute": "",
+      "operator": "=",
+      "value": "fixed",
+      "fixedValues": [
+        "0"
+      ],
+      "note": "任务完成判断：未完成"
+    },
+    {
+      "uid": "910b5b7c-378a-42a0-99e9-3d5998dc0cfd",
+      "category": "条件",
+      "head": "剧情",
+      "branch": "",
+      "target": "line",
+      "attribute": "",
+      "operator": "=",
+      "value": "fixed",
+      "fixedValues": [
+        "1"
+      ],
+      "note": "对话完成判断：完成"
+    },
+    {
+      "uid": "3833bb7e-e041-4cea-92a8-ed3aed7066ff",
+      "category": "条件",
+      "head": "剧情",
+      "branch": "",
+      "target": "line",
+      "attribute": "",
+      "operator": "=",
+      "value": "fixed",
+      "fixedValues": [
+        "0"
+      ],
+      "note": "对话完成判断：未完成"
+    },
+    {
+      "uid": "81ac87fa-d0d7-48a0-9607-cce2222a3b8c",
+      "category": "条件",
+      "head": "特殊",
+      "branch": "",
+      "target": "manual",
+      "attribute": "",
+      "operator": "=",
+      "value": "fixed",
+      "fixedValues": [
+        "1"
+      ],
+      "note": "特殊条件，正常表达式判断不了的情况，需和程序提前沟通"
+    },
+    {
+      "uid": "aea127d7-3fd9-4416-8336-c5f502cda5a6",
+      "category": "条件",
+      "head": "特殊",
+      "branch": "",
+      "target": "manual",
+      "attribute": "",
+      "operator": "=",
+      "value": "fixed",
+      "fixedValues": [
+        "0"
+      ],
+      "note": "特殊条件（未完成）"
+    },
+    {
+      "uid": "e4e3c1c5-f609-4ad5-9b6f-ee728ae7d433",
+      "category": "指令",
+      "head": "剧情.演出",
+      "branch": "立绘进入",
+      "target": "character",
+      "attribute": "进入",
+      "operator": "=",
+      "value": "fixed",
+      "fixedValues": [
+        "1"
+      ],
+      "note": "角色需先进入后才能操作表情与动作"
+    },
+    {
+      "uid": "ac1f12ae-d254-49fa-84d5-3d89aa4eb2c2",
+      "category": "指令",
+      "head": "剧情.演出",
+      "branch": "立绘退出",
+      "target": "character",
+      "attribute": "退出",
+      "operator": "=",
+      "value": "fixed",
+      "fixedValues": [
+        "1"
+      ],
+      "note": "角色下场"
+    },
+    {
+      "uid": "1a7c14ec-9b8f-4ee5-bc7d-836513ea38b8",
+      "category": "指令",
+      "head": "剧情.演出",
+      "branch": "设置表情",
+      "target": "character",
+      "attribute": "表情",
+      "operator": "=",
+      "value": "expression",
+      "fixedValues": [],
+      "note": "表情清单在角色表里配置"
+    },
+    {
+      "uid": "a5c25b75-0d32-44b3-811f-0d9c30a709d2",
+      "category": "指令",
+      "head": "剧情.演出",
+      "branch": "设置动作",
+      "target": "character",
+      "attribute": "动作",
+      "operator": "=",
+      "value": "action",
+      "fixedValues": [],
+      "note": "动作清单在角色表里配置"
+    },
+    {
+      "uid": "a7beb9b2-a059-466c-916b-8244e0f73d56",
+      "category": "指令",
+      "head": "剧情.图片",
+      "branch": "",
+      "target": "image",
+      "attribute": "",
+      "operator": "",
+      "value": "none",
+      "fixedValues": [],
+      "note": "展示图片，图片 ID 来自立绘表"
+    },
+    {
+      "uid": "68bf5f1d-e110-44dc-a151-0286bf8a7318",
+      "category": "指令",
+      "head": "剧情.图片",
+      "branch": "移除图片",
+      "target": "manual",
+      "attribute": "",
+      "operator": "",
+      "value": "none",
+      "fixedValues": [],
+      "note": "填「移除」，清掉当前图片"
+    },
+    {
+      "uid": "7447b885-9344-40a2-a9bc-7beab485a203",
+      "category": "指令",
+      "head": "剧情.播放对话",
+      "branch": "",
+      "target": "line",
+      "attribute": "",
+      "operator": "",
+      "value": "none",
+      "fixedValues": [],
+      "note": "直接跳去播另一段对话"
+    },
+    {
+      "uid": "1d572ff1-05dc-49b7-aed8-89a3c0be9a39",
+      "category": "指令",
+      "head": "背包",
+      "branch": "",
+      "target": "item",
+      "attribute": "",
+      "operator": "+",
+      "value": "number",
+      "fixedValues": [],
+      "note": "增加物品数量"
+    },
+    {
+      "uid": "582de4f3-2253-4a66-a93b-cd4502759772",
+      "category": "指令",
+      "head": "背包",
+      "branch": "",
+      "target": "item",
+      "attribute": "",
+      "operator": "-",
+      "value": "number",
+      "fixedValues": [],
+      "note": "减少物品数量"
+    },
+    {
+      "uid": "d9bf3db7-3406-49ce-b0d8-15941af96b93",
+      "category": "指令",
+      "head": "背包",
+      "branch": "",
+      "target": "item",
+      "attribute": "",
+      "operator": "=",
+      "value": "number",
+      "fixedValues": [],
+      "note": "直接设置物品数量"
+    },
+    {
+      "uid": "0474f6db-7de7-454a-88c0-49a72aee2ace",
+      "category": "指令",
+      "head": "任务.接取",
+      "branch": "",
+      "target": "quest",
+      "attribute": "",
+      "operator": "",
+      "value": "none",
+      "fixedValues": [],
+      "note": "接取任务"
+    },
+    {
+      "uid": "b0c82e42-3001-4381-8889-a52da94ad032",
+      "category": "指令",
+      "head": "特殊",
+      "branch": "",
+      "target": "manual",
+      "attribute": "",
+      "operator": "",
+      "value": "none",
+      "fixedValues": [],
+      "note": "正常表达式写不出来的指令，需和程序提前沟通"
+    }
+  ],
+  "variables": [],
+  "chapters": [
+    {
+      "uid": "9468ee94-9895-48ff-9724-959a24394bef",
+      "id": "ch01",
+      "title": "序章",
+      "groups": [
+        {
+          "uid": "624876e7-a0f0-4950-9080-43defd2528d3",
+          "id": "001",
+          "title": "开场",
+          "lines": [
+            {
+              "uid": "274cdc6d-90ec-4604-ba48-41db297bf176",
+              "readableId": "Dia_ch01_001-1",
+              "kind": "对话",
+              "characterId": "",
+              "displayName": "",
+              "text": {
+                "zh": "",
+                "en": "",
+                "ja": ""
+              },
+              "autoAdvance": false,
+              "commands": [
+                "特殊# 001"
+              ],
+              "optionIds": []
+            },
+            {
+              "uid": "58732a35-fc38-48a8-8c9c-37d619e8a893",
+              "readableId": "Dia_ch01_001-2",
+              "kind": "对话",
+              "characterId": "",
+              "displayName": "",
+              "text": {
+                "zh": "",
+                "en": "",
+                "ja": ""
+              },
+              "autoAdvance": false,
+              "commands": [
+                ""
+              ],
+              "optionIds": []
+            },
+            {
+              "uid": "20ba349f-040c-44eb-91c6-3356b91f4cb7",
+              "readableId": "Dia_ch01_001-3",
+              "kind": "对话",
+              "characterId": "",
+              "displayName": "",
+              "text": {
+                "zh": "",
+                "en": "",
+                "ja": ""
+              },
+              "autoAdvance": false,
+              "commands": [],
+              "optionIds": []
+            }
+          ],
+          "options": []
+        }
+      ]
+    }
+  ]
+}

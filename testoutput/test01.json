@@ -1,0 +1,124 @@
+{
+  "version": 1,
+  "name": "test01",
+  "variables": [],
+  "chapters": [
+    {
+      "uid": "77a1cd75-facd-47e2-b321-7ea5d09273bb",
+      "id": "ch01",
+      "title": "序章",
+      "groups": [
+        {
+          "uid": "ad786592-7d92-4bdb-b348-42ebfc7a6b29",
+          "id": "001",
+          "title": "开场",
+          "lines": [
+            {
+              "uid": "124b20b7-af69-4dfa-9302-c2e5d480397e",
+              "readableId": "Dia_ch01_001-1",
+              "kind": "对话",
+              "characterId": "CHA_角色A",
+              "displayName": "角色A",
+              "text": {
+                "zh": "1+1=？",
+                "en": "",
+                "ja": ""
+              },
+              "autoAdvance": false,
+              "commands": [],
+              "optionIds": [
+                "fae5ff24-4349-47d3-8e33-825a04ec3f83",
+                "e64a46fe-935f-493e-b7e3-afd809421ed2"
+              ],
+              "nextId": ""
+            },
+            {
+              "uid": "c888c42e-42f5-4504-8b72-d1c82a7d09d7",
+              "readableId": "Dia_ch01_001-2",
+              "kind": "对话",
+              "characterId": "CHA_角色A",
+              "displayName": "角色A",
+              "text": {
+                "zh": "错啦",
+                "en": "",
+                "ja": ""
+              },
+              "autoAdvance": false,
+              "commands": [],
+              "optionIds": [],
+              "nextId": ""
+            },
+            {
+              "uid": "40a3057b-a5b5-48d5-983a-ab0e56df2e8c",
+              "readableId": "Dia_ch01_001-3",
+              "kind": "对话",
+              "characterId": "CHA_角色A",
+              "displayName": "角色A",
+              "text": {
+                "zh": "对咯",
+                "en": "",
+                "ja": ""
+              },
+              "autoAdvance": false,
+              "commands": [],
+              "optionIds": [],
+              "nextId": ""
+            }
+          ],
+          "options": [
+            {
+              "uid": "fae5ff24-4349-47d3-8e33-825a04ec3f83",
+              "readableId": "Dia_ch01_001-1A",
+              "text": {
+                "zh": "1",
+                "en": "",
+                "ja": ""
+              },
+              "nextId": "c888c42e-42f5-4504-8b72-d1c82a7d09d7",
+              "appearConditions": [],
+              "enableConditions": [],
+              "results": []
+            },
+            {
+              "uid": "e64a46fe-935f-493e-b7e3-afd809421ed2",
+              "readableId": "Dia_ch01_001-1B",
+              "text": {
+                "zh": "2",
+                "en": "",
+                "ja": ""
+              },
+              "nextId": "40a3057b-a5b5-48d5-983a-ab0e56df2e8c",
+              "appearConditions": [],
+              "enableConditions": [],
+              "results": []
+            }
+          ]
+        },
+        {
+          "uid": "76a4eaaf-69e5-4365-9234-1c444a5c6520",
+          "id": "002",
+          "title": "段落 2",
+          "lines": [
+            {
+              "uid": "fae83553-a70e-42af-a210-e4d82b0f3d2f",
+              "readableId": "Dia_ch01_002-1",
+              "kind": "对话",
+              "characterId": "",
+              "displayName": "",
+              "text": {
+                "zh": "",
+                "en": "",
+                "ja": ""
+              },
+              "autoAdvance": false,
+              "commands": [],
+              "optionIds": [],
+              "nextId": ""
+            }
+          ],
+          "options": []
+        }
+      ]
+    }
+  ]
+}
