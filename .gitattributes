@@ -1,0 +1,6 @@
+# Windows PowerShell 5.1 有两个硬要求：不带 BOM 的脚本会按 ANSI 解析（中文全变乱码），
+# 而 LF 换行会让 here-string 直接解析失败（报 "A 'using' statement must appear before
+# any other statements" 这种完全看不出原因的错误）。tools/make-launcher.mts 往 release/
+# 拷贝时会补 BOM，但换行必须在仓库里就定死成 CRLF，不能依赖各人的 core.autocrlf。
+*.ps1 text eol=crlf
+*.bat text eol=crlf
