@@ -1,6 +1,5 @@
 node_modules/
 dist/
-release/
 app-release/
 build/*.log
 build/*.exe
