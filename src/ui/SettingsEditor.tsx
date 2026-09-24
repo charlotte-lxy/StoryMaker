@@ -1,4 +1,3 @@
-import { isDesktop } from '../core/desktop';
 import type { Settings } from '../state/prefs';
 
 interface Props {
@@ -6,11 +5,10 @@ interface Props {
   onChange: (patch: Partial<Settings>) => void;
 }
 
-const AUTO_SAVE_ON = isDesktop
-  ? '编辑后自动写回当前项目文件；还没保存过项目文件时，先记在软件内部，下次打开还在。'
-  : '编辑后自动记在本机浏览器里，下次打开还在。';
+const AUTO_SAVE_ON =
+  '编辑后自动写回当前项目文件（选定的那个 .json）；项目内容只存在这个文件里。';
 
-const AUTO_SAVE_OFF = '改动不会自动保存，请记得点顶部的「保存」。';
+const AUTO_SAVE_OFF = '改动不会自动写回项目文件，请记得点顶部的「保存」。';
 
 export function SettingsEditor({ settings, onChange }: Props) {
   return (

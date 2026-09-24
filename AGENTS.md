@@ -88,12 +88,31 @@ Vite + React 19 + TypeScript，导出用 ExcelJS。三种产物共用同一套�
 
 | 命令 | 产物 | 用途 |
 |---|---|---|
-| `pnpm dev` | 开发服务器 :5180 | 开发 |
+| `pnpm dev` | 开发服务器 :5180 | 开发（`/api` 自动转给同一个本地服务） |
 | `pnpm build` | `dist/` 多文件 | 内网服务器 |
-| `pnpm build:single` | `release/index.html` 单文件 | 策划双击即用 |
-| `pnpm build:app` | `app-release/*.exe` | Electron 桌面版 |
-| `pnpm test` | — | 84 个测试 |
+| `pnpm build:single` | `release/`：`index.html` + `启动StoryMaker.bat` + `storymaker-server.ps1` | 策划双击即用 |
+| `pnpm build:app` | `app-release/win-unpacked/` | Electron 桌面版（绿包目录，不再打单文件 exe） |
+| `pnpm test` | — | 164 个测试 |
 | `pnpm verify:release` | — | 单文件产物自检 |
+| `pnpm verify:server` | — | 本地服务自检（真起进程、真发 HTTP、真落盘） |
+
+## 项目文件与数据存放（不要改回去）
+
+**项目内容只有一份：用户选定的那个 .json。本机不缓存任何项目数据。**
+
+- 不要重新引入"把项目写进 localStorage 当存档"的做法（`storymaker.project.v1` 已彻底删除）。
+  本机只允许记住**上一次开启的文件路径**：桌面版记在 localStorage，本地服务版记在
+  `%LOCALAPPDATA%\StoryMaker\session.json`。
+- 浏览器页面拿不到磁盘路径，也不允许按路径写文件。所以单文件产物的读写由
+  `release/storymaker-server.ps1`（`启动StoryMaker.bat` 启动的本地小服务）代理；
+  它只监听 127.0.0.1，页面里带着启动时随机生成的令牌，且**只肯碰它自己记住的那个文件**。
+- 启动流程（`src/App.tsx`）：认出宿主 → 按上次路径读回 → 读不回、或压根没记过路径，
+  就停在 `src/ui/ProjectGate.tsx` 的门槛页，**必须先「新建项目文件」或「打开已有项目文件」**，
+  编辑界面才放出来。改动经防抖 800ms 直接写回那个 .json。
+- 宿主抽象在 `src/core/host.ts`：`window.storymakerDesktop`（Electron preload）或
+  `window.__STORYMAKER_SERVER__`（本地服务注入的令牌），都没有就返回 undefined。
+  测试用 `src/testing/app-harness.tsx` 里的假宿主，不要为了让测试好写而放宽这条。
+- 直接双击 `index.html`（没有宿主）时故意只显示引导页，不会退回浏览器本地存储。
 
 ## 四个不要动的核心设计
 
@@ -129,6 +148,14 @@ Vite + React 19 + TypeScript，导出用 ExcelJS。三种产物共用同一套�
 - **绝不要用 `window.confirm`**。它在 Electron 下同步阻塞渲染进程，关掉之后
   页面上所有输入框和下拉框都点不动。用 `src/ui/ConfirmDialog.tsx`。
 - **改完前端记得跑 `pnpm verify:release`**。它能挡住上面那类"开发正常、打包白屏"的问题。
+- **`tools/server/*.ps1` 必须是 CRLF + UTF-8 BOM**。Windows PowerShell 5.1 读不带 BOM 的
+  脚本会按 ANSI 解析（中文全变乱码），而 LF 换行会让 here-string 直接解析失败
+  （报 "A 'using' statement must appear before any other statements" 这种莫名其妙的错）。
+  `tools/make-launcher.mts` 在往 release/ 拷贝时会统一补上，但源文件本身也得是 CRLF。
+- **本地服务的对话框要显式置顶**。系统文件对话框弹出时不会自动成为前台窗口，
+  可能躲在浏览器后面，让人以为点了没反应。已用 `Show-DialogOnTop` 处理，别简化掉。
+- **改了 `storymaker-server.ps1` 要跑 `pnpm verify:server`**（真起进程、真发 HTTP、真落盘），
+  `pnpm test` 覆盖不到它。
 
 ## 文件位置
 

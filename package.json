@@ -8,11 +8,12 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "build:single": "tsc -b && vite build --mode singlefile",
+    "build:single": "tsc -b && vite build --mode singlefile && vite-node tools/make-launcher.mts",
     "build:app": "tsc -b && vite build && electron-builder --win",
     "preview": "vite preview",
     "test": "vitest run",
-    "verify:release": "vite-node tools/verify-release.mts"
+    "verify:release": "vite-node tools/verify-release.mts",
+    "verify:server": "vite-node tools/verify-server.mts"
   },
   "dependencies": {
     "exceljs": "^4.4.0",
@@ -42,18 +43,16 @@
     "directories": {
       "output": "app-release"
     },
+    "electronDist": "node_modules/electron/dist",
     "files": ["dist/**/*", "electron/**/*", "build/icon.ico", "package.json"],
     "win": {
       "icon": "build/icon.ico",
       "target": [
         {
-          "target": "portable",
+          "target": "dir",
           "arch": ["x64"]
         }
       ]
-    },
-    "portable": {
-      "artifactName": "StoryMaker-${version}.exe"
     }
   }
 }

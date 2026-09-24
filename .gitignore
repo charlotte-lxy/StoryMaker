@@ -3,6 +3,11 @@ dist/
 release/
 app-release/
 build/*.log
+build/*.exe
+build/*.nsi
+build/marker-result.txt
 *.local
 *.tsbuildinfo
+.dev-session.json
+.dev-project.json
 .DS_Store

@@ -2,6 +2,8 @@ import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
 
+import { devProjectService } from './tools/dev-service';
+
 /**
  * Vite 会给入口脚本加上 type="module" crossorigin，
  * 而 file:// 下的浏览器会以 CORS 为由拒绝执行 module 脚本 —— 页面直接白屏。
@@ -37,7 +39,12 @@ export default defineConfig(({ mode }) => {
   return {
     // 单文件是用 file:// 打开的，资源路径必须相对
     base: './',
-    plugins: [react(), ...(single ? [viteSingleFile(), stripModuleType()] : [])],
+    plugins: [
+      react(),
+      // 开发时页面的项目文件读写也走本地服务，见 tools/dev-service.ts
+      devProjectService(),
+      ...(single ? [viteSingleFile(), stripModuleType()] : []),
+    ],
     server: {
       port: 5180,
     },

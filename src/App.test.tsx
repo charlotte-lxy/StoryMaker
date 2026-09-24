@@ -1,12 +1,23 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import App from './App';
+import {
+  clearFakeHost,
+  renderApp,
+  seedEmptyProject,
+  seedProjectFile,
+  type FakeHost,
+} from './testing/app-harness';
+
+/** 当前用例的假宿主：一块"磁盘" + 上次打开的项目路径 */
+let host: FakeHost;
 
 beforeEach(() => {
   window.localStorage.clear();
   vi.restoreAllMocks();
+  // 界面上所有改动都直接写进项目文件，所以每个用例都得先有一个项目文件
+  host = seedEmptyProject();
   // jsdom 没有实现 scrollIntoView，跳转测试里会用到
   Element.prototype.scrollIntoView = () => undefined;
   // jsdom 也没有 DragEvent / PointerEvent。用 MouseEvent 顶上，testing-library 才会把
@@ -17,6 +28,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  clearFakeHost();
   // 主题写在 <html> 上，不清掉会串到下一个用例
   delete document.documentElement.dataset.theme;
 });
@@ -96,16 +108,16 @@ function stubCardRects(container: HTMLElement): void {
 }
 
 describe('界面冒烟测试', () => {
-  it('渲染主界面与三个模块入口', () => {
-    render(<App />);
+  it('渲染主界面与三个模块入口', async () => {
+    await renderApp();
     expect(screen.getByText(/StoryMaker/)).toBeTruthy();
     expect(within(rail()).getByText('剧情')).toBeTruthy();
     expect(within(rail()).getByText('角色')).toBeTruthy();
     expect(within(rail()).getByText('本地化')).toBeTruthy();
   });
 
-  it('空项目能渲染出默认的第一行对话', () => {
-    const { container } = render(<App />);
+  it('空项目能渲染出默认的第一行对话', async () => {
+    const { container } = await renderApp();
     // 列表里不再显示完整对话 ID，只在条目左侧标段内序号
     expect(container.querySelectorAll('.line-card')).toHaveLength(1);
     expect(container.querySelector('.line-seq')?.textContent).toBe('1');
@@ -114,8 +126,8 @@ describe('界面冒烟测试', () => {
     );
   });
 
-  it('新增选项后，跳转目标默认是「对话结束」（即导出留空）', () => {
-    render(<App />);
+  it('新增选项后，跳转目标默认是「对话结束」（即导出留空）', async () => {
+    await renderApp();
     // 选项列表现在挂在「选项」行上，行里默认就带一个选项
     dropBlock('选项');
     const groupSelect = screen.getByTitle('第一级：目标段落') as HTMLSelectElement;
@@ -127,8 +139,8 @@ describe('界面冒烟测试', () => {
     );
   });
 
-  it('跳转目标可以选到具体段落与对话，再切回对话结束', () => {
-    render(<App />);
+  it('跳转目标可以选到具体段落与对话，再切回对话结束', async () => {
+    await renderApp();
     dropBlock('选项');
 
     const groupSelect = screen.getByTitle('第一级：目标段落') as HTMLSelectElement;
@@ -144,65 +156,65 @@ describe('界面冒烟测试', () => {
     ).toBe(true);
   });
 
-  it('能切换到角色模块', () => {
-    render(<App />);
+  it('能切换到角色模块', async () => {
+    await renderApp();
     fireEvent.click(within(rail()).getByText('角色'));
     expect(screen.getByText(/还没有角色/)).toBeTruthy();
   });
 
-  it('新增角色后出现默认的 ID 与名称', () => {
-    render(<App />);
+  it('新增角色后出现默认的 ID 与名称', async () => {
+    await renderApp();
     fireEvent.click(within(rail()).getByText('角色'));
     fireEvent.click(screen.getByText(/新增角色/));
     expect(screen.getByDisplayValue('CHA_角色1')).toBeTruthy();
     expect(screen.getByDisplayValue('角色1')).toBeTruthy();
   });
 
-  it('能切换到本地化模块，并列出默认那行的文本 key', () => {
-    render(<App />);
+  it('能切换到本地化模块，并列出默认那行的文本 key', async () => {
+    await renderApp();
     fireEvent.click(within(rail()).getByText('本地化'));
     expect(screen.getAllByText('TXT_Dia_ch01_001-1').length).toBeGreaterThan(0);
   });
 
-  it('新增章节会出现在侧边栏', () => {
-    render(<App />);
+  it('新增章节会出现在侧边栏', async () => {
+    await renderApp();
     fireEvent.click(screen.getByText('＋ 章节'));
     expect(screen.getByText('第 2 章')).toBeTruthy();
   });
 
-  it('删除章节走应用内确认框，不再用 window.confirm', () => {
+  it('删除章节走应用内确认框，不再用 window.confirm', async () => {
     // window.confirm 在 Electron 下会阻塞渲染进程、让输入控件失去响应，已全部替换
     const confirmSpy = vi.spyOn(window, 'confirm');
-    render(<App />);
+    await renderApp();
     fireEvent.click(screen.getAllByTitle('删除本章')[0]);
     expect(confirmSpy).not.toHaveBeenCalled();
     expect(screen.getByText('请确认')).toBeTruthy();
   });
 
-  it('删除章节时取消，则章节保留', () => {
-    render(<App />);
+  it('删除章节时取消，则章节保留', async () => {
+    await renderApp();
     fireEvent.click(screen.getAllByTitle('删除本章')[0]);
     fireEvent.click(screen.getByText('取消'));
     expect(screen.queryByText('请确认')).toBeNull();
     expect(screen.getByText('序章')).toBeTruthy();
   });
 
-  it('确认后章节被删除', () => {
-    render(<App />);
+  it('确认后章节被删除', async () => {
+    await renderApp();
     fireEvent.click(screen.getByText('＋ 章节'));
     fireEvent.click(screen.getAllByTitle('删除本章')[1]);
     fireEvent.click(screen.getByText('确定'));
     expect(screen.queryByText('第 2 章')).toBeNull();
   });
 
-  it('删除段落时，确认文案会说明将丢失多少行', () => {
-    render(<App />);
+  it('删除段落时，确认文案会说明将丢失多少行', async () => {
+    await renderApp();
     fireEvent.click(screen.getAllByTitle('删除本段落')[0]);
     expect(screen.getByText(/1 行内容/)).toBeTruthy();
   });
 
-  it('确认框关掉之后，输入框和下拉框依然可用', () => {
-    render(<App />);
+  it('确认框关掉之后，输入框和下拉框依然可用', async () => {
+    await renderApp();
     fireEvent.click(screen.getAllByTitle('删除本章')[0]);
     fireEvent.click(screen.getByText('取消'));
 
@@ -217,34 +229,36 @@ describe('设置、自动保存与自动加载', () => {
   /** 项目名称输入框：改它就是"编辑了一下项目" */
   const nameInput = () => screen.getByTitle('项目名称，也是导出文件名');
 
-  it('左侧栏左下角有设置入口，点进去是设置页', () => {
-    render(<App />);
+  it('左侧栏左下角有设置入口，点进去是设置页', async () => {
+    await renderApp();
     fireEvent.click(within(rail()).getByText('设置'));
     expect(screen.getByText('自动保存')).toBeTruthy();
     expect(screen.getByText('深色')).toBeTruthy();
   });
 
-  it('自动保存默认开启：编辑后自动写进本地缓存', () => {
-    render(<App />);
+  it('自动保存默认开启：编辑后自动写回项目文件', async () => {
+    await renderApp();
     fireEvent.change(nameInput(), { target: { value: '序章改名' } });
-    const cached = window.localStorage.getItem('storymaker.project.v1') ?? '';
-    expect(cached).toContain('序章改名');
+
+    // 自动保存是防抖 800ms 的
+    await waitFor(() => expect(host.written.length).toBeGreaterThan(0), { timeout: 3000 });
+    expect(host.written[host.written.length - 1]?.content).toContain('序章改名');
+    expect(host.disk.get('D:\\策划\\项目.json')).toContain('序章改名');
   });
 
-  it('关掉自动保存后，编辑不再写本地缓存', () => {
-    render(<App />);
+  it('关掉自动保存后，编辑不再写项目文件', async () => {
+    await renderApp();
     fireEvent.click(within(rail()).getByText('设置'));
     fireEvent.click(screen.getByRole('checkbox')); // 关掉自动保存
-    expect(screen.getByText(/不会自动保存/)).toBeTruthy();
+    expect(screen.getByText(/不会自动写回项目文件/)).toBeTruthy();
 
     fireEvent.change(nameInput(), { target: { value: '不该被自动保存' } });
-    expect(window.localStorage.getItem('storymaker.project.v1') ?? '').not.toContain(
-      '不该被自动保存',
-    );
+    await new Promise((done) => setTimeout(done, 1000));
+    expect(host.written).toHaveLength(0);
   });
 
-  it('切到深色会写到 <html data-theme>，并把设置记下来', () => {
-    render(<App />);
+  it('切到深色会写到 <html data-theme>，并把设置记下来', async () => {
+    await renderApp();
     fireEvent.click(within(rail()).getByText('设置'));
     fireEvent.click(screen.getByText('深色'));
 
@@ -255,21 +269,18 @@ describe('设置、自动保存与自动加载', () => {
     expect(saved.theme).toBe('dark');
   });
 
-  it('启动时按上次的设置恢复深色主题', () => {
+  it('启动时按上次的设置恢复深色主题', async () => {
     window.localStorage.setItem(
       'storymaker.settings.v1',
       JSON.stringify({ autoSave: true, theme: 'dark' }),
     );
-    render(<App />);
+    await renderApp();
     expect(document.documentElement.dataset.theme).toBe('dark');
   });
 
-  it('启动时自动加载上次打开的项目', () => {
-    window.localStorage.setItem(
-      'storymaker.project.v1',
-      JSON.stringify({ version: 1, name: '上次的项目', chapters: [] }),
-    );
-    render(<App />);
+  it('启动时按上次打开的项目文件把内容读回来', async () => {
+    seedProjectFile(JSON.stringify({ version: 1, name: '上次的项目', chapters: [] }));
+    await renderApp();
     expect(screen.getByDisplayValue('上次的项目')).toBeTruthy();
   });
 });
@@ -281,8 +292,8 @@ describe('脚本块与三种类型的行', () => {
     seqs: [...container.querySelectorAll('.line-card .line-seq')].map((el) => el.textContent),
   });
 
-  it('拖入「选项」行：默认带一个选项，ID 接着上一行连续编号', () => {
-    const { container } = render(<App />);
+  it('拖入「选项」行：默认带一个选项，ID 接着上一行连续编号', async () => {
+    const { container } = await renderApp();
     dropBlock('选项');
 
     expect(rows(container)).toEqual({ kinds: ['对话', '选项'], seqs: ['1', '2'] });
@@ -291,14 +302,14 @@ describe('脚本块与三种类型的行', () => {
     expect(screen.getByTitle('第一级：目标段落')).toBeTruthy();
   });
 
-  it('把块拖到某一行上，就插在那一行之后', () => {
-    const { container } = render(<App />);
+  it('把块拖到某一行上，就插在那一行之后', async () => {
+    const { container } = await renderApp();
     dropBlock('指令', container.querySelector('[data-line-uid]') as HTMLElement);
     expect(rows(container).kinds).toEqual(['对话', '指令']);
   });
 
-  it('「指令」行只放一条指令，预览与下拉都是横向的', () => {
-    render(<App />);
+  it('「指令」行只放一条指令，预览与下拉都是横向的', async () => {
+    await renderApp();
     dropBlock('指令');
 
     expect(screen.getByPlaceholderText('点这里手写指令，或用右侧下拉选择')).toBeTruthy();
@@ -307,8 +318,8 @@ describe('脚本块与三种类型的行', () => {
     expect(screen.queryByText('＋ 新增指令')).toBeNull();
   });
 
-  it('行可以删除', () => {
-    render(<App />);
+  it('行可以删除', async () => {
+    await renderApp();
     dropBlock('指令');
     expect(screen.getAllByText('删除')).toHaveLength(2);
 
@@ -316,8 +327,8 @@ describe('脚本块与三种类型的行', () => {
     expect(screen.getAllByText('删除')).toHaveLength(1);
   });
 
-  it('备注：点开能写，写过的条目标出来，悬浮时显示内容', () => {
-    render(<App />);
+  it('备注：点开能写，写过的条目标出来，悬浮时显示内容', async () => {
+    await renderApp();
     fireEvent.click(screen.getByText('备注'));
 
     const input = screen.getByPlaceholderText('例如：这句要等 BGM 淡出后再进');
@@ -328,8 +339,8 @@ describe('脚本块与三种类型的行', () => {
     expect(button.getAttribute('data-note')).toBe('等 BGM 淡出再进');
   });
 
-  it('单击脚本块直接加到最后一行', () => {
-    const { container } = render(<App />);
+  it('单击脚本块直接加到最后一行', async () => {
+    const { container } = await renderApp();
     clickBlock('选项');
     expect(rows(container)).toEqual({
       kinds: ['对话', '选项'],
@@ -337,8 +348,8 @@ describe('脚本块与三种类型的行', () => {
     });
   });
 
-  it('「选项」行的字段顺序：选项文本 → 跳转目标 → 出现条件 → 可用条件 → 结果', () => {
-    const { container } = render(<App />);
+  it('「选项」行的字段顺序：选项文本 → 跳转目标 → 出现条件 → 可用条件 → 结果', async () => {
+    const { container } = await renderApp();
     dropBlock('选项');
 
     const labels = [...container.querySelectorAll('.option-item .field > span')].map(
@@ -347,8 +358,8 @@ describe('脚本块与三种类型的行', () => {
     expect(labels).toEqual(['选项文本（中文）', '跳转目标', '出现条件', '可用条件', '结果（指令）']);
   });
 
-  it('拖到两行之间的分界线上也能插入（不必躲开那条线）', () => {
-    const { container } = render(<App />);
+  it('拖到两行之间的分界线上也能插入（不必躲开那条线）', async () => {
+    const { container } = await renderApp();
     clickBlock('指令');
     expect(rows(container).kinds).toEqual(['对话', '指令']);
 
@@ -363,8 +374,8 @@ describe('脚本块与三种类型的行', () => {
     expect(rows(container).kinds).toEqual(['对话', '对话', '指令']);
   });
 
-  it('整行空白处都能按住拖动排序', () => {
-    const { container } = render(<App />);
+  it('整行空白处都能按住拖动排序', async () => {
+    const { container } = await renderApp();
     clickBlock('指令');
     stubCardRects(container);
 
@@ -381,8 +392,8 @@ describe('脚本块与三种类型的行', () => {
     expect(rows(container).kinds).toEqual(['指令', '对话']);
   });
 
-  it('在输入框里起拖是选文字，不会把整行搬走', () => {
-    const { container } = render(<App />);
+  it('在输入框里起拖是选文字，不会把整行搬走', async () => {
+    const { container } = await renderApp();
     clickBlock('指令');
     const card = container.querySelector('.line-card') as HTMLElement;
     const textarea = card.querySelector('textarea') as HTMLTextAreaElement;
@@ -393,8 +404,8 @@ describe('脚本块与三种类型的行', () => {
     expect(card.className).not.toContain('dragging');
   });
 
-  it('正在编辑的行会整块换色', () => {
-    const { container } = render(<App />);
+  it('正在编辑的行会整块换色', async () => {
+    const { container } = await renderApp();
     const card = container.querySelector('.line-card') as HTMLElement;
     const textarea = card.querySelector('textarea') as HTMLTextAreaElement;
 
@@ -405,8 +416,8 @@ describe('脚本块与三种类型的行', () => {
     expect(card.className).not.toContain('editing');
   });
 
-  it('指令预览框宽度固定，切模块回来后下拉框仍然显示选好的项', () => {
-    render(<App />);
+  it('指令预览框宽度固定，切模块回来后下拉框仍然显示选好的项', async () => {
+    await renderApp();
 
     // 先加个角色，下拉里才有目标可选
     fireEvent.click(within(rail()).getByText('角色'));
@@ -433,8 +444,7 @@ describe('脚本块与三种类型的行', () => {
 describe('章节流程图与分栏', () => {
   /** 两个段落，段落 001 的选项跳到段落 002 */
   function seedJumpProject(): void {
-    window.localStorage.setItem(
-      'storymaker.project.v1',
+    seedProjectFile(
       JSON.stringify({
         version: 1,
         name: '流程测试',
@@ -505,12 +515,13 @@ describe('章节流程图与分栏', () => {
           },
         ],
       }),
+      'D:\\策划\\流程测试.json',
     );
   }
 
-  it('每个段落一个块，选项跳转连成一条带标签的线', () => {
+  it('每个段落一个块，选项跳转连成一条带标签的线', async () => {
     seedJumpProject();
-    const { container } = render(<App />);
+    const { container } = await renderApp();
 
     const blocks = [...container.querySelectorAll('.flow-block-title')].map((el) => el.textContent);
     expect(blocks).toEqual(['开场', '码头']);
@@ -519,9 +530,9 @@ describe('章节流程图与分栏', () => {
     expect(container.querySelector('.flow-edge-label')?.textContent).toBe('去码头');
   });
 
-  it('点流程图上的选项标签跳到那个选项', () => {
+  it('点流程图上的选项标签跳到那个选项', async () => {
     seedJumpProject();
-    const { container } = render(<App />);
+    const { container } = await renderApp();
 
     // 先切到段落 002，让列表停在别处
     fireEvent.click(screen.getByTitle('打开「码头」的对话列表'));
@@ -532,9 +543,9 @@ describe('章节流程图与分栏', () => {
     expect(container.querySelector('.option-item.flash')).toBeTruthy();
   });
 
-  it('拖中间的分隔线改变左右宽度', () => {
+  it('拖中间的分隔线改变左右宽度', async () => {
     seedJumpProject();
-    const { container } = render(<App />);
+    const { container } = await renderApp();
 
     const split = container.querySelector('.story-split') as HTMLElement;
     split.getBoundingClientRect = () =>
@@ -548,9 +559,9 @@ describe('章节流程图与分栏', () => {
     expect((container.querySelector('.flow-pane') as HTMLElement).style.flexBasis).toBe('30%');
   });
 
-  it('可以收起对话列表，点段落块再展开', () => {
+  it('可以收起对话列表，点段落块再展开', async () => {
     seedJumpProject();
-    const { container } = render(<App />);
+    const { container } = await renderApp();
     expect(container.querySelector('.list-pane')).not.toBeNull();
 
     fireEvent.click(screen.getByText('收起对话列表 ▶'));
@@ -561,9 +572,9 @@ describe('章节流程图与分栏', () => {
     expect(container.querySelector('.list-pane')).not.toBeNull();
   });
 
-  it('点 ✎ 能改章节名和段落名（侧边栏）', () => {
+  it('点 ✎ 能改章节名和段落名（侧边栏）', async () => {
     seedJumpProject();
-    const { container } = render(<App />);
+    const { container } = await renderApp();
     const sidebar = within(container.querySelector('.sidebar') as HTMLElement);
 
     fireEvent.click(screen.getByTitle('重命名章节「序章」'));
@@ -584,9 +595,9 @@ describe('章节流程图与分栏', () => {
     expect(container.querySelector('.flow-block-title')?.textContent).toBe('开场改名');
   });
 
-  it('流程图块里也能改名、写段落注释', () => {
+  it('流程图块里也能改名、写段落注释', async () => {
     seedJumpProject();
-    const { container } = render(<App />);
+    const { container } = await renderApp();
     const block = container.querySelectorAll('.flow-block')[0] as HTMLElement;
     const inBlock = within(block);
 
@@ -606,8 +617,8 @@ describe('章节流程图与分栏', () => {
     expect(container.querySelector('.flow-block-note')?.textContent).toBe('这里要接一场雨戏');
   });
 
-  it('段落注释写长了，块会跟着变高', () => {
-    const { container } = render(<App />);
+  it('段落注释写长了，块会跟着变高', async () => {
+    const { container } = await renderApp();
     const block = container.querySelector('.flow-block') as HTMLElement;
     const baseHeight = Number.parseInt(block.style.minHeight, 10);
 
@@ -625,9 +636,9 @@ describe('章节流程图与分栏', () => {
     expect(height).toBeGreaterThan(baseHeight);
   });
 
-  it('改名字时 Esc 取消，空名字不生效', () => {
+  it('改名字时 Esc 取消，空名字不生效', async () => {
     seedJumpProject();
-    const { container } = render(<App />);
+    const { container } = await renderApp();
     const sidebar = within(container.querySelector('.sidebar') as HTMLElement);
 
     fireEvent.click(sidebar.getByTitle('重命名段落「开场」'));
@@ -643,9 +654,9 @@ describe('章节流程图与分栏', () => {
     expect(container.querySelector('.tree-group .group-title')?.textContent).toBe('开场');
   });
 
-  it('鼠标悬浮某条选项线时它加粗，其他线淡化，两端段落块保持清楚', () => {
+  it('鼠标悬浮某条选项线时它加粗，其他线淡化，两端段落块保持清楚', async () => {
     seedJumpProject();
-    const { container } = render(<App />);
+    const { container } = await renderApp();
 
     const board = () => container.querySelector('.flow-board') as HTMLElement;
     const label = container.querySelector('.flow-edge-label') as HTMLElement;
@@ -666,9 +677,9 @@ describe('章节流程图与分栏', () => {
     expect(board().className).not.toContain('dimming');
   });
 
-  it('鼠标悬浮段落块时，与它有关的选项线高亮', () => {
+  it('鼠标悬浮段落块时，与它有关的选项线高亮', async () => {
     seedJumpProject();
-    const { container } = render(<App />);
+    const { container } = await renderApp();
 
     // 悬停「码头」（只有一条线指向它）
     const target = container.querySelectorAll('.flow-block')[1] as HTMLElement;
@@ -684,7 +695,7 @@ describe('章节流程图与分栏', () => {
     expect(container.querySelector('.flow-line')?.getAttribute('class')).not.toContain('active');
   });
 
-  it('跳转目标下拉只列本章的段落', () => {    render(<App />);
+  it('跳转目标下拉只列本章的段落', async () => {    await renderApp();
     fireEvent.click(screen.getByText('＋ 章节'));
     dropBlock('选项');
 
@@ -697,8 +708,8 @@ describe('章节流程图与分栏', () => {
 });
 
 describe('校验面板', () => {
-  it('校验按钮在面板里，点一条问题会跳到出问题的那一行', () => {
-    const { container } = render(<App />);
+  it('校验按钮在面板里，点一条问题会跳到出问题的那一行', async () => {
+    const { container } = await renderApp();
 
     // 默认那行既没台词也没角色，一定有问题
     fireEvent.click(screen.getByRole('button', { name: '校验' }));
@@ -709,8 +720,8 @@ describe('校验面板', () => {
     expect(container.querySelector('.line-card.flash')).toBeTruthy();
   });
 
-  it('校验结果能收起、能再展开', () => {
-    const { container } = render(<App />);
+  it('校验结果能收起、能再展开', async () => {
+    const { container } = await renderApp();
     fireEvent.click(screen.getByRole('button', { name: '校验' }));
     expect(container.querySelectorAll('.issue-row').length).toBeGreaterThan(0);
 

@@ -1340,7 +1340,8 @@
               "enableConditions": [],
               "results": []
             }
-          ]
+          ],
+          "note": ""
         },
         {
           "uid": "seed-123",
@@ -1634,7 +1635,8 @@
               "enableConditions": [],
               "results": []
             }
-          ]
+          ],
+          "note": ""
         },
         {
           "uid": "seed-124",
@@ -1674,7 +1676,65 @@
               "note": ""
             }
           ],
-          "options": []
+          "options": [],
+          "note": ""
+        },
+        {
+          "uid": "31628789-f317-419e-9a26-45a958b84288",
+          "id": "004",
+          "title": "段落 4",
+          "note": "",
+          "lines": [
+            {
+              "uid": "6913bb30-3bc9-434b-ad3a-7ca796e02058",
+              "readableId": "Dia_ch01_004-1",
+              "kind": "对话",
+              "characterId": "",
+              "displayName": "",
+              "text": {
+                "zh": "",
+                "en": "",
+                "ja": ""
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [],
+              "note": ""
+            },
+            {
+              "uid": "a9985fe3-fd57-4702-abe8-bffecc05f9ec",
+              "readableId": "Dia_ch01_004-2",
+              "kind": "选项",
+              "characterId": "",
+              "displayName": "",
+              "text": {
+                "zh": "",
+                "en": "",
+                "ja": ""
+              },
+              "autoAdvance": false,
+              "command": "",
+              "optionIds": [
+                "47e49aa8-15c2-4859-8ab2-746309e25112"
+              ],
+              "note": ""
+            }
+          ],
+          "options": [
+            {
+              "uid": "47e49aa8-15c2-4859-8ab2-746309e25112",
+              "readableId": "Dia_ch01_004-2A",
+              "text": {
+                "zh": "2222",
+                "en": "",
+                "ja": ""
+              },
+              "nextId": "",
+              "appearConditions": [],
+              "enableConditions": [],
+              "results": []
+            }
+          ]
         }
       ]
     }

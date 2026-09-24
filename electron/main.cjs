@@ -48,62 +48,64 @@ function createWindow() {
   });
 }
 
-/** 保存项目：弹保存框，选一个 .json 文件 */
-ipcMain.handle('project:save', async (_event, payload) => {
-  const { content, suggestedName, currentPath } = payload;
-
-  let target = currentPath ?? null;
-  if (target === null) {
-    const result = await dialog.showSaveDialog(mainWindow, {
-      title: '保存项目',
-      defaultPath: `${suggestedName || 'StoryMaker项目'}.json`,
-      filters: [{ name: 'StoryMaker 项目', extensions: ['json'] }],
-    });
-    if (result.canceled || !result.filePath) return { canceled: true };
-    target = result.filePath;
-  }
-
-  await writeFile(target, content, 'utf8');
-  return { canceled: false, filePath: target };
+/**
+ * 新建项目：只挑一个 .json 路径，内容由渲染进程随后写进来。
+ * 取消返回 null。
+ */
+ipcMain.handle('project:pick-new', async (_event, suggestedName) => {
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: '新建项目文件',
+    defaultPath: `${suggestedName || 'StoryMaker项目'}.json`,
+    filters: [{ name: 'StoryMaker 项目', extensions: ['json'] }],
+  });
+  if (result.canceled || !result.filePath) return null;
+  return result.filePath;
 });
 
-/** 打开项目：弹选择框，读回 JSON 文本 */
-ipcMain.handle('project:open', async () => {
+/** 打开项目：弹选择框，返回路径与内容；取消返回 null */
+ipcMain.handle('project:pick-open', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
-    title: '打开项目',
+    title: '打开项目文件',
     properties: ['openFile'],
     filters: [{ name: 'StoryMaker 项目', extensions: ['json'] }],
   });
-  if (result.canceled || result.filePaths.length === 0) return { canceled: true };
+  if (result.canceled || result.filePaths.length === 0) return null;
 
   const filePath = result.filePaths[0];
-  const content = await readFile(filePath, 'utf8');
-  return { canceled: false, filePath, content };
-});
-
-/** 按路径直接读回项目：启动时自动打开上次的项目，不再弹选择框 */
-ipcMain.handle('project:read', async (_event, filePath) => {
   try {
     const content = await readFile(filePath, 'utf8');
-    return { canceled: false, filePath, content };
+    return { filePath, content };
   } catch {
-    // 文件被移走、改名或删掉：交给前端自己回退提示
-    return { canceled: true };
+    return null;
   }
 });
 
-/** 导出文件（Excel 等）：让策划自己选位置 */
-ipcMain.handle('file:save-as', async (_event, payload) => {
-  const { suggestedName, data } = payload;
+/** 按路径读回项目；读不到返回 null（文件被移走、删掉、被占用等） */
+ipcMain.handle('project:read', async (_event, filePath) => {
+  try {
+    return await readFile(filePath, 'utf8');
+  } catch {
+    return null;
+  }
+});
+
+/** 按路径写回项目：自动保存和手动保存都走这里，不再弹框 */
+ipcMain.handle('project:write', async (_event, filePath, content) => {
+  await writeFile(filePath, content, 'utf8');
+  return true;
+});
+
+/** 导出文件（Excel 等）：让策划自己选位置；取消返回 null */
+ipcMain.handle('file:save-as', async (_event, suggestedName, data) => {
   const result = await dialog.showSaveDialog(mainWindow, {
     title: '导出',
     defaultPath: suggestedName,
     filters: [{ name: 'Excel 工作簿', extensions: ['xlsx'] }],
   });
-  if (result.canceled || !result.filePath) return { canceled: true };
+  if (result.canceled || !result.filePath) return null;
 
   await writeFile(result.filePath, Buffer.from(data), undefined);
-  return { canceled: false, filePath: result.filePath };
+  return result.filePath;
 });
 
 /** 在文件管理器里定位文件，方便策划找到刚导出的东西 */

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { exportWorkbook } from './core/export';
 import type { IdChange } from './core/ids';
 import { collectCommandTargets } from './core/command-build';
-import { baseName, desktop, isDesktop } from './core/desktop';
+import { baseName, getHost, type HostApi } from './core/host';
 import { normalizeProject, type NormalizeResult } from './core/migrate';
 import type {
   Character,
@@ -49,10 +49,8 @@ import {
 } from './state/operations';
 import {
   clampStorySplit,
-  loadSessionPath,
   loadSettings,
   loadStorySplit,
-  saveSessionPath,
   saveSettings,
   saveStorySplit,
   type Settings,
@@ -65,12 +63,20 @@ import { IssuePanel } from './ui/IssuePanel';
 import { LineList } from './ui/LineList';
 import { LocalizationEditor } from './ui/LocalizationEditor';
 import { LookupEditor } from './ui/LookupEditor';
+import { ProjectGate } from './ui/ProjectGate';
 import { SettingsEditor } from './ui/SettingsEditor';
 import { ScriptPalette } from './ui/ScriptPalette';
 import { Sidebar } from './ui/Sidebar';
 
-const STORAGE_KEY = 'storymaker.project.v1';
 const EMPTY_REPORT: ValidationReport = { issues: [], errors: 0, warnings: 0 };
+
+/**
+ * 界面所处的阶段：
+ *   loading —— 正在按上次的文件路径读项目
+ *   gate    —— 还没确定项目文件，先把编辑界面挡住
+ *   ready   —— 项目文件已确定，可以编辑，改动直接写回它
+ */
+type Phase = 'loading' | 'gate' | 'ready';
 
 type Module =
   | 'story'
@@ -83,31 +89,22 @@ type Module =
   | 'locale'
   | 'settings';
 
-/** 把项目写进本机缓存：浏览器模式下它就是存档，桌面模式下是读不到文件时的兜底 */
-function writeDraft(project: Project): void {
+/**
+ * 解析项目文件内容。
+ *
+ * 记事本另存为会带上 BOM，而 JSON.parse 见到 BOM 会直接抛错；
+ * 所以先剥掉它，再交给 normalizeProject 做老结构迁移。
+ */
+function parseProjectFile(text: string): NormalizeResult | null {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
+    return normalizeProject(JSON.parse(text.replace(/^\uFEFF/, '')));
   } catch {
-    // 存储写满时不要让界面崩掉
+    return null;
   }
 }
 
-/** 启动时读回本机草稿；老结构会在这里自动迁移成新结构 */
-function loadInitialProject(): NormalizeResult {
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw !== null) {
-      const result = normalizeProject(JSON.parse(raw));
-      if (result !== null) return result;
-    }
-  } catch {
-    // 本地数据损坏时退回空项目，不让界面白屏
-  }
-  return { project: createEmptyProject(), changes: [] };
-}
-
-function saveBlob(filename: string, blob: Blob): void {
-  const url = URL.createObjectURL(blob);
+/** 把二进制存成本地文件（浏览器下载）：导出对照表这类一次性产物用它 */
+function saveBlob(filename: string, blob: Blob): void {  const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = filename;
@@ -118,22 +115,21 @@ function saveBlob(filename: string, blob: Blob): void {
 }
 
 export default function App() {
-  /** 初始项目：本机草稿（必要时自动迁移）+ 迁移造成的 ID 变化 */
-  const [initial] = useState(loadInitialProject);
-  const [project, setProject] = useState<Project>(initial.project);
+  /** 当前宿主：桌面版走 Electron，本地服务版走 bat 起的服务；都没有时为 undefined */
+  const [host, setHost] = useState<HostApi | undefined>(undefined);
+  const [phase, setPhase] = useState<Phase>('loading');
+  const [project, setProject] = useState<Project>(createEmptyProject);
   const [settings, setSettings] = useState<Settings>(loadSettings);
   const [module, setModule] = useState<Module>('story');
   const [activeGroupUid, setActiveGroupUid] = useState<string>('');
   const [report, setReport] = useState<ValidationReport>(EMPTY_REPORT);
   const [hasChecked, setHasChecked] = useState(false);
-  const [toast, setToast] = useState(
-    initial.changes.length === 0
-      ? ''
-      : `项目已按新结构自动迁移：指令、选项各自成行，${initial.changes.length} 个对话 ID 有变化（见对照表）`,
-  );
-  const [idChanges, setIdChanges] = useState<IdChange[] | null>(
-    initial.changes.length === 0 ? null : initial.changes,
-  );
+  const [toast, setToast] = useState('');
+  /** 门槛页上的提示：上次的文件打不开、没检测到本地服务 */
+  const [gateNote, setGateNote] = useState('');
+  /** 正在等系统文件对话框，期间把门槛页的按钮禁用 */
+  const [picking, setPicking] = useState(false);
+  const [idChanges, setIdChanges] = useState<IdChange[] | null>(null);
   const [flashLineUid, setFlashLineUid] = useState<string | null>(null);
   /** 从章节流程图点选项标签跳过来的选项，短暂高亮 */
   const [flashOptionUid, setFlashOptionUid] = useState<string | null>(null);
@@ -144,12 +140,8 @@ export default function App() {
   /** 流程图 / 对话列表的分栏比例，默认各一半 */
   const [splitRatio, setSplitRatio] = useState(loadStorySplit);
   const [splitDragging, setSplitDragging] = useState(false);
-  /** 桌面模式下当前项目对应的磁盘文件；浏览器模式下始终为 null */
-  const [projectPath, setProjectPath] = useState<string | null>(loadSessionPath);
-  /** 桌面模式：启动时正在把上次的项目文件读回来，读完之前不写盘，免得用缓存盖掉文件 */
-  const [restoring, setRestoring] = useState(
-    () => isDesktop && desktop !== undefined && loadSessionPath() !== null,
-  );
+  /** 当前项目对应的磁盘文件；还没确定时为 null */
+  const [projectPath, setProjectPath] = useState<string | null>(null);
   /** 待确认的危险操作 */
   const [confirmRequest, setConfirmRequest] = useState<{
     message: string;
@@ -165,92 +157,82 @@ export default function App() {
   const askConfirm = (message: string, onConfirm: () => void): void => {
     setConfirmRequest({ message, onConfirm });
   };
-  const fileInputRef = useRef<HTMLInputElement>(null);
   /** 分栏容器：拖分隔线时按它的宽度算比例 */
   const splitBoxRef = useRef<HTMLDivElement | null>(null);
 
-  // 自动保存：开关打开时，改动立刻写进本机缓存（浏览器模式下它就是存档）
-  useEffect(() => {
-    if (!settings.autoSave) return;
-    writeDraft(project);
-  }, [project, settings.autoSave]);
-
-  // 桌面模式：一旦关联了项目文件，改动后自动写盘（防抖 800ms）
-  useEffect(() => {
-    if (!settings.autoSave || restoring) return;
-    if (!isDesktop || desktop === undefined || projectPath === null) return;
-    // 收窄后存进局部变量，闭包里才不会被判成可能 undefined
-    const api = desktop;
-    const target = projectPath;
-    const timer = window.setTimeout(() => {
-      void api
-        .saveProject({
-          content: JSON.stringify(project, null, 2),
-          suggestedName: project.name,
-          currentPath: target,
-        })
-        .catch(() => setToast('自动保存失败，请手动点「保存」'));
-    }, 800);
-    return () => window.clearTimeout(timer);
-  }, [project, projectPath, settings.autoSave, restoring]);
-
-  // 记住这次打开的项目文件，下次启动直接读回来
-  useEffect(() => {
-    saveSessionPath(projectPath);
-  }, [projectPath]);
-
   /**
-   * 桌面模式启动时，把上次的项目文件读回界面。
+   * 启动：认出宿主 → 按上次记住的路径读项目文件 → 读不回来（或压根没有）就停在门槛页。
    *
-   * 刻意不把 projectPath 放进依赖：读回失败会把它置成 null，
-   * 依赖变化会让 effect 重跑，而新一轮会因为 restoring 已改而提前返回，
-   * 结果是 restoring 关不掉、自动保存跟着一起失效。
+   * 本机不再缓存项目内容，所以「读不回来」时没有兜底数据可用，
+   * 只能让用户重新新建或打开一个项目文件。
    */
   useEffect(() => {
-    if (!restoring || desktop === undefined || projectPath === null) return;
-    const api = desktop;
-    const target = projectPath;
     let canceled = false;
 
     void (async () => {
-      try {
-        const result = await api.readProject(target);
-        const parsed = result.canceled
-          ? null
-          : normalizeProject(JSON.parse(result.content ?? ''));
+      const api = getHost();
+      if (api === undefined) {
         if (canceled) return;
-
-        if (parsed === null) {
-          setProjectPath(null);
-          setToast(`上次的项目「${baseName(target)}」没能自动打开，请重新打开或另存为`);
-          return;
-        }
-
-        setProject(parsed.project);
-        setActiveGroupUid('');
-        if (parsed.changes.length > 0) {
-          setIdChanges(parsed.changes);
-          setToast(
-            `已自动打开「${baseName(target)}」，并按新结构迁移：指令、选项各自成行，` +
-              `${parsed.changes.length} 个对话 ID 有变化`,
-          );
-        } else {
-          setToast(`已自动打开上次的项目「${baseName(target)}」`);
-        }
-      } catch {
-        if (canceled) return;
-        setProjectPath(null);
-        setToast(`上次的项目「${baseName(target)}」没能自动打开，请重新打开或另存为`);
-      } finally {
-        // StrictMode 下第一次会被取消，不能提前放行写盘
-        if (!canceled) setRestoring(false);
+        setGateNote(
+          '没检测到本地服务。请不要直接双击 index.html，' +
+            '改成双击同一个文件夹里的「启动StoryMaker.bat」，它会打开正确的地址。',
+        );
+        setPhase('gate');
+        return;
       }
+      setHost(api);
+
+      const last = await api.lastProjectPath().catch(() => null);
+      if (last !== null) {
+        try {
+          const content = await api.readProject(last);
+          const parsed = content === null ? null : parseProjectFile(content);
+          if (parsed !== null) {
+            if (canceled) return;
+            setProject(parsed.project);
+            setProjectPath(last);
+            setActiveGroupUid('');
+            setActiveChapterUid('');
+            if (parsed.changes.length > 0) {
+              setIdChanges(parsed.changes);
+              setToast(
+                `已打开上次的项目「${baseName(last)}」，并按新结构迁移：指令、选项各自成行，` +
+                  `${parsed.changes.length} 个对话 ID 有变化（见对照表）`,
+              );
+            } else {
+              setToast(`已打开上次的项目「${baseName(last)}」`);
+            }
+            setPhase('ready');
+            return;
+          }
+        } catch {
+          // 被占用、内容损坏等：一律当成"打不开"，走下面的重新选择
+        }
+        await api.rememberProjectPath(null).catch(() => undefined);
+        if (canceled) return;
+        setGateNote(`上次的项目「${baseName(last)}」没能打开，请重新新建或打开一个项目文件。`);
+      }
+
+      if (!canceled) setPhase('gate');
     })();
 
     return () => {
       canceled = true;
     };
-  }, [restoring]);
+  }, []);
+
+  // 自动保存：确定项目文件后，改动直接写回那个 .json（防抖 800ms）
+  useEffect(() => {
+    if (!settings.autoSave || phase !== 'ready' || host === undefined || projectPath === null) return;
+    const api = host;
+    const target = projectPath;
+    const timer = window.setTimeout(() => {
+      void api
+        .writeProject(target, JSON.stringify(project, null, 2))
+        .catch(() => setToast('自动保存失败，请手动点「保存」'));
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [project, projectPath, settings.autoSave, phase, host]);
 
   // 主题：写到 <html data-theme>，配色全部由 CSS 变量接管
   useEffect(() => {
@@ -497,6 +479,68 @@ export default function App() {
     );
   };
 
+  /** 把一个项目文件接管到界面上：新建、打开、启动自动加载都走这里 */
+  const adoptProject = (next: Project, target: string): void => {
+    setProject(next);
+    setProjectPath(target);
+    setActiveGroupUid('');
+    setActiveChapterUid('');
+    setHasChecked(false);
+    setGateNote('');
+    setPhase('ready');
+  };
+
+  /** 新建：先让用户选一个 .json 存到哪儿，再把空项目写进去 */
+  const handleCreate = async (): Promise<void> => {
+    if (host === undefined) return;
+    setPicking(true);
+    const target = await host.pickNewProjectPath(project.name).catch(() => null);
+    setPicking(false);
+    if (target === null) return;
+
+    const fresh = createEmptyProject();
+    try {
+      await host.writeProject(target, JSON.stringify(fresh, null, 2));
+    } catch {
+      setToast('这个位置写不进去，请换一个文件夹再试');
+      return;
+    }
+    await host.rememberProjectPath(target).catch(() => undefined);
+    adoptProject(fresh, target);
+    setToast(`已新建项目文件 ${baseName(target)}，之后的改动都会直接存进它`);
+  };
+
+  /** 打开已有的项目 JSON */
+  const handleOpen = async (): Promise<void> => {
+    if (host === undefined) return;
+    setPicking(true);
+    const picked = await host.pickProject().catch(() => null);
+    setPicking(false);
+    if (picked === null) return;
+
+    try {
+      const parsed = parseProjectFile(picked.content);
+      if (parsed === null) {
+        setToast('这个文件不是 StoryMaker 项目文件');
+        return;
+      }
+      await host.rememberProjectPath(picked.filePath).catch(() => undefined);
+      adoptProject(parsed.project, picked.filePath);
+      const name = baseName(picked.filePath);
+      if (parsed.changes.length > 0) {
+        setIdChanges(parsed.changes);
+        setToast(
+          `已打开「${name}」，并按新结构迁移：指令、选项各自成行，` +
+            `${parsed.changes.length} 个对话 ID 有变化（见对照表）`,
+        );
+      } else {
+        setToast(`已打开「${name}」`);
+      }
+    } catch {
+      setToast('打开失败，请确认文件还在、并且没被别的程序占用');
+    }
+  };
+
   const handleExport = async (): Promise<void> => {
     // 导出前静默跑一次校验，不弹确认框，但结果会提示出来
     const check = validateProject(project);
@@ -510,127 +554,41 @@ export default function App() {
         ? `，但有 ${check.errors} 处错误建议先修复（见下方校验结果）`
         : '，含对话 / 选项 / 本地化三张工作表';
 
-    if (isDesktop && desktop !== undefined) {
-      const result = await desktop.saveFileAs({ suggestedName: filename, data: buffer });
-      if (result.canceled) return;
-      setToast(`已导出到 ${result.filePath ?? filename}${suffix}`);
-      if (result.filePath !== undefined) void desktop.revealFile(result.filePath);
-      return;
-    }
-
-    saveBlob(
-      filename,
-      new Blob([buffer], {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      }),
-    );
-    setToast(`已导出「${filename}」${suffix}`);
+    if (host === undefined) return;
+    const filePath = await host.exportFile(filename, buffer);
+    if (filePath === null) return;
+    setToast(`已导出到 ${filePath}${suffix}`);
+    void host.revealFile(filePath);
   };
 
-  /** 保存到当前项目文件（桌面模式）或下载一份 JSON（浏览器模式） */
+  /** 保存：直接写回当前项目文件 */
   const handleSave = async (): Promise<void> => {
-    const content = JSON.stringify(project, null, 2);
-
-    if (isDesktop && desktop !== undefined) {
-      const result = await desktop.saveProject({
-        content,
-        suggestedName: project.name,
-        currentPath: projectPath,
-      });
-      if (result.canceled) return;
-      setProjectPath(result.filePath ?? null);
-      // 手动保存也算「已保存状态」，下次启动能自动加载回来
-      writeDraft(project);
-      setToast(`已保存${result.filePath === undefined ? '' : `到 ${result.filePath}`}`);
-      return;
+    if (host === undefined || projectPath === null) return;
+    try {
+      await host.writeProject(projectPath, JSON.stringify(project, null, 2));
+      setToast(`已保存到 ${projectPath}`);
+    } catch {
+      setToast('保存失败，请确认这个文件还在、并且没被别的程序占用');
     }
-
-    writeDraft(project);
-    saveBlob(`${project.name}.json`, new Blob([content], { type: 'application/json' }));
   };
 
-  /** 另存为一份新的项目 JSON */
+  /** 另存为：换一个项目文件，之后的改动都写进新文件 */
   const handleSaveAs = async (): Promise<void> => {
-    const content = JSON.stringify(project, null, 2);
-
-    if (isDesktop && desktop !== undefined) {
-      const result = await desktop.saveProject({
-        content,
-        suggestedName: project.name,
-        currentPath: null,
-      });
-      if (result.canceled) return;
-      setProjectPath(result.filePath ?? null);
-      writeDraft(project);
-      setToast(`已另存为 ${result.filePath ?? ''}`);
-      return;
-    }
-
-    writeDraft(project);
-    saveBlob(`${project.name}.json`, new Blob([content], { type: 'application/json' }));
-  };
-
-  /** 打开项目：桌面模式走系统文件对话框，浏览器模式走 <input type="file"> */
-  const handleOpen = async (): Promise<void> => {
-    if (!isDesktop || desktop === undefined) {
-      fileInputRef.current?.click();
-      return;
-    }
-
-    const result = await desktop.openProject();
-    if (result.canceled || result.content === undefined) return;
+    if (host === undefined) return;
+    setPicking(true);
+    const target = await host.pickNewProjectPath(project.name).catch(() => null);
+    setPicking(false);
+    if (target === null) return;
 
     try {
-      const parsed = normalizeProject(JSON.parse(result.content));
-      if (parsed === null) {
-        setToast('这个文件不是 StoryMaker 项目文件');
-        return;
-      }
-      const name = baseName(result.filePath ?? '');
-      setProject(parsed.project);
-      setProjectPath(result.filePath ?? null);
-      setActiveGroupUid('');
-      setHasChecked(false);
-      if (parsed.changes.length > 0) {
-        setIdChanges(parsed.changes);
-        setToast(
-          `已打开「${name}」，并按新结构迁移：指令、选项各自成行，` +
-            `${parsed.changes.length} 个对话 ID 有变化（见对照表）`,
-        );
-      } else {
-        setToast(`已打开「${name}」`);
-      }
+      await host.writeProject(target, JSON.stringify(project, null, 2));
     } catch {
-      setToast('文件解析失败，可能不是合法的 JSON');
+      setToast('这个位置写不进去，请换一个文件夹再试');
+      return;
     }
-  };
-
-  const handleImportJson = (file: File): void => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const parsed = normalizeProject(JSON.parse(String(reader.result)));
-        if (parsed === null) {
-          setToast('这个文件不是 StoryMaker 项目文件');
-          return;
-        }
-        setProject(parsed.project);
-        setActiveGroupUid('');
-        setHasChecked(false);
-        if (parsed.changes.length > 0) {
-          setIdChanges(parsed.changes);
-          setToast(
-            `已导入「${parsed.project.name}」，并按新结构迁移：指令、选项各自成行，` +
-              `${parsed.changes.length} 个对话 ID 有变化（见对照表）`,
-          );
-        } else {
-          setToast(`已导入「${parsed.project.name}」`);
-        }
-      } catch {
-        setToast('文件解析失败，可能不是合法的 JSON');
-      }
-    };
-    reader.readAsText(file);
+    await host.rememberProjectPath(target).catch(() => undefined);
+    setProjectPath(target);
+    setToast(`已另存为 ${target}`);
   };
 
   const handleRenumber = (): void => {
@@ -640,6 +598,21 @@ export default function App() {
   };
 
   const checkCounts = useMemo(() => validateProject(project), [project]);
+
+  // 项目文件还没确定：先把编辑界面挡在门槛后面
+  if (phase !== 'ready') {
+    return (
+      <ProjectGate
+        loading={phase === 'loading'}
+        note={gateNote}
+        busy={picking}
+        onCreate={() => void handleCreate()}
+        onOpen={() => void handleOpen()}
+      >
+        {toast !== '' && <div className="toast">{toast}</div>}
+      </ProjectGate>
+    );
+  }
 
   return (
     <div className="app">
@@ -662,12 +635,10 @@ export default function App() {
           <button
             type="button"
             onClick={() =>
-              askConfirm('新建会清空当前项目，确定吗？还没保存的改动会丢失。', () => {
-                setProject(createEmptyProject());
-                setProjectPath(null);
-                setActiveGroupUid('');
-                setHasChecked(false);
-              })
+              askConfirm(
+                '新建会换一个项目文件，当前项目里还没保存的改动会丢失。确定吗？',
+                () => void handleCreate(),
+              )
             }
           >
             新建
@@ -683,23 +654,9 @@ export default function App() {
           </button>
         </div>
 
-        {isDesktop && (
-          <span className="file-chip" title={projectPath ?? '尚未保存到文件'}>
-            {projectPath === null ? '未保存' : baseName(projectPath)}
-          </span>
-        )}
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".json,application/json"
-          style={{ display: 'none' }}
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file !== undefined) handleImportJson(file);
-            event.target.value = '';
-          }}
-        />
+        <span className="file-chip" title={projectPath ?? '还没有项目文件'}>
+          {projectPath === null ? '未指定项目文件' : baseName(projectPath)}
+        </span>
 
         <span className="spacer" />
 

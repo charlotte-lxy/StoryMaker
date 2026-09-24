@@ -2296,3 +2296,88 @@ tr.needs-work .loc-key {
 .theme-swatch.dark {
   background: linear-gradient(135deg, #1d222b 0 55%, #14181f 55% 100%);
 }
+
+/* ---------- 项目文件门槛 ---------- */
+
+.gate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 40px 20px;
+}
+
+.gate-card {
+  width: 620px;
+  max-width: 100%;
+  padding: 28px 32px 26px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+}
+
+.gate-card .brand {
+  margin-bottom: 18px;
+}
+
+.gate-card h1 {
+  margin: 0 0 10px;
+  font-size: 20px;
+}
+
+.gate-text {
+  margin: 0 0 20px;
+  color: var(--text-dim);
+  line-height: 1.8;
+}
+
+.gate-text b {
+  color: var(--text);
+}
+
+.gate-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.gate-actions button {
+  padding: 9px 18px;
+  font-size: 14px;
+}
+
+.gate-tip {
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--head-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-dim);
+  line-height: 1.8;
+}
+
+.gate-tip code {
+  padding: 1px 5px;
+  background: var(--control-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: var(--mono);
+  color: var(--text);
+}
+
+.gate-note {
+  margin: 14px 0 0;
+  padding: 10px 14px;
+  background: var(--warn-soft);
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  color: var(--warn);
+  line-height: 1.7;
+}
+
+.gate .toast {
+  position: static;
+  margin: 14px auto 0;
+  width: fit-content;
+}
