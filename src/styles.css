@@ -887,6 +887,19 @@ textarea {
   gap: 8px;
 }
 
+/* 一行 = 块外的段内序号 + 对话块本身。
+   序号单独占最左侧一列，不占用卡片内部的字段位置 */
+.line-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.line-row > .line-card {
+  flex: 1;
+  min-width: 0;
+}
+
 .line-card {
   position: relative;
   display: flex;
@@ -990,23 +1003,20 @@ textarea {
   align-items: flex-start;
 }
 
-/* 条目左侧的段内序号：完整 ID 太长，这里只标 "-" 后面那截 */
+/* 对话块外侧最左边的段内序号：完整 ID 太长，这里只标 "-" 后面那截。
+   它是块外的一个标记，不做成卡片的一部分，所以不放底色 */
 .line-seq {
   flex-shrink: 0;
   align-self: center;
-  min-width: 26px;
-  padding: 2px 6px;
-  border-radius: 6px;
-  background: var(--bg);
+  min-width: 22px;
   color: var(--text-dim);
   font-family: var(--mono);
   font-size: 12px;
   font-weight: 600;
-  text-align: center;
+  text-align: right;
 }
 
-.line-card.editing .line-seq {
-  background: var(--panel);
+.line-row.editing .line-seq {
   color: var(--accent-dark);
 }
 

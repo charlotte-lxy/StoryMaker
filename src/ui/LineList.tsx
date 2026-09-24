@@ -155,187 +155,192 @@ export function LineList(props: Props) {
         const hasNote = line.note.trim() !== '';
         const sequence = lineSequenceOf(line.readableId) === '' ? String(index + 1) : lineSequenceOf(line.readableId);
         return (
-          <article
+          /* 一行 = 块外的段内序号 + 对话块本身 */
+          <div
             key={line.uid}
-            data-line-uid={line.uid}
-            ref={props.flashLineUid === line.uid ? flashCardRef : undefined}
-            /* 整行空白处都能按住拖动排序；正在编辑的那一行先不响应，
-               免得在输入框里拖选文字被当成搬行 */
-            draggable={editingUid !== line.uid}
-            onMouseDown={(event) => {
-              pressedRef.current = event.target;
-            }}
-            onDragStart={(event) => {
-              if (fromControl(pressedRef.current)) {
-                event.preventDefault();
-                return;
-              }
-              setDragIndex(index);
-              event.dataTransfer.effectAllowed = 'move';
-            }}
-            onDragEnd={clearDrag}
-            className={[
-              'line-card',
-              `type-card-${line.kind}`,
-              props.flashLineUid === line.uid ? 'flash' : '',
-              dragIndex === index ? 'dragging' : '',
-              editingUid === line.uid ? 'editing' : '',
-              dropAt === index ? 'drop-before' : '',
-              dropAt === index + 1 ? 'drop-after' : '',
-            ]
-              .filter(Boolean)
-              .join(' ')}
-            onFocus={() => setEditingUid(line.uid)}
-            onBlur={handleBlur(line.uid)}
+            className={`line-row${editingUid === line.uid ? ' editing' : ''}`}
           >
-              {/* 只是"这里能拖"的视觉提示，真正的拖拽挂在整行上 */}
-              <span
-                className="drag-handle line-drag"
-                title="按住整行的空白处上下拖动可调整顺序，松手后自动重新编号"
-              />
+            {/* 段内序号（完整 ID 里 "-" 后面那截）放在对话块外面，
+                完整 ID 放到悬浮提示里；导出用的还是完整 ID */}
+            <span className="line-seq" title={`对话 ID：${line.readableId}`}>
+              {sequence}
+            </span>
 
-              {/* 左侧只标段内序号（也就是完整 ID 里 "-" 后面那截），
-                  完整 ID 放到悬浮提示里；导出用的还是完整 ID */}
-              <span className="line-seq" title={`对话 ID：${line.readableId}`}>
-                {sequence}
-              </span>
-
-              <div className="line-fields">
-                <Field label="脚本类型" className="line-field-kind">
-                  <span className={`type-tag type-${line.kind}`}>{line.kind}</span>
-                </Field>
-
-                {line.kind === '对话' && (
-                  <>
-                    <Field label="角色" className="line-field-character">
-                      <select
-                        value={line.characterId}
-                        title="角色：导出时写入「角色ID」列"
-                        onChange={(event) =>
-                          props.onUpdateLine(line.uid, { characterId: event.target.value })
-                        }
-                      >
-                        <option value="">（未指定）</option>
-                        {props.characters.map((character) => (
-                          <option key={character.uid} value={character.id}>
-                            {character.name}
-                          </option>
-                        ))}
-                        {line.characterId !== '' &&
-                          !props.characters.some((c) => c.id === line.characterId) && (
-                            <option value={line.characterId}>
-                              {line.characterId}（不在角色表中）
+            <article
+              data-line-uid={line.uid}
+              ref={props.flashLineUid === line.uid ? flashCardRef : undefined}
+              /* 整行空白处都能按住拖动排序；正在编辑的那一行先不响应，
+                 免得在输入框里拖选文字被当成搬行 */
+              draggable={editingUid !== line.uid}
+              onMouseDown={(event) => {
+                pressedRef.current = event.target;
+              }}
+              onDragStart={(event) => {
+                if (fromControl(pressedRef.current)) {
+                  event.preventDefault();
+                  return;
+                }
+                setDragIndex(index);
+                event.dataTransfer.effectAllowed = 'move';
+              }}
+              onDragEnd={clearDrag}
+              className={[
+                'line-card',
+                `type-card-${line.kind}`,
+                props.flashLineUid === line.uid ? 'flash' : '',
+                dragIndex === index ? 'dragging' : '',
+                editingUid === line.uid ? 'editing' : '',
+                dropAt === index ? 'drop-before' : '',
+                dropAt === index + 1 ? 'drop-after' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              onFocus={() => setEditingUid(line.uid)}
+              onBlur={handleBlur(line.uid)}
+            >
+                {/* 只是"这里能拖"的视觉提示，真正的拖拽挂在整行上 */}
+                <span
+                  className="drag-handle line-drag"
+                  title="按住整行的空白处上下拖动可调整顺序，松手后自动重新编号"
+                />
+  
+                <div className="line-fields">
+                  <Field label="脚本类型" className="line-field-kind">
+                    <span className={`type-tag type-${line.kind}`}>{line.kind}</span>
+                  </Field>
+  
+                  {line.kind === '对话' && (
+                    <>
+                      <Field label="角色" className="line-field-character">
+                        <select
+                          value={line.characterId}
+                          title="角色：导出时写入「角色ID」列"
+                          onChange={(event) =>
+                            props.onUpdateLine(line.uid, { characterId: event.target.value })
+                          }
+                        >
+                          <option value="">（未指定）</option>
+                          {props.characters.map((character) => (
+                            <option key={character.uid} value={character.id}>
+                              {character.name}
                             </option>
-                          )}
-                      </select>
-                      <input
-                        value={line.displayName}
-                        placeholder="显示名"
-                        title="显示名：导出时写入「角色显示名称」列，留空则用角色 ID"
-                        onChange={(event) =>
-                          props.onUpdateLine(line.uid, { displayName: event.target.value })
-                        }
+                          ))}
+                          {line.characterId !== '' &&
+                            !props.characters.some((c) => c.id === line.characterId) && (
+                              <option value={line.characterId}>
+                                {line.characterId}（不在角色表中）
+                              </option>
+                            )}
+                        </select>
+                        <input
+                          value={line.displayName}
+                          placeholder="显示名"
+                          title="显示名：导出时写入「角色显示名称」列，留空则用角色 ID"
+                          onChange={(event) =>
+                            props.onUpdateLine(line.uid, { displayName: event.target.value })
+                          }
+                        />
+                      </Field>
+  
+                      <Field label="台词（中文）" className="line-field-text">
+                        <textarea
+                          rows={2}
+                          value={line.text.zh}
+                          placeholder="中文台词"
+                          onChange={(event) =>
+                            props.onUpdateLine(line.uid, {
+                              text: { ...line.text, zh: event.target.value },
+                            })
+                          }
+                        />
+                      </Field>
+  
+                      <Field label="强制自动播放" className="line-field-auto">
+                        <input
+                          type="checkbox"
+                          checked={line.autoAdvance}
+                          title="勾上后这一句播完自动进入下一句"
+                          onChange={(event) =>
+                            props.onUpdateLine(line.uid, { autoAdvance: event.target.checked })
+                          }
+                        />
+                      </Field>
+                    </>
+                  )}
+  
+                  {line.kind === '选项' && (
+                    <Field label="选项列表" className="line-field-options">
+                      <OptionListEditor
+                        line={line}
+                        group={group}
+                        groupedLines={groupedLines}
+                        characters={props.characters}
+                        commandDefs={props.commandDefs}
+                        commandTargets={props.commandTargets}
+                        flashOptionUid={props.flashOptionUid}
+                        onUpdateOption={props.onUpdateOption}
+                        onAddOption={() => props.onAddOption(line.uid)}
+                        onRemoveOption={props.onRemoveOption}
+                        onJumpToLine={props.onJumpToLine}
                       />
                     </Field>
-
-                    <Field label="台词（中文）" className="line-field-text">
-                      <textarea
-                        rows={2}
-                        value={line.text.zh}
-                        placeholder="中文台词"
-                        onChange={(event) =>
-                          props.onUpdateLine(line.uid, {
-                            text: { ...line.text, zh: event.target.value },
-                          })
+                  )}
+  
+                  {line.kind === '指令' && (
+                    <Field label="指令" className="line-field-command">
+                      <CommandInput
+                        value={line.command}
+                        defs={props.commandDefs}
+                        category="指令"
+                        targets={props.commandTargets}
+                        expressionsOf={(id) =>
+                          props.characters.find((c) => c.id === id)?.expressions ?? []
                         }
+                        actionsOf={(id) => props.characters.find((c) => c.id === id)?.actions ?? []}
+                        onChange={(next) => props.onUpdateLine(line.uid, { command: next })}
                       />
                     </Field>
-
-                    <Field label="强制自动播放" className="line-field-auto">
-                      <input
-                        type="checkbox"
-                        checked={line.autoAdvance}
-                        title="勾上后这一句播完自动进入下一句"
-                        onChange={(event) =>
-                          props.onUpdateLine(line.uid, { autoAdvance: event.target.checked })
-                        }
-                      />
-                    </Field>
-                  </>
-                )}
-
-                {line.kind === '选项' && (
-                  <Field label="选项列表" className="line-field-options">
-                    <OptionListEditor
-                      line={line}
-                      group={group}
-                      groupedLines={groupedLines}
-                      characters={props.characters}
-                      commandDefs={props.commandDefs}
-                      commandTargets={props.commandTargets}
-                      flashOptionUid={props.flashOptionUid}
-                      onUpdateOption={props.onUpdateOption}
-                      onAddOption={() => props.onAddOption(line.uid)}
-                      onRemoveOption={props.onRemoveOption}
-                      onJumpToLine={props.onJumpToLine}
-                    />
+                  )}
+  
+                  <Field label="操作" className="line-field-actions">
+                    <div className="row-actions">
+                      <button
+                        type="button"
+                        className="mini danger"
+                        title="删除这一行"
+                        onClick={() => props.onRemoveLine(line.uid)}
+                      >
+                        删除
+                      </button>
+                      <button
+                        type="button"
+                        className={`mini note-button${hasNote ? ' has-note' : ''}`}
+                        title={hasNote ? '修改备注' : '添加备注'}
+                        data-note={hasNote ? line.note : undefined}
+                        onClick={() => setNoteUid(noteUid === line.uid ? null : line.uid)}
+                      >
+                        备注
+                      </button>
+                    </div>
                   </Field>
-                )}
-
-                {line.kind === '指令' && (
-                  <Field label="指令" className="line-field-command">
-                    <CommandInput
-                      value={line.command}
-                      defs={props.commandDefs}
-                      category="指令"
-                      targets={props.commandTargets}
-                      expressionsOf={(id) =>
-                        props.characters.find((c) => c.id === id)?.expressions ?? []
-                      }
-                      actionsOf={(id) => props.characters.find((c) => c.id === id)?.actions ?? []}
-                      onChange={(next) => props.onUpdateLine(line.uid, { command: next })}
-                    />
-                  </Field>
-                )}
-
-                <Field label="操作" className="line-field-actions">
-                  <div className="row-actions">
-                    <button
-                      type="button"
-                      className="mini danger"
-                      title="删除这一行"
-                      onClick={() => props.onRemoveLine(line.uid)}
-                    >
-                      删除
-                    </button>
-                    <button
-                      type="button"
-                      className={`mini note-button${hasNote ? ' has-note' : ''}`}
-                      title={hasNote ? '修改备注' : '添加备注'}
-                      data-note={hasNote ? line.note : undefined}
-                      onClick={() => setNoteUid(noteUid === line.uid ? null : line.uid)}
-                    >
-                      备注
-                    </button>
-                  </div>
-                </Field>
-              </div>
-
-              {noteUid === line.uid && (
-                <div className="line-note">
-                  <span className="line-field-name">备注（只给自己看，不导出）</span>
-                  <textarea
-                    rows={2}
-                    autoFocus
-                    value={line.note}
-                    placeholder="例如：这句要等 BGM 淡出后再进"
-                    onChange={(event) =>
-                      props.onUpdateLine(line.uid, { note: event.target.value })
-                    }
-                  />
                 </div>
-              )}
+  
+                {noteUid === line.uid && (
+                  <div className="line-note">
+                    <span className="line-field-name">备注（只给自己看，不导出）</span>
+                    <textarea
+                      rows={2}
+                      autoFocus
+                      value={line.note}
+                      placeholder="例如：这句要等 BGM 淡出后再进"
+                      onChange={(event) =>
+                        props.onUpdateLine(line.uid, { note: event.target.value })
+                      }
+                    />
+                  </div>
+                )}
             </article>
+          </div>
         );
       })}
 

@@ -120,10 +120,12 @@ describe('界面冒烟测试', () => {
     const { container } = await renderApp();
     // 列表里不再显示完整对话 ID，只在条目左侧标段内序号
     expect(container.querySelectorAll('.line-card')).toHaveLength(1);
-    expect(container.querySelector('.line-seq')?.textContent).toBe('1');
-    expect(container.querySelector('.line-seq')?.getAttribute('title')).toBe(
-      '对话 ID：Dia_ch01_001-1',
-    );
+    const seq = container.querySelector('.line-seq');
+    expect(seq?.textContent).toBe('1');
+    expect(seq?.getAttribute('title')).toBe('对话 ID：Dia_ch01_001-1');
+    // 序号挂在整行容器上、在对话块外面（最左侧一列）
+    expect(seq?.parentElement?.className).toBe('line-row');
+    expect(container.querySelector('.line-card .line-seq')).toBeNull();
   });
 
   it('新增选项后，跳转目标默认是「对话结束」（即导出留空）', async () => {
@@ -289,7 +291,8 @@ describe('脚本块与三种类型的行', () => {
   /** 列表里每一行的类型标签与对话 ID */
   const rows = (container: HTMLElement) => ({
     kinds: [...container.querySelectorAll('.line-card .type-tag')].map((el) => el.textContent),
-    seqs: [...container.querySelectorAll('.line-card .line-seq')].map((el) => el.textContent),
+    // 序号在对话块外面（最左侧一列），所以不从 .line-card 里找
+    seqs: [...container.querySelectorAll('.line-seq')].map((el) => el.textContent),
   });
 
   it('拖入「选项」行：默认带一个选项，ID 接着上一行连续编号', async () => {
