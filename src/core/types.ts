@@ -127,6 +127,19 @@ export interface LookupRow {
   name: string;
 }
 
+/**
+ * UI 本地化表里的一行：界面文案的 key 加三语文本，如
+ * TXT_Widget_开始游戏 = 开始游戏 / Start Game / ゲーム開始。
+ *
+ * 与对话、选项的文本不同，这些条目不是从剧本里收上来的，得在界面上自己维护。
+ */
+export interface UiTextRow {
+  uid: string;
+  /** 本地化 key，由程序定，如 TXT_Widget_开始游戏 */
+  key: string;
+  text: LocalizedText;
+}
+
 /** 指令的目标对象可以来自哪张表 */
 export type TargetKind =
   | 'character'
@@ -182,4 +195,6 @@ export interface Project {
   chapters: Chapter[];
   /** 变量声明，暂未实装界面 */
   variables: VariableDecl[];
+  /** UI 本地化表：界面文案，导出时接在本地化表的对话 / 选项文本后面 */
+  uiTexts: UiTextRow[];
 }

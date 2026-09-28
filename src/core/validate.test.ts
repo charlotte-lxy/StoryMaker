@@ -43,6 +43,7 @@ function makeProject(group: Partial<Group>): Project {
     quests: [],
     images: [],
     variables: [],
+    uiTexts: [],
     chapters: [
       {
         uid: 'c1',

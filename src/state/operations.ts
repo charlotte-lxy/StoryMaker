@@ -16,6 +16,7 @@ import type {
   Project,
   StoryOption,
   TargetKind,
+  UiTextRow,
   ValueKind,
 } from '../core/types';
 
@@ -121,6 +122,7 @@ export function createEmptyProject(name = '未命名项目'): Project {
     sounds: [],
     commands: defaultCommandDefs(),
     variables: [],
+    uiTexts: [],
     chapters: [
       {
         uid: newUid(),
@@ -644,5 +646,35 @@ export function updateTextByUid(
         }
       }
     }
+  });
+}
+
+/* ---------- UI 本地化 ---------- */
+
+/**
+ * UI 本地化表的增删改。
+ *
+ * 这些条目不来自剧本，是程序给的界面文案清单，因此在界面上单独维护，
+ * 新增时给一个不会撞车的默认 key，改 key 不牵连任何引用。
+ */
+export function addUiText(project: Project): Project {
+  return mutate(project, (draft) => {
+    const taken = new Set(draft.uiTexts.map((row) => row.key));
+    let n = draft.uiTexts.length + 1;
+    while (taken.has(`TXT_UI_${n}`)) n += 1;
+    draft.uiTexts.push({ uid: newUid(), key: `TXT_UI_${n}`, text: { zh: '', en: '', ja: '' } });
+  });
+}
+
+export function removeUiText(project: Project, uid: string): Project {
+  return mutate(project, (draft) => {
+    draft.uiTexts = draft.uiTexts.filter((row) => row.uid !== uid);
+  });
+}
+
+export function updateUiText(project: Project, uid: string, patch: Partial<UiTextRow>): Project {
+  return mutate(project, (draft) => {
+    const row = draft.uiTexts.find((item) => item.uid === uid);
+    if (row !== undefined) Object.assign(row, patch);
   });
 }

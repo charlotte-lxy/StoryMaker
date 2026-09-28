@@ -51,6 +51,7 @@ function makeProject(chapters: Chapter[]): Project {
     sounds: [],
     commands: [],
     variables: [],
+    uiTexts: [],
     chapters,
   };
 }

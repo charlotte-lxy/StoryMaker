@@ -219,6 +219,7 @@ describe('导出三张表', () => {
       quests: [],
       images: [],
       variables: [],
+      uiTexts: [],
       chapters: [
         {
           uid: 'c1',
@@ -324,6 +325,34 @@ describe('导出三张表', () => {
       'TXT_Dia_ch01_002-1',
       'TXT_Dia_ch01_003-1',
     ]);
+  });
+
+  it('UI 本地化接在对话 / 选项的文本后面，排在同一张本地化表里', () => {
+    const withUi = makeProject();
+    withUi.uiTexts = [
+      {
+        uid: 'ui-1',
+        key: 'TXT_Widget_开始游戏',
+        text: { zh: '开始游戏', en: 'Start Game', ja: 'ゲーム開始' },
+      },
+      {
+        uid: 'ui-2',
+        key: 'TXT_Widget_设置',
+        text: { zh: '设置', en: 'Setting', ja: '設定' },
+      },
+    ];
+
+    const uiRows = buildRows(withUi);
+
+    // 表头不变，UI 的行接在 5 条对话 / 选项文本之后
+    expect(uiRows.locale).toHaveLength(8);
+    expect(uiRows.locale.slice(6)).toEqual([
+      ['TXT_Widget_开始游戏', '开始游戏', 'Start Game', 'ゲーム開始'],
+      ['TXT_Widget_设置', '设置', 'Setting', '設定'],
+    ]);
+    // UI 文本不进对话表与选项表
+    expect(uiRows.dialogue.flat()).not.toContain('开始游戏');
+    expect(uiRows.options.flat()).not.toContain('开始游戏');
   });
 
   it('生成含三张工作表的 xlsx', async () => {

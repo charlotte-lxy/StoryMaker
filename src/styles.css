@@ -1718,6 +1718,82 @@ tr.needs-work .loc-key {
   color: var(--warn);
 }
 
+/* UI 本地化那一页的 key 是输入框，缺译文时连框里的字一起标黄 */
+tr.needs-work .loc-key input {
+  color: var(--warn);
+}
+
+/* ---------- 本地化模块的侧边栏与搜索 ---------- */
+
+/* 左边窄栏：上面两个页面选项，下面跟着当前这一页的搜索框 */
+.locale-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.locale-side {
+  /* 表格很长，滚到下面时搜索框还要留在视线里 */
+  position: sticky;
+  top: 0;
+  flex-shrink: 0;
+  width: 172px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.locale-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 7px 10px;
+  border-color: transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-dim);
+  text-align: left;
+}
+
+.locale-nav:hover:not(.active) {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* 带上 :hover：不然鼠标停在选中项上会被全局的 button:hover 抢掉配色 */
+.locale-nav.active,
+.locale-nav.active:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.locale-nav .count {
+  font-size: 11px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+.locale-search {
+  margin-top: 4px;
+  border-color: var(--border);
+  background: var(--control-bg);
+}
+
+.locale-hit {
+  padding-left: 2px;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.locale-main {
+  flex: 1;
+  min-width: 0;
+}
+
 .warn-text {
   color: var(--warn);
 }

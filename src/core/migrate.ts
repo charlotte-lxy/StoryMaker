@@ -95,6 +95,18 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
     if (!Array.isArray(project[key])) project[key] = [];
   }
   if (!Array.isArray(project.variables)) project.variables = [];
+
+  // UI 本地化：老项目里没有这栏，给个空表；已有的行也补齐字段，
+  // 免得手改过的 JSON 让界面读到 undefined 的文本对象。
+  const rawUiTexts: unknown = project.uiTexts;
+  project.uiTexts = (Array.isArray(rawUiTexts) ? rawUiTexts : [])
+    .filter(isRecord)
+    .map((row) => ({
+      uid: asUid(row.uid),
+      key: asString(row.key),
+      text: asLocalized(row.text),
+    }));
+
   for (const character of project.characters) {
     if (!Array.isArray(character.expressions)) character.expressions = [];
     if (!Array.isArray(character.actions)) character.actions = [];

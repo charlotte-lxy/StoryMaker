@@ -223,4 +223,33 @@ describe('老结构自动迁移', () => {
     expect(normalizeProject({ version: 2, chapters: [] })).toBeNull();
     expect(normalizeProject({ version: 1 })).toBeNull();
   });
+
+  it('没有 UI 本地化的老项目补一张空表', () => {
+    const result = normalizeProject({
+      version: 1,
+      name: '老项目',
+      chapters: [{ uid: 'c1', id: 'ch01', title: '序章', groups: [] }],
+    });
+
+    expect(result!.project.uiTexts).toEqual([]);
+  });
+
+  it('UI 本地化的行逐行收窄：缺字段补齐，非对象直接丢掉', () => {
+    const result = normalizeProject({
+      version: 1,
+      name: '手改过的项目',
+      chapters: [],
+      uiTexts: [
+        { uid: 'ui-1', key: 'TXT_Widget_设置', text: { zh: '设置', en: 'Setting' } },
+        { key: 'TXT_Widget_返回' },
+        '这不是一行',
+        null,
+      ],
+    });
+
+    expect(result!.project.uiTexts).toEqual([
+      { uid: 'ui-1', key: 'TXT_Widget_设置', text: { zh: '设置', en: 'Setting', ja: '' } },
+      { uid: expect.any(String), key: 'TXT_Widget_返回', text: { zh: '', en: '', ja: '' } },
+    ]);
+  });
 });

@@ -9,6 +9,7 @@ import {
   seedProjectFile,
   type FakeHost,
 } from './testing/app-harness';
+import { createEmptyProject } from './state/operations';
 
 /** 当前用例的假宿主：一块"磁盘" + 上次打开的项目路径 */
 let host: FakeHost;
@@ -176,6 +177,89 @@ describe('界面冒烟测试', () => {
     await renderApp();
     fireEvent.click(within(rail()).getByText('本地化'));
     expect(screen.getAllByText('TXT_Dia_ch01_001-1').length).toBeGreaterThan(0);
+  });
+
+  describe('本地化模块：剧情 / UI 两页', () => {
+    /** 一条剧情台词 + 两条 UI 文案 */
+    function seedLocaleProject(): void {
+      const project = createEmptyProject();
+      project.chapters[0].groups[0].lines[0].text = { zh: '第一句台词', en: '', ja: '' };
+      project.uiTexts = [
+        {
+          uid: 'ui-1',
+          key: 'TXT_Widget_开始游戏',
+          text: { zh: '开始游戏', en: 'Start Game', ja: 'ゲーム開始' },
+        },
+        { uid: 'ui-2', key: 'TXT_Widget_设置', text: { zh: '设置', en: '', ja: '' } },
+      ];
+      seedProjectFile(JSON.stringify(project));
+    }
+
+    /** 渲染界面并打开本地化模块 */
+    async function openLocale(): Promise<void> {
+      await renderApp();
+      fireEvent.click(within(rail()).getByText('本地化'));
+    }
+
+    it('侧边栏分两页，默认停在自动收集的剧情本地化', async () => {
+      seedLocaleProject();
+      await openLocale();
+
+      expect(screen.getByText('剧情本地化')).toBeTruthy();
+      expect(screen.getByText('UI 本地化')).toBeTruthy();
+      // 剧情这一页列出对话的文本 key，UI 的条目不在这一页
+      expect(screen.getByText('TXT_Dia_ch01_001-1')).toBeTruthy();
+      expect(screen.queryByDisplayValue('TXT_Widget_开始游戏')).toBeNull();
+
+      fireEvent.click(screen.getByText('UI 本地化'));
+      expect(screen.getByDisplayValue('TXT_Widget_开始游戏')).toBeTruthy();
+      expect(screen.getByDisplayValue('TXT_Widget_设置')).toBeTruthy();
+      expect(screen.queryByText('TXT_Dia_ch01_001-1')).toBeNull();
+    });
+
+    it('搜索框对着当前这一页模糊搜索 key 与三语文本', async () => {
+      seedLocaleProject();
+      await openLocale();
+
+      const search = screen.getByPlaceholderText('搜索 key 或文本');
+
+      // 剧情页里搜 UI 的 key：一条都不命中
+      fireEvent.change(search, { target: { value: 'TXT_Widget' } });
+      expect(screen.getByText(/没有匹配/)).toBeTruthy();
+
+      // 切到 UI 页，同一个搜索框改成对着这一页的内容搜
+      fireEvent.click(screen.getByText('UI 本地化'));
+      expect(screen.getByDisplayValue('TXT_Widget_开始游戏')).toBeTruthy();
+      expect(screen.getByDisplayValue('TXT_Widget_设置')).toBeTruthy();
+
+      fireEvent.change(search, { target: { value: '设置' } });
+      expect(screen.getByDisplayValue('TXT_Widget_设置')).toBeTruthy();
+      expect(screen.queryByDisplayValue('TXT_Widget_开始游戏')).toBeNull();
+
+      // 英文小写也能命中
+      fireEvent.change(search, { target: { value: 'start game' } });
+      expect(screen.getByDisplayValue('TXT_Widget_开始游戏')).toBeTruthy();
+      expect(screen.queryByDisplayValue('TXT_Widget_设置')).toBeNull();
+    });
+
+    it('UI 本地化能新增、改 key、填译文、删除条目', async () => {
+      await openLocale();
+      fireEvent.click(screen.getByText('UI 本地化'));
+      expect(screen.getByText(/还没有 UI 文本/)).toBeTruthy();
+
+      fireEvent.click(screen.getByText('＋ 新增一行'));
+      fireEvent.change(screen.getByDisplayValue('TXT_UI_1'), {
+        target: { value: 'TXT_Widget_新游戏' },
+      });
+      expect(screen.getByDisplayValue('TXT_Widget_新游戏')).toBeTruthy();
+
+      // 只有中文时，缺译文的提示会亮出来
+      fireEvent.change(screen.getByPlaceholderText('中文原文'), { target: { value: '新游戏' } });
+      expect(screen.getByText(/缺英文或日文/)).toBeTruthy();
+
+      fireEvent.click(screen.getByText('删除'));
+      expect(screen.getByText(/还没有 UI 文本/)).toBeTruthy();
+    });
   });
 
   it('新增章节会出现在侧边栏', async () => {

@@ -2,13 +2,16 @@ import { describe, expect, it } from 'vitest';
 
 import type { Line, Project } from '../core/types';
 import {
+  addUiText,
   collectGroupedLineRefs,
   groupUidOfLine,
   insertLine,
   parseCommand,
+  removeUiText,
   renumberOneGroup,
   reorderLine,
   updateTextByUid,
+  updateUiText,
 } from './operations';
 
 function makeLine(uid: string, readableId: string, zh: string): Line {
@@ -37,6 +40,7 @@ function makeProject(): Project {
     quests: [],
     images: [],
     variables: [],
+    uiTexts: [],
     chapters: [
       {
         uid: 'c1',
@@ -182,6 +186,58 @@ describe('本地化文本编辑', () => {  it('按 uid 改写某一语言，不�
     expect(lines[1].readableId).toBe('Dia_ch01_001-2');
     expect(lines[1].text.en).toBe('First line');
     expect(lines[1].text.zh).toBe('第一句');
+  });
+});
+
+describe('UI 本地化条目', () => {
+  it('新增一行：默认 key 不与已有的撞车', () => {
+    const project = makeProject();
+    project.uiTexts = [
+      { uid: 'ui-1', key: 'TXT_UI_1', text: { zh: '', en: '', ja: '' } },
+      { uid: 'ui-2', key: 'TXT_Widget_开始游戏', text: { zh: '', en: '', ja: '' } },
+    ];
+
+    const next = addUiText(project);
+
+    expect(next.uiTexts).toHaveLength(3);
+    // 行数是 2，所以先试 TXT_UI_3 而不是已经被占的 TXT_UI_1
+    expect(next.uiTexts[2].key).toBe('TXT_UI_3');
+    expect(next.uiTexts[2].uid).not.toBe('');
+  });
+
+  it('改 key 与改译文都只动那一行', () => {
+    const project = makeProject();
+    project.uiTexts = [
+      { uid: 'ui-1', key: 'TXT_UI_1', text: { zh: '新游戏', en: '', ja: '' } },
+      { uid: 'ui-2', key: 'TXT_Widget_菜单', text: { zh: '菜单', en: 'Menu', ja: 'メニュー' } },
+    ];
+
+    const renamed = updateUiText(project, 'ui-1', { key: 'TXT_Widget_新游戏' });
+    expect(renamed.uiTexts[0].key).toBe('TXT_Widget_新游戏');
+
+    const translated = updateUiText(renamed, 'ui-1', {
+      text: { zh: '新游戏', en: 'New Game', ja: 'ニューゲーム' },
+    });
+    expect(translated.uiTexts[0].text).toEqual({
+      zh: '新游戏',
+      en: 'New Game',
+      ja: 'ニューゲーム',
+    });
+    expect(translated.uiTexts[1].text.ja).toBe('メニュー');
+    // 原对象不被就地修改
+    expect(project.uiTexts[0].key).toBe('TXT_UI_1');
+  });
+
+  it('删除只拿掉指定的一行', () => {
+    const project = makeProject();
+    project.uiTexts = [
+      { uid: 'ui-1', key: 'TXT_UI_1', text: { zh: '一', en: '', ja: '' } },
+      { uid: 'ui-2', key: 'TXT_UI_2', text: { zh: '二', en: '', ja: '' } },
+    ];
+
+    const next = removeUiText(project, 'ui-1');
+
+    expect(next.uiTexts.map((row) => row.uid)).toEqual(['ui-2']);
   });
 });
 

@@ -17,6 +17,8 @@
  *   - 文本内容移出对话表，统一进本地化表
  *   - 选项行独立成表，跳转目标随之移入选项表
  *   - 三张表合并进同一个 xlsx，而不是三个 csv 文件
+ *   - UI 本地化（TXT_Widget_* 这类界面文案）不单独成表，接在本地化表的
+ *     对话 / 选项文本后面一起导出
  */
 
 import ExcelJS from 'exceljs';
@@ -94,6 +96,11 @@ export function buildRows(project: Project): ExportRowSets {
         }
       }
     }
+  }
+
+  // UI 本地化接在对话 / 选项的文本后面，排在同一张本地化表里
+  for (const row of project.uiTexts) {
+    locale.push([row.key, row.text.zh, row.text.en, row.text.ja]);
   }
 
   return { dialogue, options, locale };

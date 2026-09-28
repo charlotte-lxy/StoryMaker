@@ -14,6 +14,7 @@ import type {
   LookupRow,
   Project,
   StoryOption,
+  UiTextRow,
 } from './core/types';
 import { validateProject, type Issue, type ValidationReport } from './core/validate';
 import {
@@ -23,6 +24,7 @@ import {
   addGroup,
   addLookupRow,
   addOption,
+  addUiText,
   collectGroupedLineRefs,
   createEmptyProject,
   insertLine,
@@ -35,6 +37,7 @@ import {
   removeLine,
   removeLookupRow,
   removeOption,
+  removeUiText,
   renameChapter,
   renameCommand,
   renameGroup,
@@ -45,6 +48,7 @@ import {
   updateCommandDef,
   updateLookupRow,
   updateTextByUid,
+  updateUiText,
   type LookupKind,
 } from './state/operations';
 import {
@@ -317,6 +321,10 @@ export default function App() {
 
   const handleUpdateText = (uid: string, lang: LangKey, value: string): void => {
     setProject((prev) => updateTextByUid(prev, uid, lang, value));
+  };
+
+  const handleUpdateUiText = (uid: string, patch: Partial<UiTextRow>): void => {
+    setProject((prev) => updateUiText(prev, uid, patch));
   };
 
   const handleRenameCommand = (from: string, to: string): void => {
@@ -785,7 +793,13 @@ export default function App() {
           )}
 
           {module === 'locale' && (
-            <LocalizationEditor project={project} onUpdateText={handleUpdateText} />
+            <LocalizationEditor
+              project={project}
+              onUpdateText={handleUpdateText}
+              onAddUiText={() => setProject((prev) => addUiText(prev))}
+              onRemoveUiText={(uid) => setProject((prev) => removeUiText(prev, uid))}
+              onUpdateUiText={handleUpdateUiText}
+            />
           )}
 
           {(module === 'items' ||

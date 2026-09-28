@@ -37,7 +37,7 @@ pnpm dev          # 开发服务器 http://localhost:5180
 | `pnpm build` | `dist/` 多文件 | 内网服务器 |
 | `pnpm build:single` | `release/` | 策划双击即用的单文件产物 |
 | `pnpm build:app` | `app-release/win-unpacked/` | Electron 桌面版 |
-| `pnpm test` | — | 164 个测试 |
+| `pnpm test` | — | 173 个测试 |
 | `pnpm verify:release` | — | 单文件产物自检 |
 | `pnpm verify:server` | — | 本地服务自检（真起进程、真发 HTTP、真落盘） |
 
@@ -50,6 +50,7 @@ pnpm dev          # 开发服务器 http://localhost:5180
   → 对话表（无文本、无选项行）
   → 选项表（含条件、结果、跳转）
   → 本地化表（TXT_ + ID 作 key，中英日）
+  → 同一个 xlsx 的本地化表末尾，再接上 UI 本地化的界面文案（TXT_Widget_* 这类）
 ```
 
 导出的多值列写成 Unreal 数组字面量 `("a","b")`，空列表写空单元格。
