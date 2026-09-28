@@ -13,7 +13,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "verify:release": "vite-node tools/verify-release.mts",
-    "verify:server": "vite-node tools/verify-server.mts"
+    "verify:server": "vite-node tools/verify-server.mts",
+    "verify:update": "vite-node tools/verify-update.mts"
   },
   "dependencies": {
     "exceljs": "^4.4.0",

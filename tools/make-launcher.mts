@@ -7,6 +7,7 @@
  *   pnpm exec vite-node tools/make-launcher.mts
  */
 
+import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -30,4 +31,20 @@ writeFileSync(
 const server = readFileSync(resolve(from, 'storymaker-server.ps1'), 'utf8').replace(/^\uFEFF/, '');
 writeFileSync(resolve(to, 'storymaker-server.ps1'), '\uFEFF' + crlf(server), 'utf8');
 
-console.log('已把启动器放进 release/：启动StoryMaker.bat、storymaker-server.ps1');
+/**
+ * 版本清单：本地服务启动时拉远端这份来比，只下载真的变了的文件。
+ *
+ * 记的是文件内容的 SHA-256 而不是 commit：这样"构建完还没提交"也不会漏更新，
+ * 也能按文件逐个判断——index.html 变了就不必惊动服务端脚本，也就不必要求重启。
+ */
+const sha256 = (path: string): string =>
+  createHash('sha256').update(readFileSync(path)).digest('hex');
+
+const manifest = {
+  'index.html': sha256(resolve(to, 'index.html')),
+  'storymaker-server.ps1': sha256(resolve(to, 'storymaker-server.ps1')),
+  '启动StoryMaker.bat': sha256(resolve(to, '启动StoryMaker.bat')),
+};
+writeFileSync(resolve(to, 'version.json'), JSON.stringify(manifest, null, 2) + '\n', 'utf8');
+
+console.log('已把启动器放进 release/：启动StoryMaker.bat、storymaker-server.ps1、version.json');

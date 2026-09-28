@@ -22,7 +22,9 @@ param(
   # 开发用：由调用方指定令牌，方便它和页面用同一个
   [string]$Token = '',
   # 自动化校验用：不要自动打开浏览器
-  [switch]$NoBrowser
+  [switch]$NoBrowser,
+  # 自动化校验用：跳过更新检查（免得校验脚本去连 GitHub）
+  [switch]$NoUpdate
 )
 
 $ErrorActionPreference = 'Stop'
@@ -496,12 +498,133 @@ function Handle-Request($stream, $request) {
   }
 }
 
+# ---------- 检查更新 ----------
+#
+# 策划双击启动时顺手看一眼 release/ 有没有新版：拉远端的 version.json（由
+# tools/make-launcher.mts 生成的文件清单），比对本地三个文件的 SHA-256，只下载真的变了的。
+#
+# 这一步只许成功不许失败：连不上、超时、清单坏了、下载的字节和清单对不上，一律当作
+# "没有更新"直接放行——绝不能因为查更新害得策划打不开工具。
+
+$script:UpdateBase = 'https://raw.githubusercontent.com/charlotte-lxy/StoryMaker/main/release'
+if ($env:STORYMAKER_UPDATE_BASE) { $script:UpdateBase = $env:STORYMAKER_UPDATE_BASE }
+
+function Get-FileSha256([string]$filePath) {
+  try {
+    if (-not (Test-Path -LiteralPath $filePath -PathType Leaf)) { return $null }
+    return (Get-FileHash -LiteralPath $filePath -Algorithm SHA256).Hash.ToLowerInvariant()
+  } catch {
+    return $null
+  }
+}
+
+function Enable-ModernTls {
+  # Windows PowerShell 5.1 默认还停在 TLS 1.0，不补这一下连不上 GitHub
+  try {
+    $current = [Net.ServicePointManager]::SecurityProtocol
+    [Net.ServicePointManager]::SecurityProtocol = $current -bor [Net.SecurityProtocolType]::Tls12
+  } catch { }
+}
+
+function Get-RemoteText([string]$url, [int]$timeoutMs) {
+  try {
+    $request = [Net.HttpWebRequest]::Create($url)
+    $request.Method = 'GET'
+    $request.Timeout = $timeoutMs
+    $request.ReadWriteTimeout = $timeoutMs
+    $request.UserAgent = 'StoryMaker'
+    $response = $request.GetResponse()
+    try {
+      $reader = New-Object IO.StreamReader($response.GetResponseStream(), [Text.Encoding]::UTF8)
+      try { return $reader.ReadToEnd() } finally { $reader.Dispose() }
+    } finally {
+      $response.Close()
+    }
+  } catch {
+    return $null
+  }
+}
+
+function Save-RemoteFile([string]$url, [string]$targetPath, [int]$timeoutMs) {
+  try {
+    $request = [Net.HttpWebRequest]::Create($url)
+    $request.Method = 'GET'
+    $request.Timeout = $timeoutMs
+    $request.ReadWriteTimeout = $timeoutMs
+    $request.UserAgent = 'StoryMaker'
+    $response = $request.GetResponse()
+    try {
+      $source = $response.GetResponseStream()
+      $dest = [IO.File]::Create($targetPath)
+      try { $source.CopyTo($dest) } finally { $dest.Dispose() }
+      return $true
+    } finally {
+      $response.Close()
+    }
+  } catch {
+    return $false
+  }
+}
+
+# 返回 $true 表示连服务端脚本都换了，要重新启动才生效
+function Invoke-UpdateCheck {
+  Enable-ModernTls
+
+  $raw = Get-RemoteText "$($script:UpdateBase)/version.json" 4000
+  if ([string]::IsNullOrWhiteSpace($raw)) { return $false }
+
+  $remote = $null
+  try { $remote = ConvertFrom-Json $raw } catch { return $false }
+  if ($null -eq $remote) { return $false }
+
+  $needRestart = $false
+  foreach ($property in $remote.PSObject.Properties) {
+    $name = [string]$property.Name
+    $expected = ([string]$property.Value).ToLowerInvariant()
+    if ($expected -eq '') { continue }
+
+    $target = Join-Path $Root $name
+    if ((Get-FileSha256 $target) -eq $expected) { continue }
+
+    # 文件名里的中文要转义，否则请求发不出去
+    $url = "$($script:UpdateBase)/" + [Uri]::EscapeDataString($name)
+    $temp = "$target.new"
+    Write-Host "  发现新版本，正在更新 $name ..." -ForegroundColor Cyan
+
+    if (-not (Save-RemoteFile $url $temp 60000)) {
+      Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue
+      Write-Host "  $name 没下下来，这次先用本机这份。" -ForegroundColor DarkGray
+      continue
+    }
+    # 下完的字节对不上清单就不认它（断流、缓存坏了、中间被拦都可能）
+    if ((Get-FileSha256 $temp) -ne $expected) {
+      Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue
+      Write-Host "  $name 下下来的内容不对，这次先用本机这份。" -ForegroundColor DarkGray
+      continue
+    }
+    try {
+      Move-Item -LiteralPath $temp -Destination $target -Force
+      Write-Host "  已更新 $name" -ForegroundColor Green
+      if ($name -ne 'index.html') { $needRestart = $true }
+    } catch {
+      Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue
+      Write-Host "  $name 换不上去（可能正被占用），这次先用本机这份。" -ForegroundColor DarkGray
+    }
+  }
+
+  return $needRestart
+}
+
 # ---------- 起服务 ----------
 
 if ($ApiOnly) {
   # 开发模式：页面由 vite dev server 发，这里只管 /api
   $script:PageBytes = New-Object byte[] 0
 } else {
+  # 先看一眼远端有没有新版；-NoUpdate 是给自动化校验用的
+  $serverUpdated = $false
+  if (-not $NoUpdate) { $serverUpdated = [bool](Invoke-UpdateCheck) }
+
   if (-not (Test-Path $PagePath)) {
     Write-Host ''
     Write-Host "  找不到 index.html：$PagePath" -ForegroundColor Red
@@ -546,6 +669,11 @@ if ($null -ne $script:ProjectPath) {
 }
 Write-Host ''
 Write-Host '  项目内容直接存在那个 .json 文件里，本机不留副本。'
+if ($serverUpdated) {
+  Write-Host ''
+  Write-Host '  本地服务脚本也更新了，这次跑的还是旧版：' -ForegroundColor Yellow
+  Write-Host '  关掉这个窗口，重新双击「启动StoryMaker.bat」就生效。' -ForegroundColor Yellow
+}
 if (-not $ApiOnly) {
   Write-Host '  这个黑窗口不要关；关掉它服务就停了（浏览器窗口可以随便关）。'
 }

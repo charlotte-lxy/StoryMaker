@@ -70,6 +70,8 @@ async function startServer(port: number): Promise<Running> {
       '-File',
       serverScript,
       '-NoBrowser',
+      // 校验不碰网络：不然本地服务每次起来都会去连 GitHub 查更新
+      '-NoUpdate',
       '-Port',
       String(port),
     ],
