@@ -206,11 +206,13 @@ describe('战斗模块的导出', () => {
     expect(rows.effects[0]).toEqual([...EFFECT_HEADER]);
     expect(rows.effects[0]).not.toContain('修改器列表（换行分割）');
     expect(rows.effects[0]).not.toContain('DevComment');
+    // 类名是策划填的输入列，只导出补全后的 GE类
+    expect(rows.effects[0]).not.toContain('类名');
+    expect(rows.effects[0]).toContain('GE类');
     expect(rows.effects[1]).toEqual([
       'GAS.效果.中毒',
       '中毒',
       '每 1s 扣血',
-      'BP_GameEffect_Base',
       '10',
       '1',
       'False',
@@ -225,17 +227,18 @@ describe('战斗模块的导出', () => {
 
   it('技能表：多选与参数赋值写成数组字面量，GA类 由类名补全', () => {
     expect(rows.skills[0]).toEqual([...SKILL_HEADER]);
+    expect(rows.skills[0]).not.toContain('类名');
+    expect(rows.skills[0]).toContain('GA类');
     expect(rows.skills[2]).toEqual([
       'GAS.技能.加速',
       '加速',
-      'BP_GA_IncreaseSpeed',
       '("GAS.技能.回血")',
       '("GAS.事件.受击")',
       '(("Speed","10"),("Attack","20"))',
       "/Script/Engine.BlueprintGeneratedClass'/Game/GameContent/BP/GAS/GA/BSGA/BP_GA_IncreaseSpeed.BP_GA_IncreaseSpeed_C'",
     ]);
     // 空列表写空单元格，不是 ()
-    expect(rows.skills[1][3]).toBe('');
+    expect(rows.skills[1][2]).toBe('');
   });
 
   it('角色表：行名是角色 ID，属性 key 换成属性 Tag', () => {

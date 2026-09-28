@@ -1,8 +1,8 @@
 import { Fragment } from 'react';
 
-import { classPath, collectGameplayTags } from '../../core/battle';
+import { collectGameplayTags } from '../../core/battle';
 import type { Project } from '../../core/types';
-import { updateBattleRow, updateClassPrefix, type BattleRowKey } from '../../state/battle-operations';
+import { updateBattleRow, type BattleRowKey } from '../../state/battle-operations';
 
 interface Props {
   project: Project;
@@ -24,8 +24,7 @@ const GROUP_KEY: Record<string, BattleRowKey> = {
  * 显示名字、合成后的 Tag 与一栏可以编辑的备注（导出成 DevComment）。
  * Tag 不用手填，改名之后这里立刻跟着变。
  *
- * 顺带把类名路径前缀放在这一页：它和 Tag 一样是导出时自动补全的东西，
- * 换项目只改这里，不用改代码。
+ * 类名路径前缀不放在这一页：它属于效果表和技能表，在各自的页面上改。
  */
 export function BattleTagsPage({ project, onChange }: Props) {
   const entries = collectGameplayTags(project.battle);
@@ -39,31 +38,6 @@ export function BattleTagsPage({ project, onChange }: Props) {
           四张表里的条目都会收集到这里，Tag 由名字合成（GAS.属性.xxx / GAS.效果.xxx / GAS.技能.xxx /
           GAS.事件.xxx），导出成 GASGameplayTags 子表。
         </span>
-      </div>
-
-      <div className="battle-prefix-card">
-        <label className="battle-prefix-field">
-          <span className="line-field-name">技能类名路径前缀</span>
-          <input
-            value={project.battle.skillClassPrefix}
-            onChange={(event) => onChange(updateClassPrefix(project, 'skillClassPrefix', event.target.value))}
-          />
-          <span className="hint">
-            类名 BP_GA_Heal → {classPath(project.battle.skillClassPrefix, 'BP_GA_Heal') || '（前缀为空）'}
-          </span>
-        </label>
-
-        <label className="battle-prefix-field">
-          <span className="line-field-name">效果类名路径前缀</span>
-          <input
-            value={project.battle.effectClassPrefix}
-            onChange={(event) => onChange(updateClassPrefix(project, 'effectClassPrefix', event.target.value))}
-          />
-          <span className="hint">
-            类名 BP_GameEffect_Base →{' '}
-            {classPath(project.battle.effectClassPrefix, 'BP_GameEffect_Base') || '（前缀为空）'}
-          </span>
-        </label>
       </div>
 
       {groups.map((group) => {

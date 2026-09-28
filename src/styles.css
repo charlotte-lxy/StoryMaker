@@ -2059,10 +2059,9 @@ select.missing {
   z-index: 40;
 }
 
+/* 挂在 body 上的浮层：位置由 MultiSelect 按按钮位置算好，不受表格滚动容器裁剪 */
 .multi-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
+  position: fixed;
   z-index: 41;
   min-width: 190px;
   max-height: 260px;

@@ -1,8 +1,9 @@
 /**
  * 战斗模块（GAS）的导出：7 张子表，都是「策划填的中间列 + 公式列」里的最终结果。
  *
- * 和剧情那边一个思路：中间输入列（带「（多选）」「（换行分割）」后缀的）
- * 与 Tag / DevComment 不进导出表，导出的只有 Unreal 要的最终列。
+ * 和剧情那边一个思路：中间输入列（带「（多选）」「（换行分割）」后缀的、类名、
+ * 以及 Tag / DevComment）不进导出表，导出的只有 Unreal 要的最终列（类名补成的
+ * GA类 / GE类 全路径要导出）。
  *
  * 列顺序、布尔写法（True / False）、空值写法都对着策划给的样例 CSV 来。
  */
@@ -35,7 +36,6 @@ export const EFFECT_HEADER: readonly string[] = [
   '',
   '效果名',
   '备注',
-  '类名',
   '总时长',
   '周期-时长',
   '周期-首次立即触发',
@@ -49,7 +49,6 @@ export const EFFECT_HEADER: readonly string[] = [
 export const SKILL_HEADER: readonly string[] = [
   '',
   '技能名',
-  '类名',
   '锁定GA列表',
   '监听事件列表',
   '参数赋值列表',
@@ -117,7 +116,6 @@ export function buildBattleRows(project: Project): BattleSheetRows {
           effectTag(row.name),
           row.name.trim(),
           row.note,
-          row.className.trim(),
           row.duration,
           row.period,
           boolText(row.periodImmediate),
@@ -136,7 +134,6 @@ export function buildBattleRows(project: Project): BattleSheetRows {
         .map((row) => [
           skillTag(row.name),
           row.name.trim(),
-          row.className.trim(),
           formatArrayLiteral(row.lockSkills.map(skillTag).filter((tag) => tag !== '')),
           formatArrayLiteral(row.listenEvents.map(eventTag).filter((tag) => tag !== '')),
           formatPairLiteral(filledPairs(row.parameters)),

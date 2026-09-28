@@ -994,6 +994,12 @@ describe('战斗模块', () => {
     fireEvent.click(screen.getByText('技能（GA）'));
     const listens = screen.getAllByTitle('勾选这个技能要监听的事件');
     fireEvent.click(listens[0]);
+
+    // 菜单挂在 body 上，不在表格里：表格外面套着横向滚动容器，挂在里面会被裁掉
+    const menu = document.querySelector('.multi-menu') as HTMLElement;
+    expect(menu.parentElement).toBe(document.body);
+    expect(document.querySelector('table .multi-menu')).toBeNull();
+
     fireEvent.click(screen.getByText('受击'));
 
     // 菜单里勾上之后，按钮上也会显示已选的事件
