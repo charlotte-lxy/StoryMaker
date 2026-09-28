@@ -14,7 +14,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer as createHttpServer } from 'node:http';
 import { createServer as createProbeServer } from 'node:net';
@@ -438,6 +438,45 @@ try {
   await cleanupRemote?.();
   cleanupRemote = null;
   rmSync(fixture, { recursive: true, force: true });
+
+  // ---------- 8. 清单里的哈希必须等于仓库里的字节 ----------
+  // 前面那些用例喂的都是工作区字节，而策划下载到的是仓库里的字节。两者在 .gitattributes
+  // 的换行转换下可能不是一回事——这个用例就是专门盯这一点的，别删。
+  console.log('');
+  console.log('【8】清单声明的哈希 vs 仓库里的字节');
+  {
+    const manifestPath = join(releaseDir, 'version.json');
+    if (!existsSync(manifestPath)) {
+      check(false, 'release/version.json 存在');
+    } else {
+      const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, string>;
+      for (const name of Object.keys(manifest)) {
+        if (name === 'version') continue;
+        let repoBytes: Buffer | null = null;
+        try {
+          repoBytes = execFileSync('git', ['cat-file', 'blob', `:release/${name}`], {
+            cwd: root,
+            maxBuffer: 64 * 1024 * 1024,
+          }) as Buffer;
+        } catch {
+          repoBytes = null;
+        }
+        if (repoBytes === null) {
+          check(false, `能从仓库里读到 release/${name}（改动后先 git add 再跑校验）`);
+          continue;
+        }
+        const actual = sha256(repoBytes);
+        const expected = manifest[name];
+        check(
+          actual === expected,
+          `${name}：清单声明的哈希与仓库里的字节一致`,
+          actual === expected
+            ? ''
+            : `声明 ${expected.slice(0, 12)}… 实际 ${actual.slice(0, 12)}…（多半是被换行转换动了）`,
+        );
+      }
+    }
+  }
 } catch (error) {
   failed = true;
   console.error('✗ 校验过程出错：', error);
@@ -455,4 +494,7 @@ if (failed) {
 }
 
 console.log('');
-console.log('自动更新校验通过：有更新会换、连不上照常启动、服务端脚本能自替换、本地更新时不回退。');
+console.log(
+  '自动更新校验通过：有更新会换、连不上照常启动、服务端脚本能自替换、本地更新时不回退、' +
+    '清单哈希与仓库里的字节一致。',
+);
