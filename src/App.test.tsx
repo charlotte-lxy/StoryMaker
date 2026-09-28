@@ -1082,17 +1082,20 @@ describe('导出模块', () => {
     const subTable = screen.getByTitle('这张数据表的内容来自哪个子表') as HTMLSelectElement;
     expect([...subTable.options].map((option) => option.value)).toEqual([
       '',
-      '技能',
-      '效果',
-      '属性',
-      '事件',
-      '角色',
-      '武器',
-      '脚本',
+      '对话',
+      '选项',
       '本地化',
+      'GASGameplayTags',
+      'GAS属性',
+      'GAS效果',
+      'GAS技能',
+      'GAS事件',
+      'GAS角色',
+      'GAS武器',
+      '导入设置',
     ]);
-    fireEvent.change(subTable, { target: { value: '技能' } });
-    expect(subTable.value).toBe('技能');
+    fireEvent.change(subTable, { target: { value: 'GAS技能' } });
+    expect(subTable.value).toBe('GAS技能');
   });
 
   it('导出预览：一排子表按钮，点哪个看哪个', async () => {

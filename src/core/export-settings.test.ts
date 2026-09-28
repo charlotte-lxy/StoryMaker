@@ -37,25 +37,15 @@ describe('Unreal 导入设置', () => {
     expect(dataTableRef('GameContent/BP/Pawn', '   ')).toBe('');
   });
 
-  it('csv 文件名由子表名拼出来，和样例一致', () => {
-    expect(csvFileName('技能')).toBe('TB_BSGame_技能.csv');
+  it('csv 文件名由子表名拼出来', () => {
+    expect(csvFileName('GAS技能')).toBe('TB_BSGame_GAS技能.csv');
     expect(csvFileName('本地化')).toBe('TB_BSGame_本地化.csv');
     expect(csvFileName('  ')).toBe('');
   });
 
-  it('子表清单按实际导出的子表来，本地化只有一个', () => {
-    expect([...EXPORT_SUBTABLES]).toEqual([
-      '技能',
-      '效果',
-      '属性',
-      '事件',
-      '角色',
-      '武器',
-      '脚本',
-      '本地化',
-    ]);
-    expect([...EXPORT_SUBTABLES]).not.toContain('本地化-脚本');
-    expect([...EXPORT_SUBTABLES]).not.toContain('本地化-UI');
+  it('子表清单就是导出预览上那一排子表，顺序也一样', () => {
+    // 两边必须一模一样：导入设置里的「子表」列，选的就是预览里的子表名
+    expect([...EXPORT_SUBTABLES]).toEqual(buildAllSheets(makeProject()).map((sheet) => sheet.name));
   });
 
   it('导入设置子表：行名是数据表名，只导出算出来的两列，表名空的行不进表', () => {
