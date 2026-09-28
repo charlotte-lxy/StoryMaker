@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { createEmptyBattle } from './battle';
+
 import { validateLocalization, validateProject } from './validate';
 import type { Group, Line, Project, StoryOption } from './types';
 
@@ -44,6 +46,7 @@ function makeProject(group: Partial<Group>): Project {
     images: [],
     variables: [],
     uiTexts: [],
+    battle: createEmptyBattle(),
     chapters: [
       {
         uid: 'c1',

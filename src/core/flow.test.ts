@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { createEmptyBattle } from './battle';
+
 import { buildChapterFlow, layoutChapterFlow, type FlowGeometry } from './flow';
 import type { Chapter, Group, Line, Project, StoryOption } from './types';
 
@@ -52,6 +54,7 @@ function makeProject(chapters: Chapter[]): Project {
     commands: [],
     variables: [],
     uiTexts: [],
+    battle: createEmptyBattle(),
     chapters,
   };
 }

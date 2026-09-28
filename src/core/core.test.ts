@@ -1,6 +1,8 @@
 import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
 
+import { createEmptyBattle } from './battle';
+
 import { escapeCsvField, parseCsv, toCsv, withBom, withoutBom } from './csv';
 import { formatArrayLiteral, parseArrayLiteral } from './array-literal';
 import { makeLineId, makeOptionId, renumberGroup, textIdOf } from './ids';
@@ -220,6 +222,7 @@ describe('导出三张表', () => {
       images: [],
       variables: [],
       uiTexts: [],
+      battle: createEmptyBattle(),
       chapters: [
         {
           uid: 'c1',
@@ -361,7 +364,18 @@ describe('导出三张表', () => {
     // exceljs 自己声明的 Buffer 类型与 DOM 的 ArrayBuffer 名义不同，运行时可互换
     await workbook.xlsx.load(buffer as never);
 
-    expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(['对话', '选项', '本地化']);
+    expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual([
+      '对话',
+      '选项',
+      '本地化',
+      'GASGameplayTags',
+      'GAS属性',
+      'GAS效果',
+      'GAS技能',
+      'GAS事件',
+      'GAS角色',
+      'GAS武器',
+    ]);
 
     const dialogue = workbook.getWorksheet('对话');
     expect(dialogue?.getRow(2).getCell(1).value).toBe('Dia_ch01_001-1');

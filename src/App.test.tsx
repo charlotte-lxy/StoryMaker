@@ -924,6 +924,111 @@ describe('本地化模块的校验条', () => {
   });
 });
 
+describe('战斗模块', () => {
+  /** 打开战斗模块 */
+  async function openBattle(): Promise<void> {
+    await renderApp();
+    fireEvent.click(within(rail()).getByText('战斗'));
+  }
+
+  it('侧边栏有七个子模块，默认停在属性表', async () => {
+    await openBattle();
+
+    expect([...document.querySelectorAll('.battle-nav')].map((nav) => nav.textContent)).toEqual([
+      '属性（AS）0',
+      '事件（Event）0',
+      '效果（GE）0',
+      '技能（GA）0',
+      '角色预设0',
+      '武器0',
+      'GameplayTags管理器',
+    ]);
+    expect(screen.getByText('属性表（AS）')).toBeTruthy();
+  });
+
+  it('新增属性后，GameplayTags 管理器里出现合成好的 Tag，备注能改', async () => {
+    await openBattle();
+    fireEvent.click(screen.getByText('＋ 新增属性'));
+    fireEvent.change(screen.getByPlaceholderText('属性名'), { target: { value: '生命值' } });
+
+    fireEvent.click(screen.getByText('GameplayTags管理器'));
+
+    expect(screen.getByText('GAS.属性.生命值')).toBeTruthy();
+    fireEvent.change(screen.getByPlaceholderText('给自己看的备注'), { target: { value: '血量' } });
+    expect(screen.getByDisplayValue('血量')).toBeTruthy();
+  });
+
+  it('效果页能加修改器：属性名从属性表里选，运算符可选', async () => {
+    await openBattle();
+    fireEvent.click(screen.getByText('＋ 新增属性'));
+    fireEvent.change(screen.getByPlaceholderText('属性名'), { target: { value: '生命值' } });
+
+    fireEvent.click(screen.getByText('效果（GE）'));
+    fireEvent.click(screen.getByText('＋ 新增效果'));
+    fireEvent.click(screen.getByText('＋ 添加修改器'));
+
+    const attribute = screen.getByTitle('属性名') as HTMLSelectElement;
+    expect([...attribute.options].map((option) => option.value)).toEqual(['', '生命值']);
+    expect(attribute.value).toBe('生命值');
+
+    fireEvent.change(screen.getByTitle('运算符'), { target: { value: '-' } });
+    fireEvent.change(screen.getByPlaceholderText('参数名或数值'), { target: { value: 'Damage' } });
+    expect((screen.getByTitle('运算符') as HTMLSelectElement).value).toBe('-');
+  });
+
+  it('技能页的锁定 GA 与监听事件是多选，勾完按钮上能看到选了谁', async () => {
+    await openBattle();
+
+    // 两个技能 + 一个事件
+    fireEvent.click(screen.getByText('技能（GA）'));
+    fireEvent.click(screen.getByText('＋ 新增技能'));
+    fireEvent.click(screen.getByText('＋ 新增技能'));
+    const skillNames = screen.getAllByPlaceholderText('技能名');
+    fireEvent.change(skillNames[0], { target: { value: '回血' } });
+    fireEvent.change(skillNames[1], { target: { value: '防御' } });
+
+    fireEvent.click(screen.getByText('事件（Event）'));
+    fireEvent.click(screen.getByText('＋ 新增事件'));
+    fireEvent.change(screen.getByPlaceholderText('事件名'), { target: { value: '受击' } });
+
+    fireEvent.click(screen.getByText('技能（GA）'));
+    const listens = screen.getAllByTitle('勾选这个技能要监听的事件');
+    fireEvent.click(listens[0]);
+    fireEvent.click(screen.getByText('受击'));
+
+    // 菜单里勾上之后，按钮上也会显示已选的事件
+    expect(within(listens[0]).getByText('受击')).toBeTruthy();
+
+    const locks = screen.getAllByTitle('勾选这个技能要锁定的其他技能');
+    fireEvent.click(locks[0]);
+    fireEvent.click(screen.getByText('防御'));
+    expect(within(locks[0]).getByText('防御')).toBeTruthy();
+  });
+
+  it('底部有战斗校验条：属性名重复报「必须修复」，点它能跳到那一行', async () => {
+    await openBattle();
+    fireEvent.click(screen.getByText('＋ 新增属性'));
+    fireEvent.click(screen.getByText('＋ 新增属性'));
+
+    const names = screen.getAllByPlaceholderText('属性名');
+    fireEvent.change(names[0], { target: { value: '生命值' } });
+    fireEvent.change(names[1], { target: { value: '生命值' } });
+
+    const panel = document.querySelector('.issues') as HTMLElement;
+    expect(panel.textContent).toContain('战斗校验结果');
+    expect(panel.querySelector('.badge.error')?.textContent).toBe('必须修复 1');
+    expect(panel.querySelectorAll('.issue-row')).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole('button', { name: '校验' }));
+    const rows = [...document.querySelectorAll('.issue-row')];
+    expect(rows[0].textContent).toContain('属性名「生命值」');
+
+    fireEvent.click(rows[0]);
+    expect(document.querySelector('.battle-nav.active')?.textContent).toContain('属性');
+    expect(document.querySelector('tr.line-row.flash')).toBeTruthy();
+  });
+});
+
 describe('右上角的校验结果', () => {
   const badge = () => screen.getByRole('button', { name: /校验结果/ });
 
@@ -941,6 +1046,7 @@ describe('右上角的校验结果', () => {
     ]);
     expect([...document.querySelectorAll('.check-row')].map((row) => row.textContent)).toEqual([
       '剧情20',
+      '战斗00',
       '本地化00',
     ]);
   });
@@ -951,9 +1057,13 @@ describe('右上角的校验结果', () => {
 
     fireEvent.click(badge());
     const rows = [...document.querySelectorAll('.check-row')];
-    fireEvent.click(rows[1]); // 本地化
+    fireEvent.click(rows[1]); // 战斗
 
-    expect(screen.getByText('剧情本地化')).toBeTruthy();
+    expect(document.querySelector('.battle-side')).toBeTruthy();
     expect(document.querySelector('.check-pop')).toBeNull();
+
+    fireEvent.click(badge());
+    fireEvent.click([...document.querySelectorAll('.check-row')][2]); // 本地化
+    expect(screen.getByText('剧情本地化')).toBeTruthy();
   });
 });

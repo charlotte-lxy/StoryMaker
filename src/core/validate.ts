@@ -29,6 +29,9 @@ export interface Issue {
    * UI 文案用条目的 uid）。点这条就切到本地化模块、滚到并高亮这一行。
    */
   localeUid?: string;
+  /** 战斗模块的问题专用：切到哪个子页面、哪一行 */
+  battlePage?: string;
+  battleUid?: string;
 }
 
 export type IssueCode =
@@ -44,7 +47,19 @@ export type IssueCode =
   | 'empty-option-list'
   | 'missing-translation'
   | 'empty-ui-key'
-  | 'duplicate-ui-key';
+  | 'duplicate-ui-key'
+  /* 战斗模块（GAS） */
+  | 'battle-duplicate-name'
+  | 'battle-empty-name'
+  | 'battle-empty-class'
+  | 'battle-not-number'
+  | 'battle-empty-modifier'
+  | 'battle-unknown-attribute'
+  | 'battle-empty-pair'
+  | 'battle-duplicate-pair'
+  | 'battle-dangling-ref'
+  | 'battle-duplicate-id'
+  | 'battle-empty-id';
 
 export interface ValidationReport {
   issues: Issue[];

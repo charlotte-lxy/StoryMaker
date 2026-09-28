@@ -140,6 +140,143 @@ export interface UiTextRow {
   text: LocalizedText;
 }
 
+/**
+ * GAS 修改器：持续类型 # 属性名 运算符 值，如「基础#生命值-Damage」。
+ *
+ *   基础 - 瞬时修改基础值，受层数影响
+ *   临时 - 持续修改临时值，受层数影响
+ *   固定 - 持续修改临时值，不受层数影响
+ */
+export interface GasModifier {
+  uid: string;
+  /** 持续类型：基础 / 临时 / 固定 */
+  duration: string;
+  /** 属性名，从属性表里选 */
+  attribute: string;
+  /** 运算符：+ - * / = */
+  operator: string;
+  /** GA 参数名或固定值，如 Damage、40 */
+  value: string;
+}
+
+/** 键值对：技能的参数赋值、角色预设的属性数值都用它 */
+export interface GasPair {
+  uid: string;
+  key: string;
+  value: string;
+}
+
+/**
+ * 带 GameplayTag 的一张表（属性 / 事件）。
+ *
+ * note      - 这张表自己的备注
+ * tagNote   - GameplayTags 表里那一栏备注，导出成 DevComment（两边互相独立）
+ */
+export interface GasAttribute {
+  uid: string;
+  /** 属性名，合成 Tag：GAS.属性.<属性名> */
+  name: string;
+  note: string;
+  tagNote: string;
+}
+
+export interface GasEvent {
+  uid: string;
+  /** 事件名，合成 Tag：GAS.事件.<事件名> */
+  name: string;
+  note: string;
+  tagNote: string;
+}
+
+/** 效果（GE） */
+export interface GasEffect {
+  uid: string;
+  /** 效果名，合成 Tag：GAS.效果.<效果名> */
+  name: string;
+  /** 效果描述，导出到「备注」列 */
+  note: string;
+  /** 类名，如 BP_GameEffect_Base，导出时补成 GE类 全路径 */
+  className: string;
+  /** 总时长：空=瞬时，-1=无限，其它为秒 */
+  duration: string;
+  /** 周期-时长，0 表示不周期触发 */
+  period: string;
+  /** 周期-首次立即触发 */
+  periodImmediate: boolean;
+  /** 触发-减少层数 */
+  reduceStacks: string;
+  /** 堆叠-最大层数 */
+  maxStacks: string;
+  /** 堆叠-获得层数时刷新总时长 */
+  refreshDuration: boolean;
+  /** 堆叠-获得层数时刷新周期时长 */
+  refreshPeriod: boolean;
+  /** 修改器列表 */
+  modifiers: GasModifier[];
+  tagNote: string;
+}
+
+/** 技能（GA） */
+export interface GasSkill {
+  uid: string;
+  /** 技能名，合成 Tag：GAS.技能.<技能名> */
+  name: string;
+  /** 类名，如 BP_GA_Heal，导出时补成 GA类 全路径 */
+  className: string;
+  /** 锁定 GA 列表：技能名 */
+  lockSkills: string[];
+  /** 监听事件列表：事件名 */
+  listenEvents: string[];
+  /** 参数赋值列表 */
+  parameters: GasPair[];
+  tagNote: string;
+}
+
+/** 角色预设：GAS 的属性与技能配置，导出成 GAS角色 */
+export interface GasCharacter {
+  uid: string;
+  /** 角色 ID，如 CHA_测试主角 */
+  id: string;
+  name: string;
+  /** 属性列表：属性名下挂数值 */
+  attributes: GasPair[];
+  /** 技能列表：技能名 */
+  skills: string[];
+}
+
+/** 武器，导出成 GAS武器 */
+export interface GasWeapon {
+  uid: string;
+  /** 武器 ID，如 WEA_测试-手枪 */
+  id: string;
+  name: string;
+  description: string;
+  /** 弹匣容量，-1 表示无限 */
+  magazine: string;
+  attackSpeed: string;
+  modifiers: GasModifier[];
+  skills: string[];
+}
+
+/**
+ * 战斗模块（GAS）的全部数据。
+ *
+ * 各种 Tag 都是由「模块前缀 + 名字」合成出来的，不单独存，
+ * 这样改名不会留下旧 Tag；GameplayTags 表里的备注单独存在各表的 tagNote 上。
+ */
+export interface BattleData {
+  /** 技能类名的路径前缀，导出 GA类 用；换项目不用改代码 */
+  skillClassPrefix: string;
+  /** 效果类名的路径前缀，导出 GE类 用 */
+  effectClassPrefix: string;
+  attributes: GasAttribute[];
+  effects: GasEffect[];
+  skills: GasSkill[];
+  events: GasEvent[];
+  characters: GasCharacter[];
+  weapons: GasWeapon[];
+}
+
 /** 指令的目标对象可以来自哪张表 */
 export type TargetKind =
   | 'character'
@@ -197,4 +334,6 @@ export interface Project {
   variables: VariableDecl[];
   /** UI 本地化表：界面文案，导出时接在本地化表的对话 / 选项文本后面 */
   uiTexts: UiTextRow[];
+  /** 战斗模块（GAS）的数据，导出成 GAS 开头的几张子表 */
+  battle: BattleData;
 }

@@ -37,7 +37,7 @@ pnpm dev          # 开发服务器 http://localhost:5180
 | `pnpm build` | `dist/` 多文件 | 内网服务器 |
 | `pnpm build:single` | `release/` | 策划双击即用的单文件产物 |
 | `pnpm build:app` | `app-release/win-unpacked/` | Electron 桌面版 |
-| `pnpm test` | — | 185 个测试 |
+| `pnpm test` | — | 210 个测试 |
 | `pnpm verify:release` | — | 单文件产物自检 |
 | `pnpm verify:server` | — | 本地服务自检（真起进程、真发 HTTP、真落盘） |
 
@@ -51,9 +51,15 @@ pnpm dev          # 开发服务器 http://localhost:5180
   → 选项表（含条件、结果、跳转）
   → 本地化表（TXT_ + ID 作 key，中英日）
   → 同一个 xlsx 的本地化表末尾，再接上 UI 本地化的界面文案（TXT_Widget_* 这类）
+
+战斗（属性 / 事件 / 效果 / 技能 / 角色预设 / 武器）
+  → GASGameplayTags（四张表里的条目自动收集，Tag 由名字合成）
+  → GAS属性 / GAS效果 / GAS技能 / GAS事件 / GAS角色 / GAS武器
 ```
 
-导出的多值列写成 Unreal 数组字面量 `("a","b")`，空列表写空单元格。
+导出的多值列写成 Unreal 数组字面量 `("a","b")`、键值对写成 `(("k","v"))`，
+空列表写空单元格。战斗那边还和剧情一样：策划填的中间列（带「（多选）」「（换行分割）」后缀的）
+与 `Tag` / `DevComment` 不进导出表。
 
 两条不能动的设计：
 

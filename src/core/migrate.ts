@@ -14,8 +14,19 @@
  * 方便策划交给本地化同事同步 TXT_ 开头的 key。
  */
 
+import { DEFAULT_EFFECT_CLASS_PREFIX, DEFAULT_SKILL_CLASS_PREFIX } from './battle';
 import { newUid, renumberGroup, type IdChange } from './ids';
-import type { Chapter, Group, Line, LineKind, LocalizedText, Project } from './types';
+import type {
+  BattleData,
+  Chapter,
+  GasModifier,
+  GasPair,
+  Group,
+  Line,
+  LineKind,
+  LocalizedText,
+  Project,
+} from './types';
 
 export interface NormalizeResult {
   project: Project;
@@ -107,6 +118,9 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
       text: asLocalized(row.text),
     }));
 
+  // 战斗模块也是后加的：缺哪张表补哪张，路径前缀缺了就用默认值
+  project.battle = normalizeBattle(project.battle);
+
   for (const character of project.characters) {
     if (!Array.isArray(character.expressions)) character.expressions = [];
     if (!Array.isArray(character.actions)) character.actions = [];
@@ -127,8 +141,95 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
   return { project, changes };
 }
 
-function migrateGroup(group: Group, chapterId: string, changes: IdChange[]): void {
-  let migrated = false;
+/** 战斗模块：缺的表补空、缺的字段给默认值，手改过的 JSON 也不至于让界面拿到 undefined */
+function normalizeBattle(input: unknown): BattleData {
+  const raw: Record<string, unknown> = isRecord(input) ? input : {};
+
+  const rows = (key: string): Record<string, unknown>[] =>
+    Array.isArray(raw[key]) ? (raw[key] as unknown[]).filter(isRecord) : [];
+
+  const modifiers = (value: unknown): GasModifier[] =>
+    (Array.isArray(value) ? value : []).filter(isRecord).map((row) => ({
+      uid: asUid(row.uid),
+      duration: asString(row.duration) || '基础',
+      attribute: asString(row.attribute),
+      operator: asString(row.operator) || '+',
+      value: asString(row.value),
+    }));
+
+  const pairs = (value: unknown): GasPair[] =>
+    (Array.isArray(value) ? value : []).filter(isRecord).map((row) => ({
+      uid: asUid(row.uid),
+      key: asString(row.key),
+      value: asString(row.value),
+    }));
+
+  const names = (value: unknown): string[] =>
+    (Array.isArray(value) ? value : []).filter((item): item is string => typeof item === 'string');
+
+  const text = (row: Record<string, unknown>, key: string): string => asString(row[key]);
+  const flag = (row: Record<string, unknown>, key: string): boolean => row[key] === true;
+
+  return {
+    skillClassPrefix: asString(raw.skillClassPrefix) || DEFAULT_SKILL_CLASS_PREFIX,
+    effectClassPrefix: asString(raw.effectClassPrefix) || DEFAULT_EFFECT_CLASS_PREFIX,
+    attributes: rows('attributes').map((row) => ({
+      uid: asUid(row.uid),
+      name: text(row, 'name'),
+      note: text(row, 'note'),
+      tagNote: text(row, 'tagNote'),
+    })),
+    effects: rows('effects').map((row) => ({
+      uid: asUid(row.uid),
+      name: text(row, 'name'),
+      note: text(row, 'note'),
+      className: text(row, 'className'),
+      duration: text(row, 'duration'),
+      period: text(row, 'period'),
+      periodImmediate: flag(row, 'periodImmediate'),
+      reduceStacks: text(row, 'reduceStacks'),
+      maxStacks: text(row, 'maxStacks'),
+      refreshDuration: flag(row, 'refreshDuration'),
+      refreshPeriod: flag(row, 'refreshPeriod'),
+      modifiers: modifiers(row.modifiers),
+      tagNote: text(row, 'tagNote'),
+    })),
+    skills: rows('skills').map((row) => ({
+      uid: asUid(row.uid),
+      name: text(row, 'name'),
+      className: text(row, 'className'),
+      lockSkills: names(row.lockSkills),
+      listenEvents: names(row.listenEvents),
+      parameters: pairs(row.parameters),
+      tagNote: text(row, 'tagNote'),
+    })),
+    events: rows('events').map((row) => ({
+      uid: asUid(row.uid),
+      name: text(row, 'name'),
+      note: text(row, 'note'),
+      tagNote: text(row, 'tagNote'),
+    })),
+    characters: rows('characters').map((row) => ({
+      uid: asUid(row.uid),
+      id: text(row, 'id'),
+      name: text(row, 'name'),
+      attributes: pairs(row.attributes),
+      skills: names(row.skills),
+    })),
+    weapons: rows('weapons').map((row) => ({
+      uid: asUid(row.uid),
+      id: text(row, 'id'),
+      name: text(row, 'name'),
+      description: text(row, 'description'),
+      magazine: text(row, 'magazine'),
+      attackSpeed: text(row, 'attackSpeed'),
+      modifiers: modifiers(row.modifiers),
+      skills: names(row.skills),
+    })),
+  };
+}
+
+function migrateGroup(group: Group, chapterId: string, changes: IdChange[]): void {  let migrated = false;
   const lines: Line[] = [];
 
   for (const raw of group.lines as RawLine[]) {

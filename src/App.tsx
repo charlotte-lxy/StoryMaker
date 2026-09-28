@@ -22,6 +22,8 @@ import {
   type Issue,
   type ValidationReport,
 } from './core/validate';
+import { validateBattle } from './core/battle-validate';
+import type { BattlePage } from './state/battle-operations';
 import {
   addChapter,
   addCharacter,
@@ -63,6 +65,7 @@ import {
   saveStorySplit,
   type Settings,
 } from './state/prefs';
+import { BattleEditor } from './ui/BattleEditor';
 import { ChapterFlow } from './ui/ChapterFlow';
 import { CharacterEditor } from './ui/CharacterEditor';
 import { CommandEditor } from './ui/CommandEditor';
@@ -99,6 +102,7 @@ type Module =
   | 'images'
   | 'sounds'
   | 'command'
+  | 'battle'
   | 'locale'
   | 'settings';
 
@@ -141,6 +145,8 @@ export default function App() {
   const [summaryOpen, setSummaryOpen] = useState(false);
   /** 校验条里点过来的本地化行：滚过去高亮，过一会儿自动清掉 */
   const [focusLocaleUid, setFocusLocaleUid] = useState<string | null>(null);
+  /** 校验条里点过来的战斗数据：切到哪个子页面、高亮哪一行 */
+  const [focusBattle, setFocusBattle] = useState<{ page: BattlePage; uid: string } | null>(null);
   const [toast, setToast] = useState('');
   /** 门槛页上的提示：上次的文件打不开、没检测到本地服务 */
   const [gateNote, setGateNote] = useState('');
@@ -405,6 +411,12 @@ export default function App() {
 
   /** 校验条里点某一条：切到出问题的地方并高亮 */
   const handleJumpToIssue = (issue: Issue): void => {
+    // 战斗数据的问题：切到战斗模块的对应子页面，滚到并高亮那一行
+    if (issue.battlePage !== undefined && issue.battleUid !== undefined) {
+      setModule('battle');
+      setFocusBattle({ page: issue.battlePage as BattlePage, uid: issue.battleUid });
+      return;
+    }
     // 本地化的问题（缺译文、UI key 为空或重名）：切到本地化模块，滚到并高亮那一行
     if (issue.localeUid !== undefined && issue.localeUid !== '') {
       setModule('locale');
@@ -452,6 +464,12 @@ export default function App() {
     const timer = window.setTimeout(() => setFocusLocaleUid(null), 1800);
     return () => window.clearTimeout(timer);
   }, [focusLocaleUid]);
+
+  useEffect(() => {
+    if (focusBattle === null) return;
+    const timer = window.setTimeout(() => setFocusBattle(null), 1800);
+    return () => window.clearTimeout(timer);
+  }, [focusBattle]);
 
   // 拖动分隔线时不要每动一下都写盘，松手后再记住宽度
   useEffect(() => {
@@ -580,7 +598,7 @@ export default function App() {
     const suffix =
       checkErrors > 0
         ? `，但有 ${checkErrors} 处必须修复的问题建议先处理（见下方校验结果）`
-        : '，含对话 / 选项 / 本地化三张工作表';
+        : '，含剧情三张表与战斗七张 GAS 子表';
 
     if (host === undefined) return;
     const filePath = await host.exportFile(filename, buffer);
@@ -628,6 +646,7 @@ export default function App() {
   const checks = useMemo<ModuleCheck[]>(
     () => [
       { key: 'story', label: '剧情', report: validateProject(project) },
+      { key: 'battle', label: '战斗', report: validateBattle(project) },
       { key: 'locale', label: '本地化', report: validateLocalization(project) },
     ],
     [project],
@@ -821,6 +840,14 @@ export default function App() {
           </button>
           <button
             type="button"
+            className={`rail-item${module === 'battle' ? ' active' : ''}`}
+            onClick={() => setModule('battle')}
+          >
+            <span className="rail-icon">⚔</span>
+            <span>战斗</span>
+          </button>
+          <button
+            type="button"
             className={`rail-item${module === 'locale' ? ' active' : ''}`}
             onClick={() => setModule('locale')}
           >
@@ -873,6 +900,15 @@ export default function App() {
                   onAdd={() => setProject((prev) => addCharacter(prev))}
                   onRemove={handleRemoveCharacter}
                   onUpdate={updateCharacter}
+                />
+              )}
+
+              {module === 'battle' && (
+                <BattleEditor
+                  project={project}
+                  onChange={setProject}
+                  focusPage={focusBattle?.page ?? null}
+                  focusUid={focusBattle?.uid ?? null}
                 />
               )}
 

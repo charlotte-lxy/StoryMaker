@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { createEmptyBattle } from '../core/battle';
+
 import type { Line, Project } from '../core/types';
 import {
   addUiText,
@@ -41,6 +43,7 @@ function makeProject(): Project {
     images: [],
     variables: [],
     uiTexts: [],
+    battle: createEmptyBattle(),
     chapters: [
       {
         uid: 'c1',

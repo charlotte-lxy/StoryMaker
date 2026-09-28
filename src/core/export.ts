@@ -24,6 +24,16 @@
 import ExcelJS from 'exceljs';
 
 import { formatArrayLiteral } from './array-literal';
+import {
+  ATTRIBUTE_SHEET,
+  CHARACTER_SHEET,
+  EFFECT_SHEET,
+  EVENT_SHEET,
+  GAMEPLAY_TAGS_SHEET,
+  SKILL_SHEET,
+  WEAPON_SHEET,
+  buildBattleRows,
+} from './battle-export';
 import { textIdOf } from './ids';
 import type { Group, Line, Project, StoryOption } from './types';
 
@@ -226,14 +236,25 @@ function addSheet(workbook: ExcelJS.Workbook, name: string, rows: string[][]): v
 /** 生成 xlsx 二进制内容 */
 export async function exportWorkbook(project: Project): Promise<ArrayBuffer> {
   const rows = buildRows(project);
+  const battle = buildBattleRows(project);
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'StoryMaker';
   workbook.created = new Date();
 
+  // 剧情三张表
   addSheet(workbook, DIALOGUE_SHEET, rows.dialogue);
   addSheet(workbook, OPTION_SHEET, rows.options);
   addSheet(workbook, LOCALE_SHEET, rows.locale);
+
+  // 战斗模块（GAS）七张表
+  addSheet(workbook, GAMEPLAY_TAGS_SHEET, battle.gameplayTags);
+  addSheet(workbook, ATTRIBUTE_SHEET, battle.attributes);
+  addSheet(workbook, EFFECT_SHEET, battle.effects);
+  addSheet(workbook, SKILL_SHEET, battle.skills);
+  addSheet(workbook, EVENT_SHEET, battle.events);
+  addSheet(workbook, CHARACTER_SHEET, battle.characters);
+  addSheet(workbook, WEAPON_SHEET, battle.weapons);
 
   const buffer = await workbook.xlsx.writeBuffer();
   return buffer as ArrayBuffer;

@@ -4,6 +4,7 @@
  * 所有修改都走 mutate()：先结构化克隆再改，避免 React 状态被就地篡改。
  */
 
+import { createEmptyBattle } from '../core/battle';
 import { makeLineId, makeOptionId, newUid, renumberGroup, type IdChange } from '../core/ids';
 import type {
   Chapter,
@@ -124,6 +125,7 @@ export function createEmptyProject(name = '未命名项目'): Project {
     commands: defaultCommandDefs(),
     variables: [],
     uiTexts: [],
+    battle: createEmptyBattle(),
     chapters: [
       {
         uid: newUid(),
