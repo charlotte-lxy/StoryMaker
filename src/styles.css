@@ -1310,12 +1310,21 @@ div.line-row.selected > .line-card {
   padding: 14px 18px 22px;
 }
 
+/* 标题栏冻结在滚动区顶部：列表往下滚时，章节 / 段落名与右侧的按钮一直看得见。
+   负边距把它撑到滚动区的两个边缘、再自己补回 .editor 的留白，
+   否则滚上去的内容会从边上和标题上下那几像素的缝里露出来 */
 .editor-head {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 12px;
   flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin: -14px -18px 4px;
+  padding: 14px 18px 8px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
 }
 
 .editor-head h2 {
