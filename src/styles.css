@@ -888,14 +888,17 @@ textarea {
 }
 
 /* 一行 = 块外的段内序号 + 对话块本身。
-   序号单独占最左侧一列，不占用卡片内部的字段位置 */
-.line-row {
+   序号单独占最左侧一列，不占用卡片内部的字段位置。
+   这里必须限定成 div：角色表、物品/任务/立绘/音效表、条件与指令、本地化表里的
+   <tr> 也带 line-row 这个类，给表格行套 flex 会让单元格全按内容宽度挤到左边，
+   和表头对不上 */
+div.line-row {
   display: flex;
   align-items: stretch;
   gap: 6px;
 }
 
-.line-row > .line-card {
+div.line-row > .line-card {
   flex: 1;
   min-width: 0;
 }
