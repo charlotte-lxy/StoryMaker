@@ -1096,19 +1096,20 @@ export default function App() {
                                   >
                                     {batchMode ? '退出批量编辑' : '批量编辑'}
                                   </button>
-                                </div>
 
-                                {batchMode && (
-                                  <BatchEditBar
-                                    chapters={project.chapters}
-                                    sourceGroupUid={activeUid}
-                                    totalCount={group.lines.length}
-                                    selectedCount={selectedLineUids.length}
-                                    onSelectAll={handleSelectAllLines}
-                                    onMove={handleMoveSelectedLines}
-                                    onRemove={handleRemoveSelectedLines}
-                                  />
-                                )}
+                                  {/* 工具条放在标题栏里面（换到标题下面那行），这样它跟着标题栏一起冻结 */}
+                                  {batchMode && (
+                                    <BatchEditBar
+                                      chapters={project.chapters}
+                                      sourceGroupUid={activeUid}
+                                      totalCount={group.lines.length}
+                                      selectedCount={selectedLineUids.length}
+                                      onSelectAll={handleSelectAllLines}
+                                      onMove={handleMoveSelectedLines}
+                                      onRemove={handleRemoveSelectedLines}
+                                    />
+                                  )}
+                                </div>
 
                                 <LineList
                                   group={group}
