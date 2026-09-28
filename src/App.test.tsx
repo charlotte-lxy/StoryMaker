@@ -242,23 +242,63 @@ describe('界面冒烟测试', () => {
       expect(screen.queryByDisplayValue('TXT_Widget_设置')).toBeNull();
     });
 
-    it('UI 本地化能新增、改 key、填译文、删除条目', async () => {
+    it('UI 本地化的新增表单占列表第一行，key 必填且不能重名', async () => {
+      seedLocaleProject();
       await openLocale();
       fireEvent.click(screen.getByText('UI 本地化'));
-      expect(screen.getByText(/还没有 UI 文本/)).toBeTruthy();
 
-      fireEvent.click(screen.getByText('＋ 新增一行'));
-      fireEvent.change(screen.getByDisplayValue('TXT_UI_1'), {
-        target: { value: 'TXT_Widget_新游戏' },
+      /** 新增表单那一行 */
+      const form = () => document.querySelector('.locale-add-row') as HTMLElement;
+      const keyBox = () => within(form()).getByPlaceholderText('TXT_（必填，不能重名）');
+      const addButton = () => within(form()).getByText('添加') as HTMLButtonElement;
+      /** 列表里各行的 key */
+      const keys = () =>
+        [
+          ...document.querySelectorAll('.locale-main tbody tr.line-row .loc-key input'),
+        ].map((el) => (el as HTMLInputElement).value);
+
+      // 表单在列表上面，key 空着时点不了添加
+      expect(document.querySelectorAll('.locale-main tbody tr')[0].className).toBe('locale-add-row');
+      expect(addButton().disabled).toBe(true);
+
+      // 和已有条目重名：当场报出来，还是点不了
+      fireEvent.change(keyBox(), { target: { value: 'TXT_Widget_设置' } });
+      expect(within(form()).getByText(/key 已存在/)).toBeTruthy();
+      expect(addButton().disabled).toBe(true);
+
+      // 换个没人用的 key，填上中文，点「添加」→ 插到第一行
+      fireEvent.change(keyBox(), { target: { value: 'TXT_Widget_新游戏' } });
+      fireEvent.change(within(form()).getByPlaceholderText('中文原文'), {
+        target: { value: '新游戏' },
       });
-      expect(screen.getByDisplayValue('TXT_Widget_新游戏')).toBeTruthy();
+      expect(addButton().disabled).toBe(false);
+      fireEvent.click(addButton());
 
-      // 只有中文时，缺译文的提示会亮出来
-      fireEvent.change(screen.getByPlaceholderText('中文原文'), { target: { value: '新游戏' } });
-      expect(screen.getByText(/缺英文或日文/)).toBeTruthy();
+      expect(keys()).toEqual([
+        'TXT_Widget_新游戏',
+        'TXT_Widget_开始游戏',
+        'TXT_Widget_设置',
+      ]);
+      // 表单清空，好接着填下一条
+      expect((keyBox() as HTMLInputElement).value).toBe('');
+      expect((within(form()).getByPlaceholderText('中文原文') as HTMLInputElement).value).toBe('');
 
-      fireEvent.click(screen.getByText('删除'));
-      expect(screen.getByText(/还没有 UI 文本/)).toBeTruthy();
+      // 表单里按回车等同于点「添加」
+      fireEvent.change(keyBox(), { target: { value: 'TXT_Widget_保存' } });
+      fireEvent.keyDown(keyBox(), { key: 'Enter' });
+      expect(keys()[0]).toBe('TXT_Widget_保存');
+
+      // 删除：拿掉最上面那条
+      const firstRow = document.querySelectorAll('.locale-main tbody tr.line-row')[0] as HTMLElement;
+      fireEvent.click(within(firstRow).getByText('删除'));
+      expect(keys()).not.toContain('TXT_Widget_保存');
+    });
+
+    it('UI 本地化一条都没有时，表单下面给出提示', async () => {
+      await openLocale();
+      fireEvent.click(screen.getByText('UI 本地化'));
+
+      expect(screen.getByText('还没有 UI 文本。在上面这一行填好 key 与译文，点「添加」就会插到列表最前面。')).toBeTruthy();
     });
   });
 

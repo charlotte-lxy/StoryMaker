@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useMemo, useState, type KeyboardEvent } from 'react';
 
 import { textIdOf } from '../core/ids';
 import type { LangKey, LocalizedText, Project, UiTextRow } from '../core/types';
@@ -7,7 +7,8 @@ interface Props {
   project: Project;
   /** 改对话 / 选项的三语文本 */
   onUpdateText: (uid: string, lang: LangKey, value: string) => void;
-  onAddUiText: () => void;
+  /** 新增一条 UI 文案，key 由界面保证非空且不与已有条目重名 */
+  onAddUiText: (key: string, text: LocalizedText) => void;
   onRemoveUiText: (uid: string) => void;
   onUpdateUiText: (uid: string, patch: Partial<UiTextRow>) => void;
 }
@@ -28,6 +29,13 @@ const LANGS: { lang: LangKey; label: string }[] = [
 
 /** 本地化模块的两个页面 */
 type LocalePage = 'story' | 'ui';
+
+/** UI 本地化最上面那一行新增表单的草稿 */
+interface UiDraft extends LocalizedText {
+  key: string;
+}
+
+const EMPTY_DRAFT: UiDraft = { key: '', zh: '', en: '', ja: '' };
 
 /** 模糊搜索：忽略大小写，命中 key 或三语文本里的任意一处就算 */
 function hit(fields: string[], query: string): boolean {
@@ -59,6 +67,8 @@ export function LocalizationEditor({
 }: Props) {
   const [page, setPage] = useState<LocalePage>('story');
   const [query, setQuery] = useState('');
+  /** 新增表单：填好 key 与译文，点「添加」插到列表最前面 */
+  const [draft, setDraft] = useState<UiDraft>(EMPTY_DRAFT);
 
   const entries = useMemo(() => {
     const list: LocEntry[] = [];
@@ -156,6 +166,25 @@ export function LocalizationEditor({
   const shown = page === 'story' ? shownEntries.length : shownUiTexts.length;
   const total = page === 'story' ? entries.length : uiTexts.length;
 
+  /** 表单里的 key 有没有和已有条目重名（去掉首尾空格后比） */
+  const draftKey = draft.key.trim();
+  const duplicated = draftKey === '' ? undefined : uiTexts.find((row) => row.key.trim() === draftKey);
+  const canAdd = draftKey !== '' && duplicated === undefined;
+
+  const submitUiText = (): void => {
+    if (!canAdd) return;
+    onAddUiText(draftKey, { zh: draft.zh, en: draft.en, ja: draft.ja });
+    setDraft(EMPTY_DRAFT);
+  };
+
+  /** 表单里按回车等同于点「添加」，连着填几条时不用来回换手 */
+  const submitOnEnter = (event: KeyboardEvent<HTMLInputElement>): void => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      submitUiText();
+    }
+  };
+
   return (
     <div className="editor">
       <div className="editor-head">
@@ -181,11 +210,6 @@ export function LocalizationEditor({
             </>
           )}
         </span>
-        {page === 'ui' && (
-          <button type="button" className="primary" onClick={onAddUiText}>
-            ＋ 新增一行
-          </button>
-        )}
       </div>
 
       <div className="locale-body">
@@ -274,12 +298,6 @@ export function LocalizationEditor({
                 </tbody>
               </table>
             )
-          ) : uiTexts.length === 0 ? (
-            <div className="empty-state">
-              还没有 UI 文本。点右上角「＋ 新增一行」，把程序给的界面文案 key 与译文填进来。
-            </div>
-          ) : shownUiTexts.length === 0 ? (
-            <div className="empty-state">没有匹配「{query.trim()}」的 UI 文本。</div>
           ) : (
             <table className="lines">
               <thead>
@@ -292,6 +310,40 @@ export function LocalizationEditor({
                 </tr>
               </thead>
               <tbody>
+                {/* 新增表单就占列表的第一行，填好 key 与译文点「添加」插到最前面 */}
+                <tr className="locale-add-row">
+                  <td>
+                    <input
+                      value={draft.key}
+                      placeholder="TXT_（必填，不能重名）"
+                      onChange={(event) =>
+                        setDraft((prev) => ({ ...prev, key: event.target.value }))
+                      }
+                      onKeyDown={submitOnEnter}
+                    />
+                    {duplicated !== undefined && (
+                      <div className="field-error">key 已存在：{duplicated.key}</div>
+                    )}
+                  </td>
+                  {LANGS.map((item) => (
+                    <td key={item.lang}>
+                      <input
+                        value={draft[item.lang]}
+                        placeholder={item.lang === 'zh' ? '中文原文' : '待翻译'}
+                        onChange={(event) =>
+                          setDraft((prev) => ({ ...prev, [item.lang]: event.target.value }))
+                        }
+                        onKeyDown={submitOnEnter}
+                      />
+                    </td>
+                  ))}
+                  <td>
+                    <button type="button" className="primary" disabled={!canAdd} onClick={submitUiText}>
+                      添加
+                    </button>
+                  </td>
+                </tr>
+
                 {shownUiTexts.map((row) => (
                   <tr
                     className={`line-row${missingTranslation(row.text) ? ' needs-work' : ''}`}
@@ -326,6 +378,16 @@ export function LocalizationEditor({
                     </td>
                   </tr>
                 ))}
+
+                {shownUiTexts.length === 0 && (
+                  <tr className="locale-form-note">
+                    <td colSpan={5}>
+                      {uiTexts.length === 0
+                        ? '还没有 UI 文本。在上面这一行填好 key 与译文，点「添加」就会插到列表最前面。'
+                        : `没有匹配「${query.trim()}」的 UI 文本。`}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           )}

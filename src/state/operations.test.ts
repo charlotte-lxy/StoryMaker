@@ -190,19 +190,23 @@ describe('本地化文本编辑', () => {  it('按 uid 改写某一语言，不�
 });
 
 describe('UI 本地化条目', () => {
-  it('新增一行：默认 key 不与已有的撞车', () => {
+  it('新增一条：插在列表最前面，key 去掉首尾空格', () => {
     const project = makeProject();
-    project.uiTexts = [
-      { uid: 'ui-1', key: 'TXT_UI_1', text: { zh: '', en: '', ja: '' } },
-      { uid: 'ui-2', key: 'TXT_Widget_开始游戏', text: { zh: '', en: '', ja: '' } },
-    ];
+    project.uiTexts = [{ uid: 'ui-1', key: 'TXT_UI_1', text: { zh: '一', en: '', ja: '' } }];
 
-    const next = addUiText(project);
+    const next = addUiText(project, '  TXT_Widget_开始游戏  ', {
+      zh: '开始游戏',
+      en: 'Start Game',
+      ja: 'ゲーム開始',
+    });
 
-    expect(next.uiTexts).toHaveLength(3);
-    // 行数是 2，所以先试 TXT_UI_3 而不是已经被占的 TXT_UI_1
-    expect(next.uiTexts[2].key).toBe('TXT_UI_3');
-    expect(next.uiTexts[2].uid).not.toBe('');
+    expect(next.uiTexts).toHaveLength(2);
+    expect(next.uiTexts[0].key).toBe('TXT_Widget_开始游戏');
+    expect(next.uiTexts[0].text.ja).toBe('ゲーム開始');
+    expect(next.uiTexts[0].uid).not.toBe('');
+    // 原来那条还在，而且没被就地改过
+    expect(next.uiTexts[1].uid).toBe('ui-1');
+    expect(project.uiTexts).toHaveLength(1);
   });
 
   it('改 key 与改译文都只动那一行', () => {

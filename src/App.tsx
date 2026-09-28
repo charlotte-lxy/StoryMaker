@@ -796,7 +796,7 @@ export default function App() {
             <LocalizationEditor
               project={project}
               onUpdateText={handleUpdateText}
-              onAddUiText={() => setProject((prev) => addUiText(prev))}
+              onAddUiText={(key, text) => setProject((prev) => addUiText(prev, key, text))}
               onRemoveUiText={(uid) => setProject((prev) => removeUiText(prev, uid))}
               onUpdateUiText={handleUpdateUiText}
             />
