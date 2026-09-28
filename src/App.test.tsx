@@ -1070,7 +1070,7 @@ describe('导出模块', () => {
     await waitFor(() => expect(host.bridge.exportFile).toHaveBeenCalled());
   });
 
-  it('导入设置能新增一行：三列都在，子表下拉列出九个参与导出的子表', async () => {
+  it('导入设置能新增一行：三列都在，子表下拉列出所有参与导出的子表', async () => {
     await openExport();
     fireEvent.click(screen.getByText('＋ 新增数据表'));
 
@@ -1089,8 +1089,7 @@ describe('导出模块', () => {
       '角色',
       '武器',
       '脚本',
-      '本地化-脚本',
-      '本地化-UI',
+      '本地化',
     ]);
     fireEvent.change(subTable, { target: { value: '技能' } });
     expect(subTable.value).toBe('技能');

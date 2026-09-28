@@ -39,11 +39,11 @@ describe('Unreal 导入设置', () => {
 
   it('csv 文件名由子表名拼出来，和样例一致', () => {
     expect(csvFileName('技能')).toBe('TB_BSGame_技能.csv');
-    expect(csvFileName('本地化-脚本')).toBe('TB_BSGame_本地化-脚本.csv');
+    expect(csvFileName('本地化')).toBe('TB_BSGame_本地化.csv');
     expect(csvFileName('  ')).toBe('');
   });
 
-  it('子表清单就是导入设置表里出现过的那九个子表', () => {
+  it('子表清单按实际导出的子表来，本地化只有一个', () => {
     expect([...EXPORT_SUBTABLES]).toEqual([
       '技能',
       '效果',
@@ -52,9 +52,10 @@ describe('Unreal 导入设置', () => {
       '角色',
       '武器',
       '脚本',
-      '本地化-脚本',
-      '本地化-UI',
+      '本地化',
     ]);
+    expect([...EXPORT_SUBTABLES]).not.toContain('本地化-脚本');
+    expect([...EXPORT_SUBTABLES]).not.toContain('本地化-UI');
   });
 
   it('导入设置子表：行名是数据表名，只导出算出来的两列，表名空的行不进表', () => {
