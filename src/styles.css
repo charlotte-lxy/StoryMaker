@@ -1796,10 +1796,12 @@ tr.needs-work .loc-key input {
   --locale-control-height: 30px;
 }
 
-/* UI 本地化的新增表单：整个列表上方独立一行 */
+/* UI 本地化的新增表单：整个列表上方独立一行。
+   窗口窄或页面放大到放不下时允许换行，别把输入框挤成一条缝 */
 .locale-add-form {
   display: flex;
   align-items: flex-start;
+  flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 12px;
   padding: 10px 12px;
@@ -1814,7 +1816,7 @@ tr.needs-work .loc-key input {
   flex-direction: column;
   gap: 4px;
   flex: 1 1 0;
-  min-width: 0;
+  min-width: 150px;
 }
 
 /* key 那一格宽一点，和下面表格的「文本 key」列一样是主角 */
@@ -1823,7 +1825,9 @@ tr.needs-work .loc-key input {
 }
 
 .locale-add-submit {
+  /* 按钮那一格不参与拉伸，也不要上面那个最小宽度 */
   flex: 0 0 auto;
+  min-width: 0;
 }
 
 /* 按钮也照列表控件一样高，别比旁边的输入框冒出来一像素 */
