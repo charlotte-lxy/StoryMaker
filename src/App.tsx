@@ -16,7 +16,12 @@ import type {
   StoryOption,
   UiTextRow,
 } from './core/types';
-import { validateProject, type Issue, type ValidationReport } from './core/validate';
+import {
+  validateLocalization,
+  validateProject,
+  type Issue,
+  type ValidationReport,
+} from './core/validate';
 import {
   addChapter,
   addCharacter,
@@ -42,7 +47,6 @@ import {
   renameCommand,
   renameGroup,
   renumberOneGroup,
-  renumberProject,
   reorderLine,
   setGroupNote,
   updateCommandDef,
@@ -72,7 +76,12 @@ import { SettingsEditor } from './ui/SettingsEditor';
 import { ScriptPalette } from './ui/ScriptPalette';
 import { Sidebar } from './ui/Sidebar';
 
-const EMPTY_REPORT: ValidationReport = { issues: [], errors: 0, warnings: 0 };
+/** 一个模块的校验结果，右上角的总数弹层与模块底部的校验条都用它 */
+interface ModuleCheck {
+  key: Module;
+  label: string;
+  report: ValidationReport;
+}
 
 /**
  * 界面所处的阶段：
@@ -126,8 +135,12 @@ export default function App() {
   const [settings, setSettings] = useState<Settings>(loadSettings);
   const [module, setModule] = useState<Module>('story');
   const [activeGroupUid, setActiveGroupUid] = useState<string>('');
-  const [report, setReport] = useState<ValidationReport>(EMPTY_REPORT);
-  const [hasChecked, setHasChecked] = useState(false);
+  /** 各模块底部的校验结果列表是否展开；平时收起，只在这条上显示条数 */
+  const [panelOpen, setPanelOpen] = useState<Record<string, boolean>>({});
+  /** 右上方「校验结果」的弹层是否打开 */
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  /** 校验条里点过来的本地化行：滚过去高亮，过一会儿自动清掉 */
+  const [focusLocaleUid, setFocusLocaleUid] = useState<string | null>(null);
   const [toast, setToast] = useState('');
   /** 门槛页上的提示：上次的文件打不开、没检测到本地服务 */
   const [gateNote, setGateNote] = useState('');
@@ -390,8 +403,14 @@ export default function App() {
     }
   };
 
-  /** 校验面板里点某一条问题：切到出问题的那一行并高亮 */
+  /** 校验条里点某一条：切到出问题的地方并高亮 */
   const handleJumpToIssue = (issue: Issue): void => {
+    // 本地化的问题（缺译文、UI key 为空或重名）：切到本地化模块，滚到并高亮那一行
+    if (issue.localeUid !== undefined && issue.localeUid !== '') {
+      setModule('locale');
+      setFocusLocaleUid(issue.localeUid);
+      return;
+    }
     if (issue.lineUid !== '') {
       handleJumpToLine(issue.lineUid);
       return;
@@ -427,6 +446,12 @@ export default function App() {
     const timer = window.setTimeout(() => setFlashOptionUid(null), 1800);
     return () => window.clearTimeout(timer);
   }, [flashOptionUid]);
+
+  useEffect(() => {
+    if (focusLocaleUid === null) return;
+    const timer = window.setTimeout(() => setFocusLocaleUid(null), 1800);
+    return () => window.clearTimeout(timer);
+  }, [focusLocaleUid]);
 
   // 拖动分隔线时不要每动一下都写盘，松手后再记住宽度
   useEffect(() => {
@@ -493,7 +518,6 @@ export default function App() {
     setProjectPath(target);
     setActiveGroupUid('');
     setActiveChapterUid('');
-    setHasChecked(false);
     setGateNote('');
     setPhase('ready');
   };
@@ -550,16 +574,12 @@ export default function App() {
   };
 
   const handleExport = async (): Promise<void> => {
-    // 导出前静默跑一次校验，不弹确认框，但结果会提示出来
-    const check = validateProject(project);
-    setReport(check);
-    setHasChecked(true);
-
+    // 校验是自动跑的，这里只用它的结果给提示，不弹确认框
     const buffer = await exportWorkbook(project);
     const filename = `${project.name}.xlsx`;
     const suffix =
-      check.errors > 0
-        ? `，但有 ${check.errors} 处错误建议先修复（见下方校验结果）`
+      checkErrors > 0
+        ? `，但有 ${checkErrors} 处必须修复的问题建议先处理（见下方校验结果）`
         : '，含对话 / 选项 / 本地化三张工作表';
 
     if (host === undefined) return;
@@ -599,13 +619,29 @@ export default function App() {
     setToast(`已另存为 ${target}`);
   };
 
-  const handleRenumber = (): void => {
-    const result = renumberProject(project);
-    setProject(result.project);
-    setIdChanges(result.changes);
-  };
+  /**
+   * 各模块的校验结果。
+   *
+   * 都在改动后自动重算（和项目状态一起 useMemo），所以右上角的总数与模块
+   * 底部的条数永远是最新的，不需要手动点「校验」。
+   */
+  const checks = useMemo<ModuleCheck[]>(
+    () => [
+      { key: 'story', label: '剧情', report: validateProject(project) },
+      { key: 'locale', label: '本地化', report: validateLocalization(project) },
+    ],
+    [project],
+  );
 
-  const checkCounts = useMemo(() => validateProject(project), [project]);
+  const checkTotal = checks.reduce((sum, item) => sum + item.report.issues.length, 0);
+  const checkErrors = checks.reduce((sum, item) => sum + item.report.errors, 0);
+  /** 徽标配色：有必须修复的用红，只有建议用黄，都没有用绿 */
+  const checkLevel = checkErrors > 0 ? 'error' : checkTotal > 0 ? 'warn' : 'ok';
+  /** 当前模块自己的那份校验结果；没有校验的模块不显示底部那条 */
+  const activeCheck = checks.find((item) => item.key === module);
+
+  const togglePanel = (key: Module): void =>
+    setPanelOpen((prev) => ({ ...prev, [key]: !(prev[key] ?? false) }));
 
   // 项目文件还没确定：先把编辑界面挡在门槛后面
   if (phase !== 'ready') {
@@ -668,15 +704,57 @@ export default function App() {
 
         <span className="spacer" />
 
-        {checkCounts.errors > 0 && <span className="badge error">待修复 {checkCounts.errors}</span>}
-        {checkCounts.errors === 0 && checkCounts.warnings > 0 && (
-          <span className="badge warn">{checkCounts.warnings} 条建议</span>
-        )}
+        <div className="check-summary">
+          <button
+            type="button"
+            className={`check-badge ${checkLevel}`}
+            title="各模块的校验结果总数，点开看明细"
+            onClick={() => setSummaryOpen((current) => !current)}
+          >
+            校验结果 {checkTotal}
+          </button>
+
+          {summaryOpen && (
+            <>
+              <div className="check-mask" onClick={() => setSummaryOpen(false)} />
+              <div className="check-pop">
+                <table className="check-table">
+                  <thead>
+                    <tr>
+                      <th>模块</th>
+                      <th>建议</th>
+                      <th>错误</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {checks.map((item) => (
+                      <tr
+                        key={item.key}
+                        className="check-row"
+                        title={`跳到「${item.label}」模块`}
+                        onClick={() => {
+                          setModule(item.key);
+                          setSummaryOpen(false);
+                        }}
+                      >
+                        <td>{item.label}</td>
+                        <td className={item.report.warnings > 0 ? 'warn-text' : ''}>
+                          {item.report.warnings}
+                        </td>
+                        <td className={item.report.errors > 0 ? 'error-text' : ''}>
+                          {item.report.errors}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="check-pop-hint">点一行跳到对应模块</div>
+              </div>
+            </>
+          )}
+        </div>
 
         <div className="toolbar-group">
-          <button type="button" onClick={handleRenumber}>
-            重排对话 ID
-          </button>
           <button type="button" className="primary" onClick={() => void handleExport()}>
             导出 Excel
           </button>
@@ -760,177 +838,187 @@ export default function App() {
           </button>
         </nav>
 
-        {module === 'story' && (
-          <Sidebar
-            project={project}
-            activeChapterUid={chapterUid}
-            activeGroupUid={activeUid}
-            onSelectChapter={handleOpenChapter}
-            onSelectGroup={openGroup}
-            onRenameChapter={(chapterUid, title) =>
-              setProject((prev) => renameChapter(prev, chapterUid, title))
-            }
-            onRenameGroup={(groupUid, title) =>
-              setProject((prev) => renameGroup(prev, groupUid, title))
-            }
-            onAddChapter={() => setProject((prev) => addChapter(prev))}
-            onAddGroup={(targetChapterUid) =>
-              setProject((prev) => addGroup(prev, targetChapterUid))
-            }
-            onRemoveChapter={handleRemoveChapter}
-            onRemoveGroup={handleRemoveGroup}
-          />
-        )}
-
-        <main className="main">
-          {module === 'character' && (
-            <CharacterEditor
-              project={project}
-              onAdd={() => setProject((prev) => addCharacter(prev))}
-              onRemove={handleRemoveCharacter}
-              onUpdate={updateCharacter}
-            />
-          )}
-
-          {module === 'locale' && (
-            <LocalizationEditor
-              project={project}
-              onUpdateText={handleUpdateText}
-              onAddUiText={(key, text) => setProject((prev) => addUiText(prev, key, text))}
-              onRemoveUiText={(uid) => setProject((prev) => removeUiText(prev, uid))}
-              onUpdateUiText={handleUpdateUiText}
-            />
-          )}
-
-          {(module === 'items' ||
-            module === 'quests' ||
-            module === 'images' ||
-            module === 'sounds') && (
-            <LookupEditor
-              project={project}
-              kind={module}
-              onAdd={handleLookup.add}
-              onRemove={handleLookup.remove}
-              onUpdate={handleLookup.update}
-            />
-          )}
-
-          {module === 'command' && (
-            <CommandEditor
-              project={project}
-              onRenameCommand={handleRenameCommand}
-              onJumpToLine={handleJumpToLine}
-              onAddDef={(category) => setProject((prev) => addCommandDef(prev, category))}
-              onRemoveDef={(uid) => setProject((prev) => removeCommandDef(prev, uid))}
-              onUpdateDef={(uid, patch: Partial<CommandDef>) =>
-                setProject((prev) => updateCommandDef(prev, uid, patch))
-              }
-            />
-          )}
-
-          {module === 'settings' && (
-            <SettingsEditor
-              settings={settings}
-              onChange={(patch) => setSettings((prev) => ({ ...prev, ...patch }))}
-            />
-          )}
-
-          {module === 'story' && (
-            <>
-              <div className="story-split" ref={splitBoxRef}>
-                <div
-                  className="flow-pane"
-                  style={listOpen ? { flexBasis: `${splitRatio * 100}%` } : { flex: '1 1 auto' }}
-                >
-                  <ChapterFlow
-                    project={project}
-                    chapterUid={chapterUid}
-                    activeGroupUid={activeUid}
-                    listOpen={listOpen}
-                    onOpenGroup={openGroup}
-                    onJumpToOption={handleJumpToOption}
-                    onToggleList={() => setListCollapsed((current) => !current)}
-                    onRenameGroup={(groupUid, title) =>
-                      setProject((prev) => renameGroup(prev, groupUid, title))
-                    }
-                    onSetGroupNote={(groupUid, note) =>
-                      setProject((prev) => setGroupNote(prev, groupUid, note))
-                    }
-                  />
-                </div>
-
-                {listOpen && (
-                  <>
-                    <div
-                      className={`split-handle${splitDragging ? ' dragging' : ''}`}
-                      title="按住左右拖动，调整流程图与对话列表的宽度"
-                      onPointerDown={startSplitDrag}
-                    />
-
-                    <div className="list-pane">
-                      <div className="editor">
-                        {group === undefined ? (
-                          <div className="empty-state">
-                            这一章还没有段落，点章节名旁边的「＋」新增段落。
-                          </div>
-                        ) : (
-                          <>
-                            <div className="editor-head">
-                              <h2>
-                                {location?.chapter.title} / {group.title}
-                              </h2>
-                              <span className="hint">
-                                段落 {group.id} · {group.lines.length} 行 ·{' '}
-                                {group.options.length} 个选项
-                              </span>
-                            </div>
-
-                            <LineList
-                              group={group}
-                              groupedLines={chapterGroups}
-                              characters={project.characters}
-                              commandDefs={project.commands}
-                              commandTargets={commandTargets}
-                              flashLineUid={flashLineUid}
-                              flashOptionUid={flashOptionUid}
-                              onUpdateLine={updateLine}
-                              onUpdateOption={updateOption}
-                              onInsertLine={handleInsertLine}
-                              onRemoveLine={(lineUid) =>
-                                setProject((prev) => removeLine(prev, activeUid, lineUid))
-                              }
-                              onReorderLine={handleReorderLine}
-                              onJumpToLine={handleJumpToLine}
-                              onAddOption={(lineUid) =>
-                                setProject((prev) => addOption(prev, activeUid, lineUid))
-                              }
-                              onRemoveOption={(optionUid) =>
-                                setProject((prev) => removeOption(prev, activeUid, optionUid))
-                              }
-                            />
-                          </>
-                        )}
-                      </div>
-
-                      {/* 脚本块固定在对话列表最下方，横向排布 */}
-                      <ScriptPalette onPick={handlePickBlock} />
-                    </div>
-                  </>
-                )}
-              </div>
-
-              <IssuePanel
-                report={report}
-                hasChecked={hasChecked}
-                onCheck={() => {
-                  setReport(validateProject(project));
-                  setHasChecked(true);
-                }}
-                onJumpToIssue={handleJumpToIssue}
+        {/*
+          模块界面 = 侧边栏 + 内容区，底下的校验条横跨这一整片（但不盖到最左侧模块栏）。
+          校验条放在这一层：它属于整个模块，而不是某一块内容。
+        */}
+        <div className="workspace">
+          <div className="workspace-row">
+            {module === 'story' && (
+              <Sidebar
+                project={project}
+                activeChapterUid={chapterUid}
+                activeGroupUid={activeUid}
+                onSelectChapter={handleOpenChapter}
+                onSelectGroup={openGroup}
+                onRenameChapter={(chapterUid, title) =>
+                  setProject((prev) => renameChapter(prev, chapterUid, title))
+                }
+                onRenameGroup={(groupUid, title) =>
+                  setProject((prev) => renameGroup(prev, groupUid, title))
+                }
+                onAddChapter={() => setProject((prev) => addChapter(prev))}
+                onAddGroup={(targetChapterUid) =>
+                  setProject((prev) => addGroup(prev, targetChapterUid))
+                }
+                onRemoveChapter={handleRemoveChapter}
+                onRemoveGroup={handleRemoveGroup}
               />
-            </>
+            )}
+
+            <main className="main">
+              {module === 'character' && (
+                <CharacterEditor
+                  project={project}
+                  onAdd={() => setProject((prev) => addCharacter(prev))}
+                  onRemove={handleRemoveCharacter}
+                  onUpdate={updateCharacter}
+                />
+              )}
+
+              {module === 'locale' && (
+                <LocalizationEditor
+                  project={project}
+                  focusUid={focusLocaleUid}
+                  onUpdateText={handleUpdateText}
+                  onAddUiText={(key, text) => setProject((prev) => addUiText(prev, key, text))}
+                  onRemoveUiText={(uid) => setProject((prev) => removeUiText(prev, uid))}
+                  onUpdateUiText={handleUpdateUiText}
+                />
+              )}
+
+              {(module === 'items' ||
+                module === 'quests' ||
+                module === 'images' ||
+                module === 'sounds') && (
+                <LookupEditor
+                  project={project}
+                  kind={module}
+                  onAdd={handleLookup.add}
+                  onRemove={handleLookup.remove}
+                  onUpdate={handleLookup.update}
+                />
+              )}
+
+              {module === 'command' && (
+                <CommandEditor
+                  project={project}
+                  onRenameCommand={handleRenameCommand}
+                  onJumpToLine={handleJumpToLine}
+                  onAddDef={(category) => setProject((prev) => addCommandDef(prev, category))}
+                  onRemoveDef={(uid) => setProject((prev) => removeCommandDef(prev, uid))}
+                  onUpdateDef={(uid, patch: Partial<CommandDef>) =>
+                    setProject((prev) => updateCommandDef(prev, uid, patch))
+                  }
+                />
+              )}
+
+              {module === 'settings' && (
+                <SettingsEditor
+                  settings={settings}
+                  onChange={(patch) => setSettings((prev) => ({ ...prev, ...patch }))}
+                />
+              )}
+
+              {module === 'story' && (
+                <>
+                  <div className="story-split" ref={splitBoxRef}>
+                    <div
+                      className="flow-pane"
+                      style={listOpen ? { flexBasis: `${splitRatio * 100}%` } : { flex: '1 1 auto' }}
+                    >
+                      <ChapterFlow
+                        project={project}
+                        chapterUid={chapterUid}
+                        activeGroupUid={activeUid}
+                        listOpen={listOpen}
+                        onOpenGroup={openGroup}
+                        onJumpToOption={handleJumpToOption}
+                        onToggleList={() => setListCollapsed((current) => !current)}
+                        onRenameGroup={(groupUid, title) =>
+                          setProject((prev) => renameGroup(prev, groupUid, title))
+                        }
+                        onSetGroupNote={(groupUid, note) =>
+                          setProject((prev) => setGroupNote(prev, groupUid, note))
+                        }
+                      />
+                    </div>
+
+                    {listOpen && (
+                      <>
+                        <div
+                          className={`split-handle${splitDragging ? ' dragging' : ''}`}
+                          title="按住左右拖动，调整流程图与对话列表的宽度"
+                          onPointerDown={startSplitDrag}
+                        />
+
+                        <div className="list-pane">
+                          <div className="editor">
+                            {group === undefined ? (
+                              <div className="empty-state">
+                                这一章还没有段落，点章节名旁边的「＋」新增段落。
+                              </div>
+                            ) : (
+                              <>
+                                <div className="editor-head">
+                                  <h2>
+                                    {location?.chapter.title} / {group.title}
+                                  </h2>
+                                  <span className="hint">
+                                    段落 {group.id} · {group.lines.length} 行 ·{' '}
+                                    {group.options.length} 个选项
+                                  </span>
+                                </div>
+
+                                <LineList
+                                  group={group}
+                                  groupedLines={chapterGroups}
+                                  characters={project.characters}
+                                  commandDefs={project.commands}
+                                  commandTargets={commandTargets}
+                                  flashLineUid={flashLineUid}
+                                  flashOptionUid={flashOptionUid}
+                                  onUpdateLine={updateLine}
+                                  onUpdateOption={updateOption}
+                                  onInsertLine={handleInsertLine}
+                                  onRemoveLine={(lineUid) =>
+                                    setProject((prev) => removeLine(prev, activeUid, lineUid))
+                                  }
+                                  onReorderLine={handleReorderLine}
+                                  onJumpToLine={handleJumpToLine}
+                                  onAddOption={(lineUid) =>
+                                    setProject((prev) => addOption(prev, activeUid, lineUid))
+                                  }
+                                  onRemoveOption={(optionUid) =>
+                                    setProject((prev) => removeOption(prev, activeUid, optionUid))
+                                  }
+                                />
+                              </>
+                            )}
+                          </div>
+
+                          {/* 脚本块固定在对话列表最下方，横向排布 */}
+                          <ScriptPalette onPick={handlePickBlock} />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
+            </main>
+          </div>
+
+          {/* 校验条：贴在模块界面最下方，横跨侧边栏与内容区 */}
+          {activeCheck !== undefined && (
+            <IssuePanel
+              label={activeCheck.label}
+              report={activeCheck.report}
+              expanded={panelOpen[activeCheck.key] ?? false}
+              onToggle={() => togglePanel(activeCheck.key)}
+              onJumpToIssue={handleJumpToIssue}
+            />
           )}
-        </main>
+        </div>
       </div>
 
       {toast !== '' && <div className="toast">{toast}</div>}

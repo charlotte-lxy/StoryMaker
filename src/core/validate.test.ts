@@ -1,6 +1,6 @@
-import { expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import { validateProject } from './validate';
+import { validateLocalization, validateProject } from './validate';
 import type { Group, Line, Project, StoryOption } from './types';
 
 function makeLine(uid: string, readableId: string, over: Partial<Line> = {}): Line {
@@ -202,4 +202,55 @@ it('「选项」行必须有选项，且不检查台词', () => {
     options: [makeOption('o-a', 'Dia_ch01_001-1A', { nextId: 'u1' })],
   });
   expect(validateProject(filled).issues).toEqual([]);
+});
+
+describe('本地化校验', () => {
+  it('对话与选项文本缺英文或日文时各报一条，中文还没写的不算', () => {
+    const project = makeProject({
+      lines: [
+        makeLine('u1', 'Dia_ch01_001-1', { text: { zh: '你好', en: 'Hi', ja: 'こんにちは' } }),
+        makeLine('u2', 'Dia_ch01_001-2', { text: { zh: '缺日文', en: 'No ja', ja: '' } }),
+        makeLine('u3', 'Dia_ch01_001-3', { text: { zh: '', en: '', ja: '' } }),
+      ],
+      options: [makeOption('o-a', 'Dia_ch01_001-4A', { text: { zh: '选项', en: '', ja: '' } })],
+    });
+
+    const report = validateLocalization(project);
+
+    expect(report.errors).toBe(0);
+    expect(report.warnings).toBe(2);
+    expect(report.issues.map((i) => [i.targetId, i.message])).toEqual([
+      ['TXT_Dia_ch01_001-2', '缺日文'],
+      ['TXT_Dia_ch01_001-4A', '缺英文、日文'],
+    ]);
+    // 点这条要跳到本地化表里的那一行
+    expect(report.issues.map((i) => i.localeUid)).toEqual(['u2', 'o-a']);
+    expect(report.issues[0].where).toBe('序章 / 开场');
+  });
+
+  it('UI 本地化：key 为空、key 重名算错误，缺译文算建议', () => {
+    const project = makeProject({ lines: [], options: [] });
+    project.uiTexts = [
+      { uid: 'ui-1', key: 'TXT_Widget_设置', text: { zh: '设置', en: 'Setting', ja: '設定' } },
+      { uid: 'ui-2', key: 'TXT_Widget_设置', text: { zh: '设置', en: 'Setting', ja: '設定' } },
+      { uid: 'ui-3', key: 'TXT_Widget_返回', text: { zh: '返回', en: '', ja: '' } },
+      { uid: 'ui-4', key: '', text: { zh: '', en: '', ja: '' } },
+    ];
+
+    const report = validateLocalization(project);
+
+    expect(report.errors).toBe(2);
+    expect(report.warnings).toBe(1);
+    expect(report.issues.map((i) => i.code)).toEqual([
+      'duplicate-ui-key',
+      'missing-translation',
+      'empty-ui-key',
+    ]);
+    // 重名的只报一条，点它跳到第一条上
+    expect(report.issues[0].targetId).toBe('TXT_Widget_设置');
+    expect(report.issues[0].localeUid).toBe('ui-1');
+    expect(report.issues[1].localeUid).toBe('ui-3');
+    expect(report.issues[1].message).toBe('缺英文、日文');
+    expect(report.issues[2].localeUid).toBe('ui-4');
+  });
 });

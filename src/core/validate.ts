@@ -7,7 +7,8 @@
  * 每条问题都带上它属于哪个段落、哪一行，界面点一下就能跳过去。
  */
 
-import type { Group, Project } from './types';
+import { textIdOf } from './ids';
+import type { Group, LocalizedText, Project } from './types';
 
 export type IssueLevel = 'error' | 'warning';
 
@@ -23,6 +24,11 @@ export interface Issue {
   lineUid: string;
   /** 出问题的段落，用于没有具体行的情况（比如没挂上任何行的选项） */
   groupUid: string;
+  /**
+   * 本地化模块的问题专用：本地化表里那一行的 uid（对话 / 选项用行本身的 uid，
+   * UI 文案用条目的 uid）。点这条就切到本地化模块、滚到并高亮这一行。
+   */
+  localeUid?: string;
 }
 
 export type IssueCode =
@@ -35,7 +41,10 @@ export type IssueCode =
   | 'empty-text'
   | 'no-character'
   | 'empty-command'
-  | 'empty-option-list';
+  | 'empty-option-list'
+  | 'missing-translation'
+  | 'empty-ui-key'
+  | 'duplicate-ui-key';
 
 export interface ValidationReport {
   issues: Issue[];
@@ -234,6 +243,108 @@ export function validateProject(project: Project): ValidationReport {
         }
       }
     }
+  }
+
+  return {
+    issues,
+    errors: issues.filter((i) => i.level === 'error').length,
+    warnings: issues.filter((i) => i.level === 'warning').length,
+  };
+}
+
+/** 本地化表里缺哪几种语言；中文还没写的不算缺译文（那是剧情模块的「空台词」） */
+function missingLangs(text: LocalizedText): string[] {
+  if (text.zh.trim() === '') return [];
+  const missing: string[] = [];
+  if (text.en.trim() === '') missing.push('英文');
+  if (text.ja.trim() === '') missing.push('日文');
+  return missing;
+}
+
+/**
+ * 本地化模块的校验。
+ *
+ * 只管译文本身：剧本里收上来的对话 / 选项文本缺英文或日文，
+ * 以及 UI 本地化里 key 为空、key 重名、缺英文或日文。
+ * 空台词、悬空跳转、ID 重复那些归剧情模块管，这里不重复报。
+ */
+export function validateLocalization(project: Project): ValidationReport {
+  const issues: Issue[] = [];
+
+  const reportMissing = (
+    localeUid: string,
+    key: string,
+    where: string,
+    text: LocalizedText,
+  ): void => {
+    const missing = missingLangs(text);
+    if (missing.length === 0) return;
+    issues.push({
+      level: 'warning',
+      code: 'missing-translation',
+      targetId: key,
+      where,
+      message: `缺${missing.join('、')}`,
+      lineUid: '',
+      groupUid: '',
+      localeUid,
+    });
+  };
+
+  for (const chapter of project.chapters) {
+    for (const group of chapter.groups) {
+      const where = `${chapter.title || chapter.id} / ${group.title || group.id}`;
+
+      for (const line of group.lines) {
+        // 本地化表只收「对话」行的文本
+        if (line.kind === '对话') {
+          reportMissing(line.uid, textIdOf(line.readableId), where, line.text);
+        }
+      }
+      // 选项文本也在本地化表里，包括没挂到任何「选项」行上的
+      for (const option of group.options) {
+        reportMissing(option.uid, textIdOf(option.readableId), where, option.text);
+      }
+    }
+  }
+
+  const keyCounts = new Map<string, number>();
+  for (const row of project.uiTexts) {
+    const key = row.key.trim();
+    keyCounts.set(key, (keyCounts.get(key) ?? 0) + 1);
+  }
+
+  const reportedKey = new Set<string>();
+  for (const row of project.uiTexts) {
+    const key = row.key.trim();
+
+    if (key === '') {
+      issues.push({
+        level: 'error',
+        code: 'empty-ui-key',
+        targetId: '(空)',
+        where: 'UI 本地化',
+        message: '这条 UI 文案没有 key，导入 Unreal 时无法命名',
+        lineUid: '',
+        groupUid: '',
+        localeUid: row.uid,
+      });
+    } else if ((keyCounts.get(key) ?? 0) > 1 && !reportedKey.has(key)) {
+      // 同一个 key 只报一条，点它跳到第一条上
+      reportedKey.add(key);
+      issues.push({
+        level: 'error',
+        code: 'duplicate-ui-key',
+        targetId: key,
+        where: 'UI 本地化',
+        message: `key「${key}」出现了 ${keyCounts.get(key)} 次，导入时会互相覆盖`,
+        lineUid: '',
+        groupUid: '',
+        localeUid: row.uid,
+      });
+    }
+
+    reportMissing(row.uid, key === '' ? '(空)' : key, 'UI 本地化', row.text);
   }
 
   return {

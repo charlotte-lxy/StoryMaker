@@ -290,12 +290,130 @@ textarea {
   color: var(--ok);
 }
 
+/* ---------- 右上角的校验结果总数 ---------- */
+
+.check-summary {
+  position: relative;
+}
+
+/* 徽标做成按钮：点开看各模块的条数明细 */
+.check-badge {
+  padding: 3px 11px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* 带上 :hover：不然鼠标停上去会被全局的 button:hover 抢掉配色 */
+.check-badge.ok,
+.check-badge.ok:hover {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.check-badge.warn,
+.check-badge.warn:hover {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.check-badge.error,
+.check-badge.error:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.check-badge:hover {
+  border-color: currentColor;
+}
+
+/* 点旁边空白处收起弹层 */
+.check-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+.check-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 41;
+  min-width: 220px;
+  padding: 8px 10px 4px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  box-shadow: var(--shadow-md);
+}
+
+.check-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.check-table th {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.check-table td {
+  padding: 5px 6px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+/* 数字两列右对齐，看着整齐 */
+.check-table th:nth-child(2),
+.check-table th:nth-child(3),
+.check-table td:nth-child(2),
+.check-table td:nth-child(3) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.check-row {
+  cursor: pointer;
+}
+
+.check-row:hover td {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.check-pop-hint {
+  padding: 6px 6px 2px;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
 /* ---------- 主体三栏 ---------- */
 
 .body {
   display: flex;
   flex: 1;
   min-height: 0;
+}
+
+/* 模块界面：上面一行是「侧边栏 + 内容区」，最下面是整个模块共用的校验条。
+   校验条放在这一层，才能横跨侧边栏与内容区，而不是只占右边那一块 */
+.workspace {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.workspace-row {
+  flex: 1;
+  min-height: 0;
+  display: flex;
 }
 
 .rail {
@@ -1796,6 +1914,11 @@ tr.needs-work .loc-key input {
   --locale-control-height: 30px;
 }
 
+/* 从下面的校验条点过来的那一行，闪一下好找 */
+.locale-main tr.flash {
+  animation: row-flash 1.8s ease-out;
+}
+
 /* UI 本地化的新增表单：整个列表上方独立一行。
    窗口窄或页面放大到放不下时允许换行，别把输入框挤成一条缝 */
 .locale-add-form {
@@ -1872,6 +1995,10 @@ tr.locale-form-note td {
 
 .warn-text {
   color: var(--warn);
+}
+
+.error-text {
+  color: var(--danger);
 }
 
 /* ---------- 指令模块 ---------- */

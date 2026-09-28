@@ -841,10 +841,13 @@ describe('章节流程图与分栏', () => {
 });
 
 describe('校验面板', () => {
-  it('校验按钮在面板里，点一条问题会跳到出问题的那一行', async () => {
+  it('默认收起只显示条数，点「校验」展开，点一条问题会跳到出问题的那一行', async () => {
     const { container } = await renderApp();
 
-    // 默认那行既没台词也没角色，一定有问题
+    // 校验是自动跑的：还没点就已有条数，但列表是收起的
+    expect(container.querySelectorAll('.issue-row')).toHaveLength(0);
+    expect(container.querySelector('.issues .badge.warn')?.textContent).toBe('建议检查 2');
+
     fireEvent.click(screen.getByRole('button', { name: '校验' }));
     const issues = [...container.querySelectorAll('.issue-row')];
     expect(issues.length).toBeGreaterThan(0);
@@ -855,14 +858,102 @@ describe('校验面板', () => {
 
   it('校验结果能收起、能再展开', async () => {
     const { container } = await renderApp();
-    fireEvent.click(screen.getByRole('button', { name: '校验' }));
+
+    fireEvent.click(screen.getByTitle('展开校验结果'));
     expect(container.querySelectorAll('.issue-row').length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByTitle('收起校验结果'));
     expect(container.querySelectorAll('.issue-row')).toHaveLength(0);
-    expect(screen.getByText(/已收起/)).toBeTruthy();
 
     fireEvent.click(screen.getByTitle('展开校验结果'));
     expect(container.querySelectorAll('.issue-row').length).toBeGreaterThan(0);
+  });
+
+  it('改动之后自动重算，条数跟着变', async () => {
+    const { container } = await renderApp();
+    expect(container.querySelector('.issues .badge.warn')?.textContent).toBe('建议检查 2');
+
+    // 填上台词：少一条「空台词」的建议
+    fireEvent.change(screen.getByPlaceholderText('中文台词'), { target: { value: '你好。' } });
+    expect(container.querySelector('.issues .badge.warn')?.textContent).toBe('建议检查 1');
+  });
+});
+
+describe('本地化模块的校验条', () => {
+  /** 一条有中文、缺英文日文的台词 */
+  function seedUntranslated(): void {
+    const project = createEmptyProject();
+    project.chapters[0].groups[0].lines[0].text = { zh: '你好。', en: '', ja: '' };
+    seedProjectFile(JSON.stringify(project));
+  }
+
+  it('贴在本地化界面最下方：校验自动跑好，平时只显示条数', async () => {
+    seedUntranslated();
+    await renderApp();
+    fireEvent.click(within(rail()).getByText('本地化'));
+
+    const panel = document.querySelector('.issues') as HTMLElement;
+    expect(panel.textContent).toContain('本地化校验结果');
+    expect(panel.querySelector('.badge.warn')?.textContent).toBe('建议检查 1');
+    expect(panel.querySelectorAll('.issue-row')).toHaveLength(0);
+  });
+
+  it('点条目定位到本地化表里的那一行，补上译文后条数自动清零', async () => {
+    seedUntranslated();
+    await renderApp();
+    fireEvent.click(within(rail()).getByText('本地化'));
+
+    fireEvent.click(screen.getByRole('button', { name: '校验' }));
+    const rows = [...document.querySelectorAll('.issue-row')];
+    expect(rows).toHaveLength(1);
+    expect(rows[0].textContent).toContain('TXT_Dia_ch01_001-1');
+    expect(rows[0].textContent).toContain('缺英文、日文');
+
+    // 点它就滚到并高亮本地化表里的那一行
+    fireEvent.click(rows[0]);
+    expect(document.querySelector('.locale-main tr.flash')).toBeTruthy();
+
+    // 补上英文：还缺日文，条数不变
+    const translated = screen.getAllByPlaceholderText('待翻译');
+    fireEvent.change(translated[0], { target: { value: 'Hi.' } });
+    expect(document.querySelector('.issues .badge.warn')?.textContent).toBe('建议检查 1');
+
+    // 补上日文：这一条没问题了
+    fireEvent.change(translated[1], { target: { value: 'こんにちは。' } });
+    expect(document.querySelector('.issues .badge.ok')?.textContent).toBe('没有问题');
+  });
+});
+
+describe('右上角的校验结果', () => {
+  const badge = () => screen.getByRole('button', { name: /校验结果/ });
+
+  it('显示所有模块的合计条数，点开是「模块 / 建议 / 错误」的列表', async () => {
+    await renderApp();
+
+    // 默认那行缺台词、又没指定角色 → 剧情 2 条建议
+    expect(badge().textContent).toBe('校验结果 2');
+
+    fireEvent.click(badge());
+    expect([...document.querySelectorAll('.check-table th')].map((th) => th.textContent)).toEqual([
+      '模块',
+      '建议',
+      '错误',
+    ]);
+    expect([...document.querySelectorAll('.check-row')].map((row) => row.textContent)).toEqual([
+      '剧情20',
+      '本地化00',
+    ]);
+  });
+
+  it('点列表里的一行跳到对应模块', async () => {
+    await renderApp();
+    fireEvent.click(within(rail()).getByText('角色'));
+
+    fireEvent.click(badge());
+    const rows = [...document.querySelectorAll('.check-row')];
+    fireEvent.click(rows[1]); // 本地化
+
+    expect(screen.getByText('剧情本地化')).toBeTruthy();
+    expect(document.querySelector('.check-pop')).toBeNull();
   });
 });

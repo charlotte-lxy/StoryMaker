@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState, type KeyboardEvent } from 'react';
+import { Fragment, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 
 import { textIdOf } from '../core/ids';
 import type { LangKey, LocalizedText, Project, UiTextRow } from '../core/types';
@@ -12,6 +12,11 @@ interface Props {
   onAddUiText: (key: string, text: LocalizedText) => void;
   onRemoveUiText: (uid: string) => void;
   onUpdateUiText: (uid: string, patch: Partial<UiTextRow>) => void;
+  /**
+   * 底下校验条里点过来的那一行：切到它所在的页、滚到它并闪一下。
+   * 短暂高亮后由上层清成 null。
+   */
+  focusUid?: string | null;
 }
 
 interface LocEntry {
@@ -65,6 +70,7 @@ export function LocalizationEditor({
   onAddUiText,
   onRemoveUiText,
   onUpdateUiText,
+  focusUid = null,
 }: Props) {
   const [page, setPage] = useState<LocalePage>('story');
   const [query, setQuery] = useState('');
@@ -186,6 +192,26 @@ export function LocalizationEditor({
     }
   };
 
+  // 底下校验条点过来的那一行：先切到它所在的页，并把搜索框清掉，
+  // 免得那一行正好被搜索藏起来、跳过去看不见
+  useEffect(() => {
+    if (focusUid === null) return;
+    setQuery('');
+    setPage(entries.some((entry) => entry.uid === focusUid) ? 'story' : 'ui');
+    // entries 只在选页时用一下，值变了不必重跑（否则会清掉用户刚输入的搜索词）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusUid]);
+
+  // 那一行渲染出来之后再滚过去；页面切换、列表内容变化后也重新找一次
+  useEffect(() => {
+    if (focusUid === null) return;
+    for (const node of document.querySelectorAll<HTMLElement>('[data-text-uid]')) {
+      if (node.dataset.textUid !== focusUid) continue;
+      node.scrollIntoView({ block: 'center' });
+      return;
+    }
+  }, [focusUid, page, shownEntries, shownUiTexts]);
+
   return (
     <div className="editor">
       <div className="editor-head">
@@ -274,7 +300,10 @@ export function LocalizationEditor({
                           </tr>
                         )}
                         <tr
-                          className={`line-row${missingTranslation(entry.text) ? ' needs-work' : ''}`}
+                          className={`line-row${missingTranslation(entry.text) ? ' needs-work' : ''}${
+                            focusUid === entry.uid ? ' flash' : ''
+                          }`}
+                          data-text-uid={entry.uid}
                         >
                           <td className="cell-id loc-key">
                             {entry.key}
@@ -351,7 +380,10 @@ export function LocalizationEditor({
                 <tbody>
                   {shownUiTexts.map((row) => (
                     <tr
-                      className={`line-row${missingTranslation(row.text) ? ' needs-work' : ''}`}
+                      className={`line-row${missingTranslation(row.text) ? ' needs-work' : ''}${
+                        focusUid === row.uid ? ' flash' : ''
+                      }`}
+                      data-text-uid={row.uid}
                       key={row.uid}
                     >
                       <td className="loc-key">
