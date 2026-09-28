@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { Line } from './core/types';
 import {
   clearFakeHost,
   renderApp,
@@ -840,6 +841,131 @@ describe('章节流程图与分栏', () => {
       '（对话结束）',
       '序章 / 开场',
     ]);
+  });
+});
+
+describe('对话列表的批量编辑', () => {
+  /** 段落 001 三行，段落 002 一行，够试勾选、移动与删除 */
+  function lineOf(uid: string, readableId: string, zh: string): Line {
+    return {
+      uid,
+      readableId,
+      kind: '对话',
+      characterId: '',
+      displayName: '',
+      text: { zh, en: '', ja: '' },
+      autoAdvance: false,
+      command: '',
+      optionIds: [],
+      note: '',
+    };
+  }
+
+  function seedBatchProject(): void {
+    const project = createEmptyProject();
+    const chapter = project.chapters[0];
+    chapter.groups[0].lines = [
+      lineOf('l1', 'Dia_ch01_001-1', '第一句'),
+      lineOf('l2', 'Dia_ch01_001-2', '第二句'),
+      lineOf('l3', 'Dia_ch01_001-3', '第三句'),
+    ];
+    chapter.groups.push({
+      uid: 'g2',
+      id: '002',
+      title: '码头',
+      note: '',
+      lines: [lineOf('l4', 'Dia_ch01_002-1', '码头的一句')],
+      options: [],
+    });
+    seedProjectFile(JSON.stringify(project));
+  }
+
+  /** 进入批量编辑模式 */
+  async function openBatch(): Promise<HTMLElement> {
+    const { container } = await renderApp();
+    expect(container.querySelectorAll('.line-select')).toHaveLength(0);
+    fireEvent.click(screen.getByText('批量编辑'));
+    return container.querySelector('.list-pane') as HTMLElement;
+  }
+
+  it('点「批量编辑」后每行左边出现选择框，勾中的行整块高亮', async () => {
+    seedBatchProject();
+    const pane = await openBatch();
+
+    const boxes = pane.querySelectorAll('.line-select');
+    expect(boxes).toHaveLength(3);
+
+    fireEvent.click(boxes[1]);
+    expect(pane.querySelectorAll('.line-row')[1].className).toContain('selected');
+    expect(screen.getByText('已选 1 / 3 行')).toBeTruthy();
+
+    // 再点一次就是取消勾选
+    fireEvent.click(pane.querySelectorAll('.line-select')[1]);
+    expect(pane.querySelectorAll('.line-row')[1].className).not.toContain('selected');
+
+    // 退出批量编辑后选择框收起来
+    fireEvent.click(screen.getByText('退出批量编辑'));
+    expect(pane.querySelectorAll('.line-select')).toHaveLength(0);
+  });
+
+  it('「全选」勾上当前段落的每一行', async () => {
+    seedBatchProject();
+    const pane = await openBatch();
+
+    fireEvent.click(screen.getByText('全选'));
+    expect(screen.getByText('已选 3 / 3 行')).toBeTruthy();
+    expect(
+      [...pane.querySelectorAll('.line-row')].every((row) => row.className.includes('selected')),
+    ).toBe(true);
+  });
+
+  it('「移动至」用两级下拉选目标段落，确认后搬过去并重新编号', async () => {
+    seedBatchProject();
+    const pane = await openBatch();
+
+    fireEvent.click(pane.querySelectorAll('.line-select')[1]);
+    fireEvent.click(screen.getByText('移动至'));
+
+    const chapterSelect = screen.getByTitle('第一级：目标章节') as HTMLSelectElement;
+    const groupSelect = screen.getByTitle('第二级：目标段落（该章节内）') as HTMLSelectElement;
+    expect(groupSelect.disabled).toBe(true);
+
+    fireEvent.change(chapterSelect, { target: { value: chapterSelect.options[1].value } });
+    expect(groupSelect.disabled).toBe(false);
+
+    const dock = [...groupSelect.options].find((option) => option.textContent?.startsWith('码头'));
+    fireEvent.change(groupSelect, { target: { value: dock?.value ?? '' } });
+    fireEvent.click(screen.getByText('移动'));
+
+    // 搬走的那行不在当前列表里了，留下的两行编号接着排
+    expect(pane.querySelectorAll('.line-card')).toHaveLength(2);
+    expect(
+      [...pane.querySelectorAll('.line-seq')].map((seq) => seq.getAttribute('title')),
+    ).toEqual(['对话 ID：Dia_ch01_001-1', '对话 ID：Dia_ch01_001-2']);
+
+    // 切到「码头」：搬过去的行在末尾，ID 按新段落重排
+    fireEvent.click(screen.getByTitle('打开「码头」的对话列表'));
+    expect(screen.getByDisplayValue('第二句')).toBeTruthy();
+    expect(
+      [...document.querySelectorAll('.list-pane .line-seq')].map((seq) => seq.getAttribute('title')),
+    ).toEqual(['对话 ID：Dia_ch01_002-1', '对话 ID：Dia_ch01_002-2']);
+  });
+
+  it('「批量删除」要先确认，取消不动、确定才删干净', async () => {
+    seedBatchProject();
+    const pane = await openBatch();
+
+    fireEvent.click(screen.getByText('全选'));
+    fireEvent.click(screen.getByText('批量删除'));
+    expect(screen.getByText(/确定删除勾选的 3 行吗/)).toBeTruthy();
+
+    fireEvent.click(screen.getByText('取消'));
+    expect(pane.querySelectorAll('.line-card')).toHaveLength(3);
+
+    fireEvent.click(screen.getByText('批量删除'));
+    fireEvent.click(screen.getByText('确定'));
+    expect(pane.querySelectorAll('.line-card')).toHaveLength(0);
+    expect(pane.querySelector('.line-empty')).toBeTruthy();
   });
 });
 

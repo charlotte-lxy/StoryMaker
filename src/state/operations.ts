@@ -313,6 +313,61 @@ export function removeLine(project: Project, groupUid: string, lineUid: string):
   });
 }
 
+/** 批量删除：一次删掉多行，连同它们挂着的选项一起删掉，避免留下孤儿 */
+export function removeLines(project: Project, groupUid: string, lineUids: string[]): Project {
+  return mutate(project, (draft) => {
+    const group = findGroup(draft, groupUid);
+    if (group === undefined) return;
+    const removing = new Set(lineUids);
+    const droppedOptions = new Set<string>();
+    for (const line of group.lines) {
+      if (!removing.has(line.uid)) continue;
+      for (const optionUid of line.optionIds) droppedOptions.add(optionUid);
+    }
+    group.options = group.options.filter((o) => !droppedOptions.has(o.uid));
+    group.lines = group.lines.filter((l) => !removing.has(l.uid));
+  });
+}
+
+/**
+ * 批量移动到别的段落：按选中顺序追加到目标段落末尾。
+ *
+ * 「选项」行的选项跟着一起搬；两个段落都重排一次可读 ID，
+ * 因为搬到别的章节时 ID 前缀（章节 + 段落号）整个都要换。
+ */
+export function moveLines(
+  project: Project,
+  fromGroupUid: string,
+  lineUids: string[],
+  toGroupUid: string,
+): Project {
+  return mutate(project, (draft) => {
+    // 搬到当前段落等于什么都没做
+    if (fromGroupUid === toGroupUid) return;
+    const from = locateGroup(draft, fromGroupUid);
+    const to = locateGroup(draft, toGroupUid);
+    if (from === undefined || to === undefined) return;
+
+    const moving = new Set(lineUids);
+    const movedLines = from.group.lines.filter((line) => moving.has(line.uid));
+    if (movedLines.length === 0) return;
+
+    const movedOptions = new Set<string>();
+    for (const line of movedLines) {
+      for (const optionUid of line.optionIds) movedOptions.add(optionUid);
+    }
+    const carried = from.group.options.filter((o) => movedOptions.has(o.uid));
+
+    from.group.lines = from.group.lines.filter((line) => !moving.has(line.uid));
+    from.group.options = from.group.options.filter((o) => !movedOptions.has(o.uid));
+    to.group.lines.push(...movedLines);
+    to.group.options.push(...carried);
+
+    renumberGroup(from.group, from.chapter.id);
+    renumberGroup(to.group, to.chapter.id);
+  });
+}
+
 /** 拖拽排序：把 from 位置的行移动到 to 位置 */
 export function reorderLine(
   project: Project,

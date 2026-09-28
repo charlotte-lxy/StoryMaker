@@ -29,6 +29,11 @@ interface Props {
   onAddOption: (lineUid: string) => void;
   onRemoveOption: (optionUid: string) => void;
   onJumpToLine: (lineUid: string) => void;
+  /** 批量编辑模式：每行左边多一个勾选框 */
+  batchMode: boolean;
+  /** 批量编辑里勾中的行 */
+  selectedLineUids: string[];
+  onToggleSelect: (lineUid: string) => void;
 }
 
 /** 一个字段：名称标在上方，输入框在下面 */
@@ -154,12 +159,23 @@ export function LineList(props: Props) {
       {group.lines.map((line, index) => {
         const hasNote = line.note.trim() !== '';
         const sequence = lineSequenceOf(line.readableId) === '' ? String(index + 1) : lineSequenceOf(line.readableId);
+        const selected = props.selectedLineUids.includes(line.uid);
         return (
-          /* 一行 = 块外的段内序号 + 对话块本身 */
+          /* 一行 = 段内序号 + 对话块本身（批量编辑时最左边再多一个勾选框） */
           <div
             key={line.uid}
-            className={`line-row${editingUid === line.uid ? ' editing' : ''}`}
+            className={`line-row${editingUid === line.uid ? ' editing' : ''}${selected ? ' selected' : ''}`}
           >
+            {props.batchMode && (
+              <input
+                type="checkbox"
+                className="line-select"
+                checked={selected}
+                title={`选中这一行（${line.readableId}）`}
+                onChange={() => props.onToggleSelect(line.uid)}
+              />
+            )}
+
             {/* 段内序号（完整 ID 里 "-" 后面那截）放在对话块外面，
                 完整 ID 放到悬浮提示里；导出用的还是完整 ID */}
             <span className="line-seq" title={`对话 ID：${line.readableId}`}>

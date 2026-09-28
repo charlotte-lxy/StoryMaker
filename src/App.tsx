@@ -36,12 +36,14 @@ import {
   createEmptyProject,
   insertLine,
   locateGroup,
+  moveLines,
   mutate,
   removeChapter,
   removeCharacter,
   removeCommandDef,
   removeGroup,
   removeLine,
+  removeLines,
   removeLookupRow,
   removeOption,
   removeUiText,
@@ -66,6 +68,7 @@ import {
   type Settings,
 } from './state/prefs';
 import { BattleEditor } from './ui/BattleEditor';
+import { BatchEditBar } from './ui/BatchEditBar';
 import { ChapterFlow } from './ui/ChapterFlow';
 import { CharacterEditor } from './ui/CharacterEditor';
 import { CommandEditor } from './ui/CommandEditor';
@@ -173,6 +176,10 @@ export default function App() {
     message: string;
     onConfirm: () => void;
   } | null>(null);
+  /** 对话列表是否处于批量编辑模式 */
+  const [batchMode, setBatchMode] = useState(false);
+  /** 批量编辑里勾中的对话行（跨段落无效，换段落时清空） */
+  const [selectedLineUids, setSelectedLineUids] = useState<string[]>([]);
 
   /**
    * 统一的确认入口。
@@ -316,6 +323,11 @@ export default function App() {
   const group = location?.group;
   const listOpen = !listCollapsed;
 
+  // 换段落之后，原来勾中的行已经不在跟前的列表里，把勾选清掉
+  useEffect(() => {
+    setSelectedLineUids((prev) => (prev.length === 0 ? prev : []));
+  }, [activeUid]);
+
   const updateLine = (lineUid: string, patch: Partial<Line>): void => {
     setProject((prev) =>
       mutate(prev, (draft) => {
@@ -377,6 +389,58 @@ export default function App() {
   /** 单击脚本块：直接加到当前段落的最后一行 */
   const handlePickBlock = (kind: LineKind): void => {
     handleInsertLine(group?.lines.length ?? 0, kind);
+  };
+
+  /** 进出批量编辑模式：退出时把勾选一起清掉，下次进来是干净的 */
+  const toggleBatchMode = (): void => {
+    if (batchMode) setSelectedLineUids([]);
+    setBatchMode(!batchMode);
+  };
+
+  /** 批量编辑：勾选 / 取消勾选一行 */
+  const toggleLineSelected = (lineUid: string): void => {
+    setSelectedLineUids((prev) =>
+      prev.includes(lineUid) ? prev.filter((uid) => uid !== lineUid) : [...prev, lineUid],
+    );
+  };
+
+  /** 批量编辑：全选当前段落的所有行 */
+  const handleSelectAllLines = (): void => {
+    setSelectedLineUids(group?.lines.map((line) => line.uid) ?? []);
+  };
+
+  /** 批量移动：勾选的行整段搬到目标段落末尾，ID 由 moveLines 重排 */
+  const handleMoveSelectedLines = (targetGroupUid: string): void => {
+    if (selectedLineUids.length === 0) return;
+    const target = locateGroup(project, targetGroupUid);
+    if (target === undefined) return;
+    const count = selectedLineUids.length;
+    setProject((prev) => moveLines(prev, activeUid, selectedLineUids, targetGroupUid));
+    setSelectedLineUids([]);
+    setToast(
+      `已把 ${count} 行移动到「${target.chapter.title || target.chapter.id} / ` +
+        `${target.group.title || target.group.id}」，两边的对话 ID 都已重新编号`,
+    );
+  };
+
+  /** 批量删除：先二次确认，再把勾选的行连同它们的选项一起删掉 */
+  const handleRemoveSelectedLines = (): void => {
+    const count = selectedLineUids.length;
+    if (count === 0 || group === undefined) return;
+    const optionCount = group.lines
+      .filter((line) => selectedLineUids.includes(line.uid))
+      .reduce((sum, line) => sum + line.optionIds.length, 0);
+
+    askConfirm(
+      `确定删除勾选的 ${count} 行吗？\n\n` +
+        (optionCount > 0 ? `其中挂着 ${optionCount} 个选项，会一并删除。` : '') +
+        '删除后无法撤销。',
+      () => {
+        setProject((prev) => removeLines(prev, activeUid, selectedLineUids));
+        setSelectedLineUids([]);
+        setToast(`已删除 ${count} 行`);
+      },
+    );
   };
 
   /** 打开某个段落的对话列表（会自动切到它所在的章节并把列表展开） */
@@ -1024,7 +1088,27 @@ export default function App() {
                                     段落 {group.id} · {group.lines.length} 行 ·{' '}
                                     {group.options.length} 个选项
                                   </span>
+                                  <button
+                                    type="button"
+                                    className={`mini batch-toggle${batchMode ? ' on' : ''}`}
+                                    title="批量勾选对话行，整批删除或移动到别的段落"
+                                    onClick={toggleBatchMode}
+                                  >
+                                    {batchMode ? '退出批量编辑' : '批量编辑'}
+                                  </button>
                                 </div>
+
+                                {batchMode && (
+                                  <BatchEditBar
+                                    chapters={project.chapters}
+                                    sourceGroupUid={activeUid}
+                                    totalCount={group.lines.length}
+                                    selectedCount={selectedLineUids.length}
+                                    onSelectAll={handleSelectAllLines}
+                                    onMove={handleMoveSelectedLines}
+                                    onRemove={handleRemoveSelectedLines}
+                                  />
+                                )}
 
                                 <LineList
                                   group={group}
@@ -1034,6 +1118,9 @@ export default function App() {
                                   commandTargets={commandTargets}
                                   flashLineUid={flashLineUid}
                                   flashOptionUid={flashOptionUid}
+                                  batchMode={batchMode}
+                                  selectedLineUids={selectedLineUids}
+                                  onToggleSelect={toggleLineSelected}
                                   onUpdateLine={updateLine}
                                   onUpdateOption={updateOption}
                                   onInsertLine={handleInsertLine}

@@ -8,7 +8,9 @@ import {
   collectGroupedLineRefs,
   groupUidOfLine,
   insertLine,
+  moveLines,
   parseCommand,
+  removeLines,
   removeUiText,
   renumberOneGroup,
   reorderLine,
@@ -167,6 +169,120 @@ describe('插入脚本块', () => {
     const project = makeProject();
     const next = insertLine(project, 'g1', 99, '指令');
     expect(next.chapters[0].groups[0].lines[3].kind).toBe('指令');
+  });
+});
+
+describe('批量编辑：移动与删除', () => {
+  /**
+   * 段落 001 有 a / b / c 三句，外加一条挂着选项的「选项」行；
+   * 同章另有段落 002，第二章 ch02 里还有一个段落。
+   */
+  function makeBatchProject(): Project {
+    const project = makeProject();
+    const group = project.chapters[0].groups[0];
+    group.lines.push({
+      ...makeLine('d', 'Dia_ch01_001-4', ''),
+      kind: '选项',
+      optionIds: ['o1'],
+    });
+    group.options.push({
+      uid: 'o1',
+      readableId: 'Dia_ch01_001-4A',
+      text: { zh: '去码头', en: '', ja: '' },
+      nextId: 'a',
+      appearConditions: [],
+      enableConditions: [],
+      results: [],
+    });
+    project.chapters[0].groups.push({
+      uid: 'g2',
+      id: '002',
+      title: '码头',
+      note: '',
+      lines: [makeLine('y', 'Dia_ch01_002-1', '码头的一句')],
+      options: [],
+    });
+    project.chapters.push({
+      uid: 'c2',
+      id: 'ch02',
+      title: '第二章',
+      groups: [
+        {
+          uid: 'g3',
+          id: '001',
+          title: '另一章',
+          note: '',
+          lines: [makeLine('z', 'Dia_ch02_001-1', '另一章的一句')],
+          options: [],
+        },
+      ],
+    });
+    return project;
+  }
+
+  it('同段落内搬动：按选中顺序追加到目标末尾，两边都重新编号', () => {
+    const next = moveLines(makeBatchProject(), 'g1', ['a', 'c'], 'g2');
+    const from = next.chapters[0].groups[0];
+    const to = next.chapters[0].groups[1];
+
+    expect(from.lines.map((l) => l.uid)).toEqual(['b', 'd']);
+    expect(from.lines.map((l) => l.text.zh)).toEqual(['第二句', '']);
+    expect(from.lines.map((l) => l.readableId)).toEqual(['Dia_ch01_001-1', 'Dia_ch01_001-2']);
+    // 选项行的选项跟着宿主行一起换了 ID
+    expect(from.options[0].readableId).toBe('Dia_ch01_001-2A');
+
+    expect(to.lines.map((l) => l.uid)).toEqual(['y', 'a', 'c']);
+    expect(to.lines.map((l) => l.text.zh)).toEqual(['码头的一句', '第一句', '第三句']);
+    expect(to.lines.map((l) => l.readableId)).toEqual([
+      'Dia_ch01_002-1',
+      'Dia_ch01_002-2',
+      'Dia_ch01_002-3',
+    ]);
+  });
+
+  it('跨章节搬动：ID 前缀换成新章节，「选项」行的选项一起搬', () => {
+    const next = moveLines(makeBatchProject(), 'g1', ['d'], 'g3');
+    const from = next.chapters[0].groups[0];
+    const to = next.chapters[1].groups[0];
+
+    // 原来那个段落里只剩三句，编号连起来；挂过的选项跟着走了，不留孤儿
+    expect(from.lines.map((l) => l.uid)).toEqual(['a', 'b', 'c']);
+    expect(from.options).toHaveLength(0);
+
+    expect(to.lines.map((l) => l.uid)).toEqual(['z', 'd']);
+    expect(to.lines[1].readableId).toBe('Dia_ch02_001-2');
+    expect(to.options).toHaveLength(1);
+    expect(to.options[0].readableId).toBe('Dia_ch02_001-2A');
+    // 选项内容与跳转目标（指向 uid）都不受影响
+    expect(to.options[0].text.zh).toBe('去码头');
+    expect(to.options[0].nextId).toBe('a');
+  });
+
+  it('搬到当前段落、或目标段落不存在时，什么都不做', () => {
+    const project = makeBatchProject();
+    expect(moveLines(project, 'g1', ['a'], 'g1').chapters[0].groups[0].lines).toHaveLength(4);
+    expect(moveLines(project, 'g1', ['a'], '不存在').chapters[0].groups[0].lines).toHaveLength(4);
+  });
+
+  it('批量删除：一次删掉多行，连同它们的选项一起删，其它段落不动', () => {
+    const next = removeLines(makeBatchProject(), 'g1', ['b', 'd']);
+    const group = next.chapters[0].groups[0];
+
+    expect(group.lines.map((l) => l.uid)).toEqual(['a', 'c']);
+    // 「选项」行被删掉时，它挂着的选项不能留下来
+    expect(group.options).toHaveLength(0);
+    expect(next.chapters[0].groups[1].lines.map((l) => l.uid)).toEqual(['y']);
+    expect(next.chapters[1].groups[0].lines.map((l) => l.uid)).toEqual(['z']);
+  });
+
+  it('原项目对象不被就地修改', () => {
+    const project = makeBatchProject();
+    moveLines(project, 'g1', ['a'], 'g2');
+    removeLines(project, 'g1', ['b']);
+
+    expect(project.chapters[0].groups[0].lines.map((l) => l.uid)).toEqual(['a', 'b', 'c', 'd']);
+    expect(project.chapters[0].groups[0].options).toHaveLength(1);
+    expect(project.chapters[0].groups[1].lines.map((l) => l.uid)).toEqual(['y']);
   });
 });
 

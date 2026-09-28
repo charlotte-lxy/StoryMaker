@@ -1141,6 +1141,22 @@ div.line-row > .line-card {
   color: var(--accent-dark);
 }
 
+/* 批量编辑里勾中的那一行：整块换底色 + 描边，和"正在编辑"区分开 */
+div.line-row.selected > .line-card {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/* 批量编辑时每行左边的勾选框（全局 input 是 100% 宽，这里要收回来） */
+.line-select {
+  flex-shrink: 0;
+  align-self: center;
+  width: auto;
+  margin: 0 0 0 2px;
+  cursor: pointer;
+}
+
 .line-field {
   display: flex;
   flex-direction: column;
@@ -1315,6 +1331,58 @@ div.line-row > .line-card {
 
 .editor-head .primary {
   margin-left: auto;
+}
+
+/* 标题栏最右侧的批量编辑开关；开着的时候按钮本身也变色 */
+button.mini.batch-toggle {
+  margin-left: auto;
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
+button.mini.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
+/* 批量编辑工具条：跟着标题栏，在对话列表上方 */
+.batch-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 7px 10px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  border-radius: 9px;
+}
+
+.batch-bar .batch-count {
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.batch-move {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.batch-move select {
+  width: auto;
+  max-width: 220px;
+  border-color: var(--border);
+  background: var(--control-bg);
+}
+
+/* 批量删除是危险操作，常驻红字提示 */
+button.mini.batch-remove:not(:disabled) {
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
 .empty-state {
