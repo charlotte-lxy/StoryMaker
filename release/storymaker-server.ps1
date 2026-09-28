@@ -577,14 +577,31 @@ function Invoke-UpdateCheck {
   try { $remote = ConvertFrom-Json $raw } catch { return $false }
   if ($null -eq $remote) { return $false }
 
-  $needRestart = $false
+  # 先把和远端对不上的挑出来，再决定这次动哪些
+  $stale = @{}
   foreach ($property in $remote.PSObject.Properties) {
     $name = [string]$property.Name
     $expected = ([string]$property.Value).ToLowerInvariant()
     if ($expected -eq '') { continue }
+    if ((Get-FileSha256 (Join-Path $Root $name)) -eq $expected) { continue }
+    $stale[$name] = $expected
+  }
+  if ($stale.Count -eq 0) { return $false }
 
+  # 服务端脚本要换时，本次连页面也不换：现在跑的是内存里的那份旧服务端，
+  # 配的就得是同一版的旧页面。让两边一起留到下次启动再变新，
+  # 免得出现"新页面配旧服务端"这种对不上的组合。
+  $serverStale = $stale.ContainsKey('storymaker-server.ps1') -or $stale.ContainsKey('启动StoryMaker.bat')
+
+  $needRestart = $false
+  foreach ($name in @($stale.Keys)) {
+    if ($serverStale -and $name -eq 'index.html') {
+      Write-Host '  页面也有新版，和服务端一起留到下次启动换，免得新旧对不上。' -ForegroundColor DarkGray
+      continue
+    }
+
+    $expected = $stale[$name]
     $target = Join-Path $Root $name
-    if ((Get-FileSha256 $target) -eq $expected) { continue }
 
     # 文件名里的中文要转义，否则请求发不出去
     $url = "$($script:UpdateBase)/" + [Uri]::EscapeDataString($name)

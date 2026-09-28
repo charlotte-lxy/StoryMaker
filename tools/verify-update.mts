@@ -286,6 +286,70 @@ try {
   await cleanupRemote?.();
   cleanupRemote = null;
   rmSync(fixture, { recursive: true, force: true });
+
+  // ---------- 5. 页面和服务端同时有新版 ----------
+  console.log('');
+  console.log('【5】页面和服务端同时有新版');
+  fixture = makeFixture();
+  const oldPage5 = '<html><body>旧版页面</body></html>';
+  const newPage5 = '<html><body>新版页面</body></html>';
+  writeFileSync(join(fixture, 'index.html'), oldPage5, 'utf8');
+  {
+    const oldScript = readFileSync(join(fixture, 'storymaker-server.ps1'));
+    const newScript = Buffer.concat([
+      oldScript,
+      Buffer.from('\r\n# 校验用：模拟服务端脚本有了新版\r\n', 'utf8'),
+    ]);
+    const remote = await fakeRemote({
+      'version.json': JSON.stringify({
+        'index.html': sha256(Buffer.from(newPage5, 'utf8')),
+        'storymaker-server.ps1': sha256(newScript),
+        '启动StoryMaker.bat': sha256(readFileSync(join(fixture, '启动StoryMaker.bat'))),
+      }),
+      'index.html': newPage5,
+      'storymaker-server.ps1': newScript,
+    });
+    cleanupRemote = remote.close;
+
+    const port = await freePort();
+    running = await startServer(fixture, remote.base, port);
+
+    check(
+      sha256(readFileSync(join(fixture, 'storymaker-server.ps1'))) === sha256(newScript),
+      '服务端脚本先换成了新版',
+    );
+    check(
+      readFileSync(join(fixture, 'index.html'), 'utf8') === oldPage5,
+      '页面这次不换：跟内存里那份旧服务端保持同一版',
+    );
+    const firstPage = await (
+      await fetch(`${running.base}/`, { signal: AbortSignal.timeout(10_000) })
+    ).text();
+    check(firstPage.includes('旧版页面'), '本次发出去的仍是旧页面，没有新旧混搭');
+    check(running.output().includes('留到下次启动'), '说明了页面为什么这次不换');
+    check(running.output().includes('重新双击'), '提示了需要重新启动');
+
+    // 再启动一次，模拟策划重新双击：这回两边一起变新
+    await stopServer(running);
+    running = null;
+    const secondPort = await freePort();
+    running = await startServer(fixture, remote.base, secondPort);
+
+    check(
+      readFileSync(join(fixture, 'index.html'), 'utf8') === newPage5,
+      '重启后页面才换成新版，两边同步',
+    );
+    const secondPage = await (
+      await fetch(`${running.base}/`, { signal: AbortSignal.timeout(10_000) })
+    ).text();
+    check(secondPage.includes('新版页面'), '重启后发出去的是新页面');
+    check(!running.output().includes('重新双击'), '两边都换完了就不再提示重启');
+  }
+  await stopServer(running);
+  running = null;
+  await cleanupRemote?.();
+  cleanupRemote = null;
+  rmSync(fixture, { recursive: true, force: true });
 } catch (error) {
   failed = true;
   console.error('✗ 校验过程出错：', error);
