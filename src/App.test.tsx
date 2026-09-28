@@ -242,13 +242,13 @@ describe('界面冒烟测试', () => {
       expect(screen.queryByDisplayValue('TXT_Widget_设置')).toBeNull();
     });
 
-    it('UI 本地化的新增表单占列表第一行，key 必填且不能重名', async () => {
+    it('UI 本地化的新增表单在整个列表上方，key 必填且不能重名', async () => {
       seedLocaleProject();
       await openLocale();
       fireEvent.click(screen.getByText('UI 本地化'));
 
-      /** 新增表单那一行 */
-      const form = () => document.querySelector('.locale-add-row') as HTMLElement;
+      /** 列表上方那一行新增表单 */
+      const form = () => document.querySelector('.locale-add-form') as HTMLElement;
       const keyBox = () => within(form()).getByPlaceholderText('TXT_（必填，不能重名）');
       const addButton = () => within(form()).getByText('添加') as HTMLButtonElement;
       /** 列表里各行的 key */
@@ -257,8 +257,10 @@ describe('界面冒烟测试', () => {
           ...document.querySelectorAll('.locale-main tbody tr.line-row .loc-key input'),
         ].map((el) => (el as HTMLInputElement).value);
 
-      // 表单在列表上面，key 空着时点不了添加
-      expect(document.querySelectorAll('.locale-main tbody tr')[0].className).toBe('locale-add-row');
+      // 表单在整张列表（含表头）上方，不是列表里的第一行
+      expect(form().nextElementSibling?.tagName).toBe('TABLE');
+      expect(form().closest('tbody')).toBeNull();
+      // key 空着时点不了添加
       expect(addButton().disabled).toBe(true);
 
       // 和已有条目重名：当场报出来，还是点不了
@@ -298,7 +300,11 @@ describe('界面冒烟测试', () => {
       await openLocale();
       fireEvent.click(screen.getByText('UI 本地化'));
 
-      expect(screen.getByText('还没有 UI 文本。在上面这一行填好 key 与译文，点「添加」就会插到列表最前面。')).toBeTruthy();
+      expect(
+        screen.getByText(
+          '还没有 UI 文本。在上面那个表单里填好 key 与译文，点「添加」就会插到列表最前面。',
+        ),
+      ).toBeTruthy();
     });
   });
 

@@ -1792,21 +1792,70 @@ tr.needs-work .loc-key input {
 .locale-main {
   flex: 1;
   min-width: 0;
+  /* 列表条目里的文本框、新增表单的输入框与按钮都用这一档高度，改一处就够 */
+  --locale-control-height: 30px;
 }
 
-/* UI 本地化最上面那一行是新增表单：填好 key 与译文，点「添加」插到列表最前面 */
-tr.locale-add-row td {
-  padding: 6px;
-  background: var(--accent-soft);
+/* UI 本地化的新增表单：整个列表上方独立一行 */
+.locale-add-form {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  box-shadow: var(--shadow-sm);
 }
 
-tr.locale-add-row input {
+.locale-add-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* key 那一格宽一点，和下面表格的「文本 key」列一样是主角 */
+.locale-add-key {
+  flex: 0 1 240px;
+}
+
+.locale-add-submit {
+  flex: 0 0 auto;
+}
+
+/* 按钮也照列表控件一样高，别比旁边的输入框冒出来一像素 */
+.locale-add-submit button {
+  height: var(--locale-control-height, 30px);
+  padding: 0 12px;
+}
+
+.locale-add-form input {
   border-color: var(--border);
   background: var(--control-bg);
 }
 
-tr.locale-add-row .field-error {
-  margin-top: 2px;
+/* 重名的 key 当场描红 */
+.locale-add-form input.duplicate {
+  border-color: var(--danger);
+}
+
+.locale-add-form .field-error {
+  margin-top: 1px;
+}
+
+/* 列表条目里的文本框：一行起，换行才长高（上限两行，见 AutoGrowTextarea） */
+.locale-main textarea,
+.locale-add-form input,
+.locale-add-submit button {
+  min-height: var(--locale-control-height, 30px);
+}
+
+.locale-main textarea {
+  /* 高度由脚本按内容算，别让手动拖拽和它打架 */
+  resize: none;
 }
 
 /* 列表为空、或搜索没命中时，跟在表单下面的一行说明 */

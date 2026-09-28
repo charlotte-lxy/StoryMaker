@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState, type KeyboardEvent } from 'react';
 
 import { textIdOf } from '../core/ids';
 import type { LangKey, LocalizedText, Project, UiTextRow } from '../core/types';
+import { AutoGrowTextarea } from './AutoGrowTextarea';
 
 interface Props {
   project: Project;
@@ -281,8 +282,7 @@ export function LocalizationEditor({
                           </td>
                           {LANGS.map((item) => (
                             <td key={item.lang}>
-                              <textarea
-                                rows={2}
+                              <AutoGrowTextarea
                                 value={entry.text[item.lang]}
                                 placeholder={item.lang === 'zh' ? '中文原文' : '待翻译'}
                                 onChange={(event) =>
@@ -299,97 +299,104 @@ export function LocalizationEditor({
               </table>
             )
           ) : (
-            <table className="lines">
-              <thead>
-                <tr>
-                  <th className="col-key">文本 key</th>
-                  {LANGS.map((item) => (
-                    <th key={item.lang}>{item.label}</th>
-                  ))}
-                  <th style={{ width: 74 }}>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {/* 新增表单就占列表的第一行，填好 key 与译文点「添加」插到最前面 */}
-                <tr className="locale-add-row">
-                  <td>
+            <>
+              {/* 新增表单放在整个列表上方：填好 key 与译文，点「添加」插到列表最前面 */}
+              <div className="locale-add-form">
+                <label className="locale-add-field locale-add-key">
+                  <span className="line-field-name">文本 key（必填）</span>
+                  <input
+                    className={duplicated === undefined ? '' : 'duplicate'}
+                    value={draft.key}
+                    placeholder="TXT_（必填，不能重名）"
+                    onChange={(event) => setDraft((prev) => ({ ...prev, key: event.target.value }))}
+                    onKeyDown={submitOnEnter}
+                  />
+                  {duplicated !== undefined && (
+                    <div className="field-error">key 已存在：{duplicated.key}</div>
+                  )}
+                </label>
+
+                {LANGS.map((item) => (
+                  <label className="locale-add-field" key={item.lang}>
+                    <span className="line-field-name">{item.label}</span>
                     <input
-                      value={draft.key}
-                      placeholder="TXT_（必填，不能重名）"
+                      value={draft[item.lang]}
+                      placeholder={item.lang === 'zh' ? '中文原文' : '待翻译'}
                       onChange={(event) =>
-                        setDraft((prev) => ({ ...prev, key: event.target.value }))
+                        setDraft((prev) => ({ ...prev, [item.lang]: event.target.value }))
                       }
                       onKeyDown={submitOnEnter}
                     />
-                    {duplicated !== undefined && (
-                      <div className="field-error">key 已存在：{duplicated.key}</div>
-                    )}
-                  </td>
-                  {LANGS.map((item) => (
-                    <td key={item.lang}>
-                      <input
-                        value={draft[item.lang]}
-                        placeholder={item.lang === 'zh' ? '中文原文' : '待翻译'}
-                        onChange={(event) =>
-                          setDraft((prev) => ({ ...prev, [item.lang]: event.target.value }))
-                        }
-                        onKeyDown={submitOnEnter}
-                      />
-                    </td>
-                  ))}
-                  <td>
-                    <button type="button" className="primary" disabled={!canAdd} onClick={submitUiText}>
-                      添加
-                    </button>
-                  </td>
-                </tr>
-
-                {shownUiTexts.map((row) => (
-                  <tr
-                    className={`line-row${missingTranslation(row.text) ? ' needs-work' : ''}`}
-                    key={row.uid}
-                  >
-                    <td className="loc-key">
-                      <input
-                        value={row.key}
-                        placeholder="TXT_"
-                        onChange={(event) => onUpdateUiText(row.uid, { key: event.target.value })}
-                      />
-                      {(keyCounts.get(row.key) ?? 0) > 1 && <div className="field-error">key 重复</div>}
-                    </td>
-                    {LANGS.map((item) => (
-                      <td key={item.lang}>
-                        <textarea
-                          rows={2}
-                          value={row.text[item.lang]}
-                          placeholder={item.lang === 'zh' ? '中文原文' : '待翻译'}
-                          onChange={(event) =>
-                            onUpdateUiText(row.uid, {
-                              text: { ...row.text, [item.lang]: event.target.value },
-                            })
-                          }
-                        />
-                      </td>
-                    ))}
-                    <td>
-                      <button type="button" onClick={() => onRemoveUiText(row.uid)}>
-                        删除
-                      </button>
-                    </td>
-                  </tr>
+                  </label>
                 ))}
 
-                {shownUiTexts.length === 0 && (
-                  <tr className="locale-form-note">
-                    <td colSpan={5}>
-                      {uiTexts.length === 0
-                        ? '还没有 UI 文本。在上面这一行填好 key 与译文，点「添加」就会插到列表最前面。'
-                        : `没有匹配「${query.trim()}」的 UI 文本。`}
-                    </td>
+                <div className="locale-add-field locale-add-submit">
+                  <span className="line-field-name">操作</span>
+                  <button type="button" className="primary" disabled={!canAdd} onClick={submitUiText}>
+                    添加
+                  </button>
+                </div>
+              </div>
+
+              <table className="lines">
+                <thead>
+                  <tr>
+                    <th className="col-key">文本 key</th>
+                    {LANGS.map((item) => (
+                      <th key={item.lang}>{item.label}</th>
+                    ))}
+                    <th style={{ width: 74 }}>操作</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {shownUiTexts.map((row) => (
+                    <tr
+                      className={`line-row${missingTranslation(row.text) ? ' needs-work' : ''}`}
+                      key={row.uid}
+                    >
+                      <td className="loc-key">
+                        <input
+                          value={row.key}
+                          placeholder="TXT_"
+                          onChange={(event) => onUpdateUiText(row.uid, { key: event.target.value })}
+                        />
+                        {(keyCounts.get(row.key) ?? 0) > 1 && (
+                          <div className="field-error">key 重复</div>
+                        )}
+                      </td>
+                      {LANGS.map((item) => (
+                        <td key={item.lang}>
+                          <AutoGrowTextarea
+                            value={row.text[item.lang]}
+                            placeholder={item.lang === 'zh' ? '中文原文' : '待翻译'}
+                            onChange={(event) =>
+                              onUpdateUiText(row.uid, {
+                                text: { ...row.text, [item.lang]: event.target.value },
+                              })
+                            }
+                          />
+                        </td>
+                      ))}
+                      <td>
+                        <button type="button" onClick={() => onRemoveUiText(row.uid)}>
+                          删除
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {shownUiTexts.length === 0 && (
+                    <tr className="locale-form-note">
+                      <td colSpan={5}>
+                        {uiTexts.length === 0
+                          ? '还没有 UI 文本。在上面那个表单里填好 key 与译文，点「添加」就会插到列表最前面。'
+                          : `没有匹配「${query.trim()}」的 UI 文本。`}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </>
           )}
         </div>
       </div>
