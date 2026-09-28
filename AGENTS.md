@@ -83,12 +83,23 @@
   例：`补充 README：项目定位、快速开始与常用命令`
 - **只提交这次改动涉及的文件**，不要用 `git add -A` 把无关文件顺手带进去
   （`node_modules/`、临时产物、别人的半成品都不该进）。
-- 推送目标是 `origin main`。GitHub 直连不通，本仓库的 `.git/config` 里已配好代理
-  （`http://127.0.0.1:7890`）；换机器或代理端口变了要重新配，否则会报连接被重置。
+- 推送目标是 `origin main`。GitHub 直连不稳定，`github.com:443` 时常连不上，报
+  `Connection was reset` 或 `Failed to connect to github.com:443 after 21000 ms`。
+- 这台机器用「樱花云」代理上网，端口是 **`http://127.0.0.1:7892`**。它默认以系统代理
+  的方式接管（注册表 `Internet Settings` 里 `ProxyEnable=1`、`ProxyServer=127.0.0.1:7892`），
+  这种状态下 git 不用任何配置就能推，**所以连不上时先直接重试 `git push`**。
+- 直接重试仍通不过，再把这个端口挂给 git（只配本仓库，别动全局）：
+  `git config http.proxy http://127.0.0.1:7892`，推完用
+  `git config --unset http.proxy` 撤掉——代理软件没开时，写死的代理会让**每一次**
+  git 网络操作立刻失败，比直连还糟。
+- 端口以实际为准，别照抄 7890 之类的旧值：
+  `(Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings').ProxyServer`
 - **推送失败不要静默跳过**：凭据失效或代理没起时，把原始报错贴出来告诉用户，
   不要谎称已上传。
-- `pnpm build:single` 会重写 `release/` 下的三个文件，这是**预期的**——
-  `release/` 按仓库约定纳入版本控制，构建产物要一并提交，好让策划直接从仓库拿到能双击的那份。
+- `pnpm build:single` 会重写 `release/` 下的四个文件（`index.html`、两个启动脚本，
+  以及记录各文件 SHA-256、供启动时比对更新的 `version.json`），这是**预期的**——
+  `release/` 按仓库约定纳入版本控制，这四个文件要一并提交；漏掉 `version.json`
+  自动更新就会拿对不上的哈希去比。
 
 ---
 
@@ -110,11 +121,12 @@ Vite + React 19 + TypeScript，导出用 ExcelJS。三种产物共用同一套�
 |---|---|---|
 | `pnpm dev` | 开发服务器 :5180 | 开发（`/api` 自动转给同一个本地服务） |
 | `pnpm build` | `dist/` 多文件 | 内网服务器 |
-| `pnpm build:single` | `release/`：`index.html` + `启动StoryMaker.bat` + `storymaker-server.ps1` | 策划双击即用 |
+| `pnpm build:single` | `release/`：`index.html` + `启动StoryMaker.bat` + `storymaker-server.ps1` + `version.json` | 策划双击即用 |
 | `pnpm build:app` | `app-release/win-unpacked/` | Electron 桌面版（绿包目录，不再打单文件 exe） |
 | `pnpm test` | — | 164 个测试 |
 | `pnpm verify:release` | — | 单文件产物自检 |
 | `pnpm verify:server` | — | 本地服务自检（真起进程、真发 HTTP、真落盘） |
+| `pnpm verify:update` | — | 自动更新自检（本地 HTTP 冒充远端，不碰真实网络） |
 
 ## 项目文件与数据存放（不要改回去）
 
