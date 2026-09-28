@@ -49,6 +49,8 @@ $script:Token = if ($Token -ne '') {
   -join (1..32 | ForEach-Object { '{0:x}' -f (Get-Random -Minimum 0 -Maximum 16) })
 }
 $script:ProjectPath = $null
+# 更新检查取到的远端版本号，供启动信息显示
+$script:RemoteVersion = $null
 
 # ---------- 会话文件：只存"上一次开启的项目文件路径" ----------
 
@@ -595,18 +597,31 @@ function Get-LocalManifestVersion {
 function Invoke-UpdateCheck {
   Enable-ModernTls
 
+  # 版本号先摆出来：连不上更新源也得让人看见本机现在是什么版本
+  $localVersion = Get-LocalManifestVersion
+  $script:LocalVersion = $localVersion
+
   $raw = Get-RemoteText "$($script:UpdateBase)/version.json" 4000
-  if ([string]::IsNullOrWhiteSpace($raw)) { return $false }
+  if ([string]::IsNullOrWhiteSpace($raw)) {
+    Write-Host "  本机版本 $localVersion；这次没连上更新源，跳过更新检查。" -ForegroundColor DarkGray
+    return $false
+  }
 
   $remote = $null
-  try { $remote = ConvertFrom-Json $raw } catch { return $false }
-  if ($null -eq $remote) { return $false }
+  try { $remote = ConvertFrom-Json $raw } catch { $remote = $null }
+  if ($null -eq $remote) {
+    Write-Host "  本机版本 $localVersion；更新源返回的清单读不懂，跳过更新检查。" -ForegroundColor DarkGray
+    return $false
+  }
 
   # 远端不比本机新就什么都不动：本地这份可能是自己刚构建、还没推上去的更新版，
   # 只比文件哈希会把它倒着覆盖成仓库里那份旧的。
   $remoteVersion = Get-ManifestVersion $remote
-  $localVersion = Get-LocalManifestVersion
-  if ($remoteVersion -le $localVersion) { return $false }
+  $script:RemoteVersion = $remoteVersion
+  if ($remoteVersion -le $localVersion) {
+    Write-Host "  本机版本 $localVersion，远端版本 $remoteVersion，已经是最新的。" -ForegroundColor DarkGray
+    return $false
+  }
 
   # 先把和远端对不上的挑出来，再决定这次动哪些
   $stale = @{}
@@ -620,7 +635,7 @@ function Invoke-UpdateCheck {
   }
   if ($stale.Count -eq 0) { return $false }
 
-  Write-Host "  远端有新版本 $remoteVersion（本机 $localVersion），开始更新" -ForegroundColor Cyan
+  Write-Host "  开始更新到 $remoteVersion" -ForegroundColor Cyan
 
   # 服务端脚本要换时，本次连页面也不换：现在跑的是内存里的那份旧服务端，
   # 配的就得是同一版的旧页面。让两边一起留到下次启动再变新，
@@ -711,6 +726,10 @@ if ($ApiOnly) {
   Write-Host "  接口地址：$url"
 } else {
   Write-Host '  StoryMaker 已启动' -ForegroundColor Green
+  $localShown = Get-LocalManifestVersion
+  $remoteShown = '未获取'
+  if ($null -ne $script:RemoteVersion) { $remoteShown = "$($script:RemoteVersion)" }
+  Write-Host "  本机版本：$localShown    远端最新：$remoteShown"
   Write-Host "  页面地址：$url"
 }
 if ($null -ne $script:ProjectPath) {
