@@ -70,6 +70,7 @@ import { ChapterFlow } from './ui/ChapterFlow';
 import { CharacterEditor } from './ui/CharacterEditor';
 import { CommandEditor } from './ui/CommandEditor';
 import { ConfirmDialog } from './ui/ConfirmDialog';
+import { ExportEditor } from './ui/ExportEditor';
 import { IssuePanel } from './ui/IssuePanel';
 import { LineList } from './ui/LineList';
 import { LocalizationEditor } from './ui/LocalizationEditor';
@@ -104,6 +105,7 @@ type Module =
   | 'command'
   | 'battle'
   | 'locale'
+  | 'export'
   | 'settings';
 
 /**
@@ -598,7 +600,7 @@ export default function App() {
     const suffix =
       checkErrors > 0
         ? `，但有 ${checkErrors} 处必须修复的问题建议先处理（见下方校验结果）`
-        : '，含剧情三张表与战斗七张 GAS 子表';
+        : '，含剧情、GAS 与导入设置的全部子表';
 
     if (host === undefined) return;
     const filePath = await host.exportFile(filename, buffer);
@@ -772,12 +774,6 @@ export default function App() {
             </>
           )}
         </div>
-
-        <div className="toolbar-group">
-          <button type="button" className="primary" onClick={() => void handleExport()}>
-            导出 Excel
-          </button>
-        </div>
       </header>
 
       <div className="body">
@@ -853,6 +849,14 @@ export default function App() {
           >
             <span className="rail-icon">文</span>
             <span>本地化</span>
+          </button>
+          <button
+            type="button"
+            className={`rail-item${module === 'export' ? ' active' : ''}`}
+            onClick={() => setModule('export')}
+          >
+            <span className="rail-icon">⤓</span>
+            <span>导出</span>
           </button>
           <button
             type="button"
@@ -946,6 +950,14 @@ export default function App() {
                   onUpdateDef={(uid, patch: Partial<CommandDef>) =>
                     setProject((prev) => updateCommandDef(prev, uid, patch))
                   }
+                />
+              )}
+
+              {module === 'export' && (
+                <ExportEditor
+                  project={project}
+                  onChange={setProject}
+                  onExport={() => void handleExport()}
                 />
               )}
 

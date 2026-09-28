@@ -55,6 +55,7 @@ function makeProject(chapters: Chapter[]): Project {
     variables: [],
     uiTexts: [],
     battle: createEmptyBattle(),
+    exportSettings: [],
     chapters,
   };
 }

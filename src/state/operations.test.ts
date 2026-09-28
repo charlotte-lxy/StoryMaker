@@ -44,6 +44,7 @@ function makeProject(): Project {
     variables: [],
     uiTexts: [],
     battle: createEmptyBattle(),
+    exportSettings: [],
     chapters: [
       {
         uid: 'c1',

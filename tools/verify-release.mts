@@ -152,7 +152,7 @@ if (served === null) process.exit(1);
 if (
   !expectText(
     served,
-    ['StoryMaker', '剧情', '角色', '本地化', '条件与指令', '导出 Excel'],
+    ['StoryMaker', '剧情', '角色', '战斗', '本地化', '条件与指令', '导出'],
     '有本地服务时的编辑界面',
   )
 ) {

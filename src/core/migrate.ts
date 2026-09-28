@@ -121,6 +121,17 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
   // 战斗模块也是后加的：缺哪张表补哪张，路径前缀缺了就用默认值
   project.battle = normalizeBattle(project.battle);
 
+  // 导入设置同样是后加的：老项目里没有这栏
+  const rawExportSettings: unknown = project.exportSettings;
+  project.exportSettings = (Array.isArray(rawExportSettings) ? rawExportSettings : [])
+    .filter(isRecord)
+    .map((row) => ({
+      uid: asUid(row.uid),
+      tableName: asString(row.tableName),
+      folder: asString(row.folder),
+      subTable: asString(row.subTable),
+    }));
+
   for (const character of project.characters) {
     if (!Array.isArray(character.expressions)) character.expressions = [];
     if (!Array.isArray(character.actions)) character.actions = [];

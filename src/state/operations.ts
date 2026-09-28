@@ -5,10 +5,12 @@
  */
 
 import { createEmptyBattle } from '../core/battle';
+import { EXPORT_SUBTABLES } from '../core/export-settings';
 import { makeLineId, makeOptionId, newUid, renumberGroup, type IdChange } from '../core/ids';
 import type {
   Chapter,
   CommandDef,
+  ExportSettingRow,
   Group,
   LangKey,
   Line,
@@ -126,6 +128,7 @@ export function createEmptyProject(name = '未命名项目'): Project {
     variables: [],
     uiTexts: [],
     battle: createEmptyBattle(),
+    exportSettings: [],
     chapters: [
       {
         uid: newUid(),
@@ -676,6 +679,40 @@ export function removeUiText(project: Project, uid: string): Project {
 export function updateUiText(project: Project, uid: string, patch: Partial<UiTextRow>): Project {
   return mutate(project, (draft) => {
     const row = draft.uiTexts.find((item) => item.uid === uid);
+    if (row !== undefined) Object.assign(row, patch);
+  });
+}
+
+/* ---------- Unreal 导入设置 ---------- */
+
+export function addExportSetting(project: Project): Project {
+  return mutate(project, (draft) => {
+    const taken = new Set(draft.exportSettings.map((row) => row.tableName));
+    let n = draft.exportSettings.length + 1;
+    while (taken.has(`TB_新数据表${n}`)) n += 1;
+    draft.exportSettings.push({
+      uid: newUid(),
+      tableName: `TB_新数据表${n}`,
+      folder: '',
+      // 子表默认挑第一个，省得还要点一下下拉
+      subTable: EXPORT_SUBTABLES[0],
+    });
+  });
+}
+
+export function removeExportSetting(project: Project, uid: string): Project {
+  return mutate(project, (draft) => {
+    draft.exportSettings = draft.exportSettings.filter((row) => row.uid !== uid);
+  });
+}
+
+export function updateExportSetting(
+  project: Project,
+  uid: string,
+  patch: Partial<ExportSettingRow>,
+): Project {
+  return mutate(project, (draft) => {
+    const row = draft.exportSettings.find((item) => item.uid === uid);
     if (row !== undefined) Object.assign(row, patch);
   });
 }

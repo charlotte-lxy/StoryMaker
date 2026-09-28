@@ -1035,6 +1035,108 @@ describe('战斗模块', () => {
   });
 });
 
+describe('导出模块', () => {
+  /** 打开导出模块 */
+  async function openExport(): Promise<void> {
+    await renderApp();
+    fireEvent.click(within(rail()).getByText('导出'));
+  }
+
+  it('侧边栏两个子页面 + 底部工具按钮列表，导出 Excel 从顶部挪到了这里', async () => {
+    const { container } = await renderApp();
+
+    // 顶部工具条上不再有导出按钮
+    const toolbarButtons = [...container.querySelectorAll('.toolbar button')].map((button) =>
+      button.textContent?.trim(),
+    );
+    expect(toolbarButtons).not.toContain('导出 Excel');
+
+    fireEvent.click(within(rail()).getByText('导出'));
+
+    expect([...document.querySelectorAll('.export-nav')].map((nav) => nav.textContent)).toEqual([
+      'Unreal导入设置',
+      '导出预览',
+    ]);
+    expect(document.querySelector('.export-tools-head')?.textContent).toBe('工具');
+    expect([...document.querySelectorAll('.export-tool')].map((button) => button.textContent)).toEqual([
+      '导出 Excel',
+    ]);
+    expect(screen.getByText('Unreal 导入设置')).toBeTruthy();
+  });
+
+  it('工具按钮能真的导出：点了会走导出流程', async () => {
+    await openExport();
+    fireEvent.click(screen.getByText('导出 Excel'));
+    await waitFor(() => expect(host.bridge.exportFile).toHaveBeenCalled());
+  });
+
+  it('导入设置能新增一行：三列都在，子表下拉列出九个参与导出的子表', async () => {
+    await openExport();
+    fireEvent.click(screen.getByText('＋ 新增数据表'));
+
+    fireEvent.change(screen.getByPlaceholderText('TB_'), { target: { value: 'TB_GAS_Ability' } });
+    fireEvent.change(screen.getByPlaceholderText('GameContent/BP/…'), {
+      target: { value: 'GameContent/BP/GAS/GA' },
+    });
+
+    const subTable = screen.getByTitle('这张数据表的内容来自哪个子表') as HTMLSelectElement;
+    expect([...subTable.options].map((option) => option.value)).toEqual([
+      '',
+      '技能',
+      '效果',
+      '属性',
+      '事件',
+      '角色',
+      '武器',
+      '脚本',
+      '本地化-脚本',
+      '本地化-UI',
+    ]);
+    fireEvent.change(subTable, { target: { value: '技能' } });
+    expect(subTable.value).toBe('技能');
+  });
+
+  it('导出预览：一排子表按钮，点哪个看哪个', async () => {
+    await openExport();
+    fireEvent.click(screen.getByText('导出预览'));
+
+    const tabs = [...document.querySelectorAll('.sheet-tab')].map((tab) =>
+      tab.textContent?.replace(/\d+$/, ''),
+    );
+    expect(tabs).toEqual([
+      '对话',
+      '选项',
+      '本地化',
+      'GASGameplayTags',
+      'GAS属性',
+      'GAS效果',
+      'GAS技能',
+      'GAS事件',
+      'GAS角色',
+      'GAS武器',
+      '导入设置',
+    ]);
+
+    // 默认停在第一张：对话表，表头就是导出用的那一行
+    const headers = () =>
+      [...document.querySelectorAll('.preview-table thead th')].map((th) => th.textContent);
+    expect(headers()).toEqual([
+      '（行名）',
+      '文本类型',
+      '角色ID',
+      '角色显示名称',
+      '强制自动播放下一对话',
+      '文本ID',
+      '选项列表',
+      '指令列表',
+    ]);
+
+    // 切到导入设置：表头换成算出来的两列
+    fireEvent.click(screen.getByText('导入设置'));
+    expect(headers()).toEqual(['（行名）', '数据表引用', 'csv文件路径']);
+  });
+});
+
 describe('右上角的校验结果', () => {
   const badge = () => screen.getByRole('button', { name: /校验结果/ });
 

@@ -277,6 +277,23 @@ export interface BattleData {
   weapons: GasWeapon[];
 }
 
+/**
+ * Unreal 导入设置里的一行：一张 DataTable 注册到哪、内容来自我们的哪个子表。
+ *
+ *   数据表引用   = /Script/Engine.DataTable'/Game/<文件夹>/<表名>.<表名>'
+ *   csv 文件名   = TB_BSGame_<子表名>.csv
+ * 这两列都由前三个字段推出来，和策划原来 Excel 里的公式列一样，不单独存。
+ */
+export interface ExportSettingRow {
+  uid: string;
+  /** 数据表名，如 TB_GAS_Ability，导出时也是行名 */
+  tableName: string;
+  /** 数据表文件夹路径，如 GameContent/BP/GAS/GA */
+  folder: string;
+  /** 内容来自哪个子表，如「技能」 */
+  subTable: string;
+}
+
 /** 指令的目标对象可以来自哪张表 */
 export type TargetKind =
   | 'character'
@@ -336,4 +353,6 @@ export interface Project {
   uiTexts: UiTextRow[];
   /** 战斗模块（GAS）的数据，导出成 GAS 开头的几张子表 */
   battle: BattleData;
+  /** Unreal 导入设置，导出成「导入设置」子表 */
+  exportSettings: ExportSettingRow[];
 }

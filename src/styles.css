@@ -2020,6 +2020,141 @@ select.missing {
   color: var(--danger);
 }
 
+/* ---------- 导出模块 ---------- */
+
+/* 左边窄栏 + 右边子页面，和战斗模块一样：子页面自己是一块可滚动的 .editor */
+.export-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.export-side {
+  flex-shrink: 0;
+  width: 168px;
+  padding: 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  border-right: 1px solid var(--border);
+  background: var(--panel);
+  overflow-y: auto;
+}
+
+.export-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 7px 9px;
+  border-color: transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-dim);
+  text-align: left;
+  font-size: 12px;
+}
+
+.export-nav:hover:not(.active) {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* 带上 :hover：不然鼠标停在选中项上会被全局的 button:hover 抢掉配色 */
+.export-nav.active,
+.export-nav.active:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+/* 工具按钮列表：贴在这一栏最下面，新增的按钮加在「导出 Excel」上面，从下往上长 */
+.export-tools {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.export-tools-head {
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+}
+
+.export-tool {
+  width: 100%;
+}
+
+.export-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 导出预览：上面一排子表按钮 */
+.sheet-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.sheet-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 7px;
+  border-color: var(--border);
+  background: var(--control-bg);
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.sheet-tab:hover:not(.active) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.sheet-tab.active,
+.sheet-tab.active:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.sheet-tab .count {
+  font-size: 11px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+table.lines.preview-table {
+  min-width: 720px;
+}
+
+table.lines.preview-table td {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  vertical-align: top;
+}
+
+.preview-count {
+  margin: 8px 0 0;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
 .multi-select {
   position: relative;
 }

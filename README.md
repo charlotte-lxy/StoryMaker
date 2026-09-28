@@ -37,7 +37,7 @@ pnpm dev          # 开发服务器 http://localhost:5180
 | `pnpm build` | `dist/` 多文件 | 内网服务器 |
 | `pnpm build:single` | `release/` | 策划双击即用的单文件产物 |
 | `pnpm build:app` | `app-release/win-unpacked/` | Electron 桌面版 |
-| `pnpm test` | — | 210 个测试 |
+| `pnpm test` | — | 219 个测试 |
 | `pnpm verify:release` | — | 单文件产物自检 |
 | `pnpm verify:server` | — | 本地服务自检（真起进程、真发 HTTP、真落盘） |
 
@@ -55,7 +55,12 @@ pnpm dev          # 开发服务器 http://localhost:5180
 战斗（属性 / 事件 / 效果 / 技能 / 角色预设 / 武器）
   → GASGameplayTags（四张表里的条目自动收集，Tag 由名字合成）
   → GAS属性 / GAS效果 / GAS技能 / GAS事件 / GAS角色 / GAS武器
+
+导出 / Unreal导入设置（一行一张 DataTable：表名 + 文件夹 + 子表）
+  → 导入设置（数据表引用、csv 文件名两列算出来）
 ```
+
+导出与界面上的「导出预览」用的是同一处 `buildAllSheets`，预览里看到的就是导出去的内容。
 
 导出的多值列写成 Unreal 数组字面量 `("a","b")`、键值对写成 `(("k","v"))`，
 空列表写空单元格。战斗那边还和剧情一样：策划填的中间列（`类名`、带「（多选）」

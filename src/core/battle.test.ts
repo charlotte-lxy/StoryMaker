@@ -116,6 +116,7 @@ function makeProject(): Project {
     variables: [],
     uiTexts: [],
     battle,
+    exportSettings: [],
   };
 }
 

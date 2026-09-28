@@ -34,6 +34,7 @@ import {
   WEAPON_SHEET,
   buildBattleRows,
 } from './battle-export';
+import { IMPORT_SETTINGS_SHEET, buildImportSettingRows } from './export-settings';
 import { textIdOf } from './ids';
 import type { Group, Line, Project, StoryOption } from './types';
 
@@ -233,28 +234,49 @@ function addSheet(workbook: ExcelJS.Workbook, name: string, rows: string[][]): v
   });
 }
 
-/** 生成 xlsx 二进制内容 */
-export async function exportWorkbook(project: Project): Promise<ArrayBuffer> {
-  const rows = buildRows(project);
+/** 一张要写进 xlsx 的子表 */
+export interface ExportedSheet {
+  name: string;
+  rows: string[][];
+}
+
+/**
+ * 全部子表的内容与顺序。
+ *
+ * 导出与界面上的「导出预览」都走这一处：预览里看到的就是导出去的东西，
+ * 两边不会各写一份、也不会顺序对不上。
+ */
+export function buildAllSheets(project: Project): ExportedSheet[] {
+  const story = buildRows(project);
   const battle = buildBattleRows(project);
 
+  return [
+    // 剧情三张表
+    { name: DIALOGUE_SHEET, rows: story.dialogue },
+    { name: OPTION_SHEET, rows: story.options },
+    { name: LOCALE_SHEET, rows: story.locale },
+    // 战斗模块（GAS）七张表
+    { name: GAMEPLAY_TAGS_SHEET, rows: battle.gameplayTags },
+    { name: ATTRIBUTE_SHEET, rows: battle.attributes },
+    { name: EFFECT_SHEET, rows: battle.effects },
+    { name: SKILL_SHEET, rows: battle.skills },
+    { name: EVENT_SHEET, rows: battle.events },
+    { name: CHARACTER_SHEET, rows: battle.characters },
+    { name: WEAPON_SHEET, rows: battle.weapons },
+    // 导入设置
+    { name: IMPORT_SETTINGS_SHEET, rows: buildImportSettingRows(project) },
+  ];
+}
+
+/** 生成 xlsx 二进制内容 */
+export async function exportWorkbook(project: Project): Promise<ArrayBuffer> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'StoryMaker';
   workbook.created = new Date();
 
-  // 剧情三张表
-  addSheet(workbook, DIALOGUE_SHEET, rows.dialogue);
-  addSheet(workbook, OPTION_SHEET, rows.options);
-  addSheet(workbook, LOCALE_SHEET, rows.locale);
-
-  // 战斗模块（GAS）七张表
-  addSheet(workbook, GAMEPLAY_TAGS_SHEET, battle.gameplayTags);
-  addSheet(workbook, ATTRIBUTE_SHEET, battle.attributes);
-  addSheet(workbook, EFFECT_SHEET, battle.effects);
-  addSheet(workbook, SKILL_SHEET, battle.skills);
-  addSheet(workbook, EVENT_SHEET, battle.events);
-  addSheet(workbook, CHARACTER_SHEET, battle.characters);
-  addSheet(workbook, WEAPON_SHEET, battle.weapons);
+  for (const sheet of buildAllSheets(project)) {
+    addSheet(workbook, sheet.name, sheet.rows);
+  }
 
   const buffer = await workbook.xlsx.writeBuffer();
   return buffer as ArrayBuffer;
