@@ -10,6 +10,7 @@ import {
 } from '../../state/battle-operations';
 import { MultiSelect } from '../MultiSelect';
 import { PairList } from './PairList';
+import { useScrollMemory } from '../view-memory';
 
 interface Props {
   project: Project;
@@ -18,6 +19,7 @@ interface Props {
 
 /** 角色预设：属性数值 + 技能列表，导出成 GAS角色，行名就是角色 ID */
 export function BattleCharactersPage({ project, onChange }: Props) {
+  const editorRef = useScrollMemory('battle:characters');
   const rows = project.battle.characters;
   const attributeNames = project.battle.attributes.map((row) => row.name.trim()).filter(Boolean);
   const skillNames = project.battle.skills.map((row) => row.name.trim()).filter(Boolean);
@@ -29,7 +31,7 @@ export function BattleCharactersPage({ project, onChange }: Props) {
   }
 
   return (
-    <div className="editor">
+    <div className="editor" ref={editorRef}>
       <div className="editor-head">
         <h2>角色预设</h2>
         <span className="hint">

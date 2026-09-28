@@ -5,6 +5,7 @@ import {
   updateExportSetting,
 } from '../../state/operations';
 import { EXPORT_SUBTABLES, csvFileName, dataTableRef } from '../../core/export-settings';
+import { useScrollMemory } from '../view-memory';
 
 interface Props {
   project: Project;
@@ -19,6 +20,7 @@ interface Props {
  * 所以这里不显示、也不用手填——鼠标停在行上能看到算出来的结果。
  */
 export function ImportSettingsPage({ project, onChange }: Props) {
+  const editorRef = useScrollMemory('export:settings');
   const rows = project.exportSettings;
 
   const counts = new Map<string, number>();
@@ -28,7 +30,7 @@ export function ImportSettingsPage({ project, onChange }: Props) {
   }
 
   return (
-    <div className="editor">
+    <div className="editor" ref={editorRef}>
       <div className="editor-head">
         <h2>Unreal 导入设置</h2>
         <span className="hint">

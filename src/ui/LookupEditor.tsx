@@ -1,5 +1,6 @@
 import type { LookupRow, Project } from '../core/types';
 import type { LookupKind } from '../state/operations';
+import { useScrollMemory } from './view-memory';
 
 const TITLES: Record<LookupKind, { title: string; hint: string; placeholder: string }> = {
   items: {
@@ -33,6 +34,7 @@ interface Props {
 }
 
 export function LookupEditor({ project, kind, onAdd, onRemove, onUpdate }: Props) {
+  const editorRef = useScrollMemory(`lookup:${kind}`);
   const rows = project[kind];
   const meta = TITLES[kind];
 
@@ -40,7 +42,7 @@ export function LookupEditor({ project, kind, onAdd, onRemove, onUpdate }: Props
   for (const row of rows) idCounts.set(row.id, (idCounts.get(row.id) ?? 0) + 1);
 
   return (
-    <div className="editor">
+    <div className="editor" ref={editorRef}>
       <div className="editor-head">
         <h2>{meta.title}</h2>
         <span className="hint">{meta.hint}</span>

@@ -3,6 +3,7 @@ import { Fragment, useEffect, useMemo, useState, type KeyboardEvent } from 'reac
 import { textIdOf } from '../core/ids';
 import type { LangKey, LocalizedText, Project, UiTextRow } from '../core/types';
 import { AutoGrowTextarea } from './AutoGrowTextarea';
+import { useRememberedChoice, useScrollMemory } from './view-memory';
 
 interface Props {
   project: Project;
@@ -72,10 +73,11 @@ export function LocalizationEditor({
   onUpdateUiText,
   focusUid = null,
 }: Props) {
-  const [page, setPage] = useState<LocalePage>('story');
+  const [page, setPage] = useRememberedChoice<LocalePage>('locale:page', 'story');
   const [query, setQuery] = useState('');
   /** 新增表单：填好 key 与译文，点「添加」插到列表最前面 */
   const [draft, setDraft] = useState<UiDraft>(EMPTY_DRAFT);
+  const editorRef = useScrollMemory('locale');
 
   const entries = useMemo(() => {
     const list: LocEntry[] = [];
@@ -213,7 +215,7 @@ export function LocalizationEditor({
   }, [focusUid, page, shownEntries, shownUiTexts]);
 
   return (
-    <div className="editor">
+    <div className="editor" ref={editorRef}>
       <div className="editor-head">
         <h2>本地化</h2>
         <span className="hint">

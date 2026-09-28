@@ -10,6 +10,7 @@ import {
   updateModifier,
 } from '../../state/battle-operations';
 import { ModifierList } from './ModifierList';
+import { useScrollMemory } from '../view-memory';
 
 interface Props {
   project: Project;
@@ -18,6 +19,7 @@ interface Props {
 
 /** 效果表（GE）：周期与堆叠各自是一组列，表头分两层 */
 export function BattleEffectsPage({ project, onChange }: Props) {
+  const editorRef = useScrollMemory('battle:effects');
   const rows = project.battle.effects;
   const attributes = project.battle.attributes.map((row) => row.name.trim()).filter(Boolean);
 
@@ -28,7 +30,7 @@ export function BattleEffectsPage({ project, onChange }: Props) {
   }
 
   return (
-    <div className="editor">
+    <div className="editor" ref={editorRef}>
       <div className="editor-head">
         <h2>效果表（GE）</h2>
         <span className="hint">

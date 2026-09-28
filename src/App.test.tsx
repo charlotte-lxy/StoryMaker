@@ -10,6 +10,7 @@ import {
   type FakeHost,
 } from './testing/app-harness';
 import { createEmptyProject } from './state/operations';
+import { resetViewMemory } from './ui/view-memory';
 
 /** 当前用例的假宿主：一块"磁盘" + 上次打开的项目路径 */
 let host: FakeHost;
@@ -32,6 +33,8 @@ afterEach(() => {
   clearFakeHost();
   // 主题写在 <html> 上，不清掉会串到下一个用例
   delete document.documentElement.dataset.theme;
+  // 滚动位置与子页面选择记在模块级，用例之间也要清掉
+  resetViewMemory();
 });
 
 /** 左侧模块导航 */
@@ -1136,6 +1139,77 @@ describe('导出模块', () => {
     // 切到导入设置：表头换成算出来的两列
     fireEvent.click(screen.getByText('导入设置'));
     expect(headers()).toEqual(['（行名）', '数据表引用', 'csv文件路径']);
+  });
+});
+
+describe('滚动位置记忆', () => {
+  /** jsdom 不做排版，scrollTop 永远是 0：临时把它换成真能存取的，测完还原 */
+  function stubScrollTop(): () => void {
+    const tops = new WeakMap<HTMLElement, number>();
+    Object.defineProperty(HTMLElement.prototype, 'scrollTop', {
+      configurable: true,
+      get(this: HTMLElement) {
+        // 真浏览器里，已经从文档摘掉的元素读出来就是 0，桩也照这个来
+        return this.isConnected ? (tops.get(this) ?? 0) : 0;
+      },
+      set(this: HTMLElement, value: number) {
+        tops.set(this, value);
+      },
+    });
+    return () => {
+      delete (HTMLElement.prototype as unknown as { scrollTop?: unknown }).scrollTop;
+    };
+  }
+
+  it('对话列表滚动后切到别的模块再回来，还停在原处', async () => {
+    const { container } = await renderApp();
+    const restore = stubScrollTop();
+
+    try {
+      const editor = container.querySelector('.list-pane .editor') as HTMLElement;
+      editor.scrollTop = 320;
+      fireEvent.scroll(editor);
+
+      fireEvent.click(within(rail()).getByText('角色'));
+      expect(container.querySelector('.list-pane')).toBeNull();
+
+      fireEvent.click(within(rail()).getByText('剧情'));
+      const back = container.querySelector('.list-pane .editor') as HTMLElement;
+      expect(back.scrollTop).toBe(320);
+    } finally {
+      restore();
+    }
+  });
+
+  it('角色表滚动后切走再回来，也停在原处', async () => {
+    const { container } = await renderApp();
+    const restore = stubScrollTop();
+
+    try {
+      fireEvent.click(within(rail()).getByText('角色'));
+      const table = container.querySelector('.editor') as HTMLElement;
+      table.scrollTop = 180;
+      fireEvent.scroll(table);
+
+      fireEvent.click(within(rail()).getByText('剧情'));
+      fireEvent.click(within(rail()).getByText('角色'));
+
+      expect((container.querySelector('.editor') as HTMLElement).scrollTop).toBe(180);
+    } finally {
+      restore();
+    }
+  });
+
+  it('战斗模块里选的子页面也记着：离开再回来还在那一页', async () => {
+    await renderApp();
+    fireEvent.click(within(rail()).getByText('战斗'));
+    fireEvent.click(screen.getByText('效果（GE）'));
+    expect(document.querySelector('.battle-nav.active')?.textContent).toContain('效果');
+
+    fireEvent.click(within(rail()).getByText('剧情'));
+    fireEvent.click(within(rail()).getByText('战斗'));
+
+    expect(document.querySelector('.battle-nav.active')?.textContent).toContain('效果');
   });
 });
 

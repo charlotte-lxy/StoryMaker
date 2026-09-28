@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 
 import { buildChapterFlow, layoutChapterFlow } from '../core/flow';
 import type { Project } from '../core/types';
+import { useScrollMemory } from './view-memory';
 
 /** 块的尺寸与间距：布局由 core/flow 算，这里只提供数字 */
 const GEOMETRY = {
@@ -53,6 +54,8 @@ function sameHeights(a: Record<string, number>, b: Record<string, number>): bool
 export function ChapterFlow(props: Props) {
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const boardRef = useRef<HTMLDivElement | null>(null);
+  // 切走再回来时回到原来的滚动位置；canvasRef 同时留给下面量宽度用
+  const attachCanvas = useScrollMemory('story:flow', canvasRef);
   const [measured, setMeasured] = useState(0);
   /** 渲染后量到的真实块高：注释换行几行只有浏览器知道 */
   const [heights, setHeights] = useState<Record<string, number>>({});
@@ -195,7 +198,7 @@ export function ChapterFlow(props: Props) {
         </button>
       </div>
 
-      <div className="flow-canvas" ref={canvasRef}>
+      <div className="flow-canvas" ref={attachCanvas}>
         {paragraphCount === 0 ? (
           <div className="empty-state">本章还没有段落，点章节名旁边的「＋」新增段落。</div>
         ) : (

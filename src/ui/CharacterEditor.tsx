@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import type { Character, Project } from '../core/types';
+import { useScrollMemory } from './view-memory';
 
 interface Props {
   project: Project;
@@ -11,6 +12,7 @@ interface Props {
 
 export function CharacterEditor({ project, onAdd, onRemove, onUpdate }: Props) {
   const [draftExpression, setDraftExpression] = useState<Record<string, string>>({});
+  const editorRef = useScrollMemory('character');
 
   const usageOf = (id: string): number => {
     let count = 0;
@@ -38,7 +40,7 @@ export function CharacterEditor({ project, onAdd, onRemove, onUpdate }: Props) {
   };
 
   return (
-    <div className="editor">
+    <div className="editor" ref={editorRef}>
       <div className="editor-head">
         <h2>角色表</h2>
         <span className="hint">

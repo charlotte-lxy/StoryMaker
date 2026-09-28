@@ -3,6 +3,7 @@ import { Fragment } from 'react';
 import { collectGameplayTags } from '../../core/battle';
 import type { Project } from '../../core/types';
 import { updateBattleRow, type BattleRowKey } from '../../state/battle-operations';
+import { useScrollMemory } from '../view-memory';
 
 interface Props {
   project: Project;
@@ -27,11 +28,12 @@ const GROUP_KEY: Record<string, BattleRowKey> = {
  * 类名路径前缀不放在这一页：它属于效果表和技能表，在各自的页面上改。
  */
 export function BattleTagsPage({ project, onChange }: Props) {
+  const editorRef = useScrollMemory('battle:tags');
   const entries = collectGameplayTags(project.battle);
   const groups = ['属性', '效果', '技能', '事件'];
 
   return (
-    <div className="editor">
+    <div className="editor" ref={editorRef}>
       <div className="editor-head">
         <h2>GameplayTags 管理器</h2>
         <span className="hint">

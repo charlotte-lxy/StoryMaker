@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import type { Project } from '../core/types';
+import { useScrollMemory } from './view-memory';
 
 interface Props {
   project: Project;
@@ -32,6 +33,8 @@ interface Editing {
 export function Sidebar(props: Props) {
   const { project, activeGroupUid } = props;
   const [editing, setEditing] = useState<Editing | null>(null);
+  // 切走再回来时回到原来的滚动位置（章节多的时候挺需要）
+  const treeRef = useScrollMemory('story:tree');
 
   const commit = (kind: 'chapter' | 'group'): void => {
     if (editing === null) return;
@@ -85,7 +88,7 @@ export function Sidebar(props: Props) {
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-tree">
+      <div className="sidebar-tree" ref={treeRef}>
         <div className="sidebar-head">
           <h3>章节 / 段落</h3>
           <button type="button" className="mini" onClick={props.onAddChapter}>

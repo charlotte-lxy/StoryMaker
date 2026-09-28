@@ -1,4 +1,5 @@
 import type { Issue, ValidationReport } from '../core/validate';
+import { useScrollMemory } from './view-memory';
 
 interface Props {
   /** 哪个模块的校验结果，显示在标题上 */
@@ -20,9 +21,11 @@ interface Props {
  */
 export function IssuePanel({ label, report, expanded, onToggle, onJumpToIssue }: Props) {
   const issues = report.issues;
+  // 问题多的时候这一条自己也会滚，切模块回来同样要回到原处
+  const panelRef = useScrollMemory<HTMLElement>(`issues:${label}`);
 
   return (
-    <section className={`issues${expanded ? '' : ' collapsed'}`}>
+    <section className={`issues${expanded ? '' : ' collapsed'}`} ref={panelRef}>
       <div className="issues-head">
         <h3>{label}校验结果</h3>
         <button

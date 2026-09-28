@@ -1,4 +1,5 @@
 import type { Settings } from '../state/prefs';
+import { useScrollMemory } from './view-memory';
 
 interface Props {
   settings: Settings;
@@ -11,8 +12,10 @@ const AUTO_SAVE_ON =
 const AUTO_SAVE_OFF = '改动不会自动写回项目文件，请记得点顶部的「保存」。';
 
 export function SettingsEditor({ settings, onChange }: Props) {
+  const editorRef = useScrollMemory('settings');
+
   return (
-    <div className="editor settings">
+    <div className="editor settings" ref={editorRef}>
       <div className="editor-head">
         <h2>设置</h2>
         <span className="hint">设置只记在这台机器上，不会写进项目文件</span>

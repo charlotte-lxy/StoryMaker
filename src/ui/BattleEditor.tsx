@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 import type { Project } from '../core/types';
 import type { BattlePage } from '../state/battle-operations';
@@ -8,6 +8,7 @@ import { BattleSkillsPage } from './battle/BattleSkillsPage';
 import { BattleTagNamePage } from './battle/BattleTagNamePage';
 import { BattleTagsPage } from './battle/BattleTagsPage';
 import { BattleWeaponsPage } from './battle/BattleWeaponsPage';
+import { useRememberedChoice } from './view-memory';
 
 /** 子模块按「先建基础表、再看收集结果」的顺序排 */
 const PAGES: { key: BattlePage; label: string }[] = [
@@ -35,7 +36,7 @@ interface Props {
  * 各种 Tag 都由名字合成，所以这里看不到手填 Tag 的地方——只在管理器里看结果。
  */
 export function BattleEditor({ project, onChange, focusPage = null, focusUid = null }: Props) {
-  const [page, setPage] = useState<BattlePage>('attributes');
+  const [page, setPage] = useRememberedChoice<BattlePage>('battle:page', 'attributes');
 
   // 校验条里点过来的那一条：先切页，再滚到那一行
   useEffect(() => {

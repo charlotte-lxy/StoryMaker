@@ -79,6 +79,7 @@ import { ProjectGate } from './ui/ProjectGate';
 import { SettingsEditor } from './ui/SettingsEditor';
 import { ScriptPalette } from './ui/ScriptPalette';
 import { Sidebar } from './ui/Sidebar';
+import { useScrollMemory } from './ui/view-memory';
 
 /** 一个模块的校验结果，右上角的总数弹层与模块底部的校验条都用它 */
 interface ModuleCheck {
@@ -184,6 +185,8 @@ export default function App() {
   };
   /** 分栏容器：拖分隔线时按它的宽度算比例 */
   const splitBoxRef = useRef<HTMLDivElement | null>(null);
+  /** 对话列表那一栏：切模块回来时回到原来的滚动位置 */
+  const storyListRef = useScrollMemory('story:list');
 
   /**
    * 启动：认出宿主 → 按上次记住的路径读项目文件 → 读不回来（或压根没有）就停在门槛页。
@@ -1006,7 +1009,7 @@ export default function App() {
                         />
 
                         <div className="list-pane">
-                          <div className="editor">
+                          <div className="editor" ref={storyListRef}>
                             {group === undefined ? (
                               <div className="empty-state">
                                 这一章还没有段落，点章节名旁边的「＋」新增段落。

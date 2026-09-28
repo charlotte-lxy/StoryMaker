@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 
 import { buildAllSheets } from '../../core/export';
 import type { Project } from '../../core/types';
+import { useScrollMemory } from '../view-memory';
 
 interface Props {
   project: Project;
@@ -14,6 +15,7 @@ interface Props {
  * 内容和顺序都直接取自 buildAllSheets（导出的同一处逻辑），所以预览不会和导出对不上。
  */
 export function ExportPreviewPage({ project }: Props) {
+  const editorRef = useScrollMemory('export:preview');
   const sheets = useMemo(() => buildAllSheets(project), [project]);
   const [picked, setPicked] = useState(sheets[0]?.name ?? '');
   const current = sheets.find((sheet) => sheet.name === picked) ?? sheets[0];
@@ -24,7 +26,7 @@ export function ExportPreviewPage({ project }: Props) {
   const body = current.rows.slice(1);
 
   return (
-    <div className="editor">
+    <div className="editor" ref={editorRef}>
       <div className="editor-head">
         <h2>导出预览</h2>
         <span className="hint">这里看到的就是导出到 xlsx 里的内容（表头 + 数据行），点上面的按钮换子表。</span>

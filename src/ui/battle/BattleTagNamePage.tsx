@@ -1,5 +1,6 @@
 import type { Project } from '../../core/types';
 import { addBattleRow, removeBattleRow, updateBattleRow } from '../../state/battle-operations';
+import { useScrollMemory } from '../view-memory';
 
 interface Props {
   project: Project;
@@ -27,6 +28,7 @@ export function BattleTagNamePage({
   nameLabel,
   addLabel,
 }: Props) {
+  const editorRef = useScrollMemory(`battle:${tableKey}`);
   const rows = project.battle[tableKey];
 
   const counts = new Map<string, number>();
@@ -36,7 +38,7 @@ export function BattleTagNamePage({
   }
 
   return (
-    <div className="editor">
+    <div className="editor" ref={editorRef}>
       <div className="editor-head">
         <h2>{title}</h2>
         <span className="hint">{hint}</span>

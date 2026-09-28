@@ -1,5 +1,7 @@
 import { Fragment, useMemo, useState } from 'react';
 
+import { useScrollMemory } from './view-memory';
+
 import { commandDefLabel, matchCommandDef } from '../core/command-build';
 import type { CommandDef, Project, TargetKind, ValueKind } from '../core/types';
 import { collectCommands, parseCommand } from '../state/operations';
@@ -48,6 +50,7 @@ export function CommandEditor({
   onRemoveDef,
   onUpdateDef,
 }: Props) {
+  const editorRef = useScrollMemory('command');
   const [tab, setTab] = useState<'dict' | 'usage'>('dict');
   const commands = useMemo(() => collectCommands(project), [project]);
   const [editingText, setEditingText] = useState<string | null>(null);
@@ -179,7 +182,7 @@ export function CommandEditor({
   };
 
   return (
-    <div className="editor">
+    <div className="editor" ref={editorRef}>
       <div className="editor-head">
         <h2>条件与指令</h2>
         <div className="tab-row">

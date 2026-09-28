@@ -10,6 +10,7 @@ import {
 } from '../../state/battle-operations';
 import { MultiSelect } from '../MultiSelect';
 import { ModifierList } from './ModifierList';
+import { useScrollMemory } from '../view-memory';
 
 interface Props {
   project: Project;
@@ -18,6 +19,7 @@ interface Props {
 
 /** 武器表：修改器列表的做法和效果表一样，技能列表和角色预设一样 */
 export function BattleWeaponsPage({ project, onChange }: Props) {
+  const editorRef = useScrollMemory('battle:weapons');
   const rows = project.battle.weapons;
   const attributes = project.battle.attributes.map((row) => row.name.trim()).filter(Boolean);
   const skillNames = project.battle.skills.map((row) => row.name.trim()).filter(Boolean);
@@ -29,7 +31,7 @@ export function BattleWeaponsPage({ project, onChange }: Props) {
   }
 
   return (
-    <div className="editor">
+    <div className="editor" ref={editorRef}>
       <div className="editor-head">
         <h2>武器表</h2>
         <span className="hint">

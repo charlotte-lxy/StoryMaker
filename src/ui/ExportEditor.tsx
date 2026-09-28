@@ -1,8 +1,7 @@
-import { useState } from 'react';
-
 import type { Project } from '../core/types';
 import { ExportPreviewPage } from './export/ExportPreviewPage';
 import { ImportSettingsPage } from './export/ImportSettingsPage';
+import { useRememberedChoice } from './view-memory';
 
 type ExportPage = 'settings' | 'preview';
 
@@ -26,7 +25,7 @@ interface Props {
  * 这样列表是从下往上长的，最常用的那个始终贴在手边。
  */
 export function ExportEditor({ project, onChange, onExport }: Props) {
-  const [page, setPage] = useState<ExportPage>('settings');
+  const [page, setPage] = useRememberedChoice<ExportPage>('export:page', 'settings');
 
   return (
     <div className="export-body">

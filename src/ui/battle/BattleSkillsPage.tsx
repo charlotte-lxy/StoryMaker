@@ -12,6 +12,7 @@ import {
 } from '../../state/battle-operations';
 import { MultiSelect } from '../MultiSelect';
 import { PairList } from './PairList';
+import { useScrollMemory } from '../view-memory';
 
 interface Props {
   project: Project;
@@ -20,6 +21,7 @@ interface Props {
 
 /** 技能表（GA） */
 export function BattleSkillsPage({ project, onChange }: Props) {
+  const editorRef = useScrollMemory('battle:skills');
   const rows = project.battle.skills;
   const skillNames = project.battle.skills.map((row) => row.name.trim()).filter(Boolean);
   const eventNames = project.battle.events.map((row) => row.name.trim()).filter(Boolean);
@@ -31,7 +33,7 @@ export function BattleSkillsPage({ project, onChange }: Props) {
   }
 
   return (
-    <div className="editor">
+    <div className="editor" ref={editorRef}>
       <div className="editor-head">
         <h2>技能表（GA）</h2>
         <span className="hint">
