@@ -850,9 +850,14 @@ export default function App() {
             <span className="rail-icon">文</span>
             <span>本地化</span>
           </button>
+
+          {/*
+            置底的一组：靠 rail-item-bottom 的 margin-top:auto 顶到最下面，
+            组内从上往下排（导出在设置上面）。以后再加置底按钮，加在这两个前面。
+          */}
           <button
             type="button"
-            className={`rail-item${module === 'export' ? ' active' : ''}`}
+            className={`rail-item rail-item-bottom${module === 'export' ? ' active' : ''}`}
             onClick={() => setModule('export')}
           >
             <span className="rail-icon">⤓</span>
@@ -860,7 +865,7 @@ export default function App() {
           </button>
           <button
             type="button"
-            className={`rail-item rail-item-bottom${module === 'settings' ? ' active' : ''}`}
+            className={`rail-item${module === 'settings' ? ' active' : ''}`}
             title="设置"
             onClick={() => setModule('settings')}
           >
