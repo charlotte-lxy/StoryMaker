@@ -154,13 +154,32 @@ function fakeRemote(files: Record<string, string | Buffer>) {
   });
 }
 
-/** 清单里除了 index.html 之外的文件都声明成"和本地一致"，这样只有目标文件会动 */
-function manifest(dir: string, indexPage: string): string {
+/**
+ * 清单里除了 index.html 之外的文件都声明成"和本地一致"，这样只有目标文件会动。
+ * 默认版本号比 fixture 的本地版本大（fixture 没有 version.json 时按 0.0.0 算），
+ * 所以用它的用例都会正常走更新。
+ */
+function manifest(dir: string, indexPage: string, version = '1.0.0'): string {
   return JSON.stringify({
+    version,
     'index.html': sha256(Buffer.from(indexPage, 'utf8')),
     'storymaker-server.ps1': sha256(readFileSync(join(dir, 'storymaker-server.ps1'))),
     '启动StoryMaker.bat': sha256(readFileSync(join(dir, '启动StoryMaker.bat'))),
   });
+}
+
+/** 把一份本机清单写进 fixture，用来声明"本机自己是什么版本" */
+function writeLocalManifest(dir: string, version: string, indexPath: string): void {
+  writeFileSync(
+    join(dir, 'version.json'),
+    JSON.stringify({
+      version,
+      'index.html': sha256(readFileSync(indexPath)),
+      'storymaker-server.ps1': sha256(readFileSync(join(dir, 'storymaker-server.ps1'))),
+      '启动StoryMaker.bat': sha256(readFileSync(join(dir, '启动StoryMaker.bat'))),
+    }),
+    'utf8',
+  );
 }
 
 let running: Running | null = null;
@@ -235,6 +254,7 @@ try {
     ]);
     const remote = await fakeRemote({
       'version.json': JSON.stringify({
+        version: '1.0.0',
         'index.html': sha256(Buffer.from(steadyPage, 'utf8')),
         'storymaker-server.ps1': sha256(newScript),
         '启动StoryMaker.bat': sha256(readFileSync(join(fixture, '启动StoryMaker.bat'))),
@@ -302,6 +322,7 @@ try {
     ]);
     const remote = await fakeRemote({
       'version.json': JSON.stringify({
+        version: '1.0.0',
         'index.html': sha256(Buffer.from(newPage5, 'utf8')),
         'storymaker-server.ps1': sha256(newScript),
         '启动StoryMaker.bat': sha256(readFileSync(join(fixture, '启动StoryMaker.bat'))),
@@ -350,6 +371,73 @@ try {
   await cleanupRemote?.();
   cleanupRemote = null;
   rmSync(fixture, { recursive: true, force: true });
+
+  // ---------- 6. 本地比远端新：不许被倒着覆盖 ----------
+  console.log('');
+  console.log('【6】本地版本比远端新');
+  fixture = makeFixture();
+  const minePage = '<html><body>我自己刚构建的新版</body></html>';
+  const repoPage = '<html><body>仓库里那份旧的</body></html>';
+  writeFileSync(join(fixture, 'index.html'), minePage, 'utf8');
+  writeLocalManifest(fixture, '0.2.0', join(fixture, 'index.html'));
+  {
+    // 远端只有 0.1.0，内容也确实是旧的
+    const remote = await fakeRemote({
+      'version.json': manifest(fixture, repoPage, '0.1.0'),
+      'index.html': repoPage,
+    });
+    cleanupRemote = remote.close;
+    const port = await freePort();
+    running = await startServer(fixture, remote.base, port);
+
+    check(
+      readFileSync(join(fixture, 'index.html'), 'utf8') === minePage,
+      '本地比远端新时，仓库里那份旧版不会把本机覆盖掉',
+    );
+    const page = await (
+      await fetch(`${running.base}/`, { signal: AbortSignal.timeout(10_000) })
+    ).text();
+    check(page.includes('我自己刚构建的新版'), '发出去的仍是本机那份新版');
+    check(!running.output().includes('开始更新'), '根本没进更新流程');
+    check(!existsSync(join(fixture, 'index.html.new')), '也没留下 .new 临时文件');
+  }
+  await stopServer(running);
+  running = null;
+  await cleanupRemote?.();
+  cleanupRemote = null;
+  rmSync(fixture, { recursive: true, force: true });
+
+  // ---------- 7. 版本号没涨就不动 ----------
+  console.log('');
+  console.log('【7】版本号相同但内容不同');
+  fixture = makeFixture();
+  const samePage = '<html><body>本机这份</body></html>';
+  writeFileSync(join(fixture, 'index.html'), samePage, 'utf8');
+  writeLocalManifest(fixture, '0.1.0', join(fixture, 'index.html'));
+  {
+    const different = '<html><body>远端同版本但内容不一样</body></html>';
+    const remote = await fakeRemote({
+      'version.json': manifest(fixture, different, '0.1.0'),
+      'index.html': different,
+    });
+    cleanupRemote = remote.close;
+    const port = await freePort();
+    running = await startServer(fixture, remote.base, port);
+
+    check(
+      readFileSync(join(fixture, 'index.html'), 'utf8') === samePage,
+      '版本号没涨就不更新（要发新版必须先把版本号加上去）',
+    );
+    const page = await (
+      await fetch(`${running.base}/`, { signal: AbortSignal.timeout(10_000) })
+    ).text();
+    check(page.includes('本机这份'), '发出去的还是本机那份');
+  }
+  await stopServer(running);
+  running = null;
+  await cleanupRemote?.();
+  cleanupRemote = null;
+  rmSync(fixture, { recursive: true, force: true });
 } catch (error) {
   failed = true;
   console.error('✗ 校验过程出错：', error);
@@ -367,4 +455,4 @@ if (failed) {
 }
 
 console.log('');
-console.log('自动更新校验通过：有更新会换、连不上照常启动、服务端脚本能自替换。');
+console.log('自动更新校验通过：有更新会换、连不上照常启动、服务端脚本能自替换、本地更新时不回退。');

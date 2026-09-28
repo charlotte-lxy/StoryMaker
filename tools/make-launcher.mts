@@ -40,7 +40,14 @@ writeFileSync(resolve(to, 'storymaker-server.ps1'), '\uFEFF' + crlf(server), 'ut
 const sha256 = (path: string): string =>
   createHash('sha256').update(readFileSync(path)).digest('hex');
 
+// 版本号取自 package.json。只比哈希的话，本地刚构建、还没推上去的新版会被仓库里的
+// 旧版倒着覆盖回去——本地服务靠这个号判断"远端到底是不是更新的版本"。
+const pkg = JSON.parse(readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')) as {
+  version: string;
+};
+
 const manifest = {
+  version: pkg.version,
   'index.html': sha256(resolve(to, 'index.html')),
   'storymaker-server.ps1': sha256(resolve(to, 'storymaker-server.ps1')),
   '启动StoryMaker.bat': sha256(resolve(to, '启动StoryMaker.bat')),

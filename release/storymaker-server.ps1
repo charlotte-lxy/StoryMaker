@@ -566,6 +566,31 @@ function Save-RemoteFile([string]$url, [string]$targetPath, [int]$timeoutMs) {
   }
 }
 
+# 清单里的版本号。读不出来或者格式不认识就当成 0.0.0——老清单压根没有版本号，
+# 当作"很旧"正合适，该更新还是会更新。
+function Get-ManifestVersion($manifest) {
+  if ($null -eq $manifest) { return [version]'0.0.0' }
+  try {
+    $rawVersion = [string]$manifest.version
+    if ([string]::IsNullOrWhiteSpace($rawVersion)) { return [version]'0.0.0' }
+    return [version]$rawVersion
+  } catch {
+    return [version]'0.0.0'
+  }
+}
+
+function Get-LocalManifestVersion {
+  try {
+    $path = Join-Path $Root 'version.json'
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return [version]'0.0.0' }
+    # 这文件是 UTF-8 无 BOM 的，得显式按 UTF-8 读，否则里面的中文文件名会变乱码
+    $text = [IO.File]::ReadAllText($path, [Text.Encoding]::UTF8)
+    return Get-ManifestVersion (ConvertFrom-Json $text)
+  } catch {
+    return [version]'0.0.0'
+  }
+}
+
 # 返回 $true 表示连服务端脚本都换了，要重新启动才生效
 function Invoke-UpdateCheck {
   Enable-ModernTls
@@ -577,16 +602,25 @@ function Invoke-UpdateCheck {
   try { $remote = ConvertFrom-Json $raw } catch { return $false }
   if ($null -eq $remote) { return $false }
 
+  # 远端不比本机新就什么都不动：本地这份可能是自己刚构建、还没推上去的更新版，
+  # 只比文件哈希会把它倒着覆盖成仓库里那份旧的。
+  $remoteVersion = Get-ManifestVersion $remote
+  $localVersion = Get-LocalManifestVersion
+  if ($remoteVersion -le $localVersion) { return $false }
+
   # 先把和远端对不上的挑出来，再决定这次动哪些
   $stale = @{}
   foreach ($property in $remote.PSObject.Properties) {
     $name = [string]$property.Name
+    if ($name -eq 'version') { continue }   # 版本号不是文件，别当文件去下
     $expected = ([string]$property.Value).ToLowerInvariant()
     if ($expected -eq '') { continue }
     if ((Get-FileSha256 (Join-Path $Root $name)) -eq $expected) { continue }
     $stale[$name] = $expected
   }
   if ($stale.Count -eq 0) { return $false }
+
+  Write-Host "  远端有新版本 $remoteVersion（本机 $localVersion），开始更新" -ForegroundColor Cyan
 
   # 服务端脚本要换时，本次连页面也不换：现在跑的是内存里的那份旧服务端，
   # 配的就得是同一版的旧页面。让两边一起留到下次启动再变新，

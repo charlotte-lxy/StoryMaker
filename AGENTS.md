@@ -78,7 +78,11 @@
 
 - 收尾顺序固定：改完 → 跑验证 → `git add` → `git commit` → `git push origin main`。
   验证按改动范围选：碰前端跑 `pnpm test`，碰单文件产物跑 `pnpm verify:release`，
-  碰 `storymaker-server.ps1` 跑 `pnpm verify:server`。
+  碰 `storymaker-server.ps1` 跑 `pnpm verify:server`，碰自动更新跑 `pnpm verify:update`。
+- **每次提交都要把 `package.json` 的 `version` 往上加**（末位递增，`0.1.0` → `0.1.1`）。
+  这个号会被 `pnpm build:single` 写进 `release/version.json`，本地服务只认"远端版本号
+  更大"才更新：不加号，策划那边收不到这一版；加了号，本机自己刚构建、还没推上去的
+  新版才不会被仓库里的旧版倒着覆盖回去。
 - **commit message 必须是中文**，一句话说清「改了什么、为什么」，跟仓库现有风格一致。
   例：`补充 README：项目定位、快速开始与常用命令`
 - **只提交这次改动涉及的文件**，不要用 `git add -A` 把无关文件顺手带进去
