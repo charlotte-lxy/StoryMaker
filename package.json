@@ -1,7 +1,7 @@
 {
   "name": "storymaker",
   "private": true,
-  "version": "0.1.16",
+  "version": "0.1.17",
   "type": "module",
   "description": "剧情对话编辑器",
   "main": "electron/main.cjs",
@@ -14,7 +14,8 @@
     "test": "vitest run",
     "verify:release": "vite-node tools/verify-release.mts",
     "verify:server": "vite-node tools/verify-server.mts",
-    "verify:update": "vite-node tools/verify-update.mts"
+    "verify:update": "vite-node tools/verify-update.mts",
+    "verify:collab": "vite-node tools/verify-collab.mts"
   },
   "dependencies": {
     "exceljs": "^4.4.0",

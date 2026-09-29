@@ -112,7 +112,11 @@ export function createSyncSession(options: SyncSessionOptions): SyncSession {
   }
 
   async function commitBase(doc: unknown): Promise<void> {
-    base = { doc, clock };
+    // 存快照而不是引用。App 那边全程用不可变更新（mutate 是克隆后再改），引用不会变；
+    // 但不能指望每个调用方都这样——一旦有人就地改文档，基准会跟着一起变，
+    // diff 就永远算不出改动，同步会静默失效。一次深拷贝换这个确定性，值。
+    const snapshot = structuredClone(doc);
+    base = { doc: snapshot, clock };
     await options.saveBase(base);
   }
 
@@ -143,14 +147,15 @@ export function createSyncSession(options: SyncSessionOptions): SyncSession {
 
     announce: async () => {
       await ensureLoaded();
+      // 只打招呼，先不广播离线期间攒的差额。
+      //
+      // 必须让对方先回 snapshot、走一遍对账：该合的合、该报冲突的报冲突，之后才轮到广播。
+      // 一上来就广播的话基准会立刻前移，等于把对账跳过去了——冲突会跑到对方那边去报，
+      // 自己这边反而以为同步成功了。（这是端到端跑出来的，单元测试的假时序看不见。）
+      //
+      // 独自在线、没人回 snapshot 也不会丢东西：基准不前移，那些改动就留在差额里，
+      // 下次本地改动时一起发；别人来了会拿到含这些改动的 snapshot。
       options.send({ type: 'hello', clientId: options.clientId, clock });
-      // 离线期间攒下的差额：base 没前移，所以此刻 diff 出来就是它们
-      if (base === null) return;
-      const doc = options.getDoc();
-      const patches = diffProject(base.doc, doc);
-      if (patches.length === 0) return;
-      clock += 1;
-      if (broadcastPatches(patches)) await commitBase(doc);
     },
 
     publishLocalChange: async () => {

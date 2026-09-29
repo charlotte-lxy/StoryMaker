@@ -157,7 +157,7 @@ describe('广播本地改动', () => {
     expect(s.sent).toHaveLength(0);
   });
 
-  it('发不出去时基准不前移，重连后 announce 把差额补发', async () => {
+  it('发不出去时基准不前移，改动留在差额里', async () => {
     const doc = makeProject();
     const s = setup({ doc, base: { doc: structuredClone(doc), clock: 5 } });
     s.doc().characters[0].name = '离线时改的';
@@ -166,14 +166,17 @@ describe('广播本地改动', () => {
     await s.session.publishLocalChange();
     expect(s.sent).toHaveLength(0);
     expect(s.baseDoc()?.characters[0].name).toBe('甲'); // 基准原地不动
+  });
 
-    s.setSendOk(true);
-    s.clearSent();
+  it('announce 只打招呼，不抢在对账之前广播', async () => {
+    const doc = makeProject();
+    const s = setup({ doc, base: { doc: structuredClone(doc), clock: 5 } });
+    s.doc().characters[0].name = '离线时改的';
+
     await s.session.announce();
 
-    const patchMessage = s.sent.find((message) => message.type === 'patch');
-    expect(patchMessage).toBeDefined();
-    expect(patchMessage?.patches).toHaveLength(1);
+    expect(s.sent.map((message) => message.type)).toEqual(['hello']);
+    expect(s.baseDoc()?.characters[0].name).toBe('甲'); // 等对账，基准先别动
   });
 });
 
@@ -225,6 +228,25 @@ describe('收到别人的改动', () => {
 });
 
 describe('收到完整快照', () => {
+  it('我有离线改动、对方却没动过：把我的差额补发出去', async () => {
+    const base = makeProject();
+    const local = makeProject();
+    local.characters[0].name = '离线时改的';
+
+    const s = setup({ doc: local, base: { doc: structuredClone(base), clock: 1 } });
+    // 对方发来的快照和基准一模一样，说明他那边没动过
+    await s.session.handleMessage({
+      type: 'snapshot',
+      clientId: 'other',
+      clock: 3,
+      doc: structuredClone(base),
+    });
+
+    const patchMessage = s.sent.find((message) => message.type === 'patch');
+    expect(patchMessage).toBeDefined();
+    expect(patchMessage?.patches).toHaveLength(1);
+  });
+
   it('我没有基准、本机也没内容：直接采用对方的', async () => {
     const s = setup({ doc: makeEmptyProject(), base: null });
     await s.session.handleMessage({
