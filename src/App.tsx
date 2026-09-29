@@ -1186,6 +1186,7 @@ export default function App() {
                         listOpen={listOpen}
                         onOpenGroup={openGroup}
                         onJumpToOption={handleJumpToOption}
+                        onJumpToLine={handleJumpToLine}
                         onToggleList={() => setListCollapsed((current) => !current)}
                         onRenameGroup={(groupUid, title) =>
                           setProject((prev) => renameGroup(prev, groupUid, title))

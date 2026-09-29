@@ -19,6 +19,7 @@ function makeLine(uid: string, readableId: string, over: Partial<Line> = {}): Li
     text: { zh: '', en: '', ja: '' },
     autoAdvance: false,
     jumpGroupUid: null,
+    jumpConditions: [],
     command: '',
     optionIds: [],
     note: '',
@@ -251,6 +252,35 @@ describe('导出：跳到首句与跳到段落', () => {
     expect(row?.[7]).toBe('("剧情.播放对话# Dia_ch01_002-1")');
   });
 
+  it('「跳转到段落」的可用条件写进新增的「可用条件列表」列，其它行留空', () => {
+    const project = makeJumpProject();
+    project.chapters[0].groups[0].lines[2].jumpConditions = [
+      '背包#Item_Coin>=10',
+      '任务# Task_Test_01=1',
+    ];
+    const rows = buildRows(project);
+    const header = rows.dialogue[0];
+    expect(header[header.length - 1]).toBe('可用条件列表');
+
+    const jumpRow = rows.dialogue.slice(1).find((item) => item[0] === 'Dia_ch01_001-3');
+    expect(jumpRow?.[8]).toBe('("背包#Item_Coin>=10","任务# Task_Test_01=1")');
+    // 指令内容照旧只有那条跳转指令，条件不混进去
+    expect(jumpRow?.[7]).toBe('("剧情.播放对话# Dia_ch01_002-1")');
+
+    // 其它行（对话 / 选项）这一列是空的
+    for (const id of ['Dia_ch01_001-1', 'Dia_ch01_001-2', 'Dia_ch01_002-1']) {
+      expect(rows.dialogue.slice(1).find((item) => item[0] === id)?.[8]).toBe('');
+    }
+  });
+
+  it('可用条件里指向对话行的目标同样翻成对话 ID', () => {
+    const project = makeJumpProject();
+    project.chapters[0].groups[0].lines[2].jumpConditions = ['剧情# u1 = 1'];
+    const rows = buildRows(project);
+    const jumpRow = rows.dialogue.slice(1).find((item) => item[0] === 'Dia_ch01_001-3');
+    expect(jumpRow?.[8]).toBe('("剧情# Dia_ch01_001-1 = 1")');
+  });
+
   it('还没选段落、或指到的段落不在了：这一格留空，不写半截指令', () => {
     const unset = makeJumpProject();
     unset.chapters[0].groups[0].lines[2].jumpGroupUid = '';
@@ -448,7 +478,7 @@ describe('导出三张表', () => {
       '对话',
       '对话',
     ]);
-    for (const row of rows.dialogue) expect(row).toHaveLength(8);
+    for (const row of rows.dialogue) expect(row).toHaveLength(9);
   });
 
   it('「对话」行填角色与文本ID，两个列表都留空', () => {

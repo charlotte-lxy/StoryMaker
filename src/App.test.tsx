@@ -45,6 +45,24 @@ const rail = () => screen.getByRole('navigation');
 /** 选项跳转目标第二级下拉的 title：好几条用例都要按它找 */
 const LINE_SELECT_TITLE = '第二级：该段落内的对话；选「跳转到首句对话」表示跟着该段落的第一句走';
 
+/** 造一条「对话」行：用例里只关心 uid / 对话ID / 台词时用它 */
+function dialogueLine(uid: string, readableId: string, zh: string): Line {
+  return {
+    uid,
+    readableId,
+    kind: '对话',
+    characterId: '',
+    displayName: '',
+    text: { zh, en: '', ja: '' },
+    autoAdvance: false,
+    command: '',
+    jumpGroupUid: null,
+    jumpConditions: [],
+    optionIds: [],
+    note: '',
+  };
+}
+
 /** 假 dataTransfer：jsdom 里没有真实拖拽 */
 function blockTransfer(kind: '对话' | '选项' | '指令') {
   return {
@@ -860,6 +878,7 @@ describe('对话列表的批量编辑', () => {
       text: { zh, en: '', ja: '' },
       autoAdvance: false,
       jumpGroupUid: null,
+      jumpConditions: [],
       command: '',
       optionIds: [],
       note: '',
@@ -1197,6 +1216,60 @@ describe('「跳转到段落」脚本块', () => {
     fireEvent.change(select(), { target: { value: other?.value ?? '' } });
     expect(select().value).toBe(other?.value);
   });
+
+  it('这一行带一份「可用条件」，和选项里的可用条件是同一种填写方式', async () => {
+    const { container } = await renderApp();
+    fireEvent.click(screen.getByTitle('拖到列表里插入「跳转到段落」，或单击直接加到最后一行'));
+
+    // 字段名是「可用条件」，与选项里的那栏同名
+    const names = [...container.querySelectorAll('.line-field-name')].map((el) => el.textContent);
+    expect(names).toContain('可用条件');
+
+    fireEvent.click(screen.getByText('＋ 新增条件'));
+    const input = screen.getByPlaceholderText('尚未设置可用条件') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '背包#Item_Coin>=10' } });
+    expect((screen.getByPlaceholderText('尚未设置可用条件') as HTMLInputElement).value).toBe(
+      '背包#Item_Coin>=10',
+    );
+  });
+
+  it('流程图里也连一条线，点它会跳到那一条对话条目', async () => {
+    const project = createEmptyProject();
+    const first = project.chapters[0].groups[0];
+    first.lines = [
+      dialogueLine('a1', 'Dia_ch01_001-1', '开场白'),
+      {
+        ...dialogueLine('a2', 'Dia_ch01_001-2', ''),
+        kind: '指令',
+        jumpGroupUid: 'g2',
+      },
+    ];
+    project.chapters[0].groups.push({
+      uid: 'g2',
+      id: '002',
+      title: '码头',
+      note: '',
+      lines: [dialogueLine('b1', 'Dia_ch01_002-1', '码头的一句')],
+      options: [],
+    });
+    seedProjectFile(JSON.stringify(project));
+
+    const { container } = await renderApp();
+
+    // 线的标签是那条指令的段内序号
+    const labels = [...container.querySelectorAll('.flow-edge-label')];
+    expect(labels).toHaveLength(1);
+    expect(labels[0].textContent).toBe('2');
+
+    // 先切到别的段落，再点线：应该切回来并高亮到那一条
+    fireEvent.click(screen.getByTitle('打开「码头」的对话列表'));
+    expect(container.querySelector('.line-card')?.getAttribute('data-line-uid')).toBe('b1');
+
+    fireEvent.click(container.querySelector('.flow-edge-label') as HTMLElement);
+    expect(container.querySelector('.line-card')?.getAttribute('data-line-uid')).toBe('a1');
+    // 高亮的正是那条「跳转到段落」条目
+    expect(container.querySelector('.line-card.flash')?.getAttribute('data-line-uid')).toBe('a2');
+  });
 });
 
 describe('校验面板', () => {
@@ -1490,6 +1563,7 @@ describe('导出模块', () => {
       '文本ID',
       '选项列表',
       '指令列表',
+      '可用条件列表',
     ]);
 
     // 切到导入设置：表头换成算出来的两列

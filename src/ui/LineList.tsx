@@ -12,7 +12,7 @@ import type { CommandTargets } from '../core/command-build';
 import type { Character, CommandDef, Group, Line, StoryOption } from '../core/types';
 import type { GroupLineRefs } from '../state/operations';
 import { lineSequenceOf } from '../core/ids';
-import { CommandInput } from './CommandListInput';
+import { CommandInput, CommandListInput } from './CommandListInput';
 import { OptionListEditor } from './OptionListEditor';
 import { LINES_MIME, blockKindOf, isBlockDrag, type BlockId } from './script-blocks';
 
@@ -359,8 +359,8 @@ export function LineList(props: Props) {
                   )}
   
                   {line.kind === '指令' && line.jumpGroupUid !== null && (
-                    <Field label="跳转到段落" className="line-field-command">
-                      <span className="jump-group">
+                    <>
+                      <Field label="跳转到段落" className="line-field-jump">
                         <select
                           value={line.jumpGroupUid}
                           title="跳转到本章的哪个段落：导出成「剧情.播放对话# 该段落第一句的对话ID」"
@@ -380,11 +380,27 @@ export function LineList(props: Props) {
                               (choice) => choice.uid === line.jumpGroupUid,
                             ) && <option value={line.jumpGroupUid}>（段落已不存在）</option>}
                         </select>
-                        <span className="hint">
-                          导出为「剧情.播放对话# 该段落第一句的对话ID」，段落重排后自动跟着走
-                        </span>
-                      </span>
-                    </Field>
+                      </Field>
+
+                      {/* 可用条件：全部满足才跳，和选项里的「可用条件」是同一种东西 */}
+                      <Field label="可用条件" className="line-field-condition">
+                        <CommandListInput
+                          value={line.jumpConditions}
+                          defs={props.commandDefs}
+                          category="条件"
+                          targets={props.commandTargets}
+                          expressionsOf={(id) =>
+                            props.characters.find((c) => c.id === id)?.expressions ?? []
+                          }
+                          actionsOf={(id) =>
+                            props.characters.find((c) => c.id === id)?.actions ?? []
+                          }
+                          onChange={(next) => props.onUpdateLine(line.uid, { jumpConditions: next })}
+                          addLabel="＋ 新增条件"
+                          emptyHint="尚未设置可用条件"
+                        />
+                      </Field>
+                    </>
                   )}
 
                   {line.kind === '指令' && line.jumpGroupUid === null && (

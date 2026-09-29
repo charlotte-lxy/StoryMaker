@@ -203,9 +203,11 @@ describe('老结构自动迁移', () => {
     expect(line.readableId).toBe('Dia_ch01_001-1');
     // 老项目里没有 jumpGroupUid：要当成普通指令行，别被认成「跳转到段落」行
     expect(line.jumpGroupUid).toBeNull();
+    // 可用条件同样要补成空表，不然导出时读到 undefined 会炸
+    expect(line.jumpConditions).toEqual([]);
   });
 
-  it('「跳转到段落」行的段落引用读得回来', () => {
+  it('「跳转到段落」行的段落引用与可用条件都读得回来', () => {
     const result = normalizeProject({
       version: 1,
       chapters: [
@@ -226,6 +228,7 @@ describe('老结构自动迁移', () => {
                   kind: '指令',
                   command: '',
                   jumpGroupUid: 'g2',
+                  jumpConditions: ['背包#Item_Coin>=10'],
                   characterId: '',
                   displayName: '',
                   text: { zh: '', en: '', ja: '' },
@@ -240,6 +243,7 @@ describe('老结构自动迁移', () => {
     });
 
     expect(groupOf(result!.project).lines[0].jumpGroupUid).toBe('g2');
+    expect(groupOf(result!.project).lines[0].jumpConditions).toEqual(['背包#Item_Coin>=10']);
   });
 
   it('缺字段的老数据能补齐，不抛错', () => {

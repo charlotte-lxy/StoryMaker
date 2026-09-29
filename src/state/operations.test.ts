@@ -29,6 +29,7 @@ function makeLine(uid: string, readableId: string, zh: string): Line {
     text: { zh, en: '', ja: '' },
     autoAdvance: false,
     jumpGroupUid: null,
+    jumpConditions: [],
     command: '',
     optionIds: [],
     note: '',

@@ -29,21 +29,22 @@ export function ExportPreviewPage({ project }: Props) {
     <div className="editor" ref={editorRef}>
       <div className="editor-head">
         <h2>导出预览</h2>
-        <span className="hint">这里看到的就是导出到 xlsx 里的内容（表头 + 数据行），点上面的按钮换子表。</span>
-      </div>
+        <span className="hint">这里看到的就是导出到 xlsx 里的内容（表头 + 数据行），点下面的按钮换子表。</span>
 
-      <div className="sheet-tabs">
-        {sheets.map((sheet) => (
-          <button
-            key={sheet.name}
-            type="button"
-            className={sheet.name === current.name ? 'sheet-tab active' : 'sheet-tab'}
-            onClick={() => setPicked(sheet.name)}
-          >
-            {sheet.name}
-            <span className="count">{sheet.rows.length - 1}</span>
-          </button>
-        ))}
+        {/* 子表按钮放在标题栏里面（换到标题下面那行），这样它跟着标题栏一起冻结 */}
+        <div className="sheet-tabs">
+          {sheets.map((sheet) => (
+            <button
+              key={sheet.name}
+              type="button"
+              className={sheet.name === current.name ? 'sheet-tab active' : 'sheet-tab'}
+              onClick={() => setPicked(sheet.name)}
+            >
+              {sheet.name}
+              <span className="count">{sheet.rows.length - 1}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="battle-table-wrap">

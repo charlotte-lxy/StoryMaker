@@ -11,7 +11,7 @@
  * 这样前进的线是短横线，不再全部挤在一侧。
  */
 
-import { groupUidOfFirstLine } from './ids';
+import { groupUidOfFirstLine, lineSequenceOf } from './ids';
 import type { Project } from './types';
 
 export interface FlowBlock {
@@ -39,12 +39,14 @@ export interface FlowEdge {
   key: string;
   from: string;
   to: string;
-  /** 标签：单个选项就是它的文字，合并后是「文字 ×N」 */
+  /** 标签：单个选项就是它的文字、单个「跳转到段落」就是它的段内序号，合并后是「文字 ×N」 */
   label: string;
   /** 悬浮提示 */
   note: string;
   /** 这条线包含的选项，点标签跳到第一个 */
   optionUids: string[];
+  /** 这条线包含的「跳转到段落」行，没有选项时点标签跳到第一条 */
+  lineUids: string[];
 }
 
 export interface ChapterFlow {
@@ -81,12 +83,53 @@ export function buildChapterFlow(project: Project, chapterUid: string): ChapterF
     to: string;
     first: string;
     optionUids: string[];
+    /** 这条线里的「跳转到段落」行 */
+    lineUids: string[];
     lines: string[];
   }
   const bundles = new Map<string, Bundle>();
 
+  /** 往同一条线上加一笔；没有就新建 */
+  const addToBundle = (
+    from: string,
+    to: string,
+    first: string,
+    where: string,
+    item: { optionUid?: string; lineUid?: string },
+  ): void => {
+    const key = `${from}->${to}`;
+    const bundle = bundles.get(key);
+    if (bundle === undefined) {
+      bundles.set(key, {
+        from,
+        to,
+        first,
+        optionUids: item.optionUid === undefined ? [] : [item.optionUid],
+        lineUids: item.lineUid === undefined ? [] : [item.lineUid],
+        lines: [where],
+      });
+      return;
+    }
+    if (item.optionUid !== undefined) bundle.optionUids.push(item.optionUid);
+    if (item.lineUid !== undefined) bundle.lineUids.push(item.lineUid);
+    bundle.lines.push(where);
+  };
+
   for (const group of chapter.groups) {
     for (const line of group.lines) {
+      const here = group.title || group.id;
+
+      // 「跳转到段落」行和选项一样画线，标签用它的段内序号
+      if (line.kind === '指令' && line.jumpGroupUid !== null && line.jumpGroupUid !== '') {
+        const target = line.jumpGroupUid;
+        // 跳到本段落自己、或跳到本章之外的都不画（后者由别处体现）
+        if (target !== group.uid && titleOf.has(target)) {
+          addToBundle(group.uid, target, lineSequenceOf(line.readableId) || line.readableId, `${here} · ${line.readableId}：跳到「${titleOf.get(target) ?? ''}」`, {
+            lineUid: line.uid,
+          });
+        }
+      }
+
       if (line.kind !== '选项') continue;
 
       for (const optionUid of line.optionIds) {
@@ -98,28 +141,16 @@ export function buildChapterFlow(project: Project, chapterUid: string): ChapterF
           groupUidOfFirstLine(option.nextId) ?? groupOfLine.get(option.nextId);
         if (target === undefined || target === null || target === group.uid) continue;
 
-        const key = `${group.uid}->${target}`;
         const text = option.text.zh.trim() === '' ? option.readableId : option.text.zh.trim();
-        const bundle = bundles.get(key);
-
-        if (bundle === undefined) {
-          bundles.set(key, {
-            from: group.uid,
-            to: target,
-            first: text,
-            optionUids: [option.uid],
-            lines: [`${group.title || group.id} · ${line.readableId}：${text}`],
-          });
-          continue;
-        }
-        bundle.optionUids.push(option.uid);
-        bundle.lines.push(`${group.title || group.id} · ${line.readableId}：${text}`);
+        addToBundle(group.uid, target, text, `${here} · ${line.readableId}：${text}`, {
+          optionUid: option.uid,
+        });
       }
     }
   }
 
   const edges: FlowEdge[] = [...bundles.entries()].map(([key, bundle]) => {
-    const count = bundle.optionUids.length;
+    const count = bundle.optionUids.length + bundle.lineUids.length;
     return {
       key,
       from: bundle.from,
@@ -127,6 +158,7 @@ export function buildChapterFlow(project: Project, chapterUid: string): ChapterF
       label: count > 1 ? `${bundle.first} ×${count}` : bundle.first,
       note: [`跳到「${titleOf.get(bundle.to) ?? ''}」`, ...bundle.lines].join('\n'),
       optionUids: bundle.optionUids,
+      lineUids: bundle.lineUids,
     };
   });
 

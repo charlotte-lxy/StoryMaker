@@ -15,6 +15,7 @@ function makeLine(uid: string, readableId: string, over: Partial<Line> = {}): Li
     text: { zh: '', en: '', ja: '' },
     autoAdvance: false,
     jumpGroupUid: null,
+    jumpConditions: [],
     command: '',
     optionIds: [],
     note: '',
@@ -201,6 +202,7 @@ describe('章节流程图', () => {
         label: '去码头',
         note: '跳到「码头」\n开场 · Dia_ch01_001-1：去码头',
         optionUids: ['o1'],
+        lineUids: [],
       },
     ]);
   });
@@ -212,6 +214,62 @@ describe('章节流程图', () => {
     expect(flow!.edges[0].optionUids).toEqual(['o1', 'o2']);
     // 合并后的提示把两个选项都列出来
     expect(flow!.edges[0].note).toContain('也可以去码头');
+  });
+
+  it('「跳转到段落」行也连一条线，标签是它的段内序号，并记下是哪一行', () => {
+    const first = makeGroup('g1', '001', '开场', {
+      lines: [
+        makeLine('l1', 'Dia_ch01_001-1', { text: { zh: '开场白', en: '', ja: '' } }),
+        makeLine('l2', 'Dia_ch01_001-2', { kind: '指令', jumpGroupUid: 'g2' }),
+      ],
+    });
+    const second = makeGroup('g2', '002', '码头', {
+      lines: [makeLine('l3', 'Dia_ch01_002-1')],
+    });
+    const flow = buildChapterFlow(makeProject([makeChapter('c1', 'ch01', '序章', [first, second])]), 'c1');
+
+    expect(flow!.edges).toEqual([
+      {
+        key: 'g1->g2',
+        from: 'g1',
+        to: 'g2',
+        label: '2',
+        note: '跳到「码头」\n开场 · Dia_ch01_001-2：跳到「码头」',
+        optionUids: [],
+        lineUids: ['l2'],
+      },
+    ]);
+  });
+
+  it('选项和「跳转到段落」跳去同一段时合并成一条线', () => {
+    const base = jumpProject('l2');
+    base.chapters[0].groups[0].lines.push(
+      makeLine('l3', 'Dia_ch01_001-2', { kind: '指令', jumpGroupUid: 'g2' }),
+    );
+    const flow = buildChapterFlow(base, 'c1');
+
+    expect(flow!.edges).toHaveLength(1);
+    expect(flow!.edges[0].label).toBe('去码头 ×2');
+    expect(flow!.edges[0].optionUids).toEqual(['o1']);
+    expect(flow!.edges[0].lineUids).toEqual(['l3']);
+  });
+
+  it('跳到自己、跳到别章、还没选段落的都不画线', () => {
+    const first = makeGroup('g1', '001', '开场', {
+      lines: [
+        makeLine('l1', 'Dia_ch01_001-1', { kind: '指令', jumpGroupUid: 'g1' }),
+        makeLine('l2', 'Dia_ch01_001-2', { kind: '指令', jumpGroupUid: 'g9' }),
+        makeLine('l3', 'Dia_ch01_001-3', { kind: '指令', jumpGroupUid: '' }),
+      ],
+    });
+    const second = makeGroup('g2', '002', '码头', { lines: [makeLine('l4', 'Dia_ch01_002-1')] });
+    const other = makeChapter('c2', 'ch02', '第二章', [makeGroup('g9', '001', '别章段落')]);
+    const flow = buildChapterFlow(
+      makeProject([makeChapter('c1', 'ch01', '序章', [first, second]), other]),
+      'c1',
+    );
+
+    expect(flow!.edges).toEqual([]);
   });
 
   it('横轴按连接深度分层：被跳转到的段落排到右边一列', () => {

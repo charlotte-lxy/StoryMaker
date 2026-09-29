@@ -46,6 +46,11 @@ export interface Line {
    * 空串表示"是跳转行，但还没选段落"。
    */
   jumpGroupUid: string | null;
+  /**
+   * 「跳转到段落」行的可用条件：全部满足才跳（只有 jumpGroupUid 不为 null 时才有意义）。
+   * 与选项的可用条件同一种东西，导出到对话表的「可用条件列表」列。
+   */
+  jumpConditions: string[];
   /** 本行挂着的选项 ID 列表；只有「选项」行使用 */
   optionIds: string[];
   /** 备注，只给自己看，不导出 */

@@ -52,6 +52,8 @@ export const DIALOGUE_HEADER: readonly string[] = [
   '文本ID',
   '选项列表',
   '指令列表',
+  /* 「跳转到段落」行的可用条件（全部满足才跳）；其它行留空 */
+  '可用条件列表',
 ];
 
 export const OPTION_HEADER: readonly string[] = [
@@ -176,6 +178,12 @@ function pushLine(
     isDialogue ? textIdOf(line.readableId) : '',
     formatArrayLiteral(line.kind === '选项' ? line.optionIds.map(ref).filter((id) => id !== '') : []),
     formatArrayLiteral(commandsOf(line, group, groupOf).map(translate)),
+    // 可用条件只有「跳转到段落」行有：全部满足才跳
+    formatArrayLiteral(
+      line.kind === '指令' && line.jumpGroupUid !== null
+        ? line.jumpConditions.map(translate)
+        : [],
+    ),
   ]);
 
   // 只有「对话」行有文本，其余两种类型不进本地化表

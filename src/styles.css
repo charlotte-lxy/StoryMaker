@@ -1648,21 +1648,13 @@ table.lines tbody tr.line-row:hover {
 }
 
 /* 跳转目标：两级下拉竖排 */
-/* 「跳转到段落」行：一个段落下拉 + 一句说明 */
-.jump-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
+/* 「跳转到段落」行：一个段落下拉 + 一份可用条件 */
+.line-field-jump {
+  flex: 0 1 230px;
 }
 
-.jump-group select {
-  max-width: 260px;
-}
-
-.jump-group .hint {
-  color: var(--text-dim);
-  font-size: 11px;
+.line-field-condition {
+  flex: 1 1 320px;
 }
 
 .jump-selects {
@@ -2258,12 +2250,13 @@ select.missing {
   flex-direction: column;
 }
 
-/* 导出预览：上面一排子表按钮 */
+/* 导出预览：标题栏里的一排子表按钮，靠 flex-basis 换到标题下面一行
+   （不设下边距，间距由标题栏自己的 padding 给） */
 .sheet-tabs {
+  flex-basis: 100%;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-bottom: 10px;
 }
 
 .sheet-tab {

@@ -34,6 +34,8 @@ interface Props {
   listOpen: boolean;
   onOpenGroup: (groupUid: string) => void;
   onJumpToOption: (optionUid: string) => void;
+  /** 点「跳转到段落」那条线，跳到它所在的那一行 */
+  onJumpToLine: (lineUid: string) => void;
   onToggleList: () => void;
   onRenameGroup: (groupUid: string, title: string) => void;
   onSetGroupNote: (groupUid: string, note: string) => void;
@@ -374,22 +376,34 @@ export function ChapterFlow(props: Props) {
             })}
 
             {/* 线上的选项标签用 HTML 画：能截断、能点、能悬浮 */}
-            {layout.edges.map((route) => (
-              <button
-                key={`label-${route.edge.key}`}
-                type="button"
-                className={`flow-edge-label${activeEdges.has(route.edge.key) ? ' active' : ''}`}
-                style={{ left: route.labelX, top: route.labelY }}
-                title={`${route.edge.note}\n点一下跳到第一个选项`}
-                onMouseEnter={() => setFocus({ kind: 'edge', id: route.edge.key })}
-                onMouseLeave={() => setFocus(null)}
-                onFocus={() => setFocus({ kind: 'edge', id: route.edge.key })}
-                onBlur={() => setFocus(null)}
-                onClick={() => props.onJumpToOption(route.edge.optionUids[0])}
-              >
-                {route.edge.label}
-              </button>
-            ))}
+            {layout.edges.map((route) => {
+              // 这条线上可能只有选项、只有「跳转到段落」行，或者两者都有
+              const target =
+                route.edge.optionUids.length > 0
+                  ? { kind: 'option' as const, uid: route.edge.optionUids[0] }
+                  : { kind: 'line' as const, uid: route.edge.lineUids[0] };
+              return (
+                <button
+                  key={`label-${route.edge.key}`}
+                  type="button"
+                  className={`flow-edge-label${activeEdges.has(route.edge.key) ? ' active' : ''}`}
+                  style={{ left: route.labelX, top: route.labelY }}
+                  title={`${route.edge.note}\n点一下跳到${
+                    target.kind === 'option' ? '这条线的第一个选项' : '这条线的那个「跳转到段落」条目'
+                  }`}
+                  onMouseEnter={() => setFocus({ kind: 'edge', id: route.edge.key })}
+                  onMouseLeave={() => setFocus(null)}
+                  onFocus={() => setFocus({ kind: 'edge', id: route.edge.key })}
+                  onBlur={() => setFocus(null)}
+                  onClick={() => {
+                    if (target.kind === 'option') props.onJumpToOption(target.uid);
+                    else props.onJumpToLine(target.uid);
+                  }}
+                >
+                  {route.edge.label}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>

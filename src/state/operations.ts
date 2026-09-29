@@ -99,6 +99,7 @@ export function createLine(
     autoAdvance: false,
     command: '',
     jumpGroupUid: null,
+    jumpConditions: [],
     optionIds: [],
     note: '',
   };

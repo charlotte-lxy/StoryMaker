@@ -14,6 +14,7 @@ function makeLine(uid: string, zh: string): Line {
     text: { zh, en: 'Hi', ja: 'こんにちは' },
     autoAdvance: false,
     jumpGroupUid: null,
+    jumpConditions: [],
     command: '',
     optionIds: [],
     note: '',

@@ -85,6 +85,7 @@ function makeLine(kind: LineKind, over: Partial<Line> = {}): Line {
     command: '',
     // 老项目里没有这个字段：null = 普通行（不是「跳转到段落」行）
     jumpGroupUid: null,
+    jumpConditions: [],
     optionIds: [],
     note: '',
     ...over,
@@ -269,6 +270,9 @@ function migrateGroup(group: Group, chapterId: string, changes: IdChange[]): voi
           command: asString(raw.command),
           // 后加的字段：字符串就是它引用的段落 uid，其它（含老项目里的 undefined）当普通行
           jumpGroupUid: typeof raw.jumpGroupUid === 'string' ? raw.jumpGroupUid : null,
+          jumpConditions: Array.isArray(raw.jumpConditions)
+            ? raw.jumpConditions.filter((item): item is string => typeof item === 'string')
+            : [],
           optionIds: rawKind === '选项' ? optionIds : [],
           note: asString(raw.note),
         }),
