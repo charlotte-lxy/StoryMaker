@@ -11,6 +11,7 @@
  * 这样前进的线是短横线，不再全部挤在一侧。
  */
 
+import { groupUidOfFirstLine } from './ids';
 import type { Project } from './types';
 
 export interface FlowBlock {
@@ -92,8 +93,10 @@ export function buildChapterFlow(project: Project, chapterUid: string): ChapterF
         const option = group.options.find((item) => item.uid === optionUid);
         if (option === undefined || option.nextId === '') continue;
 
-        const target = groupOfLine.get(option.nextId);
-        if (target === undefined || target === group.uid) continue;
+        // 「跳转到首句对话」记的是段落 uid，直接就是线上的终点
+        const target =
+          groupUidOfFirstLine(option.nextId) ?? groupOfLine.get(option.nextId);
+        if (target === undefined || target === null || target === group.uid) continue;
 
         const key = `${group.uid}->${target}`;
         const text = option.text.zh.trim() === '' ? option.readableId : option.text.zh.trim();

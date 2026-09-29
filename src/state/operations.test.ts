@@ -28,6 +28,7 @@ function makeLine(uid: string, readableId: string, zh: string): Line {
     displayName: '',
     text: { zh, en: '', ja: '' },
     autoAdvance: false,
+    jumpGroupUid: null,
     command: '',
     optionIds: [],
     note: '',
@@ -276,6 +277,27 @@ describe('批量编辑：移动与删除', () => {
     expect(next.chapters[1].groups[0].lines.map((l) => l.uid)).toEqual(['z']);
   });
 
+  it('搬到别的段落时能选插到开头', () => {
+    const next = moveLines(makeBatchProject(), 'g1', ['a', 'c'], 'g2', 'start');
+    const to = next.chapters[0].groups[1];
+
+    // 「码头」原来那一行被挤到后面去
+    expect(to.lines.map((l) => l.uid)).toEqual(['a', 'c', 'y']);
+    expect(to.lines.map((l) => l.readableId)).toEqual([
+      'Dia_ch01_002-1',
+      'Dia_ch01_002-2',
+      'Dia_ch01_002-3',
+    ]);
+  });
+
+  it('目标是当前段落时：整组挪到本段最前 / 最后', () => {
+    const toStart = moveLines(makeBatchProject(), 'g1', ['c'], 'g1', 'start');
+    expect(toStart.chapters[0].groups[0].lines.map((l) => l.uid)).toEqual(['c', 'a', 'b', 'd']);
+
+    const toEnd = moveLines(makeBatchProject(), 'g1', ['a'], 'g1', 'end');
+    expect(toEnd.chapters[0].groups[0].lines.map((l) => l.uid)).toEqual(['b', 'c', 'd', 'a']);
+  });
+
   it('原项目对象不被就地修改', () => {
     const project = makeBatchProject();
     moveLines(project, 'g1', ['a'], 'g2');
@@ -337,6 +359,23 @@ describe('批量拖拽排序（整组搬）', () => {
     const project = fiveLines();
     moveLinesTogether(project, 'g1', ['c'], 0);
     expect(project.chapters[0].groups[0].lines.map((l) => l.uid)).toEqual(['a', 'b', 'c', 'd', 'e']);
+  });
+});
+
+describe('插入「跳转到段落」块', () => {
+  it('插出来的是「指令」行，带着一个还没填的段落引用', () => {
+    const next = renumberOneGroup(insertLine(makeProject(), 'g1', 1, '跳转到段落'), 'g1');
+    const line = next.chapters[0].groups[0].lines[1];
+
+    expect(line.kind).toBe('指令');
+    // null 表示"不是跳转行"，空串表示"是跳转行但还没选段落"
+    expect(line.jumpGroupUid).toBe('');
+    expect(line.command).toBe('');
+  });
+
+  it('普通块插出来的行不是跳转行', () => {
+    const next = insertLine(makeProject(), 'g1', 0, '指令');
+    expect(next.chapters[0].groups[0].lines[0].jumpGroupUid).toBeNull();
   });
 });
 

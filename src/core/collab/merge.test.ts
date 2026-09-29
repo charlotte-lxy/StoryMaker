@@ -13,6 +13,7 @@ function makeLine(uid: string, zh: string): Line {
     displayName: '',
     text: { zh, en: 'Hi', ja: 'こんにちは' },
     autoAdvance: false,
+    jumpGroupUid: null,
     command: '',
     optionIds: [],
     note: '',

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 
 import { buildChapterFlow, layoutChapterFlow } from '../core/flow';
 import type { Project } from '../core/types';
+import { isLinesDrag } from './script-blocks';
 import { useScrollMemory } from './view-memory';
 
 /** 块的尺寸与间距：布局由 core/flow 算，这里只提供数字 */
@@ -36,6 +37,8 @@ interface Props {
   onToggleList: () => void;
   onRenameGroup: (groupUid: string, title: string) => void;
   onSetGroupNote: (groupUid: string, note: string) => void;
+  /** 批量编辑里把勾中的行拖到某个段落块上：视为「移动至」那个段落 */
+  onDropLines: (groupUid: string) => void;
 }
 
 function sameHeights(a: Record<string, number>, b: Record<string, number>): boolean {
@@ -63,6 +66,8 @@ export function ChapterFlow(props: Props) {
   const [focus, setFocus] = useState<{ kind: 'edge' | 'block'; id: string } | null>(null);
   const [renaming, setRenaming] = useState<{ uid: string; draft: string } | null>(null);
   const [noting, setNoting] = useState<{ uid: string; draft: string } | null>(null);
+  /** 批量编辑拖过来的行正悬在哪个段落块上：那块高亮，松手就搬过去 */
+  const [dropAt, setDropAt] = useState<string | null>(null);
 
   // 容器宽度变了要重算布局（拖动分隔线、拉窗口都会触发）
   useEffect(() => {
@@ -262,6 +267,7 @@ export function ChapterFlow(props: Props) {
                     uid === props.activeGroupUid ? 'selected' : '',
                     activeBlocks.has(uid) ? 'active' : '',
                     editingName || editingNote ? 'editing' : '',
+                    dropAt === uid ? 'drop-lines' : '',
                   ]
                     .filter(Boolean)
                     .join(' ')}
@@ -274,6 +280,20 @@ export function ChapterFlow(props: Props) {
                   onMouseLeave={() => setFocus(null)}
                   onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
                     if (event.key === 'Enter') props.onOpenGroup(uid);
+                  }}
+                  /* 批量编辑里把勾中的行拖到这块上：视为「移动至」这个段落 */
+                  onDragOver={(event) => {
+                    if (!isLinesDrag(event.dataTransfer)) return;
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = 'move';
+                    setDropAt(uid);
+                  }}
+                  onDragLeave={() => setDropAt((current) => (current === uid ? null : current))}
+                  onDrop={(event) => {
+                    if (!isLinesDrag(event.dataTransfer)) return;
+                    event.preventDefault();
+                    setDropAt(null);
+                    props.onDropLines(uid);
                   }}
                 >
                   <span className="flow-block-tools">

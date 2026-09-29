@@ -201,6 +201,45 @@ describe('老结构自动迁移', () => {
     expect(line.command).toBe('剧情.特殊# SP_1');
     expect(line.note).toBe('这句要等 BGM 淡出');
     expect(line.readableId).toBe('Dia_ch01_001-1');
+    // 老项目里没有 jumpGroupUid：要当成普通指令行，别被认成「跳转到段落」行
+    expect(line.jumpGroupUid).toBeNull();
+  });
+
+  it('「跳转到段落」行的段落引用读得回来', () => {
+    const result = normalizeProject({
+      version: 1,
+      chapters: [
+        {
+          uid: 'c1',
+          id: 'ch01',
+          title: '序章',
+          groups: [
+            {
+              uid: 'g1',
+              id: '001',
+              title: '开场',
+              options: [],
+              lines: [
+                {
+                  uid: 'l1',
+                  readableId: 'Dia_ch01_001-1',
+                  kind: '指令',
+                  command: '',
+                  jumpGroupUid: 'g2',
+                  characterId: '',
+                  displayName: '',
+                  text: { zh: '', en: '', ja: '' },
+                  autoAdvance: false,
+                  optionIds: [],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(groupOf(result!.project).lines[0].jumpGroupUid).toBe('g2');
   });
 
   it('缺字段的老数据能补齐，不抛错', () => {

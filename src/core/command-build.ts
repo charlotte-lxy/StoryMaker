@@ -21,6 +21,14 @@ export interface CommandTargets {
   lines: { id: string; label: string }[];
 }
 
+/**
+ * 「跳转到段落」块导出时用的指令头。
+ *
+ * 与字典里「剧情.播放对话」那条完全一致，只是这条不靠下拉填目标，
+ * 而是由所选段落当前的第一句现拼出来（见 core/export.ts）。
+ */
+export const PLAY_DIALOGUE_HEAD = '剧情.播放对话';
+
 /** 指令定义里某个目标来源对应哪张数据表 */
 export function targetKindToLookup(kind: TargetKind): LookupKind | null {
   switch (kind) {

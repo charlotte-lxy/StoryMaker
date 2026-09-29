@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createEmptyBattle } from './battle';
 
+import { firstLineRef } from './ids';
 import { validateLocalization, validateProject } from './validate';
 import type { Group, Line, Project, StoryOption } from './types';
 
@@ -14,6 +15,7 @@ function makeLine(uid: string, readableId: string, over: Partial<Line> = {}): Li
     displayName: '伊芙',
     text: { zh: '台词', en: '', ja: '' },
     autoAdvance: false,
+    jumpGroupUid: null,
     command: '',
     optionIds: [],
     note: '',
@@ -91,6 +93,69 @@ it('抓出选项指向不存在目标的跳转', () => {
   expect(report.errors).toBe(1);
   expect(report.issues[0].code).toBe('dangling-next');
   expect(report.issues[0].targetId).toBe('Dia_ch01_001-1A');
+});
+
+it('选项指到某个段落的「首句」时，段落还在就不算悬空', () => {
+  const project = makeProject({
+    lines: [
+      makeLine('u1', 'Dia_ch01_001-1', { kind: '选项', optionIds: ['o-a'] }),
+      makeLine('u2', 'Dia_ch01_001-2'),
+    ],
+    options: [makeOption('o-a', 'Dia_ch01_001-1A', { nextId: firstLineRef('g1') })],
+  });
+  expect(validateProject(project)).toMatchObject({ errors: 0, warnings: 0, issues: [] });
+});
+
+it('选项指的段落被删掉了：报必须修复', () => {
+  const project = makeProject({
+    lines: [makeLine('u1', 'Dia_ch01_001-1', { kind: '选项', optionIds: ['o-a'] })],
+    options: [makeOption('o-a', 'Dia_ch01_001-1A', { nextId: firstLineRef('没这个段落') })],
+  });
+  const report = validateProject(project);
+  expect(report.errors).toBe(1);
+  expect(report.issues[0].code).toBe('jump-dangling');
+});
+
+it('「跳转到段落」行：没选段落、指到空段落、指到不存在的段落各有提示', () => {
+  const unset = makeProject({
+    lines: [makeLine('u1', 'Dia_ch01_001-1', { kind: '指令', jumpGroupUid: '' })],
+  });
+  expect(validateProject(unset).issues.map((i) => i.code)).toEqual(['jump-no-target']);
+
+  const empty = makeProject({
+    lines: [makeLine('u1', 'Dia_ch01_001-1', { kind: '指令', jumpGroupUid: 'g-empty' })],
+  });
+  empty.chapters[0].groups.push({
+    uid: 'g-empty',
+    id: '002',
+    title: '空段落',
+    note: '',
+    lines: [],
+    options: [],
+  });
+  expect(validateProject(empty).issues.map((i) => i.code)).toEqual(['jump-empty-group']);
+
+  const lost = makeProject({
+    lines: [makeLine('u1', 'Dia_ch01_001-1', { kind: '指令', jumpGroupUid: '没这个段落' })],
+  });
+  const report = validateProject(lost);
+  expect(report.errors).toBe(1);
+  expect(report.issues[0].code).toBe('jump-dangling');
+});
+
+it('「跳转到段落」指到的段落里有对话时，一条提示都没有', () => {
+  const project = makeProject({
+    lines: [makeLine('u1', 'Dia_ch01_001-1', { kind: '指令', jumpGroupUid: 'g2' })],
+  });
+  project.chapters[0].groups.push({
+    uid: 'g2',
+    id: '002',
+    title: '码头',
+    note: '',
+    lines: [makeLine('u2', 'Dia_ch01_002-1')],
+    options: [],
+  });
+  expect(validateProject(project)).toMatchObject({ errors: 0, warnings: 0, issues: [] });
 });
 
 it('抓出引用不存在的选项', () => {

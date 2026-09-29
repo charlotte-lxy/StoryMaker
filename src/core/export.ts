@@ -34,8 +34,9 @@ import {
   WEAPON_SHEET,
   buildBattleRows,
 } from './battle-export';
+import { PLAY_DIALOGUE_HEAD } from './command-build';
 import { IMPORT_SETTINGS_SHEET, buildImportSettingRows } from './export-settings';
-import { textIdOf } from './ids';
+import { firstLineIdOf, groupUidOfFirstLine, textIdOf } from './ids';
 import type { Group, Line, Project, StoryOption } from './types';
 
 export const DIALOGUE_SHEET = '对话';
@@ -82,11 +83,21 @@ function buildIdMap(project: Project): Map<string, string> {
   return map;
 }
 
+/** 段落 uid → 段落。选项的「跳转到首句」和「跳转到段落」行都要按它现取第一句 */
+function buildGroupMap(project: Project): Map<string, Group> {
+  const map = new Map<string, Group>();
+  for (const chapter of project.chapters) {
+    for (const group of chapter.groups) map.set(group.uid, group);
+  }
+  return map;
+}
+
 type RefFn = (uid: string) => string;
 
 /** 生成三张表的行数据，供导出与测试共用 */
 export function buildRows(project: Project): ExportRowSets {
   const idOf = buildIdMap(project);
+  const groupOf = buildGroupMap(project);
   const ref: RefFn = (uid) => (uid === '' ? '' : idOf.get(uid) ?? '');
 
   const dialogue: string[][] = [[...DIALOGUE_HEADER]];
@@ -96,14 +107,14 @@ export function buildRows(project: Project): ExportRowSets {
   for (const chapter of project.chapters) {
     for (const group of chapter.groups) {
       for (const line of group.lines) {
-        pushLine(line, group, ref, dialogue, locale);
+        pushLine(line, group, ref, groupOf, dialogue, locale);
 
         // 「选项」行的选项紧随该行输出，与现有本地化表的排列习惯一致
         if (line.kind !== '选项') continue;
         for (const optionUid of line.optionIds) {
           const option = group.options.find((o) => o.uid === optionUid);
           if (option === undefined) continue; // 悬空引用交由校验层报告
-          pushOption(option, ref, options, locale);
+          pushOption(option, ref, groupOf, options, locale);
         }
       }
     }
@@ -121,6 +132,7 @@ function pushLine(
   line: Line,
   group: Group,
   ref: RefFn,
+  groupOf: Map<string, Group>,
   dialogue: string[][],
   locale: string[][],
 ): void {
@@ -134,7 +146,7 @@ function pushLine(
     isDialogue && line.autoAdvance ? 'True' : '',
     isDialogue ? textIdOf(line.readableId) : '',
     formatArrayLiteral(line.kind === '选项' ? line.optionIds.map(ref).filter((id) => id !== '') : []),
-    formatArrayLiteral(commandsOf(line, group)),
+    formatArrayLiteral(commandsOf(line, group, groupOf)),
   ]);
 
   // 只有「对话」行有文本，其余两种类型不进本地化表
@@ -146,12 +158,17 @@ function pushLine(
 /**
  * 一行要写进「指令列表」的内容。
  *
- *   「指令」行 - 就是它自己那一条
- *   「选项」行 - 它名下所有选项的「结果」（已和需求方确认）
- *   「对话」行 - 空
+ *   「指令」行     - 就是它自己那一条；「跳转到段落」行则是现拼出来的那一条
+ *   「选项」行     - 它名下所有选项的「结果」（已和需求方确认）
+ *   「对话」行     - 空
  */
-function commandsOf(line: Line, group: Group): string[] {
+function commandsOf(line: Line, group: Group, groupOf: Map<string, Group>): string[] {
   if (line.kind === '指令') {
+    // 「跳转到段落」：指令内容按所选段落当时的第一句现拼，段落重排后自动跟着走
+    if (line.jumpGroupUid !== null) {
+      const firstId = firstLineIdOfGroup(groupOf, line.jumpGroupUid);
+      return firstId === '' ? [] : [`${PLAY_DIALOGUE_HEAD}# ${firstId}`];
+    }
     const command = line.command.trim();
     return command === '' ? [] : [command];
   }
@@ -169,9 +186,16 @@ function commandsOf(line: Line, group: Group): string[] {
   return merged;
 }
 
+/** 某个段落的第一句对话 ID；段落不存在或还是空段落时返回空串 */
+function firstLineIdOfGroup(groupOf: Map<string, Group>, groupUid: string): string {
+  const group = groupOf.get(groupUid);
+  return group === undefined ? '' : firstLineIdOf(group);
+}
+
 function pushOption(
   option: StoryOption,
   ref: RefFn,
+  groupOf: Map<string, Group>,
   options: string[][],
   locale: string[][],
 ): void {
@@ -182,10 +206,18 @@ function pushOption(
     formatArrayLiteral(option.appearConditions),
     formatArrayLiteral(option.enableConditions),
     formatArrayLiteral(option.results),
-    ref(option.nextId),
+    // 「跳转到首句对话」记的是段落，这里现取该段落当时的第一句
+    resolveNext(option.nextId, ref, groupOf),
   ]);
 
   locale.push([textIdOf(option.readableId), option.text.zh, option.text.en, option.text.ja]);
+}
+
+/** 选项的「下一对话ID」：普通跳转按 uid 翻译，跳到首句的按段落现取 */
+function resolveNext(value: string, ref: RefFn, groupOf: Map<string, Group>): string {
+  const groupUid = groupUidOfFirstLine(value);
+  if (groupUid === null) return ref(value);
+  return firstLineIdOfGroup(groupOf, groupUid);
 }
 
 /** 东亚宽字符按两个半角宽度估算，用于设置列宽 */

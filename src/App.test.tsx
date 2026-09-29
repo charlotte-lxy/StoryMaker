@@ -11,6 +11,7 @@ import {
   type FakeHost,
 } from './testing/app-harness';
 import { createEmptyProject } from './state/operations';
+import { LINES_MIME } from './ui/script-blocks';
 import { resetViewMemory } from './ui/view-memory';
 
 /** 当前用例的假宿主：一块"磁盘" + 上次打开的项目路径 */
@@ -40,6 +41,9 @@ afterEach(() => {
 
 /** 左侧模块导航 */
 const rail = () => screen.getByRole('navigation');
+
+/** 选项跳转目标第二级下拉的 title：好几条用例都要按它找 */
+const LINE_SELECT_TITLE = '第二级：该段落内的对话；选「跳转到首句对话」表示跟着该段落的第一句走';
 
 /** 假 dataTransfer：jsdom 里没有真实拖拽 */
 function blockTransfer(kind: '对话' | '选项' | '指令') {
@@ -141,9 +145,7 @@ describe('界面冒烟测试', () => {
     expect(groupSelect.value).toBe('');
     expect(screen.getByText('（对话结束）')).toBeTruthy();
     // 第二级在对话结束时禁用
-    expect((screen.getByTitle('第二级：该段落内的对话（序号 - 台词）') as HTMLSelectElement).disabled).toBe(
-      true,
-    );
+    expect((screen.getByTitle(LINE_SELECT_TITLE) as HTMLSelectElement).disabled).toBe(true);
   });
 
   it('跳转目标可以选到具体段落与对话，再切回对话结束', async () => {
@@ -153,14 +155,14 @@ describe('界面冒烟测试', () => {
     const groupSelect = screen.getByTitle('第一级：目标段落') as HTMLSelectElement;
     fireEvent.change(groupSelect, { target: { value: groupSelect.options[1].value } });
 
-    const lineSelect = screen.getByTitle('第二级：该段落内的对话（序号 - 台词）') as HTMLSelectElement;
+    const lineSelect = screen.getByTitle(LINE_SELECT_TITLE) as HTMLSelectElement;
     expect(lineSelect.disabled).toBe(false);
-    expect(lineSelect.value).not.toBe('');
+    // 选完段落默认落在「（跳转到首句对话）」上：记的是段落，不钉死具体某一句
+    expect(lineSelect.value).toBe(`@first:${groupSelect.options[1].value}`);
+    expect(lineSelect.selectedOptions[0].textContent).toBe('（跳转到首句对话）');
 
     fireEvent.change(groupSelect, { target: { value: '' } });
-    expect(
-      (screen.getByTitle('第二级：该段落内的对话（序号 - 台词）') as HTMLSelectElement).disabled,
-    ).toBe(true);
+    expect((screen.getByTitle(LINE_SELECT_TITLE) as HTMLSelectElement).disabled).toBe(true);
   });
 
   it('能切换到角色模块', async () => {
@@ -857,6 +859,7 @@ describe('对话列表的批量编辑', () => {
       displayName: '',
       text: { zh, en: '', ja: '' },
       autoAdvance: false,
+      jumpGroupUid: null,
       command: '',
       optionIds: [],
       note: '',
@@ -944,23 +947,23 @@ describe('对话列表的批量编辑', () => {
     expect(pane.querySelectorAll('.line-select').length).toBeGreaterThan(0);
   });
 
-  it('「移动至」用两级下拉选目标段落，确认后搬过去并重新编号', async () => {
+  it('「移动至」弹窗里选目标段落，再选插到开头或末尾', async () => {
     seedBatchProject();
     const pane = await openBatch();
 
     fireEvent.click(pane.querySelectorAll('.line-select')[1]);
     fireEvent.click(screen.getByText('移动至'));
 
-    const chapterSelect = screen.getByTitle('第一级：目标章节') as HTMLSelectElement;
-    const groupSelect = screen.getByTitle('第二级：目标段落（该章节内）') as HTMLSelectElement;
-    expect(groupSelect.disabled).toBe(true);
-
-    fireEvent.change(chapterSelect, { target: { value: chapterSelect.options[1].value } });
-    expect(groupSelect.disabled).toBe(false);
+    // 弹窗里两级下拉 + 两个竖排按钮
+    const groupSelect = screen.getByTitle('目标段落（该章节内）') as HTMLSelectElement;
+    expect(screen.getByTitle('目标章节')).toBeTruthy();
+    expect(screen.getByText('移动 1 行到')).toBeTruthy();
+    expect(screen.getByText('插入到开头')).toBeTruthy();
+    expect(screen.getByText('插入到末尾')).toBeTruthy();
 
     const dock = [...groupSelect.options].find((option) => option.textContent?.startsWith('码头'));
     fireEvent.change(groupSelect, { target: { value: dock?.value ?? '' } });
-    fireEvent.click(screen.getByText('移动'));
+    fireEvent.click(screen.getByText('插入到开头'));
 
     // 搬走的那行不在当前列表里了，留下的两行编号接着排
     expect(pane.querySelectorAll('.line-card')).toHaveLength(2);
@@ -968,12 +971,36 @@ describe('对话列表的批量编辑', () => {
       [...pane.querySelectorAll('.line-seq')].map((seq) => seq.getAttribute('title')),
     ).toEqual(['对话 ID：Dia_ch01_001-1', '对话 ID：Dia_ch01_001-2']);
 
-    // 切到「码头」：搬过去的行在末尾，ID 按新段落重排
+    // 切到「码头」：插到了开头，ID 按新段落重排
     fireEvent.click(screen.getByTitle('打开「码头」的对话列表'));
-    expect(screen.getByDisplayValue('第二句')).toBeTruthy();
+    expect(
+      [...document.querySelectorAll('.list-pane .line-card textarea')].map(
+        (area) => (area as HTMLTextAreaElement).value,
+      ),
+    ).toEqual(['第二句', '码头的一句']);
     expect(
       [...document.querySelectorAll('.list-pane .line-seq')].map((seq) => seq.getAttribute('title')),
     ).toEqual(['对话 ID：Dia_ch01_002-1', '对话 ID：Dia_ch01_002-2']);
+  });
+
+  it('「移动至」弹窗选「插入到末尾」时追加在目标段落后面', async () => {
+    seedBatchProject();
+    const pane = await openBatch();
+
+    fireEvent.click(pane.querySelectorAll('.line-select')[1]);
+    fireEvent.click(screen.getByText('移动至'));
+
+    const groupSelect = screen.getByTitle('目标段落（该章节内）') as HTMLSelectElement;
+    const dock = [...groupSelect.options].find((option) => option.textContent?.startsWith('码头'));
+    fireEvent.change(groupSelect, { target: { value: dock?.value ?? '' } });
+    fireEvent.click(screen.getByText('插入到末尾'));
+
+    fireEvent.click(screen.getByTitle('打开「码头」的对话列表'));
+    expect(
+      [...document.querySelectorAll('.list-pane .line-card textarea')].map(
+        (area) => (area as HTMLTextAreaElement).value,
+      ),
+    ).toEqual(['码头的一句', '第二句']);
   });
 
   it('「批量删除」要先确认，取消不动、确定才删干净', async () => {
@@ -1086,6 +1113,89 @@ describe('对话列表的批量编辑', () => {
     expect(wordsOf(pane)).toEqual(['第五句', '第一句', '第二句', '第三句', '第四句']);
     // 勾选跟着那一行走：原来勾的是「第二句」，它现在排在第 3 位
     expect(checkedOf(pane)).toEqual([false, false, true, false, false]);
+  });
+
+  it('把勾中的行拖到流程图上的段落块：弹出同一个「移动至」弹窗，目标预先选好', async () => {
+    seedBatchProject();
+    const pane = await openBatch();
+
+    fireEvent.click(pane.querySelectorAll('.line-select')[0]);
+    const block = [...document.querySelectorAll('.flow-block')].find(
+      (item) => item.getAttribute('data-block-uid') === 'g2',
+    ) as HTMLElement;
+    expect(block).toBeTruthy();
+
+    const linesTransfer = {
+      types: [LINES_MIME],
+      getData: () => '',
+      setData: () => undefined,
+      effectAllowed: 'move',
+      dropEffect: 'move',
+    };
+
+    fireEvent.dragOver(block, { dataTransfer: linesTransfer });
+    expect(block.className).toContain('drop-lines');
+
+    fireEvent.drop(block, { dataTransfer: linesTransfer });
+    expect(screen.getByText('移动 1 行到')).toBeTruthy();
+    // 拖到哪个块，弹窗里的目标段落就是哪个
+    expect((screen.getByTitle('目标段落（该章节内）') as HTMLSelectElement).value).toBe('g2');
+
+    fireEvent.click(screen.getByText('插入到末尾'));
+    fireEvent.click(screen.getByTitle('打开「码头」的对话列表'));
+    expect(
+      [...document.querySelectorAll('.list-pane .line-card textarea')].map(
+        (area) => (area as HTMLTextAreaElement).value,
+      ),
+    ).toEqual(['码头的一句', '第一句']);
+  });
+
+  it('删掉中间一行后，段内序号立刻补上，不留空洞', async () => {
+    const { container } = await renderApp();
+    clickBlock('指令');
+    clickBlock('指令');
+    expect([...container.querySelectorAll('.line-seq')].map((seq) => seq.textContent)).toEqual([
+      '1',
+      '2',
+      '3',
+    ]);
+
+    fireEvent.click(screen.getAllByTitle('删除这一行')[1]);
+
+    expect(container.querySelectorAll('.line-card')).toHaveLength(2);
+    expect([...container.querySelectorAll('.line-seq')].map((seq) => seq.textContent)).toEqual([
+      '1',
+      '2',
+    ]);
+    expect(
+      [...container.querySelectorAll('.line-seq')].map((seq) => seq.getAttribute('title')),
+    ).toEqual(['对话 ID：Dia_ch01_001-1', '对话 ID：Dia_ch01_001-2']);
+  });
+});
+
+describe('「跳转到段落」脚本块', () => {
+  const JUMP_TITLE = '跳转到本章的哪个段落：导出成「剧情.播放对话# 该段落第一句的对话ID」';
+
+  it('单击块插入一条「指令」行，下拉里能选本章段落', async () => {
+    const { container } = await renderApp();
+    fireEvent.click(screen.getByTitle('拖到列表里插入「跳转到段落」，或单击直接加到最后一行'));
+
+    // 块插出来的是「指令」行（导出时文本类型也是指令）
+    expect(container.querySelector('.type-card-指令')).toBeTruthy();
+    const select = () => screen.getByTitle(JUMP_TITLE) as HTMLSelectElement;
+    expect(select().value).toBe('');
+    // 只有一行的时候，下拉里就是它自己所在的这一段（插进来的这条指令也算一行）
+    expect([...select().options].map((option) => option.textContent)).toEqual([
+      '（选择段落）',
+      '开场（2 行）',
+    ]);
+
+    // 再加一段，下拉里就能选到别的段落了
+    fireEvent.click(screen.getByTitle('在本章新增段落'));
+    const other = [...select().options].find((option) => option.textContent?.includes('段落 2'));
+    expect(other).toBeTruthy();
+    fireEvent.change(select(), { target: { value: other?.value ?? '' } });
+    expect(select().value).toBe(other?.value);
   });
 });
 
@@ -1422,6 +1532,43 @@ describe('滚动位置记忆', () => {
       fireEvent.click(within(rail()).getByText('剧情'));
       const back = container.querySelector('.list-pane .editor') as HTMLElement;
       expect(back.scrollTop).toBe(320);
+    } finally {
+      restore();
+    }
+  });
+
+  it('切到别的段落再切回来，对话列表还停在原来的位置', async () => {
+    const project = createEmptyProject();
+    project.chapters[0].groups.push({
+      uid: 'g2',
+      id: '002',
+      title: '码头',
+      note: '',
+      lines: [],
+      options: [],
+    });
+    seedProjectFile(JSON.stringify(project));
+
+    const { container } = await renderApp();
+    const restore = stubScrollTop();
+
+    try {
+      const editor = () => container.querySelector('.list-pane .editor') as HTMLElement;
+      editor().scrollTop = 260;
+      fireEvent.scroll(editor());
+
+      const groups = [...container.querySelectorAll<HTMLElement>('.tree-group')];
+      expect(groups).toHaveLength(2);
+
+      // 换成按段落记之后，两段各记各的
+      fireEvent.click(groups[1]);
+      expect(editor().scrollTop).toBe(0);
+
+      fireEvent.click(groups[0]);
+      expect(editor().scrollTop).toBe(260);
+
+      fireEvent.click(groups[1]);
+      expect(editor().scrollTop).toBe(0);
     } finally {
       restore();
     }

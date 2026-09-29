@@ -38,6 +38,14 @@ export interface Line {
   autoAdvance: boolean;
   /** 一条演出指令，如「剧情.人物# CHA_Q版伊芙.差分 = 挥手」；只有「指令」行使用，一行一条 */
   command: string;
+  /**
+   * 「跳转到段落」行专用的段落引用（其它行是 null）。
+   *
+   * 存的是段落 uid，导出时现拼成「剧情.播放对话# <该段落第一句的对话ID>」，
+   * 这样段落里插行、拖拽、删行之后跳转自动跟着新的第一句走。
+   * 空串表示"是跳转行，但还没选段落"。
+   */
+  jumpGroupUid: string | null;
   /** 本行挂着的选项 ID 列表；只有「选项」行使用 */
   optionIds: string[];
   /** 备注，只给自己看，不导出 */

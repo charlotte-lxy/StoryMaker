@@ -18,7 +18,6 @@ import type {
   CommandDef,
   LangKey,
   Line,
-  LineKind,
   LookupRow,
   Project,
   StoryOption,
@@ -67,6 +66,7 @@ import {
   updateLookupRow,
   updateTextByUid,
   updateUiText,
+  type InsertKind,
   type LookupKind,
 } from './state/operations';
 import {
@@ -92,6 +92,7 @@ import { IssuePanel } from './ui/IssuePanel';
 import { LineList } from './ui/LineList';
 import { LocalizationEditor } from './ui/LocalizationEditor';
 import { LookupEditor } from './ui/LookupEditor';
+import { MoveLinesDialog } from './ui/MoveLinesDialog';
 import { MergeSummaryDialog } from './ui/MergeSummaryDialog';
 import { ProjectGate } from './ui/ProjectGate';
 import { SettingsEditor } from './ui/SettingsEditor';
@@ -201,6 +202,11 @@ export default function App() {
   const [selectedLineUids, setSelectedLineUids] = useState<string[]>([]);
   /** 上一次点的那一行：按住 Shift 连选时，区间从这里算起 */
   const [selectAnchorUid, setSelectAnchorUid] = useState<string | null>(null);
+  /**
+   * 「移动至」弹窗开着的时候记着它：从工具栏点开时目标段落是空串，
+   * 从流程图拖到某个段落块上时就是被拖到的那个段落。
+   */
+  const [moveTarget, setMoveTarget] = useState<{ groupUid: string } | null>(null);
 
   /**
    * 统一的确认入口。
@@ -213,8 +219,7 @@ export default function App() {
   };
   /** 分栏容器：拖分隔线时按它的宽度算比例 */
   const splitBoxRef = useRef<HTMLDivElement | null>(null);
-  /** 对话列表那一栏：切模块回来时回到原来的滚动位置 */
-  const storyListRef = useScrollMemory('story:list');
+  /** 对话列表那一栏的滚动位置（按段落记，见下面的 storyListRef） */
 
   /**
    * 启动：认出宿主 → 按上次记住的路径读项目文件 → 读不回来（或压根没有）就停在门槛页。
@@ -323,8 +328,20 @@ export default function App() {
     [project, activeChapter],
   );
 
-  /** 指令下拉的目标候选：把各数据表整理成 { id, label } */
-  const commandTargets = useMemo(
+  /**
+   * 「跳转到段落」行下拉里的候选：只列本章的段落。
+   * 标签用段落名 + 行数——跳过去实际播的是它的第一句。
+   */
+  const chapterGroupChoices = useMemo(
+    () =>
+      activeChapter?.groups.map((item) => ({
+        uid: item.uid,
+        label: `${item.title || item.id}（${item.lines.length} 行）`,
+      })) ?? [],
+    [activeChapter],
+  );
+
+  /** 指令下拉的目标候选：把各数据表整理成 { id, label } */  const commandTargets = useMemo(
     () =>
       collectCommandTargets(
         project,
@@ -340,6 +357,13 @@ export default function App() {
 
   const firstGroupUid = activeChapter?.groups[0]?.uid ?? '';
   const activeUid = activeGroupUid === '' ? firstGroupUid : activeGroupUid;
+  /**
+   * 对话列表那一栏的滚动位置。
+   *
+   * 按段落分别记：切模块回来还在原处，切到别的段落再切回来也在原处
+   * （同一个滚动元素，只换 key，所以不会互相冲掉）。
+   */
+  const storyListRef = useScrollMemory(`story:list:${activeUid}`);
   const location = locateGroup(project, activeUid);
   const group = location?.group;
   const listOpen = !listCollapsed;
@@ -403,14 +427,21 @@ export default function App() {
     setProject((prev) => renumberOneGroup(reorderLine(prev, activeUid, from, to), activeUid));
   };
 
-  /** 脚本块拖进列表后插入一行；新行的编号由重排统一给出 */
-  const handleInsertLine = (index: number, kind: LineKind): void => {
-    setProject((prev) => renumberOneGroup(insertLine(prev, activeUid, index, kind), activeUid));
+  /** 脚本块拖进列表后插入一行（含「跳转到段落」）；新行的编号由重排统一给出 */
+  const handleInsertLine = (index: number, blockId: InsertKind): void => {
+    setProject((prev) => renumberOneGroup(insertLine(prev, activeUid, index, blockId), activeUid));
   };
 
   /** 单击脚本块：直接加到当前段落的最后一行 */
-  const handlePickBlock = (kind: LineKind): void => {
-    handleInsertLine(group?.lines.length ?? 0, kind);
+  const handlePickBlock = (blockId: InsertKind): void => {
+    handleInsertLine(group?.lines.length ?? 0, blockId);
+  };
+
+  /** 删除一行：删完立刻重排，段内序号不留空洞 */
+  const handleRemoveLine = (lineUid: string): void => {
+    setProject((prev) =>
+      renumberOneGroup(removeLine(prev, activeUid, lineUid), activeUid),
+    );
   };
 
   /** 进出批量编辑模式：退出时把勾选和连选起点一起清掉，下次进来是干净的 */
@@ -477,18 +508,29 @@ export default function App() {
     setSelectedLineUids([]);
   };
 
-  /** 批量移动：勾选的行整段搬到目标段落末尾，ID 由 moveLines 重排 */
-  const handleMoveSelectedLines = (targetGroupUid: string): void => {
+  /** 批量移动：勾选的行搬到目标段落的开头或末尾，ID 由 moveLines 自己重排 */
+  const handleMoveSelectedLines = (
+    targetGroupUid: string,
+    position: 'start' | 'end',
+  ): void => {
     if (selectedLineUids.length === 0) return;
     const target = locateGroup(project, targetGroupUid);
     if (target === undefined) return;
     const count = selectedLineUids.length;
-    setProject((prev) => moveLines(prev, activeUid, selectedLineUids, targetGroupUid));
+    setMoveTarget(null);
+    setProject((prev) => moveLines(prev, activeUid, selectedLineUids, targetGroupUid, position));
     setSelectedLineUids([]);
     setToast(
-      `已把 ${count} 行移动到「${target.chapter.title || target.chapter.id} / ` +
-        `${target.group.title || target.group.id}」，两边的对话 ID 都已重新编号`,
+      `已把 ${count} 行${position === 'start' ? '插到' : '追加到'}「` +
+        `${target.chapter.title || target.chapter.id} / ${target.group.title || target.group.id}」` +
+        `${position === 'start' ? '开头' : '末尾'}，涉及的两边对话 ID 都已重新编号`,
     );
+  };
+
+  /** 从流程图把勾中的行拖到某个段落块上：视为「移动至」那个段落 */
+  const handleDropLinesOnGroup = (groupUid: string): void => {
+    if (selectedLineUids.length === 0) return;
+    setMoveTarget({ groupUid });
   };
 
   /** 批量删除：先二次确认，再把勾选的行连同它们的选项一起删掉 */
@@ -504,7 +546,9 @@ export default function App() {
         (optionCount > 0 ? `其中挂着 ${optionCount} 个选项，会一并删除。` : '') +
         '删除后无法撤销。',
       () => {
-        setProject((prev) => removeLines(prev, activeUid, selectedLineUids));
+        setProject((prev) =>
+          renumberOneGroup(removeLines(prev, activeUid, selectedLineUids), activeUid),
+        );
         setSelectedLineUids([]);
         setToast(`已删除 ${count} 行`);
       },
@@ -1149,6 +1193,7 @@ export default function App() {
                         onSetGroupNote={(groupUid, note) =>
                           setProject((prev) => setGroupNote(prev, groupUid, note))
                         }
+                        onDropLines={handleDropLinesOnGroup}
                       />
                     </div>
 
@@ -1188,13 +1233,11 @@ export default function App() {
                                   {/* 工具条放在标题栏里面（换到标题下面那行），这样它跟着标题栏一起冻结 */}
                                   {batchMode && (
                                     <BatchEditBar
-                                      chapters={project.chapters}
-                                      sourceGroupUid={activeUid}
                                       totalCount={group.lines.length}
                                       selectedCount={selectedLineUids.length}
                                       onSelectAll={handleSelectAllLines}
                                       onDeselectAll={handleDeselectAllLines}
-                                      onMove={handleMoveSelectedLines}
+                                      onMoveTo={() => setMoveTarget({ groupUid: '' })}
                                       onRemove={handleRemoveSelectedLines}
                                     />
                                   )}
@@ -1203,6 +1246,7 @@ export default function App() {
                                 <LineList
                                   group={group}
                                   groupedLines={chapterGroups}
+                                  groupChoices={chapterGroupChoices}
                                   characters={project.characters}
                                   commandDefs={project.commands}
                                   commandTargets={commandTargets}
@@ -1215,9 +1259,7 @@ export default function App() {
                                   onUpdateLine={updateLine}
                                   onUpdateOption={updateOption}
                                   onInsertLine={handleInsertLine}
-                                  onRemoveLine={(lineUid) =>
-                                    setProject((prev) => removeLine(prev, activeUid, lineUid))
-                                  }
+                                  onRemoveLine={handleRemoveLine}
                                   onReorderLine={handleReorderLine}
                                   onJumpToLine={handleJumpToLine}
                                   onAddOption={(lineUid) =>
@@ -1266,6 +1308,17 @@ export default function App() {
             setConfirmRequest(null);
             action();
           }}
+        />
+      )}
+
+      {moveTarget !== null && (
+        <MoveLinesDialog
+          chapters={project.chapters}
+          sourceGroupUid={activeUid}
+          count={selectedLineUids.length}
+          targetGroupUid={moveTarget.groupUid}
+          onMove={handleMoveSelectedLines}
+          onCancel={() => setMoveTarget(null)}
         />
       )}
 

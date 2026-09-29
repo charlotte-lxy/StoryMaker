@@ -14,6 +14,7 @@ function makeLine(uid: string, readableId: string, over: Partial<Line> = {}): Li
     displayName: '',
     text: { zh: '', en: '', ja: '' },
     autoAdvance: false,
+    jumpGroupUid: null,
     command: '',
     optionIds: [],
     note: '',

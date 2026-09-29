@@ -68,6 +68,29 @@ export interface IdChange {
 }
 
 /**
+ * 「跳转到首句对话」的引用前缀。
+ *
+ * 选项的下一对话 ID 与「跳转到段落」行都可以不指向具体某一行，而是指向一个段落——
+ * 意思是"跳到那个段落的第一句"。因为句号会随着插行 / 拖拽 / 删行重排，
+ * 这种引用只在导出（以及画流程图）时才现取该段落当时的第一句。
+ */
+export const FIRST_LINE_PREFIX = '@first:';
+
+export function firstLineRef(groupUid: string): string {
+  return FIRST_LINE_PREFIX + groupUid;
+}
+
+/** 是「跳转到首句」的引用时返回它指向的段落 uid，否则返回 null */
+export function groupUidOfFirstLine(value: string): string | null {
+  return value.startsWith(FIRST_LINE_PREFIX) ? value.slice(FIRST_LINE_PREFIX.length) : null;
+}
+
+/** 段落的"第一句"是哪一行；空段落返回空串 */
+export function firstLineIdOf(group: Group): string {
+  return group.lines[0]?.readableId ?? '';
+}
+
+/**
  * 重排一个组内的可读 ID，返回新旧对照表。
  *
  * 只改 readableId，不动 uid，因此跳转目标与选项关联不会断。

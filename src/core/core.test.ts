@@ -5,7 +5,7 @@ import { createEmptyBattle } from './battle';
 
 import { escapeCsvField, parseCsv, toCsv, withBom, withoutBom } from './csv';
 import { formatArrayLiteral, parseArrayLiteral } from './array-literal';
-import { makeLineId, makeOptionId, renumberGroup, textIdOf } from './ids';
+import { firstLineRef, makeLineId, makeOptionId, renumberGroup, textIdOf } from './ids';
 import { DIALOGUE_HEADER, buildRows, countLines, exportWorkbook } from './export';
 import type { Group, Line, Project, StoryOption } from './types';
 
@@ -18,6 +18,7 @@ function makeLine(uid: string, readableId: string, over: Partial<Line> = {}): Li
     displayName: '',
     text: { zh: '', en: '', ja: '' },
     autoAdvance: false,
+    jumpGroupUid: null,
     command: '',
     optionIds: [],
     note: '',
@@ -173,6 +174,95 @@ describe('重排 ID', () => {
   it('无变化时不产生对照项', () => {
     const group = makeGroup();
     expect(renumberGroup(group, 'ch01')).toEqual([]);
+  });
+});
+
+describe('导出：跳到首句与跳到段落', () => {
+  /** 段落 001：一句台词 + 一个「选项」行 + 一条「跳转到段落」；段落 002 是目标 */
+  function makeJumpProject(): Project {
+    const talk = makeLine('u1', 'Dia_ch01_001-1', { text: { zh: '开场', en: '', ja: '' } });
+    const chose = makeLine('u2', 'Dia_ch01_001-2', { kind: '选项', optionIds: ['o-a'] });
+    const jump = makeLine('u3', 'Dia_ch01_001-3', { kind: '指令', jumpGroupUid: 'g2' });
+    // 选项的跳转目标记的是"段落 002 的第一句"，不是具体某一行
+    const optA = makeOption('o-a', 'Dia_ch01_001-2A', { nextId: firstLineRef('g2') });
+
+    return {
+      version: 1,
+      name: '跳转测试',
+      characters: [],
+      sounds: [],
+      commands: [],
+      items: [],
+      quests: [],
+      images: [],
+      variables: [],
+      uiTexts: [],
+      battle: createEmptyBattle(),
+      exportSettings: [],
+      chapters: [
+        {
+          uid: 'c1',
+          id: 'ch01',
+          title: '序章',
+          groups: [
+            { uid: 'g1', id: '001', title: '开场', note: '', lines: [talk, chose, jump], options: [optA] },
+            {
+              uid: 'g2',
+              id: '002',
+              title: '码头',
+              note: '',
+              lines: [
+                makeLine('u4', 'Dia_ch01_002-1', { text: { zh: 'A', en: '', ja: '' } }),
+                makeLine('u5', 'Dia_ch01_002-2', { text: { zh: 'B', en: '', ja: '' } }),
+              ],
+              options: [],
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  const optionRow = (project: Project): string[] => {
+    const row = buildRows(project).options.slice(1).find((item) => item[0] === 'Dia_ch01_001-2A');
+    if (row === undefined) throw new Error('选项表里没有这一条');
+    return row;
+  };
+
+  it('选项选了「跳转到首句对话」：导出的下一对话ID 是目标段落当时的第一句', () => {
+    expect(optionRow(makeJumpProject())[5]).toBe('Dia_ch01_002-1');
+  });
+
+  it('目标段落里插了一行之后，不用改选项，导出的首句跟着变', () => {
+    const project = makeJumpProject();
+    const group = project.chapters[0].groups[1];
+    // 和界面上插入一行一样：插进去再重排
+    group.lines.unshift(makeLine('u6', 'Dia_ch01_002-3', { text: { zh: '新插的第一句', en: '', ja: '' } }));
+    renumberGroup(group, 'ch01');
+
+    expect(optionRow(project)[5]).toBe('Dia_ch01_002-1');
+    expect(project.chapters[0].groups[1].lines[0].uid).toBe('u6');
+  });
+
+  it('「跳转到段落」行导出成「剧情.播放对话# 该段落第一句的对话ID」', () => {
+    const rows = buildRows(makeJumpProject());
+    const row = rows.dialogue.slice(1).find((item) => item[0] === 'Dia_ch01_001-3');
+    expect(row?.[1]).toBe('指令'); // 文本类型还是「指令」
+    expect(row?.[7]).toBe('("剧情.播放对话# Dia_ch01_002-1")');
+  });
+
+  it('还没选段落、或指到的段落不在了：这一格留空，不写半截指令', () => {
+    const unset = makeJumpProject();
+    unset.chapters[0].groups[0].lines[2].jumpGroupUid = '';
+    expect(
+      buildRows(unset).dialogue.slice(1).find((item) => item[0] === 'Dia_ch01_001-3')?.[7],
+    ).toBe('');
+
+    const lost = makeJumpProject();
+    lost.chapters[0].groups[0].lines[2].jumpGroupUid = '已经删掉的段落';
+    expect(
+      buildRows(lost).dialogue.slice(1).find((item) => item[0] === 'Dia_ch01_001-3')?.[7],
+    ).toBe('');
   });
 });
 

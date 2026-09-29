@@ -37,7 +37,7 @@ pnpm dev          # 开发服务器 http://localhost:5180
 | `pnpm build` | `dist/` 多文件 | 内网服务器 |
 | `pnpm build:single` | `release/` | 策划双击即用的单文件产物 |
 | `pnpm build:app` | `app-release/win-unpacked/` | Electron 桌面版 |
-| `pnpm test` | — | 233 个测试 |
+| `pnpm test` | — | 369 个测试 |
 | `pnpm verify:release` | — | 单文件产物自检 |
 | `pnpm verify:server` | — | 本地服务自检（真起进程、真发 HTTP、真落盘） |
 

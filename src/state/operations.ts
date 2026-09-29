@@ -6,7 +6,7 @@
 
 import { createEmptyBattle } from '../core/battle';
 import { EXPORT_SUBTABLES } from '../core/export-settings';
-import { makeLineId, makeOptionId, newUid, renumberGroup, type IdChange } from '../core/ids';
+import { makeLineId, makeOptionId, newUid, renumberGroup, groupUidOfFirstLine, type IdChange } from '../core/ids';
 import type {
   Chapter,
   CommandDef,
@@ -98,10 +98,21 @@ export function createLine(
     text: { zh: '', en: '', ja: '' },
     autoAdvance: false,
     command: '',
+    jumpGroupUid: null,
     optionIds: [],
     note: '',
   };
 }
+
+/**
+ * 能拖进对话列表的脚本块：三种行类型，外加「跳转到段落」。
+ *
+ * 「跳转到段落」生成的是「指令」行（导出时文本类型就是指令），
+ * 只是它的指令内容由所选段落现拼，所以要单独区分开。
+ */
+export type InsertKind = LineKind | '跳转到段落';
+
+export const JUMP_BLOCK = '跳转到段落';
 
 export function createOption(hostLineId: string, index: number): StoryOption {
   return {
@@ -219,6 +230,9 @@ function previewOf(line: Line, group: Group): string {
 /** 反查某个对话行属于哪个段落，用于回填两级下拉的第一级 */
 export function groupUidOfLine(grouped: GroupLineRefs[], lineUid: string): string {
   if (lineUid === '') return '';
+  // 「跳转到首句对话」记的是段落 uid，直接就是第一级要的值
+  const byFirstLine = groupUidOfFirstLine(lineUid);
+  if (byFirstLine !== null) return byFirstLine;
   for (const group of grouped) {
     if (group.lines.some((line) => line.uid === lineUid)) return group.groupUid;
   }
@@ -283,14 +297,22 @@ export function insertLine(
   project: Project,
   groupUid: string,
   index: number,
-  kind: LineKind,
+  kind: InsertKind,
 ): Project {
   return mutate(project, (draft) => {
     const location = locateGroup(draft, groupUid);
     if (location === undefined) return;
     const { chapter, group } = location;
     const at = Math.max(0, Math.min(index, group.lines.length));
-    const line = createLine(chapter.id, group.id, group.lines.length + 1, kind);
+    // 「跳转到段落」也是一条指令行，只是多带一个段落引用（还没选时是空串）
+    const jump = kind === JUMP_BLOCK;
+    const line = createLine(
+      chapter.id,
+      group.id,
+      group.lines.length + 1,
+      jump ? '指令' : kind,
+    );
+    if (jump) line.jumpGroupUid = '';
     // 「选项」行默认带一个选项，省得策划还要先点一下加号
     if (kind === '选项') {
       const option = createOption(line.readableId, 0);
@@ -330,20 +352,20 @@ export function removeLines(project: Project, groupUid: string, lineUids: string
 }
 
 /**
- * 批量移动到别的段落：按选中顺序追加到目标段落末尾。
+ * 批量移动到目标段落：插到开头或末尾。
  *
- * 「选项」行的选项跟着一起搬；两个段落都重排一次可读 ID，
+ * 「选项」行的选项跟着一起搬；两边都重排一次可读 ID，
  * 因为搬到别的章节时 ID 前缀（章节 + 段落号）整个都要换。
+ * 目标是当前段落时，就变成"把勾中的行挪到本段最前 / 最后"。
  */
 export function moveLines(
   project: Project,
   fromGroupUid: string,
   lineUids: string[],
   toGroupUid: string,
+  position: 'start' | 'end' = 'end',
 ): Project {
-  return mutate(project, (draft) => {
-    // 搬到当前段落等于什么都没做
-    if (fromGroupUid === toGroupUid) return;
+  const moved = mutate(project, (draft) => {
     const from = locateGroup(draft, fromGroupUid);
     const to = locateGroup(draft, toGroupUid);
     if (from === undefined || to === undefined) return;
@@ -351,6 +373,8 @@ export function moveLines(
     const moving = new Set(lineUids);
     const movedLines = from.group.lines.filter((line) => moving.has(line.uid));
     if (movedLines.length === 0) return;
+    // 同一段落里换位置：不搬去别处，直接把整组挪到最前 / 最后
+    if (fromGroupUid === toGroupUid) return;
 
     const movedOptions = new Set<string>();
     for (const line of movedLines) {
@@ -360,12 +384,18 @@ export function moveLines(
 
     from.group.lines = from.group.lines.filter((line) => !moving.has(line.uid));
     from.group.options = from.group.options.filter((o) => !movedOptions.has(o.uid));
-    to.group.lines.push(...movedLines);
+    if (position === 'start') to.group.lines.unshift(...movedLines);
+    else to.group.lines.push(...movedLines);
     to.group.options.push(...carried);
 
     renumberGroup(from.group, from.chapter.id);
     renumberGroup(to.group, to.chapter.id);
   });
+
+  if (fromGroupUid !== toGroupUid) return moved;
+  // 同段落：按"整组搬"的算法挪到最前 / 最后
+  const lines = findGroup(moved, fromGroupUid)?.lines.length ?? 0;
+  return moveLinesTogether(moved, fromGroupUid, lineUids, position === 'start' ? 0 : lines);
 }
 
 /**

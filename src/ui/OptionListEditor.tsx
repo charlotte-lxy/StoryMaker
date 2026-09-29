@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 
 import type { CommandTargets } from '../core/command-build';
-import { lineSequenceOf } from '../core/ids';
+import { firstLineRef, groupUidOfFirstLine, lineSequenceOf } from '../core/ids';
 import type { Character, CommandDef, Group, Line, StoryOption } from '../core/types';
 import { groupUidOfLine, type GroupLineRefs } from '../state/operations';
 import { CommandListInput } from './CommandListInput';
@@ -24,6 +24,9 @@ interface Props {
 /** 空值表示对话结束，导出时这一格留空 */
 const JUMP_END = '';
 
+/** 第二级下拉里"跟着该段落第一句走"那一项的名字 */
+const FIRST_LINE_LABEL = '（跳转到首句对话）';
+
 /**
  * 跳转目标下拉里的条目：只写「段内序号 - 台词」。
  *
@@ -39,6 +42,9 @@ function lineOptionLabel(line: { readableId: string; preview: string }): string 
 /**
  * 跳转目标的两级下拉：先选段落，再选该段落里的对话 ID。
  * 第一级选「（对话结束）」时第二级禁用，导出留空。
+ *
+ * 第二级的第一项是「（跳转到首句对话）」：它记的是"哪个段落"而不是具体某一句，
+ * 段落里插行、拖过顺序之后，导出时取的都是那个段落当时的第一句。
  */
 function JumpTargetSelects({
   value,
@@ -54,6 +60,15 @@ function JumpTargetSelects({
   const groupUid = groupUidOfLine(groupedLines, value);
   const dangling = value !== '' && groupUid === '';
   const current = groupedLines.find((item) => item.groupUid === groupUid);
+  /** 现在选的是"该段落的第一句"这种引用 */
+  const isFirstLine = groupUidOfFirstLine(value) !== null;
+  const firstLineValue = current === undefined ? '' : firstLineRef(current.groupUid);
+  /** 指向某一行、但那一行已经不在了（比如引用过的对话被删掉） */
+  const lostLine =
+    current !== undefined &&
+    value !== '' &&
+    !isFirstLine &&
+    !current.lines.some((line) => line.uid === value);
 
   return (
     <div className="jump-selects">
@@ -67,9 +82,9 @@ function JumpTargetSelects({
             return;
           }
           if (next === '__dangling__') return;
-          const target = groupedLines.find((item) => item.groupUid === next);
-          // 切到新段落时默认选中该段落的第一行，避免出现「有段落没对话」的空档
-          onChange(target?.lines[0]?.uid ?? JUMP_END);
+          // 切到新段落时默认选「跳转到首句对话」：不钉死具体某一句，
+          // 段落里插行、拖过顺序，跳转自动跟着新的第一句走
+          onChange(firstLineRef(next));
         }}
       >
         <option value={JUMP_END}>（对话结束）</option>
@@ -85,17 +100,21 @@ function JumpTargetSelects({
         <select
           value={current === undefined ? '' : value}
           disabled={current === undefined}
-          title="第二级：该段落内的对话（序号 - 台词）"
+          title="第二级：该段落内的对话；选「跳转到首句对话」表示跟着该段落的第一句走"
           onChange={(event) => onChange(event.target.value)}
         >
-          {current === undefined || current.lines.length === 0 ? (
+          {current === undefined ? (
             <option value="">—</option>
           ) : (
-            current.lines.map((line) => (
-              <option key={line.uid} value={line.uid}>
-                {lineOptionLabel(line)}
-              </option>
-            ))
+            <>
+              <option value={firstLineValue}>{FIRST_LINE_LABEL}</option>
+              {current.lines.map((line) => (
+                <option key={line.uid} value={line.uid}>
+                  {lineOptionLabel(line)}
+                </option>
+              ))}
+              {lostLine && <option value={value}>（目标已失效）</option>}
+            </>
           )}
         </select>
 
@@ -104,7 +123,7 @@ function JumpTargetSelects({
           className="jump-button"
           disabled={value === '' || dangling}
           title="跳转到目标对话"
-          onClick={() => onJump(value)}
+          onClick={() => onJump(isFirstLine ? (current?.lines[0]?.uid ?? '') : value)}
         >
           跳转
         </button>

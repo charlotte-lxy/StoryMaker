@@ -9,16 +9,24 @@ import {
 } from 'react';
 
 import type { CommandTargets } from '../core/command-build';
-import type { Character, CommandDef, Group, Line, LineKind, StoryOption } from '../core/types';
+import type { Character, CommandDef, Group, Line, StoryOption } from '../core/types';
 import type { GroupLineRefs } from '../state/operations';
 import { lineSequenceOf } from '../core/ids';
 import { CommandInput } from './CommandListInput';
 import { OptionListEditor } from './OptionListEditor';
-import { blockKindOf, isBlockDrag } from './script-blocks';
+import { LINES_MIME, blockKindOf, isBlockDrag, type BlockId } from './script-blocks';
+
+/** 「跳转到段落」下拉里的一个候选段落 */
+export interface GroupChoice {
+  uid: string;
+  label: string;
+}
 
 interface Props {
   group: Group;
   groupedLines: GroupLineRefs[];
+  /** 本章的段落：供「跳转到段落」行选目标 */
+  groupChoices: GroupChoice[];
   characters: Character[];
   /** 指令字典与各数据表整理出的下拉候选 */
   commandDefs: CommandDef[];
@@ -30,7 +38,7 @@ interface Props {
   onUpdateLine: (lineUid: string, patch: Partial<Line>) => void;
   onUpdateOption: (optionUid: string, patch: Partial<StoryOption>) => void;
   /** 在 index 位置插入一行（index 是插入点，等于行数表示追加到末尾） */
-  onInsertLine: (index: number, kind: LineKind) => void;
+  onInsertLine: (index: number, blockId: BlockId) => void;
   onRemoveLine: (lineUid: string) => void;
   /** 拖拽排序，参数是段落内的起止下标 */
   onReorderLine: (from: number, to: number) => void;
@@ -242,6 +250,10 @@ export function LineList(props: Props) {
                 }
                 setDragIndex(index);
                 event.dataTransfer.effectAllowed = 'move';
+                // 批量编辑里拖勾中的行：带上标记，拖到流程图段落块上就等于「移动至」那个段落
+                if (props.batchMode && selected) {
+                  event.dataTransfer.setData(LINES_MIME, line.uid);
+                }
               }}
               onDragEnd={clearDrag}
               className={[
@@ -346,7 +358,36 @@ export function LineList(props: Props) {
                     </Field>
                   )}
   
-                  {line.kind === '指令' && (
+                  {line.kind === '指令' && line.jumpGroupUid !== null && (
+                    <Field label="跳转到段落" className="line-field-command">
+                      <span className="jump-group">
+                        <select
+                          value={line.jumpGroupUid}
+                          title="跳转到本章的哪个段落：导出成「剧情.播放对话# 该段落第一句的对话ID」"
+                          onChange={(event) =>
+                            props.onUpdateLine(line.uid, { jumpGroupUid: event.target.value })
+                          }
+                        >
+                          <option value="">（选择段落）</option>
+                          {props.groupChoices.map((choice) => (
+                            <option key={choice.uid} value={choice.uid}>
+                              {choice.label}
+                            </option>
+                          ))}
+                          {/* 段落被删掉后留下的悬空引用也要显示出来，好让人改回去 */}
+                          {line.jumpGroupUid !== '' &&
+                            !props.groupChoices.some(
+                              (choice) => choice.uid === line.jumpGroupUid,
+                            ) && <option value={line.jumpGroupUid}>（段落已不存在）</option>}
+                        </select>
+                        <span className="hint">
+                          导出为「剧情.播放对话# 该段落第一句的对话ID」，段落重排后自动跟着走
+                        </span>
+                      </span>
+                    </Field>
+                  )}
+
+                  {line.kind === '指令' && line.jumpGroupUid === null && (
                     <Field label="指令" className="line-field-command">
                       <CommandInput
                         value={line.command}

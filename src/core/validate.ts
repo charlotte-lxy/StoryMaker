@@ -7,7 +7,7 @@
  * 每条问题都带上它属于哪个段落、哪一行，界面点一下就能跳过去。
  */
 
-import { textIdOf } from './ids';
+import { groupUidOfFirstLine, textIdOf } from './ids';
 import type { Group, LocalizedText, Project } from './types';
 
 export type IssueLevel = 'error' | 'warning';
@@ -39,6 +39,9 @@ export type IssueCode =
   | 'duplicate-id'
   | 'dangling-next'
   | 'next-outside-chapter'
+  | 'jump-no-target'
+  | 'jump-dangling'
+  | 'jump-empty-group'
   | 'dangling-option'
   | 'orphan-option'
   | 'empty-text'
@@ -87,6 +90,9 @@ export function validateProject(project: Project): ValidationReport {
   const allUids = new Set<string>();
   /** 对话行 uid → 它属于哪一章（判断选项有没有跳到别章） */
   const lineChapter = new Map<string, { uid: string; label: string }>();
+  /** 段落 uid → 段落本身，以及它属于哪一章（「跳转到首句」「跳转到段落」要查） */
+  const groupByUid = new Map<string, Group>();
+  const groupChapter = new Map<string, { uid: string; label: string }>();
 
   const record = (readableId: string, seen: Omit<Seen, 'count'>): void => {
     const existing = idCounts.get(readableId);
@@ -97,6 +103,8 @@ export function validateProject(project: Project): ValidationReport {
   for (const chapter of project.chapters) {
     for (const group of chapter.groups) {
       const where = `${chapter.title || chapter.id} / ${group.title || group.id}`;
+      groupByUid.set(group.uid, group);
+      groupChapter.set(group.uid, { uid: chapter.uid, label: chapter.title || chapter.id });
       for (const line of group.lines) {
         allUids.add(line.uid);
         lineChapter.set(line.uid, { uid: chapter.uid, label: chapter.title || chapter.id });
@@ -180,6 +188,39 @@ export function validateProject(project: Project): ValidationReport {
 
         // 「指令」行只要求填了指令
         if (line.kind === '指令') {
+          // 「跳转到段落」行：指令内容由所选段落现拼，这里只看引用还在不在
+          if (line.jumpGroupUid !== null) {
+            const target = groupByUid.get(line.jumpGroupUid);
+            if (line.jumpGroupUid === '') {
+              issues.push({
+                level: 'warning',
+                code: 'jump-no-target',
+                targetId: line.readableId,
+                where,
+                message: '「跳转到段落」还没选要跳到哪个段落，导出后这一行是空的',
+                ...at,
+              });
+            } else if (target === undefined) {
+              issues.push({
+                level: 'error',
+                code: 'jump-dangling',
+                targetId: line.readableId,
+                where,
+                message: '「跳转到段落」指向的段落已经被删掉了',
+                ...at,
+              });
+            } else if (target.lines.length === 0) {
+              issues.push({
+                level: 'warning',
+                code: 'jump-empty-group',
+                targetId: line.readableId,
+                where,
+                message: `「跳转到段落」指向的段落「${target.title || target.id}」里还没有对话，导出后这一行是空的`,
+                ...at,
+              });
+            }
+            continue;
+          }
           if (line.command.trim() === '') {
             issues.push({
               level: 'warning',
@@ -231,7 +272,43 @@ export function validateProject(project: Project): ValidationReport {
           });
         }
 
-        if (option.nextId !== '' && !allUids.has(option.nextId)) {
+        const firstLineGroupUid = groupUidOfFirstLine(option.nextId);
+        if (firstLineGroupUid !== null) {
+          // 「跳转到首句对话」记的是段落：看段落还在不在、里面有没有对话
+          const targetGroup = groupByUid.get(firstLineGroupUid);
+          const targetChapter = groupChapter.get(firstLineGroupUid);
+          if (targetGroup === undefined) {
+            issues.push({
+              level: 'error',
+              code: 'jump-dangling',
+              targetId: option.readableId,
+              where,
+              message: '选项要跳的段落已经被删掉了',
+              lineUid,
+              groupUid: group.uid,
+            });
+          } else if (targetGroup.lines.length === 0) {
+            issues.push({
+              level: 'warning',
+              code: 'jump-empty-group',
+              targetId: option.readableId,
+              where,
+              message: `选项要跳的段落「${targetGroup.title || targetGroup.id}」里还没有对话，导出时这一格是空的`,
+              lineUid,
+              groupUid: group.uid,
+            });
+          } else if (targetChapter !== undefined && targetChapter.uid !== chapter.uid) {
+            issues.push({
+              level: 'warning',
+              code: 'next-outside-chapter',
+              targetId: option.readableId,
+              where,
+              message: `选项跳到了其他章节「${targetChapter.label}」的段落，跳转目标只能选同一章的段落`,
+              lineUid,
+              groupUid: group.uid,
+            });
+          }
+        } else if (option.nextId !== '' && !allUids.has(option.nextId)) {
           issues.push({
             level: 'error',
             code: 'dangling-next',

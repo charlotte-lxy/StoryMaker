@@ -684,6 +684,11 @@ textarea {
   border-left-color: var(--type-指令);
 }
 
+/* 「跳转到段落」导出时也是「指令」行，沿用指令的配色 */
+.block-跳转到段落 {
+  border-left-color: var(--type-指令);
+}
+
 .script-block .type-tag {
   flex-shrink: 0;
   height: 20px;
@@ -826,6 +831,13 @@ textarea {
 .flow-block.selected {
   border-color: var(--accent);
   background: var(--accent-soft);
+}
+
+/* 批量编辑里把勾中的行拖到这块上：整块描个粗边，松手就搬进这个段落 */
+.flow-block.drop-lines {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 3px var(--accent);
 }
 
 /* 悬浮时与当前这条线/这个块有关的段落，加个圈更显眼 */
@@ -1636,6 +1648,23 @@ table.lines tbody tr.line-row:hover {
 }
 
 /* 跳转目标：两级下拉竖排 */
+/* 「跳转到段落」行：一个段落下拉 + 一句说明 */
+.jump-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.jump-group select {
+  max-width: 260px;
+}
+
+.jump-group .hint {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
 .jump-selects {
   display: flex;
   flex-direction: column;
@@ -1865,6 +1894,35 @@ table.lines tbody tr.line-row:hover {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+/* ---------- 「移动至」弹窗 ---------- */
+
+.move-modal {
+  width: 420px;
+}
+
+.move-field {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.move-field select {
+  width: 100%;
+  border-color: var(--border);
+  background: var(--control-bg);
+}
+
+/* 两个插入位置按钮竖排：点哪个就按哪个位置搬，不再要一次「确定」 */
+.move-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.move-actions button {
+  width: 100%;
 }
 
 /* ---------- 拖拽排序 ---------- */

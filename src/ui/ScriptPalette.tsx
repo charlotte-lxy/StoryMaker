@@ -1,9 +1,8 @@
-import type { LineKind } from '../core/types';
-import { BLOCK_MIME, SCRIPT_BLOCKS } from './script-blocks';
+import { BLOCK_MIME, SCRIPT_BLOCKS, type BlockId } from './script-blocks';
 
 interface Props {
   /** 单击脚本块：直接在当前段落最后加一行 */
-  onPick: (kind: LineKind) => void;
+  onPick: (blockId: BlockId) => void;
 }
 
 /**
@@ -21,18 +20,21 @@ export function ScriptPalette({ onPick }: Props) {
 
       {SCRIPT_BLOCKS.map((block) => (
         <button
-          key={block.kind}
+          key={block.id}
           type="button"
-          className={`script-block block-${block.kind}`}
+          className={`script-block block-${block.id}`}
           draggable
           title={`拖到列表里插入「${block.name}」，或单击直接加到最后一行`}
-          onClick={() => onPick(block.kind)}
+          onClick={() => onPick(block.id)}
           onDragStart={(event) => {
-            event.dataTransfer.setData(BLOCK_MIME, block.kind);
+            event.dataTransfer.setData(BLOCK_MIME, block.id);
             event.dataTransfer.effectAllowed = 'copy';
           }}
         >
-          <span className={`type-tag type-${block.kind}`}>{block.name}</span>
+          {/* 「跳转到段落」导出时也是「指令」行，标签沿用指令的配色 */}
+          <span className={`type-tag type-${block.id === '跳转到段落' ? '指令' : block.id}`}>
+            {block.name}
+          </span>
           <span className="script-block-note">{block.note}</span>
         </button>
       ))}

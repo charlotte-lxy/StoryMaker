@@ -83,6 +83,8 @@ function makeLine(kind: LineKind, over: Partial<Line> = {}): Line {
     text: { zh: '', en: '', ja: '' },
     autoAdvance: false,
     command: '',
+    // 老项目里没有这个字段：null = 普通行（不是「跳转到段落」行）
+    jumpGroupUid: null,
     optionIds: [],
     note: '',
     ...over,
@@ -265,6 +267,8 @@ function migrateGroup(group: Group, chapterId: string, changes: IdChange[]): voi
           text: asLocalized(raw.text),
           autoAdvance: raw.autoAdvance === true,
           command: asString(raw.command),
+          // 后加的字段：字符串就是它引用的段落 uid，其它（含老项目里的 undefined）当普通行
+          jumpGroupUid: typeof raw.jumpGroupUid === 'string' ? raw.jumpGroupUid : null,
           optionIds: rawKind === '选项' ? optionIds : [],
           note: asString(raw.note),
         }),
@@ -303,9 +307,12 @@ function migrateGroup(group: Group, chapterId: string, changes: IdChange[]): voi
     if (optionIds.length > 0) lines.push(makeLine('选项', { optionIds }));
   }
 
+  // 补齐过字段的行一定要装回去：老项目里没有后加的字段（比如「跳转到段落」的
+  // jumpGroupUid），不装回去读到的就是 undefined，会被当成跳转行
+  group.lines = lines;
+
   if (!migrated) return;
 
-  group.lines = lines;
   // 插入了新行，段内编号必须重排；对照表交给界面提示本地化同事同步 key。
   // 新插入的行本来就没有旧 ID，不进对照表。
   changes.push(...renumberGroup(group, chapterId).filter((change) => change.oldId !== ''));
