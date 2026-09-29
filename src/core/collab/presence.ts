@@ -11,6 +11,8 @@ export interface Collaborator extends PresenceInfo {
   clientId: string;
   /** 最后一次收到心跳的时刻（毫秒） */
   lastSeen: number;
+  /** 正在看的模块；空字符串表示没在编辑 */
+  module: string;
 }
 
 /** 心跳间隔：够勤快，又不至于把广播刷爆 */
@@ -27,7 +29,13 @@ export function upsertCollaborator(
   now: number,
 ): Collaborator[] {
   const next = list.filter((item) => item.clientId !== clientId);
-  next.push({ clientId, name: presence.name, color: presence.color, lastSeen: now });
+  next.push({
+    clientId,
+    name: presence.name,
+    color: presence.color,
+    module: presence.module ?? '',
+    lastSeen: now,
+  });
   return next;
 }
 

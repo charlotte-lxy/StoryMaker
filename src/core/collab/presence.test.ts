@@ -9,7 +9,7 @@ import {
 } from './presence';
 
 function person(clientId: string, name: string, lastSeen: number): Collaborator {
-  return { clientId, name, color: 'red', lastSeen };
+  return { clientId, name, color: 'red', module: '', lastSeen };
 }
 
 describe('协作名单', () => {
@@ -17,7 +17,30 @@ describe('协作名单', () => {
     const list = upsertCollaborator([], 'a', { name: '小王', color: 'red' }, 1000);
 
     expect(list).toHaveLength(1);
-    expect(list[0]).toEqual({ clientId: 'a', name: '小王', color: 'red', lastSeen: 1000 });
+    expect(list[0]).toEqual({
+      clientId: 'a',
+      name: '小王',
+      color: 'red',
+      module: '',
+      lastSeen: 1000,
+    });
+  });
+
+  it('心跳带上「在哪个模块」', () => {
+    const list = upsertCollaborator(
+      [],
+      'a',
+      { name: '小王', color: 'red', module: 'battle' },
+      1000,
+    );
+
+    expect(list[0].module).toBe('battle');
+  });
+
+  it('没报模块就当作没在编辑', () => {
+    const list = upsertCollaborator([], 'a', { name: '小王', color: 'red' }, 1000);
+
+    expect(list[0].module).toBe('');
   });
 
   it('同一个人再喊一次：更新而不是多出一条', () => {

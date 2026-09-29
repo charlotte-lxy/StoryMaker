@@ -65,6 +65,10 @@ export function useCollab(options: {
   setProject: (next: Project) => void;
   projectPath: string | null;
   host: HostApi | undefined;
+  /** 现在开着哪个模块 */
+  module: string;
+  /** 光标是不是真的在输入框里——只看模块会把「人在别的窗口」也算成在编辑 */
+  editing: boolean;
 }): CollabController {
   const { projectPath, host } = options;
 
@@ -104,6 +108,8 @@ export function useCollab(options: {
   pathRef.current = projectPath;
   const hostRef = useRef(host);
   hostRef.current = host;
+  const activityRef = useRef({ module: options.module, editing: options.editing });
+  activityRef.current = { module: options.module, editing: options.editing };
 
   const clientRef = useRef<CollabClient | null>(null);
   const sessionRef = useRef<SyncSession | null>(null);
@@ -230,11 +236,17 @@ export function useCollab(options: {
 
     const tick = (): void => {
       const current = prefsRef.current;
+      const activity = activityRef.current;
       clientRef.current?.send({
         type: 'presence',
         clientId: current.clientId,
         clock: 0,
-        presence: { name: current.name, color: current.color },
+        presence: {
+          name: current.name,
+          color: current.color,
+          // 不在编辑就不报模块：人走了圆点还亮着，比不亮更误导
+          module: activity.editing ? activity.module : '',
+        },
       });
       setCollaborators((list) => pruneCollaborators(list, Date.now()));
     };
@@ -242,7 +254,7 @@ export function useCollab(options: {
     tick(); // 连上就立刻喊一声，不用等第一个周期
     const timer = window.setInterval(tick, PRESENCE_INTERVAL_MS);
     return () => window.clearInterval(timer);
-  }, [status, prefs.clientId, prefs.name, prefs.color]);
+  }, [status, prefs.clientId, prefs.name, prefs.color, options.module, options.editing]);
 
   const setMyName = useCallback((name: string) => {
     const next = { ...prefsRef.current, name };
@@ -262,6 +274,7 @@ export function useCollab(options: {
       clientId: prefs.clientId,
       name: prefs.name,
       color: prefs.color,
+      module: '',
       lastSeen: Date.now(),
     };
     return [self, ...collaborators.filter((item) => item.clientId !== prefs.clientId)];

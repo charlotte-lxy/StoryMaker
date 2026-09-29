@@ -1,8 +1,16 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from 'react';
 
 import { exportWorkbook } from './core/export';
 import type { IdChange } from './core/ids';
 import { collectCommandTargets } from './core/command-build';
+import { displayNameOf } from './core/collab/presence';
 import { baseName, getHost, type HostApi } from './core/host';
 import { normalizeProject, type NormalizeResult } from './core/migrate';
 import type {
@@ -16,6 +24,7 @@ import type {
   StoryOption,
   UiTextRow,
 } from './core/types';
+import { collabColorValue } from './state/prefs';
 import {
   validateLocalization,
   validateProject,
@@ -87,6 +96,7 @@ import { SettingsEditor } from './ui/SettingsEditor';
 import { ScriptPalette } from './ui/ScriptPalette';
 import { Sidebar } from './ui/Sidebar';
 import { useCollab } from './ui/useCollab';
+import { useTypingFocus } from './ui/useTypingFocus';
 import { useScrollMemory } from './ui/view-memory';
 
 /** 一个模块的校验结果，右上角的总数弹层与模块底部的校验条都用它 */
@@ -182,8 +192,11 @@ export default function App() {
     onConfirm: () => void;
   } | null>(null);
 
+  /** 光标是不是真的在输入框里：「谁在编辑什么」要靠它，光看开了哪个模块不够 */
+  const typing = useTypingFocus();
+
   /** 多人同步。连不上时它只是个离线状态，不影响任何编辑 */
-  const collab = useCollab({ project, setProject, projectPath, host });
+  const collab = useCollab({ project, setProject, projectPath, host, module, editing: typing });
   /** 对话列表是否处于批量编辑模式 */
   const [batchMode, setBatchMode] = useState(false);
   /** 批量编辑里勾中的对话行（跨段落无效，换段落时清空） */
@@ -759,6 +772,42 @@ export default function App() {
     );
   }
 
+  /**
+   * 侧边栏的模块按钮，右上角挂着「谁在这个模块」的小圆点。
+   *
+   * 名单里第一个永远是自己，自己不用在自己的屏幕上标自己，所以从第二个开始算。
+   */
+  const railButton = (key: Module, icon: string, label: string, extraClass = ''): ReactNode => {
+    const here = collab.collaborators.filter((person, index) => index > 0 && person.module === key);
+    const title =
+      here.length === 0 ? label : `${label} —— ${here.map((person) => displayNameOf(person)).join('、')} 正在这里`;
+
+    return (
+      <button
+        type="button"
+        className={`rail-item${extraClass === '' ? '' : ` ${extraClass}`}${
+          module === key ? ' active' : ''
+        }`}
+        title={title}
+        onClick={() => setModule(key)}
+      >
+        <span className="rail-icon">{icon}</span>
+        <span>{label}</span>
+        {here.length > 0 && (
+          <span className="focus-dots">
+            {here.map((person) => (
+              <span
+                key={person.clientId}
+                className="focus-dot"
+                style={{ background: collabColorValue(person.color) }}
+              />
+            ))}
+          </span>
+        )}
+      </button>
+    );
+  };
+
   return (
     <div className="app">
       <header className="toolbar">
@@ -879,100 +928,22 @@ export default function App() {
 
       <div className="body">
         <nav className="rail">
-          <button
-            type="button"
-            className={`rail-item${module === 'story' ? ' active' : ''}`}
-            onClick={() => setModule('story')}
-          >
-            <span className="rail-icon">✎</span>
-            <span>剧情</span>
-          </button>
-          <button
-            type="button"
-            className={`rail-item${module === 'character' ? ' active' : ''}`}
-            onClick={() => setModule('character')}
-          >
-            <span className="rail-icon">☺</span>
-            <span>角色</span>
-          </button>
-          <button
-            type="button"
-            className={`rail-item${module === 'sounds' ? ' active' : ''}`}
-            onClick={() => setModule('sounds')}
-          >
-            <span className="rail-icon">♪</span>
-            <span>音效</span>
-          </button>
-          <button
-            type="button"
-            className={`rail-item${module === 'items' ? ' active' : ''}`}
-            onClick={() => setModule('items')}
-          >
-            <span className="rail-icon">◆</span>
-            <span>物品</span>
-          </button>
-          <button
-            type="button"
-            className={`rail-item${module === 'quests' ? ' active' : ''}`}
-            onClick={() => setModule('quests')}
-          >
-            <span className="rail-icon">✓</span>
-            <span>任务</span>
-          </button>
-          <button
-            type="button"
-            className={`rail-item${module === 'images' ? ' active' : ''}`}
-            onClick={() => setModule('images')}
-          >
-            <span className="rail-icon">▣</span>
-            <span>立绘</span>
-          </button>
-          <button
-            type="button"
-            className={`rail-item${module === 'command' ? ' active' : ''}`}
-            onClick={() => setModule('command')}
-          >
-            <span className="rail-icon">⌘</span>
-            <span>条件与指令</span>
-          </button>
-          <button
-            type="button"
-            className={`rail-item${module === 'battle' ? ' active' : ''}`}
-            onClick={() => setModule('battle')}
-          >
-            <span className="rail-icon">⚔</span>
-            <span>战斗</span>
-          </button>
-          <button
-            type="button"
-            className={`rail-item${module === 'locale' ? ' active' : ''}`}
-            onClick={() => setModule('locale')}
-          >
-            <span className="rail-icon">文</span>
-            <span>本地化</span>
-          </button>
+          {railButton('story', '✎', '剧情')}
+          {railButton('character', '☺', '角色')}
+          {railButton('sounds', '♪', '音效')}
+          {railButton('items', '◆', '物品')}
+          {railButton('quests', '✓', '任务')}
+          {railButton('images', '▣', '立绘')}
+          {railButton('command', '⌘', '条件与指令')}
+          {railButton('battle', '⚔', '战斗')}
+          {railButton('locale', '文', '本地化')}
 
           {/*
             置底的一组：靠 rail-item-bottom 的 margin-top:auto 顶到最下面，
             组内从上往下排（导出在设置上面）。以后再加置底按钮，加在这两个前面。
           */}
-          <button
-            type="button"
-            className={`rail-item rail-item-bottom${module === 'export' ? ' active' : ''}`}
-            onClick={() => setModule('export')}
-          >
-            <span className="rail-icon">⤓</span>
-            <span>导出</span>
-          </button>
-          <button
-            type="button"
-            className={`rail-item${module === 'settings' ? ' active' : ''}`}
-            title="设置"
-            onClick={() => setModule('settings')}
-          >
-            <span className="rail-icon">⚙</span>
-            <span>设置</span>
-          </button>
+          {railButton('export', '⤓', '导出', 'rail-item-bottom')}
+          {railButton('settings', '⚙', '设置')}
         </nav>
 
         {/*

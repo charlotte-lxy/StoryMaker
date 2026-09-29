@@ -428,6 +428,7 @@ textarea {
 }
 
 .rail-item {
+  position: relative; /* 右上角要挂「谁在这里」的小圆点，得有定位上下文 */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -3385,6 +3386,23 @@ tr.locale-form-note td {
 
 .first-contact-modal {
   width: 560px;
+}
+
+/* 侧边栏模块按钮右上角：谁正在这个模块，颜色跟着各人的配色走 */
+.focus-dots {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  display: flex;
+  gap: 2px;
+}
+
+.focus-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  /* 描一圈背景色，同色圆点挨在一起也能分开 */
+  border: 1px solid var(--panel);
 }
 
 /* 合并摘要：沿用冲突面板那套表格，只是多一个窄窄的类型列 */

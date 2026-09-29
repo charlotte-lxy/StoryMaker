@@ -10,8 +10,14 @@ afterEach(() => {
   cleanup();
 });
 
-const me: Collaborator = { clientId: 'me', name: '小王', color: 'red', lastSeen: 0 };
-const other: Collaborator = { clientId: 'other', name: '小李', color: 'blue', lastSeen: 0 };
+const me: Collaborator = { clientId: 'me', name: '小王', color: 'red', module: 'story', lastSeen: 0 };
+const other: Collaborator = {
+  clientId: 'other',
+  name: '小李',
+  color: 'blue',
+  module: 'battle',
+  lastSeen: 0,
+};
 
 function renderBadge(overrides: Partial<Parameters<typeof CollabBadge>[0]> = {}) {
   const props = {
@@ -81,7 +87,7 @@ describe('CollabBadge', () => {
 
   it('没填名字的人显示「未命名用户」', () => {
     renderBadge({
-      collaborators: [{ clientId: 'x', name: '', color: 'green', lastSeen: 0 }, me],
+      collaborators: [{ clientId: 'x', name: '', color: 'green', module: '', lastSeen: 0 }, me],
       myName: '',
     });
     fireEvent.click(screen.getByRole('button', { name: /协作/ }));

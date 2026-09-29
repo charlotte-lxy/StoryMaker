@@ -398,6 +398,49 @@ try {
   h.client.send({ type: 'bye', clientId: 'H', clock: 0 });
   await sleep(250);
   check(g.presences.length === 0, 'H 道别之后，G 立刻把他从名单上拿掉（不用等超时）');
+
+  // ---------- 6. 谁在哪个模块 ----------
+  g.client.disconnect();
+  h.client.disconnect();
+  await sleep(150);
+
+  console.log('');
+  console.log('【6】谁在哪个模块：切换会立刻同步过去');
+
+  const i = makePeer('I', makeProject('I 的项目'));
+  const j = makePeer('J', makeProject('J 的项目'));
+  peers.push(i, j);
+
+  if (!(await connect(i))) throw new Error('I 连不上');
+  if (!(await connect(j))) throw new Error('J 连不上');
+
+  const say = (peer: Peer, name: string, where: string): void => {
+    peer.client.send({
+      type: 'presence',
+      clientId: peer.name,
+      clock: 0,
+      presence: { name, color: 'green', module: where },
+    });
+  };
+
+  say(i, '小王', 'story');
+  say(j, '小李', 'battle');
+  await sleep(300);
+
+  check(j.presences[0]?.module === 'story', 'J 看到小王在剧情', j.presences[0]?.module);
+  check(i.presences[0]?.module === 'battle', 'I 看到小李在战斗', i.presences[0]?.module);
+
+  say(i, '小王', 'battle');
+  await sleep(250);
+  check(j.presences[0]?.module === 'battle', '换了模块对方立刻看到', j.presences[0]?.module);
+
+  say(i, '小王', '');
+  await sleep(250);
+  check(
+    j.presences[0]?.module === '',
+    '走开（不在编辑）时报空，圆点不会一直亮着',
+    j.presences[0]?.module,
+  );
 } catch (error) {
   failed = true;
   console.error('✗ 校验过程出错：', error);

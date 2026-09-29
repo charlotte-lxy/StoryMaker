@@ -160,6 +160,13 @@ export interface PresenceInfo {
   name: string;
   /** 标记颜色，取自 prefs 里那七个 */
   color: string;
+  /**
+   * 正在看哪个模块（story / battle / …）；空字符串表示没在编辑。
+   *
+   * 「没在编辑」包括：窗口切到后台了，或者光标不在任何输入框里——人离开了屏幕
+   * 还亮着一个小圆点，比不亮更让人误会。
+   */
+  module?: string;
 }
 
 /** 连接状态。offline 不等于坏掉——那一律按纯本地用，这是设计的一部分 */
