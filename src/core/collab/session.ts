@@ -273,7 +273,8 @@ export function createSyncSession(options: SyncSessionOptions): SyncSession {
         }
         // 全部落地了：这条 patch 是广播给所有人的，当前状态大家都知道了
         await commitBase(result.doc);
-        reportMerged(patches);
+        // 这里刻意不报合并摘要：这是对方边改边发过来的实时增量，每来一条就弹一次框
+        // 会把人烦死。摘要只属于「刚连上、交换数据」那一下（见上面的 snapshot 分支）。
         return;
       }
 

@@ -931,6 +931,19 @@ describe('对话列表的批量编辑', () => {
     ).toBe(true);
   });
 
+  it('「取消选择」清掉勾选，但留在批量编辑模式里', async () => {
+    seedBatchProject();
+    const pane = await openBatch();
+
+    fireEvent.click(screen.getByText('全选'));
+    expect(screen.getByText('已选 3 / 3 行')).toBeTruthy();
+
+    fireEvent.click(screen.getByText('取消选择'));
+    expect(screen.getByText('已选 0 / 3 行')).toBeTruthy();
+    // 还在批量模式：每行的选择框没收起来（跟「退出批量编辑」不是一回事）
+    expect(pane.querySelectorAll('.line-select').length).toBeGreaterThan(0);
+  });
+
   it('「移动至」用两级下拉选目标段落，确认后搬过去并重新编号', async () => {
     seedBatchProject();
     const pane = await openBatch();

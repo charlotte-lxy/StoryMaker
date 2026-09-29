@@ -13,7 +13,7 @@
 
 import type { CollabClient } from '../src/core/collab/client';
 import { createCollabClient } from '../src/core/collab/client';
-import type { CollabStatus, Conflict } from '../src/core/collab/protocol';
+import type { CollabStatus, Conflict, Patch } from '../src/core/collab/protocol';
 import { upsertCollaborator, type Collaborator } from '../src/core/collab/presence';
 import { resolveConflicts, resolveFirstContact } from '../src/core/collab/resolve';
 import { createSyncSession, type FirstContact, type SyncBase, type SyncSession } from '../src/core/collab/session';
@@ -105,6 +105,8 @@ interface Peer {
   firstContact: () => FirstContact | null;
   /** 收到的心跳攒出来的名单，用的是界面同一套 presence 逻辑 */
   presences: Collaborator[];
+  /** 每次「合并摘要」报上来的改动清单 */
+  mergedPatches: Patch[][];
 }
 
 function makePeer(name: string, initial: Project): Peer {
@@ -114,6 +116,8 @@ function makePeer(name: string, initial: Project): Peer {
   let resolved = 0;
   let firstContact: FirstContact | null = null;
   const presences: Collaborator[] = [];
+  /** 每次 onMerged 报上来的改动清单（合并摘要） */
+  const mergedPatches: Patch[][] = [];
 
   let session: SyncSession | null = null;
 
@@ -163,6 +167,9 @@ function makePeer(name: string, initial: Project): Peer {
     onFirstContact: (info) => {
       firstContact = info;
     },
+    onMerged: (patches) => {
+      mergedPatches.push(patches);
+    },
   });
 
   const ready = session;
@@ -181,6 +188,7 @@ function makePeer(name: string, initial: Project): Peer {
     resolvedCount: () => resolved,
     firstContact: () => firstContact,
     presences,
+    mergedPatches,
   };
 }
 
@@ -218,12 +226,19 @@ try {
   check(gotSnapshot, 'B 通过 hello → snapshot 拿到了 A 的内容');
   check(b.doc().name === 'A 的项目', 'B 的项目名也同步过来了', b.doc().name);
 
+  // B 刚才通过快照拿到 A 的内容时弹过一次摘要，那是应该的；下面这条实时改动不该再弹
+  const mergedBefore = b.mergedPatches.length;
   a.update((draft) => {
     draft.characters[0].name = '改过的甲';
   });
   await a.session.publishLocalChange();
   const arrived = await waitFor(() => b.doc().characters[0]?.name === '改过的甲');
   check(arrived, 'A 的改动自动出现在 B 那边');
+  check(
+    b.mergedPatches.length === mergedBefore,
+    '对方边改边发过来的实时增量不弹合并摘要',
+    `前 ${mergedBefore} 次，后 ${b.mergedPatches.length} 次`,
+  );
 
   await sleep(200);
 
@@ -272,7 +287,9 @@ try {
   // 一个场景里混进别的文档就说不清了。每个场景要各自独立。
   a.client.disconnect();
   b.client.disconnect();
-  await sleep(150);
+  // 断开是异步握手：没走完的话服务端还挂着它们，新客户端一打招呼它们就会回自己的快照，
+  // 把上一个场景的内容糊到这一场上。留够时间让 close 落地。
+  await sleep(500);
 
   console.log('');
   console.log('【3】首次对账：两边都有一份内容，都没有共同起点');
@@ -313,7 +330,7 @@ try {
   // ---------- 4. 离线在中间插一行，重连后位置不能错 ----------
   c.client.disconnect();
   d.client.disconnect();
-  await sleep(150);
+  await sleep(500);
 
   console.log('');
   console.log('【4】离线在中间插一行，重连后位置不能错');
@@ -365,7 +382,7 @@ try {
   // ---------- 5. 在线名单：心跳广播得出去、道别看得见 ----------
   e.client.disconnect();
   f.client.disconnect();
-  await sleep(150);
+  await sleep(500);
 
   console.log('');
   console.log('【5】在线名单：心跳能广播出去，道别能被立刻看到');
@@ -402,7 +419,7 @@ try {
   // ---------- 6. 谁在哪个模块 ----------
   g.client.disconnect();
   h.client.disconnect();
-  await sleep(150);
+  await sleep(500);
 
   console.log('');
   console.log('【6】谁在哪个模块：切换会立刻同步过去');

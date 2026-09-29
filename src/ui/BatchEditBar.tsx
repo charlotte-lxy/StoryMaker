@@ -11,6 +11,7 @@ interface Props {
   totalCount: number;
   selectedCount: number;
   onSelectAll: () => void;
+  onDeselectAll: () => void;
   onMove: (targetGroupUid: string) => void;
   onRemove: () => void;
 }
@@ -28,6 +29,7 @@ export function BatchEditBar({
   totalCount,
   selectedCount,
   onSelectAll,
+  onDeselectAll,
   onMove,
   onRemove,
 }: Props) {
@@ -52,6 +54,16 @@ export function BatchEditBar({
         onClick={onSelectAll}
       >
         全选
+      </button>
+
+      <button
+        type="button"
+        className="mini"
+        title="取消勾选，留在批量编辑模式里"
+        disabled={selectedCount === 0}
+        onClick={onDeselectAll}
+      >
+        取消选择
       </button>
 
       <button

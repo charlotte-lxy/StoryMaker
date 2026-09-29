@@ -471,6 +471,11 @@ export default function App() {
     setSelectedLineUids(group?.lines.map((line) => line.uid) ?? []);
   };
 
+  /** 批量编辑：取消选择，但留在批量模式里——跟「退出批量编辑」不是一回事 */
+  const handleDeselectAllLines = (): void => {
+    setSelectedLineUids([]);
+  };
+
   /** 批量移动：勾选的行整段搬到目标段落末尾，ID 由 moveLines 重排 */
   const handleMoveSelectedLines = (targetGroupUid: string): void => {
     if (selectedLineUids.length === 0) return;
@@ -1154,6 +1159,7 @@ export default function App() {
                                       totalCount={group.lines.length}
                                       selectedCount={selectedLineUids.length}
                                       onSelectAll={handleSelectAllLines}
+                                      onDeselectAll={handleDeselectAllLines}
                                       onMove={handleMoveSelectedLines}
                                       onRemove={handleRemoveSelectedLines}
                                     />

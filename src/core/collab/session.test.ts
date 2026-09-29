@@ -404,44 +404,50 @@ describe('冲突裁决', () => {
 });
 
 describe('合并摘要', () => {
-  const titlePatch = (value: string, clock: number) => ({
-    type: 'patch' as const,
-    clientId: 'other',
-    clock,
-    patches: [
-      { kind: 'field' as const, target: 'chapters/ch1', field: 'title', oldValue: '第一章', value },
-    ],
-  });
+  /** 对方发来的一份快照；「刚连上、交换数据」走的就是这条路 */
+  const snapshotWith = (title: string, clock: number) => {
+    const remote = makeProject();
+    remote.chapters[0].title = title;
+    return { type: 'snapshot' as const, clientId: 'other', clock, doc: remote };
+  };
 
-  it('第一次从对方同步到改动时报一次', async () => {
+  it('刚连上、对方带来改动时报一次', async () => {
     const doc = makeProject();
     const s = setup({ doc, base: { doc: structuredClone(doc), clock: 1 } });
 
-    await s.session.handleMessage(renamePatch);
+    await s.session.handleMessage(snapshotWith('对方改的', 3));
 
     expect(s.merged).toHaveLength(1);
     expect(s.merged[0]).toHaveLength(1);
   });
 
-  it('一次连接里只报头一回，后续增量不再打扰', async () => {
+  it('刚连上、两边数据一致时不报（比如两人打开同一份文件）', async () => {
+    const doc = makeProject();
+    const s = setup({ doc, base: { doc: structuredClone(doc), clock: 1 } });
+
+    await s.session.handleMessage(snapshotWith('第一章', 3));
+
+    expect(s.merged).toHaveLength(0);
+  });
+
+  it('连上之后的实时改动不弹摘要——那是别人边改边发过来的', async () => {
     const doc = makeProject();
     const s = setup({ doc, base: { doc: structuredClone(doc), clock: 1 } });
 
     await s.session.handleMessage(renamePatch);
-    await s.session.handleMessage(titlePatch('序章', 5));
 
-    expect(s.merged).toHaveLength(1);
+    expect(s.merged).toHaveLength(0);
   });
 
   it('announce（重新连上）之后重新允许报一次', async () => {
     const doc = makeProject();
     const s = setup({ doc, base: { doc: structuredClone(doc), clock: 1 } });
 
-    await s.session.handleMessage(renamePatch);
+    await s.session.handleMessage(snapshotWith('第一次的改动', 3));
     expect(s.merged).toHaveLength(1);
 
     await s.session.announce();
-    await s.session.handleMessage(titlePatch('序章', 9));
+    await s.session.handleMessage(snapshotWith('第二次的改动', 9));
 
     expect(s.merged).toHaveLength(2);
   });
