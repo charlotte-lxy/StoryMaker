@@ -10,7 +10,7 @@ import {
 import { exportWorkbook } from './core/export';
 import type { IdChange } from './core/ids';
 import { collectCommandTargets } from './core/command-build';
-import { displayNameOf } from './core/collab/presence';
+import { displayNameOf, initialOf } from './core/collab/presence';
 import { baseName, getHost, type HostApi } from './core/host';
 import { normalizeProject, type NormalizeResult } from './core/migrate';
 import type {
@@ -795,12 +795,15 @@ export default function App() {
         <span>{label}</span>
         {here.length > 0 && (
           <span className="focus-dots">
-            {here.map((person) => (
+            {/* 最多摆三个：模块栏窄，再多就压到隔壁按钮上了。谁在这儿，title 里有全名 */}
+            {here.slice(0, 3).map((person) => (
               <span
                 key={person.clientId}
                 className="focus-dot"
                 style={{ background: collabColorValue(person.color) }}
-              />
+              >
+                {initialOf(person)}
+              </span>
             ))}
           </span>
         )}

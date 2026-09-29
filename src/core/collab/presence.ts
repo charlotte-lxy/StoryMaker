@@ -55,3 +55,15 @@ export function displayNameOf(presence: PresenceInfo): string {
   const name = presence.name.trim();
   return name === '' ? '未命名用户' : name;
 }
+
+/**
+ * 圆圈里显示的那个字：名字的第一个字。
+ *
+ * 用展开而不是 name[0]：名字要是以 emoji 之类的代理对字符开头，
+ * 按下标取会切出半个码元，显示成乱码。
+ */
+export function initialOf(presence: PresenceInfo): string {
+  const name = presence.name.trim();
+  if (name === '') return '?';
+  return [...name][0];
+}

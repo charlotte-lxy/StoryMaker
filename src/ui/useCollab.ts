@@ -254,7 +254,9 @@ export function useCollab(options: {
     tick(); // 连上就立刻喊一声，不用等第一个周期
     const timer = window.setInterval(tick, PRESENCE_INTERVAL_MS);
     return () => window.clearInterval(timer);
-  }, [status, prefs.clientId, prefs.name, prefs.color, options.module, options.editing]);
+    // 名字和颜色刻意不进依赖：它们跟着心跳周期带出去就行，
+    // 进了依赖会让每敲一个字都重发一轮广播
+  }, [status, prefs.clientId, options.module, options.editing]);
 
   const setMyName = useCallback((name: string) => {
     const next = { ...prefsRef.current, name };

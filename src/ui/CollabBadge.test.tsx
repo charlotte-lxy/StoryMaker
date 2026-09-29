@@ -55,25 +55,22 @@ describe('CollabBadge', () => {
     fireEvent.click(screen.getByRole('button', { name: /协作/ }));
 
     expect(screen.getByPlaceholderText('未命名用户')).toBeTruthy();
-    expect(
-      screen.getAllByRole('button', { name: /^(红|橙|黄|绿|青|蓝|紫)$/ }),
-    ).toHaveLength(7);
+    expect(screen.getAllByRole('button', { name: /^(红|黄|蓝|绿|紫)$/ })).toHaveLength(5);
 
     expect(screen.getByText('正在协作（2）')).toBeTruthy();
-    expect(screen.getByText('小王')).toBeTruthy();
-    expect(screen.getByText('小李')).toBeTruthy();
+    expect(screen.getByText(/小王/)).toBeTruthy();
+    expect(screen.getByText(/小李/)).toBeTruthy();
     expect(screen.getByText('（我）')).toBeTruthy();
+    // 头像圆圈里是名字的头一个字（两位都姓小，所以是两个）
+    expect(screen.getAllByText('小')).toHaveLength(2);
   });
 
-  it('改名字是改完之后才提交的，不是边打边广播', () => {
+  it('名字边打边存——原来等失焦，填完直接点面板外关掉就丢了', () => {
     const props = renderBadge();
     fireEvent.click(screen.getByRole('button', { name: /协作/ }));
 
-    const input = screen.getByPlaceholderText('未命名用户');
-    fireEvent.change(input, { target: { value: '新名字' } });
-    expect(props.onRename).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByPlaceholderText('未命名用户'), { target: { value: '新名字' } });
 
-    fireEvent.blur(input);
     expect(props.onRename).toHaveBeenCalledWith('新名字');
   });
 
@@ -85,13 +82,17 @@ describe('CollabBadge', () => {
     expect(props.onRecolor).toHaveBeenCalledWith('purple');
   });
 
-  it('没填名字的人显示「未命名用户」', () => {
+  it('没填名字的人显示「未命名用户」，圆圈里是个问号', () => {
     renderBadge({
-      collaborators: [{ clientId: 'x', name: '', color: 'green', module: '', lastSeen: 0 }, me],
+      collaborators: [
+        { clientId: 'x', name: '', color: 'green', module: '', lastSeen: 0 },
+        { ...me, name: '' },
+      ],
       myName: '',
     });
     fireEvent.click(screen.getByRole('button', { name: /协作/ }));
 
-    expect(screen.getByText('未命名用户')).toBeTruthy();
+    expect(screen.getAllByText('未命名用户')).toHaveLength(2);
+    expect(screen.getAllByText('?')).toHaveLength(2);
   });
 });

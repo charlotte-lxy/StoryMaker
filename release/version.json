@@ -1,6 +1,6 @@
 {
-  "version": "0.1.21",
-  "index.html": "109f241e7930767baa6dc66c046bba08f2ca4172c255da02cc72fd3dc947f48e",
+  "version": "0.1.22",
+  "index.html": "7110fb67888312b1a589dc60d5291ce01b9a15228ac1e44be28ec9709d0176d1",
   "storymaker-server.ps1": "ca2c7d65b9bdec1072dac311e4db43abcf32ca7b34c1f56f29f08179c66e9c45",
   "启动StoryMaker.bat": "94a3bd3ca816b44bf85c3732775829f49e547fa95c4add1ab4198154c8df7c61"
 }

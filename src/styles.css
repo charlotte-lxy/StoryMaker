@@ -3247,11 +3247,22 @@ tr.locale-form-note td {
   justify-content: flex-end;
 }
 
-/* 七个标记颜色：选中的那个描一圈，一眼看出当前是哪个 */
+/* 名字和颜色同一行：左边填名字，右边点颜色 */
+.collab-identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.collab-identity input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 五个标记颜色：选中的那个描一圈，一眼看出当前是哪个 */
 .collab-colors {
   display: flex;
-  gap: 6px;
-  margin-top: 2px;
+  gap: 5px;
 }
 
 .collab-color {
@@ -3294,9 +3305,17 @@ tr.locale-form-note td {
   font-style: normal;
 }
 
-/* 名单里的圆点跟着各人的配色走，所以要 flex:none，别被压扁 */
-.collab-members .collab-dot {
+/* 名单里的头像圆圈：颜色底 + 名字头一个字，比纯色点好认 */
+.collab-avatar {
   flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
 }
 
 .collab-note {
@@ -3391,18 +3410,24 @@ tr.locale-form-note td {
 /* 侧边栏模块按钮右上角：谁正在这个模块，颜色跟着各人的配色走 */
 .focus-dots {
   position: absolute;
-  top: 3px;
-  right: 4px;
+  top: -5px;
+  right: -3px;
   display: flex;
   gap: 2px;
 }
 
+/* 显示名字的头一个字：光靠颜色认人太费劲，尤其两个人选了同色的时候 */
 .focus-dot {
-  width: 7px;
-  height: 7px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   /* 描一圈背景色，同色圆点挨在一起也能分开 */
   border: 1px solid var(--panel);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 15px;
+  text-align: center;
 }
 
 /* 合并摘要：沿用冲突面板那套表格，只是多一个窄窄的类型列 */

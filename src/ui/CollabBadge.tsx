@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { displayNameOf, type Collaborator } from '../core/collab/presence';
+import { displayNameOf, initialOf, type Collaborator } from '../core/collab/presence';
 import type { CollabStatus } from '../core/collab/protocol';
 import { COLLAB_COLORS, collabColorValue, type CollabColor } from '../state/prefs';
 
@@ -53,18 +53,10 @@ export function CollabBadge({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(url);
-  const [nameDraft, setNameDraft] = useState(myName);
 
   const toggle = (): void => {
     setDraft(url);
-    setNameDraft(myName);
     setOpen((current) => !current);
-  };
-
-  /** 名字改完才提交：边打字边广播会把心跳刷爆 */
-  const commitName = (): void => {
-    const trimmed = nameDraft.trim();
-    if (trimmed !== myName) onRename(trimmed);
   };
 
   return (
@@ -100,33 +92,31 @@ export function CollabBadge({
               />
             </label>
 
-            <label className="collab-field">
-              <span>我的名字</span>
-              <input
-                value={nameDraft}
-                placeholder="未命名用户"
-                onChange={(event) => setNameDraft(event.target.value)}
-                onBlur={commitName}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') commitName();
-                }}
-              />
-            </label>
-
+            {/*
+              名字和颜色放同一行：这是「我是谁」的两半，凑一起看最直观。
+              名字是边打边存的——原来等失焦才存，填完直接点面板外关掉就丢了。
+            */}
             <div className="collab-field">
-              <span>标记颜色</span>
-              <div className="collab-colors">
-                {COLLAB_COLORS.map((color) => (
-                  <button
-                    key={color.key}
-                    type="button"
-                    className={`collab-color ${myColor === color.key ? 'on' : ''}`}
-                    style={{ background: color.value }}
-                    title={color.label}
-                    aria-label={color.label}
-                    onClick={() => onRecolor(color.key)}
-                  />
-                ))}
+              <span>我的名字与颜色</span>
+              <div className="collab-identity">
+                <input
+                  value={myName}
+                  placeholder="未命名用户"
+                  onChange={(event) => onRename(event.target.value)}
+                />
+                <div className="collab-colors">
+                  {COLLAB_COLORS.map((color) => (
+                    <button
+                      key={color.key}
+                      type="button"
+                      className={`collab-color ${myColor === color.key ? 'on' : ''}`}
+                      style={{ background: color.value }}
+                      title={color.label}
+                      aria-label={color.label}
+                      onClick={() => onRecolor(color.key)}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -164,9 +154,11 @@ export function CollabBadge({
                 {collaborators.map((person, index) => (
                   <li key={person.clientId}>
                     <span
-                      className="collab-dot"
+                      className="collab-avatar"
                       style={{ background: collabColorValue(person.color) }}
-                    />
+                    >
+                      {initialOf(person)}
+                    </span>
                     {displayNameOf(person)}
                     {index === 0 && <em>（我）</em>}
                   </li>

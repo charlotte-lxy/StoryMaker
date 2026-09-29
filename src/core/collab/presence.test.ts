@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   displayNameOf,
+  initialOf,
   PRESENCE_TIMEOUT_MS,
   pruneCollaborators,
   upsertCollaborator,
@@ -78,5 +79,16 @@ describe('协作名单', () => {
     expect(displayNameOf({ name: '', color: 'red' })).toBe('未命名用户');
     expect(displayNameOf({ name: '   ', color: 'red' })).toBe('未命名用户');
     expect(displayNameOf({ name: '小王', color: 'red' })).toBe('小王');
+  });
+
+  it('圆圈里取名字的头一个字，没名字就用问号', () => {
+    expect(initialOf({ name: '小王', color: 'red' })).toBe('小');
+    expect(initialOf({ name: '  Alice ', color: 'red' })).toBe('A');
+    expect(initialOf({ name: '', color: 'red' })).toBe('?');
+    expect(initialOf({ name: '   ', color: 'red' })).toBe('?');
+  });
+
+  it('名字以 emoji 开头也不会被切成半个字符', () => {
+    expect(initialOf({ name: '🐟小鱼', color: 'red' })).toBe('🐟');
   });
 });

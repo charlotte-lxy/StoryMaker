@@ -99,14 +99,12 @@ const COLLAB_KEY = 'storymaker.collab.v1';
  */
 export const DEFAULT_COLLAB_URL = 'ws://192.168.1.20:1999';
 
-/** 七个标记颜色：红橙黄绿青蓝紫。取中间调，深浅两套主题下都看得清 */
+/** 五个标记颜色：红黄蓝绿紫。取中间调，深浅两套主题下都看得清 */
 export const COLLAB_COLORS = [
   { key: 'red', label: '红', value: '#e5484d' },
-  { key: 'orange', label: '橙', value: '#f76808' },
   { key: 'yellow', label: '黄', value: '#c99a06' },
-  { key: 'green', label: '绿', value: '#2f9e63' },
-  { key: 'cyan', label: '青', value: '#0d9488' },
   { key: 'blue', label: '蓝', value: '#3b6ef5' },
+  { key: 'green', label: '绿', value: '#2f9e63' },
   { key: 'purple', label: '紫', value: '#8e4ec6' },
 ] as const;
 
