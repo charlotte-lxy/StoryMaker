@@ -65,10 +65,8 @@ export function useCollab(options: {
   setProject: (next: Project) => void;
   projectPath: string | null;
   host: HostApi | undefined;
-  /** 现在开着哪个模块 */
+  /** 现在开着哪个模块。切过去就报，不要求光标停在输入框里 */
   module: string;
-  /** 光标是不是真的在输入框里——只看模块会把「人在别的窗口」也算成在编辑 */
-  editing: boolean;
 }): CollabController {
   const { projectPath, host } = options;
 
@@ -108,8 +106,6 @@ export function useCollab(options: {
   pathRef.current = projectPath;
   const hostRef = useRef(host);
   hostRef.current = host;
-  const activityRef = useRef({ module: options.module, editing: options.editing });
-  activityRef.current = { module: options.module, editing: options.editing };
 
   const clientRef = useRef<CollabClient | null>(null);
   const sessionRef = useRef<SyncSession | null>(null);
@@ -236,17 +232,11 @@ export function useCollab(options: {
 
     const tick = (): void => {
       const current = prefsRef.current;
-      const activity = activityRef.current;
       clientRef.current?.send({
         type: 'presence',
         clientId: current.clientId,
         clock: 0,
-        presence: {
-          name: current.name,
-          color: current.color,
-          // 不在编辑就不报模块：人走了圆点还亮着，比不亮更误导
-          module: activity.editing ? activity.module : '',
-        },
+        presence: { name: current.name, color: current.color, module: options.module },
       });
       setCollaborators((list) => pruneCollaborators(list, Date.now()));
     };
@@ -256,7 +246,7 @@ export function useCollab(options: {
     return () => window.clearInterval(timer);
     // 名字和颜色刻意不进依赖：它们跟着心跳周期带出去就行，
     // 进了依赖会让每敲一个字都重发一轮广播
-  }, [status, prefs.clientId, options.module, options.editing]);
+  }, [status, prefs.clientId, options.module]);
 
   const setMyName = useCallback((name: string) => {
     const next = { ...prefsRef.current, name };

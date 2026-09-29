@@ -434,13 +434,9 @@ try {
   await sleep(250);
   check(j.presences[0]?.module === 'battle', '换了模块对方立刻看到', j.presences[0]?.module);
 
-  say(i, '小王', '');
+  say(i, '小王', 'story');
   await sleep(250);
-  check(
-    j.presences[0]?.module === '',
-    '走开（不在编辑）时报空，圆点不会一直亮着',
-    j.presences[0]?.module,
-  );
+  check(j.presences[0]?.module === 'story', '切回剧情也照样跟得上', j.presences[0]?.module);
 } catch (error) {
   failed = true;
   console.error('✗ 校验过程出错：', error);

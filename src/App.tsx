@@ -96,7 +96,6 @@ import { SettingsEditor } from './ui/SettingsEditor';
 import { ScriptPalette } from './ui/ScriptPalette';
 import { Sidebar } from './ui/Sidebar';
 import { useCollab } from './ui/useCollab';
-import { useTypingFocus } from './ui/useTypingFocus';
 import { useScrollMemory } from './ui/view-memory';
 
 /** 一个模块的校验结果，右上角的总数弹层与模块底部的校验条都用它 */
@@ -192,11 +191,8 @@ export default function App() {
     onConfirm: () => void;
   } | null>(null);
 
-  /** 光标是不是真的在输入框里：「谁在编辑什么」要靠它，光看开了哪个模块不够 */
-  const typing = useTypingFocus();
-
   /** 多人同步。连不上时它只是个离线状态，不影响任何编辑 */
-  const collab = useCollab({ project, setProject, projectPath, host, module, editing: typing });
+  const collab = useCollab({ project, setProject, projectPath, host, module });
   /** 对话列表是否处于批量编辑模式 */
   const [batchMode, setBatchMode] = useState(false);
   /** 批量编辑里勾中的对话行（跨段落无效，换段落时清空） */

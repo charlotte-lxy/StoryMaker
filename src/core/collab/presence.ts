@@ -11,7 +11,7 @@ export interface Collaborator extends PresenceInfo {
   clientId: string;
   /** 最后一次收到心跳的时刻（毫秒） */
   lastSeen: number;
-  /** 正在看的模块；空字符串表示没在编辑 */
+  /** 正在看的模块 */
   module: string;
 }
 

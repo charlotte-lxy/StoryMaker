@@ -38,7 +38,7 @@ describe('协作名单', () => {
     expect(list[0].module).toBe('battle');
   });
 
-  it('没报模块就当作没在编辑', () => {
+  it('没报模块时兜底成空字符串', () => {
     const list = upsertCollaborator([], 'a', { name: '小王', color: 'red' }, 1000);
 
     expect(list[0].module).toBe('');
