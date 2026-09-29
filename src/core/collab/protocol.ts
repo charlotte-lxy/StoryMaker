@@ -127,7 +127,7 @@ export function joinPath(segments: readonly string[]): string {
  * 就是拿 clientId 把自己发的过滤掉，见 client.ts。
  */
 export interface CollabMessage {
-  type: 'hello' | 'snapshot' | 'patch' | 'bye';
+  type: 'hello' | 'snapshot' | 'patch' | 'resolve' | 'bye';
   clientId: string;
   /** Lamport 时钟：本地改动时自增，收到别人的消息时取 max 再自增 */
   clock: number;

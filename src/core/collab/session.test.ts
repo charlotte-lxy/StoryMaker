@@ -71,6 +71,7 @@ function setup(options: SetupOptions) {
   const sent: CollabMessage[] = [];
   const conflicts: Conflict[] = [];
   const firstContacts: { remoteDoc: unknown; localDoc: unknown }[] = [];
+  const resolved: unknown[] = [];
 
   const session = createSyncSession({
     clientId: options.clientId ?? 'me',
@@ -89,6 +90,7 @@ function setup(options: SetupOptions) {
     },
     onConflicts: (list) => conflicts.push(...list),
     onFirstContact: (info) => firstContacts.push(info),
+    onResolved: (value) => resolved.push(value),
   });
 
   return {
@@ -96,6 +98,7 @@ function setup(options: SetupOptions) {
     sent,
     conflicts,
     firstContacts,
+    resolved,
     doc: () => doc,
     baseDoc: () => (base === null ? null : (base.doc as Project)),
     base: () => base,
@@ -302,5 +305,75 @@ describe('时钟', () => {
     await s.session.handleMessage({ type: 'hello', clientId: 'other', clock: 41 });
 
     expect(s.session.clock()).toBeGreaterThan(41);
+  });
+});
+
+describe('冲突裁决', () => {
+  it('发生冲突时记下当时的文档，供「取消合并」整份回滚', async () => {
+    const doc = makeProject();
+    const s = setup({ doc, base: { doc: structuredClone(doc), clock: 1 } });
+    s.doc().characters[0].name = '我改的';
+
+    expect(s.session.rollbackPoint()).toBeNull();
+    await s.session.handleMessage(renamePatch);
+
+    expect(s.conflicts).toHaveLength(1);
+    const point = s.session.rollbackPoint() as Project;
+    expect(point.characters[0].name).toBe('我改的');
+  });
+
+  it('裁决完之后回滚点就清掉了', async () => {
+    const doc = makeProject();
+    const s = setup({ doc, base: { doc: structuredClone(doc), clock: 1 } });
+    s.doc().characters[0].name = '我改的';
+    await s.session.handleMessage(renamePatch);
+
+    await s.session.applyResolution(s.doc());
+    expect(s.session.rollbackPoint()).toBeNull();
+  });
+
+  it('applyResolution 把结果定为新基准，并广播 resolve 出去', async () => {
+    const doc = makeProject();
+    const s = setup({ doc, base: { doc: structuredClone(doc), clock: 1 } });
+    s.doc().characters[0].name = '我改的';
+    await s.session.handleMessage(renamePatch);
+    s.clearSent();
+
+    const finalDoc = makeProject();
+    finalDoc.characters[0].name = '商量好的';
+    await s.session.applyResolution(finalDoc);
+
+    expect(s.doc().characters[0].name).toBe('商量好的');
+    expect(s.baseDoc()?.characters[0].name).toBe('商量好的');
+    const resolveMessage = s.sent.find((message) => message.type === 'resolve');
+    expect(resolveMessage).toBeDefined();
+    expect(resolveMessage?.doc).toBe(finalDoc);
+  });
+
+  it('收到对方的 resolve：直接采用，不再判冲突，并通知上层收面板', async () => {
+    const doc = makeProject();
+    const s = setup({ doc, base: { doc: structuredClone(doc), clock: 1 } });
+    s.doc().characters[0].name = '我改的';
+    await s.session.handleMessage(renamePatch); // 我这边正卡在冲突上
+
+    const decided = makeProject();
+    decided.characters[0].name = '对方定的';
+    await s.session.handleMessage({
+      type: 'resolve',
+      clientId: 'other',
+      clock: 9,
+      doc: decided,
+    });
+
+    expect(s.doc().characters[0].name).toBe('对方定的');
+    expect(s.resolved).toHaveLength(1);
+    expect(s.session.rollbackPoint()).toBeNull();
+  });
+
+  it('resolve 没带 doc 时当作没收到', async () => {
+    const s = setup({ doc: makeProject(), base: null });
+    await s.session.handleMessage({ type: 'resolve', clientId: 'other', clock: 5 });
+
+    expect(s.resolved).toHaveLength(0);
   });
 });

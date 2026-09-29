@@ -1,7 +1,7 @@
 {
   "name": "storymaker",
   "private": true,
-  "version": "0.1.15",
+  "version": "0.1.16",
   "type": "module",
   "description": "剧情对话编辑器",
   "main": "electron/main.cjs",

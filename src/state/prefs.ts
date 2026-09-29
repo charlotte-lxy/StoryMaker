@@ -87,3 +87,36 @@ export function loadStorySplit(): number {
 export function saveStorySplit(ratio: number): void {
   writeJson(SPLIT_KEY, { ratio: clampStorySplit(ratio) });
 }
+
+const COLLAB_KEY = 'storymaker.collab.v1';
+
+/**
+ * 协作服务端的默认地址。
+ *
+ * 默认就填这台常驻机，策划第一次打开不用问人就知道该填什么；换机器在界面上改一下，
+ * 改完记在本机。存的是"设置"不是项目数据，所以放 localStorage 不违反
+ * 「项目内容只有一份」那条原则。
+ */
+export const DEFAULT_COLLAB_URL = 'ws://192.168.1.20:1999';
+
+export interface CollabPrefs {
+  url: string;
+  /** 上次是连着的时候记住它，下次打开自动连；连不上也不影响编辑，只是状态显示离线 */
+  autoConnect: boolean;
+}
+
+export function loadCollabPrefs(): CollabPrefs {
+  const parsed = readJson(COLLAB_KEY);
+  if (parsed === null || typeof parsed !== 'object') {
+    return { url: DEFAULT_COLLAB_URL, autoConnect: false };
+  }
+
+  const raw = parsed as Partial<CollabPrefs>;
+  const url =
+    typeof raw.url === 'string' && raw.url.trim() !== '' ? raw.url.trim() : DEFAULT_COLLAB_URL;
+  return { url, autoConnect: raw.autoConnect === true };
+}
+
+export function saveCollabPrefs(prefs: CollabPrefs): void {
+  writeJson(COLLAB_KEY, { url: prefs.url, autoConnect: prefs.autoConnect });
+}

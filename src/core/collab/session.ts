@@ -41,6 +41,8 @@ export interface SyncSessionOptions {
   send: (message: CollabMessage) => boolean;
   /** 有改动两边都动过，需要人来选 */
   onConflicts: (conflicts: Conflict[]) => void;
+  /** 对方裁决完了，把最终结果强推了过来；上层据此收掉冲突面板 */
+  onResolved?: (doc: unknown) => void;
   /**
    * 首次对账且两边都有内容。给了这个回调就由上层决定怎么办；
    * 不给则保守处理：采用服务端那一份。
@@ -58,6 +60,10 @@ export interface SyncSession {
   publishLocalChange: () => Promise<void>;
   /** 处理一条远端消息 */
   handleMessage: (message: CollabMessage) => Promise<void>;
+  /** 冲突发生那一刻的文档快照（取消合并时回滚用）；没有冲突时是 null */
+  rollbackPoint: () => unknown | null;
+  /** 用户裁决完：把结果定为新基准，并广播出去让对方那个还没点的面板也收掉 */
+  applyResolution: (doc: unknown) => Promise<void>;
 }
 
 /** 判断文档算不算"有内容"：新建的空项目只有骨架，没有条目 */
@@ -74,6 +80,8 @@ export function createSyncSession(options: SyncSessionOptions): SyncSession {
   let base: SyncBase | null = null;
   let clock = 0;
   let loaded = false;
+  /** 冲突发生那一刻的文档，取消合并时整份回滚用 */
+  let rollback: unknown | null = null;
 
   async function ensureLoaded(): Promise<void> {
     if (loaded) return;
@@ -108,9 +116,30 @@ export function createSyncSession(options: SyncSessionOptions): SyncSession {
     await options.saveBase(base);
   }
 
+  /**
+   * 报冲突。第一次报的时候记下当时的文档——「取消合并」要把整份文档恢复成这一刻，
+   * 而不是只把那几条冲突撂下不管，否则文档会停在「合并了一半」的状态里。
+   */
+  function reportConflicts(conflicts: Conflict[]): void {
+    if (rollback === null) rollback = structuredClone(options.getDoc());
+    options.onConflicts(conflicts);
+  }
+
   return {
     clock: () => clock,
     base: () => base,
+    rollbackPoint: () => rollback,
+
+    applyResolution: async (doc) => {
+      await ensureLoaded();
+      clock += 1;
+      rollback = null;
+      options.setDoc(doc);
+      await commitBase(doc);
+      // 广播权威结果，让对方那个还没点的面板自动收掉。
+      // 发不出去也不要紧：他下次 hello 时拿到的 snapshot 已经是裁决后的了。
+      options.send({ type: 'resolve', clientId: options.clientId, clock, doc });
+    },
 
     announce: async () => {
       await ensureLoaded();
@@ -198,7 +227,7 @@ export function createSyncSession(options: SyncSessionOptions): SyncSession {
         const result = applyPatches(localDoc, theirs);
         options.setDoc(result.doc);
         if (result.conflicts.length > 0) {
-          options.onConflicts(result.conflicts);
+          reportConflicts(result.conflicts);
           return; // base 不动，等人来裁决
         }
         await commitBase(result.doc);
@@ -215,11 +244,21 @@ export function createSyncSession(options: SyncSessionOptions): SyncSession {
         const result = applyPatches(options.getDoc(), patches);
         if (result.applied > 0) options.setDoc(result.doc);
         if (result.conflicts.length > 0) {
-          options.onConflicts(result.conflicts);
+          reportConflicts(result.conflicts);
           return; // 有没落地的改动，base 不能前移，否则下次会把对方的改动当成我删的
         }
         // 全部落地了：这条 patch 是广播给所有人的，当前状态大家都知道了
         await commitBase(result.doc);
+        return;
+      }
+
+      if (message.type === 'resolve' && message.doc !== undefined) {
+        // 有人裁决完了：这是权威结果，直接采用、不再做冲突判断。
+        // 各选各的会来回震荡，所以约定成「先点确认的人定音」。
+        rollback = null;
+        options.setDoc(message.doc);
+        await commitBase(message.doc);
+        options.onResolved?.(message.doc);
       }
       // bye 不做事：对方走了不影响我这边的内容
     },

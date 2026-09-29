@@ -71,9 +71,12 @@ import { BattleEditor } from './ui/BattleEditor';
 import { BatchEditBar } from './ui/BatchEditBar';
 import { ChapterFlow } from './ui/ChapterFlow';
 import { CharacterEditor } from './ui/CharacterEditor';
+import { CollabBadge } from './ui/CollabBadge';
 import { CommandEditor } from './ui/CommandEditor';
+import { ConflictPanel } from './ui/ConflictPanel';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { ExportEditor } from './ui/ExportEditor';
+import { FirstContactDialog } from './ui/FirstContactDialog';
 import { IssuePanel } from './ui/IssuePanel';
 import { LineList } from './ui/LineList';
 import { LocalizationEditor } from './ui/LocalizationEditor';
@@ -82,6 +85,7 @@ import { ProjectGate } from './ui/ProjectGate';
 import { SettingsEditor } from './ui/SettingsEditor';
 import { ScriptPalette } from './ui/ScriptPalette';
 import { Sidebar } from './ui/Sidebar';
+import { useCollab } from './ui/useCollab';
 import { useScrollMemory } from './ui/view-memory';
 
 /** 一个模块的校验结果，右上角的总数弹层与模块底部的校验条都用它 */
@@ -176,6 +180,9 @@ export default function App() {
     message: string;
     onConfirm: () => void;
   } | null>(null);
+
+  /** 多人同步。连不上时它只是个离线状态，不影响任何编辑 */
+  const collab = useCollab({ project, setProject, projectPath, host });
   /** 对话列表是否处于批量编辑模式 */
   const [batchMode, setBatchMode] = useState(false);
   /** 批量编辑里勾中的对话行（跨段落无效，换段落时清空） */
@@ -792,6 +799,14 @@ export default function App() {
 
         <span className="spacer" />
 
+        <CollabBadge
+          status={collab.status}
+          detail={collab.detail}
+          url={collab.url}
+          onConnect={collab.connect}
+          onDisconnect={collab.disconnect}
+        />
+
         <div className="check-summary">
           <button
             type="button"
@@ -1231,6 +1246,19 @@ export default function App() {
             </footer>
           </div>
         </div>
+      )}
+
+      {collab.conflicts.length > 0 && (
+        <ConflictPanel
+          project={project}
+          conflicts={collab.conflicts}
+          onApply={collab.applyConflictChoices}
+          onCancel={collab.cancelMerge}
+        />
+      )}
+
+      {collab.firstContact !== null && (
+        <FirstContactDialog localName={project.name} onChoose={collab.chooseFirstContact} />
       )}
     </div>
   );
