@@ -44,6 +44,13 @@ export interface SyncSessionOptions {
   /** 对方裁决完了，把最终结果强推了过来；上层据此收掉冲突面板 */
   onResolved?: (doc: unknown) => void;
   /**
+   * 这次连接里第一次从对方那边同步到改动。
+   *
+   * 不管有没有冲突都会报，好让界面把「对方带来了什么」摆出来——没有冲突的时候，
+   * 否则就是一片静默，用户根本不知道别人的改动作么时候进来了。
+   */
+  onMerged?: (patches: Patch[]) => void;
+  /**
    * 首次对账且两边都有内容。给了这个回调就由上层决定怎么办；
    * 不给则保守处理：采用服务端那一份。
    */
@@ -82,6 +89,8 @@ export function createSyncSession(options: SyncSessionOptions): SyncSession {
   let loaded = false;
   /** 冲突发生那一刻的文档，取消合并时整份回滚用 */
   let rollback: unknown | null = null;
+  /** 这次连接里报过合并摘要没有；每次连上重置一次 */
+  let mergedReported = false;
 
   async function ensureLoaded(): Promise<void> {
     if (loaded) return;
@@ -129,6 +138,13 @@ export function createSyncSession(options: SyncSessionOptions): SyncSession {
     options.onConflicts(conflicts);
   }
 
+  /** 报一次"对方带来了这些改动"；一次连接里只报头一回，免得每次增量都弹 */
+  function reportMerged(patches: readonly Patch[]): void {
+    if (mergedReported || patches.length === 0) return;
+    mergedReported = true;
+    options.onMerged?.([...patches]);
+  }
+
   return {
     clock: () => clock,
     base: () => base,
@@ -147,6 +163,7 @@ export function createSyncSession(options: SyncSessionOptions): SyncSession {
 
     announce: async () => {
       await ensureLoaded();
+      mergedReported = false; // 每次连上都重新给一次"合并摘要"的机会
       // 只打招呼，先不广播离线期间攒的差额。
       //
       // 必须让对方先回 snapshot、走一遍对账：该合的合、该报冲突的报冲突，之后才轮到广播。
@@ -236,6 +253,8 @@ export function createSyncSession(options: SyncSessionOptions): SyncSession {
           return; // base 不动，等人来裁决
         }
         await commitBase(result.doc);
+        // 对方带来的改动摆给用户看（不管有没有冲突）；冲突那边会另外弹面板
+        reportMerged(theirs);
         // 让对方也知道我这边多出来的改动（他手上的 remoteDoc 还没有它们）
         const applied = diffProject(remoteDoc, result.doc);
         if (applied.length > 0) broadcastPatches(applied);
@@ -254,6 +273,7 @@ export function createSyncSession(options: SyncSessionOptions): SyncSession {
         }
         // 全部落地了：这条 patch 是广播给所有人的，当前状态大家都知道了
         await commitBase(result.doc);
+        reportMerged(patches);
         return;
       }
 

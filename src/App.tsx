@@ -81,6 +81,7 @@ import { IssuePanel } from './ui/IssuePanel';
 import { LineList } from './ui/LineList';
 import { LocalizationEditor } from './ui/LocalizationEditor';
 import { LookupEditor } from './ui/LookupEditor';
+import { MergeSummaryDialog } from './ui/MergeSummaryDialog';
 import { ProjectGate } from './ui/ProjectGate';
 import { SettingsEditor } from './ui/SettingsEditor';
 import { ScriptPalette } from './ui/ScriptPalette';
@@ -1272,6 +1273,14 @@ export default function App() {
 
       {collab.firstContact !== null && (
         <FirstContactDialog localName={project.name} onChoose={collab.chooseFirstContact} />
+      )}
+
+      {collab.mergeSummary !== null && (
+        <MergeSummaryDialog
+          project={project}
+          patches={collab.mergeSummary}
+          onClose={collab.dismissSummary}
+        />
       )}
     </div>
   );

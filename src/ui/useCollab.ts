@@ -10,7 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { backupPath, type HostApi } from '../core/host';
 import { createCollabClient, type CollabClient } from '../core/collab/client';
-import type { CollabStatus, Conflict } from '../core/collab/protocol';
+import type { CollabStatus, Conflict, Patch } from '../core/collab/protocol';
 import { resolveConflicts, resolveFirstContact, type ConflictChoice, type FirstContactChoice } from '../core/collab/resolve';
 import { parseBase, serializeBase } from '../core/collab/sidecar';
 import { createSyncSession, type FirstContact, type SyncSession } from '../core/collab/session';
@@ -26,6 +26,10 @@ export interface CollabController {
   conflicts: Conflict[];
   /** 首次对账待用户选择的内容；null 表示没有 */
   firstContact: FirstContact | null;
+  /** 这次连上后对方带来的改动摘要；null 表示没有要说的 */
+  mergeSummary: Patch[] | null;
+  /** 关掉摘要框 */
+  dismissSummary: () => void;
   connect: (url: string) => void;
   disconnect: () => void;
   applyConflictChoices: (choices: ConflictChoice[]) => void;
@@ -50,6 +54,11 @@ export function useCollab(options: {
   const [url, setUrl] = useState(() => loadCollabPrefs().url);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
   const [firstContact, setFirstContact] = useState<FirstContact | null>(null);
+  const [mergeSummary, setMergeSummary] = useState<Patch[] | null>(null);
+  /** 有冲突时摘要先压在这儿，等裁决完再弹——两个对话框不能叠在一起 */
+  const [pendingSummary, setPendingSummary] = useState<Patch[] | null>(null);
+  /** 会话回调里要读"最新的"冲突列表，闭包会锁住旧值 */
+  const conflictsRef = useRef<Conflict[]>([]);
 
   // 会话的回调要拿到"最新的"文档和写回函数，所以走 ref，不让闭包锁住旧值
   const projectRef = useRef(options.project);
@@ -68,8 +77,11 @@ export function useCollab(options: {
     clientRef.current?.disconnect();
     clientRef.current = null;
     sessionRef.current = null;
+    conflictsRef.current = [];
     setConflicts([]);
     setFirstContact(null);
+    setMergeSummary(null);
+    setPendingSummary(null);
     setStatus('offline');
     setDetail('');
   }, []);
@@ -79,8 +91,11 @@ export function useCollab(options: {
       clientRef.current?.disconnect();
       clientRef.current = null;
       sessionRef.current = null;
+      conflictsRef.current = [];
       setConflicts([]);
       setFirstContact(null);
+      setMergeSummary(null);
+      setPendingSummary(null);
 
       const clientId = makeClientId();
       const client = createCollabClient({
@@ -122,9 +137,20 @@ export function useCollab(options: {
           }
         },
         send: (message) => client.send(message),
-        onConflicts: (list) => setConflicts(list),
-        onResolved: () => setConflicts([]), // 对方先裁决了，这边面板自动收掉
+        onConflicts: (list) => {
+          conflictsRef.current = list;
+          setConflicts(list);
+        },
+        onResolved: () => {
+          conflictsRef.current = [];
+          setConflicts([]); // 对方先裁决了，这边面板自动收掉
+        },
         onFirstContact: (info) => setFirstContact(info),
+        onMerged: (patches) => {
+          // 有冲突就先把摘要压着：先让人处理冲突，处理完再告诉他对方带了什么过来
+          if (conflictsRef.current.length > 0) setPendingSummary(patches);
+          else setMergeSummary(patches);
+        },
       });
 
       clientRef.current = client;
@@ -155,13 +181,20 @@ export function useCollab(options: {
       const session = sessionRef.current;
       if (session === null) return;
       const resolved = resolveConflicts(projectRef.current, conflicts, choices);
+      conflictsRef.current = [];
       setConflicts([]);
       void session.applyResolution(resolved);
+      // 冲突处理完了，把刚才压着的摘要放出来
+      if (pendingSummary !== null) {
+        setMergeSummary(pendingSummary);
+        setPendingSummary(null);
+      }
     },
-    [conflicts],
+    [conflicts, pendingSummary],
   );
 
   const cancelMerge = useCallback(() => {
+    setPendingSummary(null);
     const point = sessionRef.current?.rollbackPoint();
     if (point !== null && point !== undefined) {
       setProjectRef.current(point as Project);
@@ -208,6 +241,8 @@ export function useCollab(options: {
     url,
     conflicts,
     firstContact,
+    mergeSummary,
+    dismissSummary: () => setMergeSummary(null),
     connect,
     disconnect,
     applyConflictChoices,

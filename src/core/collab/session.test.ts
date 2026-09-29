@@ -72,6 +72,7 @@ function setup(options: SetupOptions) {
   const conflicts: Conflict[] = [];
   const firstContacts: { remoteDoc: unknown; localDoc: unknown }[] = [];
   const resolved: unknown[] = [];
+  const merged: unknown[][] = [];
 
   const session = createSyncSession({
     clientId: options.clientId ?? 'me',
@@ -91,6 +92,7 @@ function setup(options: SetupOptions) {
     onConflicts: (list) => conflicts.push(...list),
     onFirstContact: (info) => firstContacts.push(info),
     onResolved: (value) => resolved.push(value),
+    onMerged: (patches) => merged.push(patches),
   });
 
   return {
@@ -99,6 +101,7 @@ function setup(options: SetupOptions) {
     conflicts,
     firstContacts,
     resolved,
+    merged,
     doc: () => doc,
     baseDoc: () => (base === null ? null : (base.doc as Project)),
     base: () => base,
@@ -397,5 +400,56 @@ describe('冲突裁决', () => {
     await s.session.handleMessage({ type: 'resolve', clientId: 'other', clock: 5 });
 
     expect(s.resolved).toHaveLength(0);
+  });
+});
+
+describe('合并摘要', () => {
+  const titlePatch = (value: string, clock: number) => ({
+    type: 'patch' as const,
+    clientId: 'other',
+    clock,
+    patches: [
+      { kind: 'field' as const, target: 'chapters/ch1', field: 'title', oldValue: '第一章', value },
+    ],
+  });
+
+  it('第一次从对方同步到改动时报一次', async () => {
+    const doc = makeProject();
+    const s = setup({ doc, base: { doc: structuredClone(doc), clock: 1 } });
+
+    await s.session.handleMessage(renamePatch);
+
+    expect(s.merged).toHaveLength(1);
+    expect(s.merged[0]).toHaveLength(1);
+  });
+
+  it('一次连接里只报头一回，后续增量不再打扰', async () => {
+    const doc = makeProject();
+    const s = setup({ doc, base: { doc: structuredClone(doc), clock: 1 } });
+
+    await s.session.handleMessage(renamePatch);
+    await s.session.handleMessage(titlePatch('序章', 5));
+
+    expect(s.merged).toHaveLength(1);
+  });
+
+  it('announce（重新连上）之后重新允许报一次', async () => {
+    const doc = makeProject();
+    const s = setup({ doc, base: { doc: structuredClone(doc), clock: 1 } });
+
+    await s.session.handleMessage(renamePatch);
+    expect(s.merged).toHaveLength(1);
+
+    await s.session.announce();
+    await s.session.handleMessage(titlePatch('序章', 9));
+
+    expect(s.merged).toHaveLength(2);
+  });
+
+  it('对方只是打个招呼、没带改动时不报', async () => {
+    const s = setup({ doc: makeProject(), base: null });
+    await s.session.handleMessage({ type: 'hello', clientId: 'other', clock: 2 });
+
+    expect(s.merged).toHaveLength(0);
   });
 });
