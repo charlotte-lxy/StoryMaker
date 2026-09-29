@@ -6,16 +6,28 @@
  * 所以这里没有任何一处会因为协作而挡住用户。
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { backupPath, type HostApi } from '../core/host';
 import { createCollabClient, type CollabClient } from '../core/collab/client';
 import type { CollabStatus, Conflict, Patch } from '../core/collab/protocol';
 import { resolveConflicts, resolveFirstContact, type ConflictChoice, type FirstContactChoice } from '../core/collab/resolve';
+import {
+  PRESENCE_INTERVAL_MS,
+  pruneCollaborators,
+  upsertCollaborator,
+  type Collaborator,
+} from '../core/collab/presence';
 import { parseBase, serializeBase } from '../core/collab/sidecar';
 import { createSyncSession, type FirstContact, type SyncSession } from '../core/collab/session';
 import type { Project } from '../core/types';
-import { loadCollabPrefs, saveCollabPrefs } from '../state/prefs';
+import {
+  COLLAB_COLORS,
+  loadCollabPrefs,
+  saveCollabPrefs,
+  type CollabColor,
+  type CollabPrefs,
+} from '../state/prefs';
 
 export interface CollabController {
   status: CollabStatus;
@@ -30,6 +42,13 @@ export interface CollabController {
   mergeSummary: Patch[] | null;
   /** 关掉摘要框 */
   dismissSummary: () => void;
+  /** 当前在线的成员，第一个永远是自己 */
+  collaborators: Collaborator[];
+  /** 本机的协作身份 */
+  myName: string;
+  myColor: CollabColor;
+  setMyName: (name: string) => void;
+  setMyColor: (color: CollabColor) => void;
   connect: (url: string) => void;
   disconnect: () => void;
   applyConflictChoices: (choices: ConflictChoice[]) => void;
@@ -51,7 +70,23 @@ export function useCollab(options: {
 
   const [status, setStatus] = useState<CollabStatus>('offline');
   const [detail, setDetail] = useState('');
-  const [url, setUrl] = useState(() => loadCollabPrefs().url);
+  /** 协作的本机设置：地址、身份、名字、颜色 */
+  const [prefs, setPrefs] = useState<CollabPrefs>(() => {
+    const loaded = loadCollabPrefs();
+    if (loaded.clientId !== '') return loaded;
+    // 第一次参与协作：发一个固定身份，顺手随机一个颜色，免得所有人都默认红色
+    const fresh: CollabPrefs = {
+      ...loaded,
+      clientId: makeClientId(),
+      color: COLLAB_COLORS[Math.floor(Math.random() * COLLAB_COLORS.length)].key,
+    };
+    saveCollabPrefs(fresh);
+    return fresh;
+  });
+  const prefsRef = useRef(prefs);
+  prefsRef.current = prefs;
+  /** 别人的心跳攒出来的名单；自己不在里面，渲染时补在最前面 */
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
   const [firstContact, setFirstContact] = useState<FirstContact | null>(null);
   const [mergeSummary, setMergeSummary] = useState<Patch[] | null>(null);
@@ -74,6 +109,12 @@ export function useCollab(options: {
   const sessionRef = useRef<SyncSession | null>(null);
 
   const disconnect = useCallback(() => {
+    // 走之前喊一声，别人不用等满十五秒超时才知道我走了
+    clientRef.current?.send({
+      type: 'bye',
+      clientId: prefsRef.current.clientId,
+      clock: 0,
+    });
     clientRef.current?.disconnect();
     clientRef.current = null;
     sessionRef.current = null;
@@ -82,6 +123,7 @@ export function useCollab(options: {
     setFirstContact(null);
     setMergeSummary(null);
     setPendingSummary(null);
+    setCollaborators([]);
     setStatus('offline');
     setDetail('');
   }, []);
@@ -97,7 +139,7 @@ export function useCollab(options: {
       setMergeSummary(null);
       setPendingSummary(null);
 
-      const clientId = makeClientId();
+      const clientId = prefsRef.current.clientId;
       const client = createCollabClient({
         url: nextUrl,
         clientId,
@@ -108,6 +150,18 @@ export function useCollab(options: {
           if (next === 'online') void sessionRef.current?.announce();
         },
         onMessage: (message) => {
+          const presence = message.presence;
+          if (message.type === 'presence' && presence !== undefined) {
+            // 自己的回显也收下，这样"我"那一行始终是最新的
+            setCollaborators((list) =>
+              upsertCollaborator(list, message.clientId, presence, Date.now()),
+            );
+            return;
+          }
+          if (message.type === 'bye') {
+            setCollaborators((list) => list.filter((item) => item.clientId !== message.clientId));
+            return;
+          }
           void sessionRef.current?.handleMessage(message);
         },
       });
@@ -156,18 +210,62 @@ export function useCollab(options: {
       clientRef.current = client;
       sessionRef.current = session;
       client.connect();
-      setUrl(nextUrl);
-      saveCollabPrefs({ url: nextUrl, autoConnect: true });
+      const next: CollabPrefs = { ...prefsRef.current, url: nextUrl, autoConnect: true };
+      setPrefs(next);
+      saveCollabPrefs(next);
     },
     [],
   );
 
   /** 自动连接：上次开着就自动接上；接不上也只是显示离线，不打扰人 */
   useEffect(() => {
-    const prefs = loadCollabPrefs();
-    if (prefs.autoConnect) connect(prefs.url);
+    const saved = prefsRef.current;
+    if (saved.autoConnect) connect(saved.url);
     return () => disconnect();
   }, [connect, disconnect]);
+
+  /** 心跳：定期喊一声「我还在、我叫什么、什么颜色」，顺手把掉线的人剔出去 */
+  useEffect(() => {
+    if (status !== 'online') return;
+
+    const tick = (): void => {
+      const current = prefsRef.current;
+      clientRef.current?.send({
+        type: 'presence',
+        clientId: current.clientId,
+        clock: 0,
+        presence: { name: current.name, color: current.color },
+      });
+      setCollaborators((list) => pruneCollaborators(list, Date.now()));
+    };
+
+    tick(); // 连上就立刻喊一声，不用等第一个周期
+    const timer = window.setInterval(tick, PRESENCE_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [status, prefs.clientId, prefs.name, prefs.color]);
+
+  const setMyName = useCallback((name: string) => {
+    const next = { ...prefsRef.current, name };
+    setPrefs(next);
+    saveCollabPrefs(next);
+  }, []);
+
+  const setMyColor = useCallback((color: CollabColor) => {
+    const next = { ...prefsRef.current, color };
+    setPrefs(next);
+    saveCollabPrefs(next);
+  }, []);
+
+  /** 名单加上自己：自己永远排第一个，界面上一眼就能找到 */
+  const allCollaborators = useMemo<Collaborator[]>(() => {
+    const self: Collaborator = {
+      clientId: prefs.clientId,
+      name: prefs.name,
+      color: prefs.color,
+      lastSeen: Date.now(),
+    };
+    return [self, ...collaborators.filter((item) => item.clientId !== prefs.clientId)];
+  }, [collaborators, prefs.clientId, prefs.name, prefs.color]);
 
   /** 本地改动 → 算出与基准的差额广播出去（没有改动时内部会直接返回） */
   useEffect(() => {
@@ -238,11 +336,16 @@ export function useCollab(options: {
   return {
     status,
     detail,
-    url,
+    url: prefs.url,
     conflicts,
     firstContact,
     mergeSummary,
     dismissSummary: () => setMergeSummary(null),
+    collaborators: allCollaborators,
+    myName: prefs.name,
+    myColor: prefs.color,
+    setMyName,
+    setMyColor,
     connect,
     disconnect,
     applyConflictChoices,

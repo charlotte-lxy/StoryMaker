@@ -14,6 +14,7 @@
 import type { CollabClient } from '../src/core/collab/client';
 import { createCollabClient } from '../src/core/collab/client';
 import type { CollabStatus, Conflict } from '../src/core/collab/protocol';
+import { upsertCollaborator, type Collaborator } from '../src/core/collab/presence';
 import { resolveConflicts, resolveFirstContact } from '../src/core/collab/resolve';
 import { createSyncSession, type FirstContact, type SyncBase, type SyncSession } from '../src/core/collab/session';
 import type { Line, Project } from '../src/core/types';
@@ -102,6 +103,8 @@ interface Peer {
   conflicts: Conflict[];
   resolvedCount: () => number;
   firstContact: () => FirstContact | null;
+  /** 收到的心跳攒出来的名单，用的是界面同一套 presence 逻辑 */
+  presences: Collaborator[];
 }
 
 function makePeer(name: string, initial: Project): Peer {
@@ -110,6 +113,7 @@ function makePeer(name: string, initial: Project): Peer {
   const conflicts: Conflict[] = [];
   let resolved = 0;
   let firstContact: FirstContact | null = null;
+  const presences: Collaborator[] = [];
 
   let session: SyncSession | null = null;
 
@@ -118,6 +122,21 @@ function makePeer(name: string, initial: Project): Peer {
     clientId: name,
     onStatus: () => {},
     onMessage: (message) => {
+      const presence = message.presence;
+      if (message.type === 'presence' && presence !== undefined) {
+        // 服务端会把自己的消息也回显给自己，自己不用进这份名单
+        // （界面那边是收下回显、渲染时再把自己滤掉重拼，效果一样）
+        if (message.clientId === name) return;
+        const next = upsertCollaborator(presences, message.clientId, presence, Date.now());
+        presences.length = 0;
+        presences.push(...next);
+        return;
+      }
+      if (message.type === 'bye') {
+        const at = presences.findIndex((item) => item.clientId === message.clientId);
+        if (at >= 0) presences.splice(at, 1);
+        return;
+      }
       void session?.handleMessage(message);
     },
   });
@@ -161,6 +180,7 @@ function makePeer(name: string, initial: Project): Peer {
     conflicts,
     resolvedCount: () => resolved,
     firstContact: () => firstContact,
+    presences,
   };
 }
 
@@ -341,6 +361,43 @@ try {
 
   const order = f.doc().chapters[0]?.groups[0]?.lines.map((line) => line.uid).join(',') ?? '';
   check(order === 'l1,l2,l9,l3,l4', '插入位置正确，没被丢到末尾', order);
+
+  // ---------- 5. 在线名单：心跳广播得出去、道别看得见 ----------
+  e.client.disconnect();
+  f.client.disconnect();
+  await sleep(150);
+
+  console.log('');
+  console.log('【5】在线名单：心跳能广播出去，道别能被立刻看到');
+
+  const g = makePeer('G', makeProject('G 的项目'));
+  const h = makePeer('H', makeProject('H 的项目'));
+  peers.push(g, h);
+
+  const hello = (peer: Peer, name: string, color: string): void => {
+    peer.client.send({
+      type: 'presence',
+      clientId: peer.name,
+      clock: 0,
+      presence: { name, color },
+    });
+  };
+
+  if (!(await connect(g))) throw new Error('G 连不上');
+  if (!(await connect(h))) throw new Error('H 连不上');
+  // 真实客户端每 5 秒喊一轮，这里手动触发；两边都要喊，互相才看得见
+  hello(g, '小王', 'red');
+  hello(h, '小李', 'blue');
+  await sleep(300);
+
+  check(g.presences.length === 1, 'G 的名单里有一个人', JSON.stringify(g.presences));
+  check(g.presences[0]?.name === '小李', 'G 看到了对方的名字', g.presences[0]?.name);
+  check(h.presences[0]?.name === '小王', 'H 也看到了对方');
+  check(h.presences[0]?.color === 'red', '颜色一起带过来了', h.presences[0]?.color);
+
+  h.client.send({ type: 'bye', clientId: 'H', clock: 0 });
+  await sleep(250);
+  check(g.presences.length === 0, 'H 道别之后，G 立刻把他从名单上拿掉（不用等超时）');
 } catch (error) {
   failed = true;
   console.error('✗ 校验过程出错：', error);

@@ -817,8 +817,13 @@ export default function App() {
           status={collab.status}
           detail={collab.detail}
           url={collab.url}
+          collaborators={collab.collaborators}
+          myName={collab.myName}
+          myColor={collab.myColor}
           onConnect={collab.connect}
           onDisconnect={collab.disconnect}
+          onRename={collab.setMyName}
+          onRecolor={collab.setMyColor}
         />
 
         <div className="check-summary">

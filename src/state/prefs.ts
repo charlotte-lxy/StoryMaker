@@ -99,24 +99,66 @@ const COLLAB_KEY = 'storymaker.collab.v1';
  */
 export const DEFAULT_COLLAB_URL = 'ws://192.168.1.20:1999';
 
+/** 七个标记颜色：红橙黄绿青蓝紫。取中间调，深浅两套主题下都看得清 */
+export const COLLAB_COLORS = [
+  { key: 'red', label: '红', value: '#e5484d' },
+  { key: 'orange', label: '橙', value: '#f76808' },
+  { key: 'yellow', label: '黄', value: '#c99a06' },
+  { key: 'green', label: '绿', value: '#2f9e63' },
+  { key: 'cyan', label: '青', value: '#0d9488' },
+  { key: 'blue', label: '蓝', value: '#3b6ef5' },
+  { key: 'purple', label: '紫', value: '#8e4ec6' },
+] as const;
+
+export type CollabColor = (typeof COLLAB_COLORS)[number]['key'];
+
+export function collabColorValue(key: string): string {
+  const found = COLLAB_COLORS.find((item) => item.key === key);
+  return found === undefined ? COLLAB_COLORS[0].value : found.value;
+}
+
 export interface CollabPrefs {
   url: string;
   /** 上次是连着的时候记住它，下次打开自动连；连不上也不影响编辑，只是状态显示离线 */
   autoConnect: boolean;
+  /** 协作用户名；空着就显示「未命名用户」 */
+  name: string;
+  color: CollabColor;
+  /**
+   * 本机在协作里的身份，持久化下来：重连还是同一个人，
+   * 名字和颜色不会变，别人看到的名单也不会因为重连凭空多出一个人。
+   */
+  clientId: string;
 }
 
 export function loadCollabPrefs(): CollabPrefs {
   const parsed = readJson(COLLAB_KEY);
   if (parsed === null || typeof parsed !== 'object') {
-    return { url: DEFAULT_COLLAB_URL, autoConnect: false };
+    return { url: DEFAULT_COLLAB_URL, autoConnect: false, name: '', color: 'red', clientId: '' };
   }
 
   const raw = parsed as Partial<CollabPrefs>;
   const url =
     typeof raw.url === 'string' && raw.url.trim() !== '' ? raw.url.trim() : DEFAULT_COLLAB_URL;
-  return { url, autoConnect: raw.autoConnect === true };
+  const color = COLLAB_COLORS.some((item) => item.key === raw.color)
+    ? (raw.color as CollabColor)
+    : 'red';
+
+  return {
+    url,
+    autoConnect: raw.autoConnect === true,
+    name: typeof raw.name === 'string' ? raw.name : '',
+    color,
+    clientId: typeof raw.clientId === 'string' ? raw.clientId : '',
+  };
 }
 
 export function saveCollabPrefs(prefs: CollabPrefs): void {
-  writeJson(COLLAB_KEY, { url: prefs.url, autoConnect: prefs.autoConnect });
+  writeJson(COLLAB_KEY, {
+    url: prefs.url,
+    autoConnect: prefs.autoConnect,
+    name: prefs.name,
+    color: prefs.color,
+    clientId: prefs.clientId,
+  });
 }

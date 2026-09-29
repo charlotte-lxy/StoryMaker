@@ -3246,6 +3246,58 @@ tr.locale-form-note td {
   justify-content: flex-end;
 }
 
+/* 七个标记颜色：选中的那个描一圈，一眼看出当前是哪个 */
+.collab-colors {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.collab-color {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.collab-color.on {
+  border-color: var(--text);
+}
+
+.collab-members {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.collab-members ul {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.collab-members li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  color: var(--text);
+}
+
+.collab-members em {
+  color: var(--text-dim);
+  font-style: normal;
+}
+
+/* 名单里的圆点跟着各人的配色走，所以要 flex:none，别被压扁 */
+.collab-members .collab-dot {
+  flex: none;
+}
+
 .collab-note {
   margin: 8px 0 0;
   font-size: 12px;

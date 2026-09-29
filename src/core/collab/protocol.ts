@@ -137,7 +137,7 @@ export function joinPath(segments: readonly string[]): string {
  * 就是拿 clientId 把自己发的过滤掉，见 client.ts。
  */
 export interface CollabMessage {
-  type: 'hello' | 'snapshot' | 'patch' | 'resolve' | 'bye';
+  type: 'hello' | 'snapshot' | 'patch' | 'resolve' | 'presence' | 'bye';
   clientId: string;
   /** Lamport 时钟：本地改动时自增，收到别人的消息时取 max 再自增 */
   clock: number;
@@ -145,6 +145,21 @@ export interface CollabMessage {
   doc?: unknown;
   /** type=patch 时带改动 */
   patches?: Patch[];
+  /** type=presence 时带"我是谁、什么颜色" */
+  presence?: PresenceInfo;
+}
+
+/**
+ * 在线状态。
+ *
+ * 服务端只是个广播中继，没有成员表、也不记谁在线，所以「现在有几个人在协作」
+ * 只能靠每个客户端定期喊一声，各自记一份名单、超时就当掉线。
+ */
+export interface PresenceInfo {
+  /** 显示名；空字符串表示还没填过，界面上显示「未命名用户」 */
+  name: string;
+  /** 标记颜色，取自 prefs 里那七个 */
+  color: string;
 }
 
 /** 连接状态。offline 不等于坏掉——那一律按纯本地用，这是设计的一部分 */
