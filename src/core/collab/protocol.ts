@@ -139,6 +139,13 @@ export function joinPath(segments: readonly string[]): string {
 export interface CollabMessage {
   type: 'hello' | 'snapshot' | 'patch' | 'resolve' | 'presence' | 'bye';
   clientId: string;
+  /**
+   * 项目标识，就是项目文件名。
+   *
+   * 服务端不区分房间，同一个端口上可能挂着别人的项目；标识对不上的消息一律忽略，
+   * 免得两份不同的项目互相灌内容。老客户端不发这个字段，那就按「不校验」处理。
+   */
+  projectId?: string;
   /** Lamport 时钟：本地改动时自增，收到别人的消息时取 max 再自增 */
   clock: number;
   /** type=snapshot 时带完整文档 */

@@ -107,9 +107,11 @@ interface Peer {
   presences: Collaborator[];
   /** 每次「合并摘要」报上来的改动清单 */
   mergedPatches: Patch[][];
+  /** 收到的「服务端上是别的项目」提示 */
+  foreigns: { projectId: string; doc: unknown }[];
 }
 
-function makePeer(name: string, initial: Project): Peer {
+function makePeer(name: string, initial: Project, projectId = '共享项目.json'): Peer {
   let current = initial;
   let base: SyncBase | null = null;
   const conflicts: Conflict[] = [];
@@ -118,6 +120,7 @@ function makePeer(name: string, initial: Project): Peer {
   const presences: Collaborator[] = [];
   /** 每次 onMerged 报上来的改动清单（合并摘要） */
   const mergedPatches: Patch[][] = [];
+  const foreigns: { projectId: string; doc: unknown }[] = [];
 
   let session: SyncSession | null = null;
 
@@ -147,6 +150,7 @@ function makePeer(name: string, initial: Project): Peer {
 
   session = createSyncSession({
     clientId: name,
+    projectId,
     getDoc: () => current,
     setDoc: (doc) => {
       current = doc as Project;
@@ -170,6 +174,9 @@ function makePeer(name: string, initial: Project): Peer {
     onMerged: (patches) => {
       mergedPatches.push(patches);
     },
+    onForeignProject: (info) => {
+      foreigns.push(info);
+    },
   });
 
   const ready = session;
@@ -189,6 +196,7 @@ function makePeer(name: string, initial: Project): Peer {
     firstContact: () => firstContact,
     presences,
     mergedPatches,
+    foreigns,
   };
 }
 
@@ -454,6 +462,45 @@ try {
   say(i, '小王', 'story');
   await sleep(250);
   check(j.presences[0]?.module === 'story', '切回剧情也照样跟得上', j.presences[0]?.module);
+
+  // ---------- 7. 跨项目隔离 ----------
+  i.client.disconnect();
+  j.client.disconnect();
+  await sleep(500);
+
+  console.log('');
+  console.log('【7】跨项目隔离：服务端上挂着别的项目时互不干扰');
+
+  const k = makePeer('K', makeProject('K 的项目'), '剧情A.json');
+  const l = makePeer('L', makeProject('L 的项目'), '剧情B.json');
+  peers.push(k, l);
+
+  if (!(await connect(k))) throw new Error('K 连不上');
+  k.session.announce();
+  await sleep(150);
+  await k.session.publishLocalChange();
+
+  if (!(await connect(l))) throw new Error('L 连不上');
+  l.session.announce(); // 打招呼 → K 会回快照，但项目标识对不上
+  await sleep(400);
+
+  check(
+    l.foreigns.length > 0,
+    'L 知道服务端上挂着的是另一份项目',
+    JSON.stringify(l.foreigns.map((item) => item.projectId)),
+  );
+  check(l.doc().name === 'L 的项目', 'L 的项目没被对方灌进来', l.doc().name);
+
+  k.update((draft) => {
+    draft.characters[0].name = 'K 改的';
+  });
+  await k.session.publishLocalChange();
+  await sleep(300);
+  check(
+    l.doc().characters[0]?.name === '甲',
+    '不同项目的改动不会串过来',
+    l.doc().characters[0]?.name,
+  );
 } catch (error) {
   failed = true;
   console.error('✗ 校验过程出错：', error);

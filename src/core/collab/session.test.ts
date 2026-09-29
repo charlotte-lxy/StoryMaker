@@ -61,6 +61,8 @@ interface SetupOptions {
   base: SyncBase | null;
   sendOk?: boolean;
   clientId?: string;
+  /** 本机项目标识；默认给一个固定的，测跨项目过滤时再改 */
+  projectId?: string;
 }
 
 function setup(options: SetupOptions) {
@@ -73,9 +75,11 @@ function setup(options: SetupOptions) {
   const firstContacts: { remoteDoc: unknown; localDoc: unknown }[] = [];
   const resolved: unknown[] = [];
   const merged: unknown[][] = [];
+  const foreigns: { projectId: string; doc: unknown }[] = [];
 
   const session = createSyncSession({
     clientId: options.clientId ?? 'me',
+    projectId: options.projectId ?? '测试项目.json',
     getDoc: () => doc,
     setDoc: (next) => {
       doc = next as Project;
@@ -93,6 +97,7 @@ function setup(options: SetupOptions) {
     onFirstContact: (info) => firstContacts.push(info),
     onResolved: (value) => resolved.push(value),
     onMerged: (patches) => merged.push(patches),
+    onForeignProject: (info) => foreigns.push(info),
   });
 
   return {
@@ -102,6 +107,7 @@ function setup(options: SetupOptions) {
     firstContacts,
     resolved,
     merged,
+    foreigns,
     doc: () => doc,
     baseDoc: () => (base === null ? null : (base.doc as Project)),
     base: () => base,
@@ -457,5 +463,62 @@ describe('合并摘要', () => {
     await s.session.handleMessage({ type: 'hello', clientId: 'other', clock: 2 });
 
     expect(s.merged).toHaveLength(0);
+  });
+});
+
+describe('跨项目隔离', () => {
+  const OTHER = '别人的项目.json';
+
+  it('标识对不上的 patch 一律不理', async () => {
+    const doc = makeProject();
+    const s = setup({ doc, base: { doc: structuredClone(doc), clock: 1 } });
+
+    await s.session.handleMessage({ ...renamePatch, projectId: OTHER });
+
+    expect(s.doc().characters[0].name).toBe('甲'); // 原样不动
+  });
+
+  it('标识对不上的快照会报上来，但不会灌进本机', async () => {
+    const doc = makeProject();
+    const s = setup({ doc, base: { doc: structuredClone(doc), clock: 1 } });
+
+    await s.session.handleMessage({
+      type: 'snapshot',
+      clientId: 'other',
+      clock: 5,
+      projectId: OTHER,
+      doc: makeProject('别人的项目'),
+    });
+
+    expect(s.foreigns).toHaveLength(1);
+    expect(s.foreigns[0].projectId).toBe(OTHER);
+    expect(s.doc().name).toBe('测试项目'); // 没有被换掉
+  });
+
+  it('标识一样的消息照常处理', async () => {
+    const doc = makeProject();
+    const s = setup({ doc, base: { doc: structuredClone(doc), clock: 1 } });
+
+    await s.session.handleMessage({ ...renamePatch, projectId: '测试项目.json' });
+
+    expect(s.doc().characters[0].name).toBe('对方改的');
+  });
+
+  it('自己发出去的每条消息都贴上标识', async () => {
+    const s = setup({ doc: makeProject(), base: null });
+
+    await s.session.announce();
+
+    expect(s.sent).toHaveLength(1);
+    expect(s.sent[0].projectId).toBe('测试项目.json');
+  });
+
+  it('没带标识的消息（老客户端）照常处理，不当作外人', async () => {
+    const doc = makeProject();
+    const s = setup({ doc, base: { doc: structuredClone(doc), clock: 1 } });
+
+    await s.session.handleMessage(renamePatch);
+
+    expect(s.doc().characters[0].name).toBe('对方改的');
   });
 });

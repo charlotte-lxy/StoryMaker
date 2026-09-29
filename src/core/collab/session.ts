@@ -33,6 +33,8 @@ export interface FirstContact {
 
 export interface SyncSessionOptions {
   clientId: string;
+  /** 本机项目的标识（就是文件名）：标识对不上的消息一律不当自己的 */
+  projectId: string;
   getDoc: () => unknown;
   setDoc: (doc: unknown) => void;
   loadBase: () => Promise<SyncBase | null>;
@@ -50,6 +52,11 @@ export interface SyncSessionOptions {
    * 否则就是一片静默，用户根本不知道别人的改动作么时候进来了。
    */
   onMerged?: (patches: Patch[]) => void;
+  /**
+   * 收到别的项目的快照：说明这个服务端上挂着另一份项目。
+   * 上层可以问用户要不要把那一份拉下来用。
+   */
+  onForeignProject?: (info: { projectId: string; doc: unknown }) => void;
   /**
    * 首次对账且两边都有内容。给了这个回调就由上层决定怎么办；
    * 不给则保守处理：采用服务端那一份。
@@ -112,7 +119,7 @@ export function createSyncSession(options: SyncSessionOptions): SyncSession {
 
   function broadcastPatches(patches: Patch[]): boolean {
     if (patches.length === 0) return false;
-    return options.send({
+    return send({
       type: 'patch',
       clientId: options.clientId,
       clock,
@@ -145,6 +152,16 @@ export function createSyncSession(options: SyncSessionOptions): SyncSession {
     options.onMerged?.([...patches]);
   }
 
+  /**
+   * 发消息时统一贴上项目标识。
+   *
+   * 服务端是个大广播，同一个端口上可能挂着别人的项目。对面收到标识对不上的消息
+   * 就当没看见，免得两个项目互相灌内容——那比不联机还糟。所以每条都必须带。
+   */
+  function send(message: CollabMessage): boolean {
+    return options.send({ ...message, projectId: options.projectId });
+  }
+
   return {
     clock: () => clock,
     base: () => base,
@@ -158,7 +175,7 @@ export function createSyncSession(options: SyncSessionOptions): SyncSession {
       await commitBase(doc);
       // 广播权威结果，让对方那个还没点的面板自动收掉。
       // 发不出去也不要紧：他下次 hello 时拿到的 snapshot 已经是裁决后的了。
-      options.send({ type: 'resolve', clientId: options.clientId, clock, doc });
+      send({ type: 'resolve', clientId: options.clientId, clock, doc });
     },
 
     announce: async () => {
@@ -172,7 +189,7 @@ export function createSyncSession(options: SyncSessionOptions): SyncSession {
       //
       // 独自在线、没人回 snapshot 也不会丢东西：基准不前移，那些改动就留在差额里，
       // 下次本地改动时一起发；别人来了会拿到含这些改动的 snapshot。
-      options.send({ type: 'hello', clientId: options.clientId, clock });
+      send({ type: 'hello', clientId: options.clientId, clock });
     },
 
     publishLocalChange: async () => {
@@ -200,12 +217,29 @@ export function createSyncSession(options: SyncSessionOptions): SyncSession {
     handleMessage: async (message) => {
       // 服务端会把自己的消息也回显回来，先滤掉
       if (message.clientId === options.clientId) return;
+
+      // 不是同一个项目：hello 和 snapshot 要特殊对待，其余（patch / resolve）一律当没看见，
+      // 免得两份不同的项目互相灌内容。
+      if (message.projectId !== undefined && message.projectId !== options.projectId) {
+        // hello 得回一份自己的快照——对方就靠这个知道「服务端上挂着的是另一份项目」。
+        // 不回的话两边会互相沉默，谁也发现不了撞了项目。
+        if (message.type === 'hello') {
+          send({ type: 'snapshot', clientId: options.clientId, clock, doc: options.getDoc() });
+          return;
+        }
+        // 收到别家的快照：只拿来说一声，绝不落到本机文档上
+        if (message.type === 'snapshot' && message.doc !== undefined) {
+          options.onForeignProject?.({ projectId: message.projectId, doc: message.doc });
+        }
+        return;
+      }
+
       await ensureLoaded();
       advanceClock(message.clock);
 
       if (message.type === 'hello') {
         // 有人刚来，把我这一版发给他当起点
-        options.send({
+        send({
           type: 'snapshot',
           clientId: options.clientId,
           clock,

@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { backupPath, type HostApi } from '../core/host';
+import { backupPath, baseName, type HostApi } from '../core/host';
 import { createCollabClient, type CollabClient } from '../core/collab/client';
 import type { CollabStatus, Conflict, Patch } from '../core/collab/protocol';
 import { resolveConflicts, resolveFirstContact, type ConflictChoice, type FirstContactChoice } from '../core/collab/resolve';
@@ -42,6 +42,10 @@ export interface CollabController {
   mergeSummary: Patch[] | null;
   /** 关掉摘要框 */
   dismissSummary: () => void;
+  /** 服务端上挂着的是另一个项目时的信息；null 表示没有 */
+  foreignProject: { projectId: string; doc: unknown } | null;
+  /** 关掉「服务端上是另一份项目」的提示 */
+  dismissForeignProject: () => void;
   /** 当前在线的成员，第一个永远是自己 */
   collaborators: Collaborator[];
   /** 本机的协作身份 */
@@ -94,6 +98,11 @@ export function useCollab(options: {
   const [mergeSummary, setMergeSummary] = useState<Patch[] | null>(null);
   /** 有冲突时摘要先压在这儿，等裁决完再弹——两个对话框不能叠在一起 */
   const [pendingSummary, setPendingSummary] = useState<Patch[] | null>(null);
+  /** 服务端上挂着别的项目时拿到的快照，等用户决定要不要拉下来 */
+  const [foreignProject, setForeignProject] = useState<{
+    projectId: string;
+    doc: unknown;
+  } | null>(null);
   /** 会话回调里要读"最新的"冲突列表，闭包会锁住旧值 */
   const conflictsRef = useRef<Conflict[]>([]);
 
@@ -110,6 +119,18 @@ export function useCollab(options: {
   const clientRef = useRef<CollabClient | null>(null);
   const sessionRef = useRef<SyncSession | null>(null);
 
+  /**
+   * 本机项目的标识，就是文件名。
+   *
+   * 没打开文件时退回项目名——那时候本来也没法跟别人对齐「同一份文件」，
+   * 拿项目名当标识至少能避免跟另一个文件名撞上。
+   */
+  const projectIdOf = (): string => {
+    const path = pathRef.current;
+    // 这里读 ref 而不是 options：connect 是空依赖的回调，直接读 options 会锁住首次渲染的值
+    return path === null ? projectRef.current.name : baseName(path);
+  };
+
   const disconnect = useCallback(() => {
     // 走之前喊一声，别人不用等满十五秒超时才知道我走了
     clientRef.current?.send({
@@ -125,6 +146,7 @@ export function useCollab(options: {
     setFirstContact(null);
     setMergeSummary(null);
     setPendingSummary(null);
+    setForeignProject(null);
     setCollaborators([]);
     setStatus('offline');
     setDetail('');
@@ -140,6 +162,7 @@ export function useCollab(options: {
       setFirstContact(null);
       setMergeSummary(null);
       setPendingSummary(null);
+      setForeignProject(null);
 
       const clientId = prefsRef.current.clientId;
       const client = createCollabClient({
@@ -170,6 +193,7 @@ export function useCollab(options: {
 
       const session = createSyncSession({
         clientId,
+        projectId: projectIdOf(),
         getDoc: () => projectRef.current,
         setDoc: (doc) => setProjectRef.current(doc as Project),
         loadBase: async () => {
@@ -202,6 +226,7 @@ export function useCollab(options: {
           setConflicts([]); // 对方先裁决了，这边面板自动收掉
         },
         onFirstContact: (info) => setFirstContact(info),
+        onForeignProject: (info) => setForeignProject(info),
         onMerged: (patches) => {
           // 有冲突就先把摘要压着：先让人处理冲突，处理完再告诉他对方带了什么过来
           if (conflictsRef.current.length > 0) setPendingSummary(patches);
@@ -346,6 +371,8 @@ export function useCollab(options: {
     firstContact,
     mergeSummary,
     dismissSummary: () => setMergeSummary(null),
+    foreignProject,
+    dismissForeignProject: () => setForeignProject(null),
     collaborators: allCollaborators,
     myName: prefs.name,
     myColor: prefs.color,

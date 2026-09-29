@@ -87,6 +87,7 @@ import { ConflictPanel } from './ui/ConflictPanel';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { ExportEditor } from './ui/ExportEditor';
 import { FirstContactDialog } from './ui/FirstContactDialog';
+import { ForeignProjectDialog } from './ui/ForeignProjectDialog';
 import { IssuePanel } from './ui/IssuePanel';
 import { LineList } from './ui/LineList';
 import { LocalizationEditor } from './ui/LocalizationEditor';
@@ -732,6 +733,39 @@ export default function App() {
     }
   };
 
+  /**
+   * 把服务端上那份项目拉下来另存，然后切过去用它。
+   *
+   * 换项目文件之前必须先退出协作——否则新文档会跟旧的基准做 diff，
+   * 算出来的是「删光所有条目、再加一批新的」，广播出去就把别人洗掉了。
+   */
+  const handleAdoptForeignProject = async (): Promise<void> => {
+    const foreign = collab.foreignProject;
+    if (foreign === null || host === undefined) return;
+
+    collab.dismissForeignProject();
+    collab.disconnect();
+
+    const target = await host.pickNewProjectPath(foreign.projectId).catch(() => null);
+    if (target === null) return;
+
+    try {
+      await host.writeProject(target, JSON.stringify(foreign.doc, null, 2));
+    } catch {
+      setToast('服务端那份写不进去，请换一个文件夹再试');
+      return;
+    }
+    await host.rememberProjectPath(target).catch(() => undefined);
+
+    const parsed = parseProjectFile(JSON.stringify(foreign.doc));
+    if (parsed === null) {
+      setToast('服务端那份不是 StoryMaker 项目文件，没有换过去');
+      return;
+    }
+    adoptProject(parsed.project, target);
+    setToast(`已把服务端那份存成「${baseName(target)}」，现在用的是这一份`);
+  };
+
   const handleExport = async (): Promise<void> => {
     // 校验是自动跑的，这里只用它的结果给提示，不弹确认框
     const buffer = await exportWorkbook(project);
@@ -1307,6 +1341,15 @@ export default function App() {
           project={project}
           patches={collab.mergeSummary}
           onClose={collab.dismissSummary}
+        />
+      )}
+
+      {collab.foreignProject !== null && (
+        <ForeignProjectDialog
+          foreignName={collab.foreignProject.projectId}
+          localName={projectPath === null ? project.name : baseName(projectPath)}
+          onAdopt={() => void handleAdoptForeignProject()}
+          onKeep={collab.dismissForeignProject}
         />
       )}
     </div>
