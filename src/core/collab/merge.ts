@@ -364,4 +364,83 @@ export function describePatch(patch: Patch): string {
   return `${patch.collection} 的顺序调整`;
 }
 
+/**
+ * 强制应用一条 patch，跳过 oldValue 校验。
+ *
+ * 只给冲突裁决用——用户已经在面板上明确点了「用对方」，这时候再拿「你改过没有」
+ * 去拦他就不听话了。别的地方（收到别人的改动、广播自己的改动）一律走 applyPatches。
+ */
+export function applyPatchForced<T>(doc: T, patch: Patch): T {
+  const next = clone(doc) as Record<string, unknown>;
+
+  if (patch.kind === 'field') {
+    const target = patch.target === '' ? next : getByPath(next, splitPath(patch.target));
+    if (target !== undefined && target !== null) {
+      setFieldValue(target, patch.field, clone(patch.value));
+    }
+    return next as T;
+  }
+
+  if (patch.kind === 'add') {
+    const collection = findCollection(next, patch.collection);
+    if (collection !== null) {
+      const index = collection.findIndex((item) => item.uid === patch.item.uid);
+      if (index >= 0) {
+        collection[index] = clone(patch.item) as UidItem; // 同 uid 就以对方这条为准
+      } else {
+        collection.push(clone(patch.item) as UidItem);
+      }
+    }
+    return next as T;
+  }
+
+  if (patch.kind === 'remove') {
+    const segments = splitPath(patch.target);
+    const parent = getByPath(next, segments.slice(0, -1));
+    if (isUidCollection(parent)) {
+      const uid = segments[segments.length - 1];
+      const index = parent.findIndex((item) => item.uid === uid);
+      if (index >= 0) parent.splice(index, 1);
+    }
+    return next as T;
+  }
+
+  const collection = findCollection(next, patch.collection);
+  if (collection !== null) {
+    const rank = new Map(patch.order.map((uid, index) => [uid, index]));
+    const slots: number[] = [];
+    collection.forEach((item, index) => {
+      if (rank.has(item.uid)) slots.push(index);
+    });
+    const picked = slots.map((index) => collection[index]);
+    picked.sort((a, b) => (rank.get(a.uid) ?? 0) - (rank.get(b.uid) ?? 0));
+    slots.forEach((slot, index) => {
+      collection[slot] = picked[index];
+    });
+  }
+  return next as T;
+}
+
+/** 把文档里所有顶层集合清空，得到一个空壳，用来把整份文档表达成一堆 add */
+function emptyShell(doc: unknown): unknown {
+  const shell = clone(doc) as Record<string, unknown>;
+  for (const template of COLLECTIONS) {
+    if (template.includes('*')) continue; // 嵌套集合随父级一起被清掉，不用单独处理
+    const node = getByPath(shell, splitPath(template));
+    if (Array.isArray(node)) node.length = 0;
+  }
+  return shell;
+}
+
+/**
+ * 把本机文档里的条目并到远端文档上，uid 相同的以远端为准。
+ *
+ * 给首次对账的「两份都保留」用。做法是把本机这份表达成一堆 add（对着空壳做 diff），
+ * 再应用到远端上——uid 已经存在的 add 会被跳过，于是两边的条目都留了下来。
+ */
+export function mergeByUnion(localDoc: unknown, remoteDoc: unknown): unknown {
+  const adds = diffProject(emptyShell(localDoc), localDoc).filter((patch) => patch.kind === 'add');
+  return applyPatches(remoteDoc, adds).doc;
+}
+
 export type { AddPatch, FieldPatch, Patch, ReorderPatch };
