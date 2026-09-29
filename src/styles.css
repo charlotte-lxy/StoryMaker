@@ -1149,13 +1149,34 @@ div.line-row.selected > .line-card {
   box-shadow: inset 0 0 0 1px var(--accent);
 }
 
-/* 批量编辑时每行左边的勾选框（全局 input 是 100% 宽，这里要收回来） */
+/* 批量编辑时每行左边那块勾选区：选择框 + 段内序号整块都能点，
+   高度撑满整行，所以贴着条目左边随便点哪儿都算勾选 */
+.line-select-area {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  align-self: stretch;
+  padding: 0 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.line-select-area:hover {
+  background: var(--accent-soft);
+}
+
+/* 选择框本身做大一点：全局那条 input 规则是 100% 宽、还带着内边距，这里全部收回来 */
 .line-select {
   flex-shrink: 0;
-  align-self: center;
-  width: auto;
-  margin: 0 0 0 2px;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  padding: 0;
+  border: 0;
   cursor: pointer;
+  accent-color: var(--accent);
 }
 
 .line-field {

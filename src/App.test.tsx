@@ -845,7 +845,9 @@ describe('章节流程图与分栏', () => {
 });
 
 describe('对话列表的批量编辑', () => {
-  /** 段落 001 三行，段落 002 一行，够试勾选、移动与删除 */
+  const WORDS = ['第一句', '第二句', '第三句', '第四句', '第五句'];
+
+  /** 段落 001 若干行，段落 002 一行，够试勾选、连选、拖动、移动与删除 */
   function lineOf(uid: string, readableId: string, zh: string): Line {
     return {
       uid,
@@ -861,20 +863,18 @@ describe('对话列表的批量编辑', () => {
     };
   }
 
-  function seedBatchProject(): void {
+  function seedBatchProject(count = 3): void {
     const project = createEmptyProject();
     const chapter = project.chapters[0];
-    chapter.groups[0].lines = [
-      lineOf('l1', 'Dia_ch01_001-1', '第一句'),
-      lineOf('l2', 'Dia_ch01_001-2', '第二句'),
-      lineOf('l3', 'Dia_ch01_001-3', '第三句'),
-    ];
+    chapter.groups[0].lines = Array.from({ length: count }, (_, index) =>
+      lineOf(`l${index + 1}`, `Dia_ch01_001-${index + 1}`, WORDS[index]),
+    );
     chapter.groups.push({
       uid: 'g2',
       id: '002',
       title: '码头',
       note: '',
-      lines: [lineOf('l4', 'Dia_ch01_002-1', '码头的一句')],
+      lines: [lineOf('m1', 'Dia_ch01_002-1', '码头的一句')],
       options: [],
     });
     seedProjectFile(JSON.stringify(project));
@@ -886,6 +886,18 @@ describe('对话列表的批量编辑', () => {
     expect(container.querySelectorAll('.line-select')).toHaveLength(0);
     fireEvent.click(screen.getByText('批量编辑'));
     return container.querySelector('.list-pane') as HTMLElement;
+  }
+
+  /** 列表里每行勾没勾上 */
+  function checkedOf(pane: HTMLElement): boolean[] {
+    return [...pane.querySelectorAll('.line-select')].map((box) => (box as HTMLInputElement).checked);
+  }
+
+  /** 列表里每行的中文台词，按当前顺序 */
+  function wordsOf(pane: HTMLElement): string[] {
+    return [...pane.querySelectorAll('.line-card textarea')].map(
+      (area) => (area as HTMLTextAreaElement).value,
+    );
   }
 
   it('点「批量编辑」后每行左边出现选择框，勾中的行整块高亮', async () => {
@@ -966,6 +978,101 @@ describe('对话列表的批量编辑', () => {
     fireEvent.click(screen.getByText('确定'));
     expect(pane.querySelectorAll('.line-card')).toHaveLength(0);
     expect(pane.querySelector('.line-empty')).toBeTruthy();
+  });
+
+  it('点条目左边整块区域（含段内序号）也能勾选／取消', async () => {
+    seedBatchProject();
+    const pane = await openBatch();
+
+    const areas = pane.querySelectorAll('.line-select-area');
+    expect(areas).toHaveLength(3);
+    // 选择框和序号都在这块区域里，点哪儿都算
+    expect(areas[1].querySelector('.line-select')).toBeTruthy();
+    expect(areas[1].querySelector('.line-seq')?.textContent).toBe('2');
+
+    fireEvent.click(areas[1]);
+    expect(checkedOf(pane)).toEqual([false, true, false]);
+    expect(pane.querySelectorAll('.line-row')[1].className).toContain('selected');
+
+    fireEvent.click(pane.querySelectorAll('.line-select-area')[1]);
+    expect(checkedOf(pane)).toEqual([false, false, false]);
+  });
+
+  it('按住 Shift 点：把两次点击之间的行全部勾上，区间外已经勾着的保留', async () => {
+    seedBatchProject(5);
+    const pane = await openBatch();
+
+    const areas = () => pane.querySelectorAll('.line-select-area');
+
+    // 还没点过任何一行时，起点算第一行：Shift 点第 3 行 = 前 3 行全勾上
+    fireEvent.click(areas()[2], { shiftKey: true });
+    expect(checkedOf(pane)).toEqual([true, true, true, false, false]);
+
+    // 点第 1 行、再点第 5 行（起点跟着挪到第 5 行）
+    fireEvent.click(areas()[0]);
+    fireEvent.click(areas()[4]);
+    expect(checkedOf(pane)).toEqual([false, true, true, false, true]);
+
+    // Shift 点第 3 行：只补上 3、4 两行，区间外的第 1、5 行保持原样
+    fireEvent.click(areas()[2], { shiftKey: true });
+    expect(checkedOf(pane)).toEqual([false, true, true, true, true]);
+
+    // 退出再进来：连选起点跟着一起清，Shift 点第 3 行又回到「从第一行算起」
+    fireEvent.click(screen.getByText('退出批量编辑'));
+    fireEvent.click(screen.getByText('批量编辑'));
+    fireEvent.click(areas()[2], { shiftKey: true });
+    expect(checkedOf(pane)).toEqual([true, true, true, false, false]);
+  });
+
+  it('拖动勾中的行：整组按相对顺序搬到插入点（ABCDE 勾 C、E 拖到 A 后 = ACEBD）', async () => {
+    seedBatchProject(5);
+    const pane = await openBatch();
+    stubCardRects(pane);
+
+    const boxes = pane.querySelectorAll('.line-select');
+    fireEvent.click(boxes[2]);
+    fireEvent.click(boxes[4]);
+    expect(screen.getByText('已选 2 / 5 行')).toBeTruthy();
+
+    const list = pane.querySelector('.line-list') as HTMLElement;
+    const cards = [...pane.querySelectorAll('.line-card')] as HTMLElement[];
+
+    // 从勾中的第 3 行起拖：勾上的两行一起淡下去，提示整组都会跟着走
+    fireEvent.dragStart(cards[2], { dataTransfer: rowTransfer() });
+    expect(cards[2].className).toContain('dragging');
+    expect(cards[4].className).toContain('dragging');
+
+    // clientY = 100 是第 1 行与第 2 行之间的那条线
+    fireDrag('dragover', list, rowTransfer(), 100);
+    fireDrag('drop', list, rowTransfer(), 100);
+
+    expect(wordsOf(pane)).toEqual(['第一句', '第三句', '第五句', '第二句', '第四句']);
+    // 编号跟着新顺序重排
+    expect([...pane.querySelectorAll('.line-seq')].map((seq) => seq.textContent)).toEqual([
+      '1',
+      '2',
+      '3',
+      '4',
+      '5',
+    ]);
+  });
+
+  it('拖动没有勾中的行时，只搬它自己，勾选不动', async () => {
+    seedBatchProject(5);
+    const pane = await openBatch();
+    stubCardRects(pane);
+
+    fireEvent.click(pane.querySelectorAll('.line-select')[1]);
+    const list = pane.querySelector('.line-list') as HTMLElement;
+    const cards = [...pane.querySelectorAll('.line-card')] as HTMLElement[];
+
+    fireEvent.dragStart(cards[4], { dataTransfer: rowTransfer() });
+    fireDrag('dragover', list, rowTransfer(), 0);
+    fireDrag('drop', list, rowTransfer(), 0);
+
+    expect(wordsOf(pane)).toEqual(['第五句', '第一句', '第二句', '第三句', '第四句']);
+    // 勾选跟着那一行走：原来勾的是「第二句」，它现在排在第 3 位
+    expect(checkedOf(pane)).toEqual([false, false, true, false, false]);
   });
 });
 

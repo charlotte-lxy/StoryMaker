@@ -46,6 +46,7 @@ import {
   insertLine,
   locateGroup,
   moveLines,
+  moveLinesTogether,
   mutate,
   removeChapter,
   removeCharacter,
@@ -197,6 +198,8 @@ export default function App() {
   const [batchMode, setBatchMode] = useState(false);
   /** 批量编辑里勾中的对话行（跨段落无效，换段落时清空） */
   const [selectedLineUids, setSelectedLineUids] = useState<string[]>([]);
+  /** 上一次点的那一行：按住 Shift 连选时，区间从这里算起 */
+  const [selectAnchorUid, setSelectAnchorUid] = useState<string | null>(null);
 
   /**
    * 统一的确认入口。
@@ -340,9 +343,10 @@ export default function App() {
   const group = location?.group;
   const listOpen = !listCollapsed;
 
-  // 换段落之后，原来勾中的行已经不在跟前的列表里，把勾选清掉
+  // 换段落之后，原来勾中的行已经不在跟前的列表里，把勾选和连选起点一起清掉
   useEffect(() => {
     setSelectedLineUids((prev) => (prev.length === 0 ? prev : []));
+    setSelectAnchorUid(null);
   }, [activeUid]);
 
   const updateLine = (lineUid: string, patch: Partial<Line>): void => {
@@ -408,16 +412,57 @@ export default function App() {
     handleInsertLine(group?.lines.length ?? 0, kind);
   };
 
-  /** 进出批量编辑模式：退出时把勾选一起清掉，下次进来是干净的 */
+  /** 进出批量编辑模式：退出时把勾选和连选起点一起清掉，下次进来是干净的 */
   const toggleBatchMode = (): void => {
-    if (batchMode) setSelectedLineUids([]);
+    if (batchMode) {
+      setSelectedLineUids([]);
+      setSelectAnchorUid(null);
+    }
     setBatchMode(!batchMode);
   };
 
-  /** 批量编辑：勾选 / 取消勾选一行 */
+  /** 批量编辑：勾选 / 取消勾选一行，并把它记成 Shift 连选的起点 */
   const toggleLineSelected = (lineUid: string): void => {
+    setSelectAnchorUid(lineUid);
     setSelectedLineUids((prev) =>
       prev.includes(lineUid) ? prev.filter((uid) => uid !== lineUid) : [...prev, lineUid],
+    );
+  };
+
+  /**
+   * 批量编辑：按住 Shift 点击 = 把"上一次点的那个"到这一行之间的条目全部勾上。
+   *
+   * 区间外已经勾着的不动（等于累加）；还没有"上一次"时，起点算第一行。
+   * 点完把起点挪到这一次点的条目上，接着 Shift 点就从这个新区间往外连。
+   */
+  const selectLineRange = (lineUid: string): void => {
+    const uids = group?.lines.map((line) => line.uid) ?? [];
+    const to = uids.indexOf(lineUid);
+    if (to < 0) return;
+
+    const anchor = selectAnchorUid === null ? 0 : Math.max(0, uids.indexOf(selectAnchorUid));
+    const start = Math.min(anchor, to);
+    const end = Math.max(anchor, to);
+
+    setSelectedLineUids((prev) => {
+      const next = new Set(prev);
+      for (let index = start; index <= end; index += 1) next.add(uids[index]);
+      // 按列表顺序返回，顺带丢掉已经不在这一段里的残留
+      return uids.filter((uid) => next.has(uid));
+    });
+    setSelectAnchorUid(lineUid);
+  };
+
+  /** 批量编辑：点左侧勾选区（Shift 决定是单点还是连选） */
+  const handleToggleSelect = (lineUid: string, extendRange: boolean): void => {
+    if (extendRange) selectLineRange(lineUid);
+    else toggleLineSelected(lineUid);
+  };
+
+  /** 批量编辑：拖动勾中的行，整组按相对顺序插到插入点 */
+  const handleMoveSelection = (insertAt: number): void => {
+    setProject((prev) =>
+      renumberOneGroup(moveLinesTogether(prev, activeUid, selectedLineUids, insertAt), activeUid),
     );
   };
 
@@ -1125,7 +1170,8 @@ export default function App() {
                                   flashOptionUid={flashOptionUid}
                                   batchMode={batchMode}
                                   selectedLineUids={selectedLineUids}
-                                  onToggleSelect={toggleLineSelected}
+                                  onToggleSelect={handleToggleSelect}
+                                  onMoveSelection={handleMoveSelection}
                                   onUpdateLine={updateLine}
                                   onUpdateOption={updateOption}
                                   onInsertLine={handleInsertLine}

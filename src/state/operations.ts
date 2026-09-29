@@ -368,6 +368,40 @@ export function moveLines(
   });
 }
 
+/**
+ * 批量拖拽排序：把勾中的若干行当成一整块，插到 insertAt 那个位置。
+ *
+ * insertAt 是"插到原列表第几行之前"（0 表示最前，等于行数表示最后），与拖拽时
+ * 显示的插入标记一一对应。勾中的行保持原来的先后顺序，不会因为拖动互相调换。
+ * 例：ABCDE 里勾了 C、E 拖到 A 与 B 之间（insertAt=1），得到 ACEBD。
+ */
+export function moveLinesTogether(
+  project: Project,
+  groupUid: string,
+  lineUids: string[],
+  insertAt: number,
+): Project {
+  return mutate(project, (draft) => {
+    const group = findGroup(draft, groupUid);
+    if (group === undefined) return;
+
+    const moving = new Set(lineUids);
+    const dragged = group.lines.filter((line) => moving.has(line.uid));
+    // 一行都没勾上、或者整段都勾上了，搬了等于没搬
+    if (dragged.length === 0 || dragged.length === group.lines.length) return;
+
+    // 插入点换算到"搬走之后"的列表里：数一下它前面还剩几行没被搬走
+    let target = 0;
+    for (let index = 0; index < Math.min(insertAt, group.lines.length); index += 1) {
+      if (!moving.has(group.lines[index].uid)) target += 1;
+    }
+
+    const rest = group.lines.filter((line) => !moving.has(line.uid));
+    rest.splice(target, 0, ...dragged);
+    group.lines = rest;
+  });
+}
+
 /** 拖拽排序：把 from 位置的行移动到 to 位置 */
 export function reorderLine(
   project: Project,

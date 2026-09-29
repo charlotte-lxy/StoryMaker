@@ -1,4 +1,12 @@
-import { useEffect, useRef, useState, type DragEvent, type FocusEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type FocusEvent,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from 'react';
 
 import type { CommandTargets } from '../core/command-build';
 import type { Character, CommandDef, Group, Line, LineKind, StoryOption } from '../core/types';
@@ -29,11 +37,14 @@ interface Props {
   onAddOption: (lineUid: string) => void;
   onRemoveOption: (optionUid: string) => void;
   onJumpToLine: (lineUid: string) => void;
-  /** 批量编辑模式：每行左边多一个勾选框 */
+  /** 批量编辑模式：每行左边多一块勾选区（选择框 + 段内序号，整块都能点） */
   batchMode: boolean;
   /** 批量编辑里勾中的行 */
   selectedLineUids: string[];
-  onToggleSelect: (lineUid: string) => void;
+  /** 勾选 / 取消勾选一行；extendRange 为真（按住 Shift）时改成勾上区间 */
+  onToggleSelect: (lineUid: string, extendRange: boolean) => void;
+  /** 批量编辑里拖动勾中的行：整组插到第 insertAt 行之前 */
+  onMoveSelection: (insertAt: number) => void;
 }
 
 /** 一个字段：名称标在上方，输入框在下面 */
@@ -140,10 +151,16 @@ export function LineList(props: Props) {
       props.onInsertLine(at, kind);
       return;
     }
-    if (from !== null) {
-      // reorderLine 的 to 是"移走之后的下标"，插入点要换算一下
-      props.onReorderLine(from, at > from ? at - 1 : at);
+    if (from === null) return;
+
+    // 批量编辑里拖"勾中的行"：连它一起勾上的整组搬到插入点（拖没勾中的行还是只搬它自己）
+    const dragged = group.lines[from];
+    if (props.batchMode && dragged !== undefined && props.selectedLineUids.includes(dragged.uid)) {
+      props.onMoveSelection(at);
+      return;
     }
+    // reorderLine 的 to 是"移走之后的下标"，插入点要换算一下
+    props.onReorderLine(from, at > from ? at - 1 : at);
   };
 
   /** 按下时的元素：用来分辨这次拖拽是从输入框里起的，还是从空白处起的 */
@@ -154,33 +171,60 @@ export function LineList(props: Props) {
     target instanceof Element &&
     target.closest('input, textarea, select, button, a, [contenteditable="true"]') !== null;
 
+  /**
+   * 点左侧勾选区的空白处（没点在选择框上）也算勾选。
+   *
+   * 选择框自己有 onChange，这里就不再处理它；顺手拦掉 label 对选择框的原生转发，
+   * 否则同一次点击会被算两次。
+   */
+  const handleSelectAreaClick = (lineUid: string) => (event: ReactMouseEvent<HTMLLabelElement>) => {
+    if (event.target instanceof HTMLInputElement) return;
+    event.preventDefault();
+    props.onToggleSelect(lineUid, event.shiftKey);
+  };
+
   return (
     <div className="line-list" ref={listRef} onDragOver={handleDragOver} onDrop={handleDrop}>
       {group.lines.map((line, index) => {
         const hasNote = line.note.trim() !== '';
         const sequence = lineSequenceOf(line.readableId) === '' ? String(index + 1) : lineSequenceOf(line.readableId);
         const selected = props.selectedLineUids.includes(line.uid);
+        /** 段内序号：完整 ID 太长，这里只标 "-" 后面那截，完整 ID 放到悬浮提示里 */
+        const sequenceTag = (
+          <span className="line-seq" title={`对话 ID：${line.readableId}`}>
+            {sequence}
+          </span>
+        );
+        // 正在拖的这一行属于勾选集合时，整组都会跟着走，一起淡下去让人看得见
+        const draggingGroup =
+          props.batchMode &&
+          dragIndex !== null &&
+          props.selectedLineUids.includes(group.lines[dragIndex]?.uid ?? '');
         return (
-          /* 一行 = 段内序号 + 对话块本身（批量编辑时最左边再多一个勾选框） */
+          /* 一行 = 左侧勾选区（批量编辑时才在，含段内序号）+ 对话块本身 */
           <div
             key={line.uid}
             className={`line-row${editingUid === line.uid ? ' editing' : ''}${selected ? ' selected' : ''}`}
           >
-            {props.batchMode && (
-              <input
-                type="checkbox"
-                className="line-select"
-                checked={selected}
-                title={`选中这一行（${line.readableId}）`}
-                onChange={() => props.onToggleSelect(line.uid)}
-              />
+            {props.batchMode ? (
+              <label
+                className="line-select-area"
+                title="点这块区域勾选这一行；按住 Shift 点 = 勾上从上次点到这一行之间的全部行"
+                onClick={handleSelectAreaClick(line.uid)}
+              >
+                <input
+                  type="checkbox"
+                  className="line-select"
+                  checked={selected}
+                  onChange={(event) =>
+                    props.onToggleSelect(line.uid, (event.nativeEvent as MouseEvent).shiftKey === true)
+                  }
+                />
+                {sequenceTag}
+              </label>
+            ) : (
+              sequenceTag
             )}
-
-            {/* 段内序号（完整 ID 里 "-" 后面那截）放在对话块外面，
-                完整 ID 放到悬浮提示里；导出用的还是完整 ID */}
-            <span className="line-seq" title={`对话 ID：${line.readableId}`}>
-              {sequence}
-            </span>
 
             <article
               data-line-uid={line.uid}
@@ -204,7 +248,7 @@ export function LineList(props: Props) {
                 'line-card',
                 `type-card-${line.kind}`,
                 props.flashLineUid === line.uid ? 'flash' : '',
-                dragIndex === index ? 'dragging' : '',
+                dragIndex === index || (draggingGroup && selected) ? 'dragging' : '',
                 editingUid === line.uid ? 'editing' : '',
                 dropAt === index ? 'drop-before' : '',
                 dropAt === index + 1 ? 'drop-after' : '',

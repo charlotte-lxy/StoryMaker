@@ -9,6 +9,7 @@ import {
   groupUidOfLine,
   insertLine,
   moveLines,
+  moveLinesTogether,
   parseCommand,
   removeLines,
   removeUiText,
@@ -283,6 +284,59 @@ describe('批量编辑：移动与删除', () => {
     expect(project.chapters[0].groups[0].lines.map((l) => l.uid)).toEqual(['a', 'b', 'c', 'd']);
     expect(project.chapters[0].groups[0].options).toHaveLength(1);
     expect(project.chapters[0].groups[1].lines.map((l) => l.uid)).toEqual(['y']);
+  });
+});
+
+describe('批量拖拽排序（整组搬）', () => {
+  /** 一段五句：a b c d e，就是例子里那 ABCDE */
+  function fiveLines(): Project {
+    const project = makeProject();
+    project.chapters[0].groups[0].lines.push(
+      makeLine('d', 'Dia_ch01_001-4', '第四句'),
+      makeLine('e', 'Dia_ch01_001-5', '第五句'),
+    );
+    return project;
+  }
+
+  it('勾了 C、E 拖到 A 与 B 之间：得到 ACEBD', () => {
+    // insertAt = 1 表示插到第 2 行（b）之前
+    const next = renumberOneGroup(moveLinesTogether(fiveLines(), 'g1', ['c', 'e'], 1), 'g1');
+    const lines = next.chapters[0].groups[0].lines;
+
+    expect(lines.map((l) => l.uid)).toEqual(['a', 'c', 'e', 'b', 'd']);
+    expect(lines.map((l) => l.text.zh)).toEqual(['第一句', '第三句', '第五句', '第二句', '第四句']);
+    // 编号按新顺序连续排
+    expect(lines.map((l) => l.readableId)).toEqual([
+      'Dia_ch01_001-1',
+      'Dia_ch01_001-2',
+      'Dia_ch01_001-3',
+      'Dia_ch01_001-4',
+      'Dia_ch01_001-5',
+    ]);
+  });
+
+  it('搬到最前和最后都可以，勾中的行保持原来的先后顺序', () => {
+    const toTop = moveLinesTogether(fiveLines(), 'g1', ['d', 'b'], 0);
+    expect(toTop.chapters[0].groups[0].lines.map((l) => l.uid)).toEqual(['b', 'd', 'a', 'c', 'e']);
+
+    const toEnd = moveLinesTogether(fiveLines(), 'g1', ['b', 'd'], 5);
+    expect(toEnd.chapters[0].groups[0].lines.map((l) => l.uid)).toEqual(['a', 'c', 'e', 'b', 'd']);
+  });
+
+  it('一行都没勾、或者整段都勾上时不动', () => {
+    const project = fiveLines();
+    expect(moveLinesTogether(project, 'g1', [], 0).chapters[0].groups[0].lines).toHaveLength(5);
+    expect(
+      moveLinesTogether(project, 'g1', ['a', 'b', 'c', 'd', 'e'], 0).chapters[0].groups[0].lines.map(
+        (l) => l.uid,
+      ),
+    ).toEqual(['a', 'b', 'c', 'd', 'e']);
+  });
+
+  it('原项目对象不被就地修改', () => {
+    const project = fiveLines();
+    moveLinesTogether(project, 'g1', ['c'], 0);
+    expect(project.chapters[0].groups[0].lines.map((l) => l.uid)).toEqual(['a', 'b', 'c', 'd', 'e']);
   });
 });
 
