@@ -6,7 +6,7 @@ import { createEmptyBattle } from './battle';
 import { escapeCsvField, parseCsv, toCsv, withBom, withoutBom } from './csv';
 import { formatArrayLiteral, parseArrayLiteral } from './array-literal';
 import { firstLineRef, makeLineId, makeOptionId, renumberGroup, textIdOf } from './ids';
-import { DIALOGUE_HEADER, buildRows, countLines, exportWorkbook } from './export';
+import { DIALOGUE_HEADER, buildRows, countLines, exportWorkbook, type ExportRowSets } from './export';
 import type { Group, Line, Project, StoryOption } from './types';
 
 function makeLine(uid: string, readableId: string, over: Partial<Line> = {}): Line {
@@ -263,6 +263,102 @@ describe('导出：跳到首句与跳到段落', () => {
     expect(
       buildRows(lost).dialogue.slice(1).find((item) => item[0] === 'Dia_ch01_001-3')?.[7],
     ).toBe('');
+  });
+});
+
+describe('导出：指令里指向对话行的目标翻译成对话 ID', () => {
+  /** 一条真正的 uid：uid 里带 `-`，解析指令时会踩到运算符 */
+  const LINE_UID = '8f3c1b2a-1234-4abc-9def-0123456789ab';
+  /** 段落 001：一条指向对话行的指令 + 一个选项行；段落 002 是被指向的那一句 */
+  function makeProject(): Project {
+    return {
+      version: 1,
+      name: '指令目标翻译',
+      characters: [],
+      sounds: [],
+      commands: [],
+      items: [],
+      quests: [],
+      images: [],
+      variables: [],
+      uiTexts: [],
+      battle: createEmptyBattle(),
+      exportSettings: [],
+      chapters: [
+        {
+          uid: 'c1',
+          id: 'ch01',
+          title: '序章',
+          groups: [
+            {
+              uid: 'g1',
+              id: '001',
+              title: '开场',
+              note: '',
+              lines: [
+                makeLine('u1', 'Dia_ch01_001-1', {
+                  kind: '指令',
+                  command: `剧情.播放对话# ${LINE_UID}`,
+                }),
+                // 手写的指令：里面没有 uid，导出要原样保留（连空格也不动）
+                makeLine('u2', 'Dia_ch01_001-2', {
+                  kind: '指令',
+                  command: '背包# Item_Coin >= 10',
+                }),
+                makeLine('u3', 'Dia_ch01_001-3', { kind: '选项', optionIds: ['o-a'] }),
+              ],
+              options: [
+                makeOption('o-a', 'Dia_ch01_001-3A', {
+                  nextId: LINE_UID,
+                  appearConditions: [`剧情# ${LINE_UID} = 1`],
+                  enableConditions: [`背包#Item_Coin>=10`],
+                  results: [`剧情.播放对话# ${LINE_UID}`, '任务.接取# Task_Test_01'],
+                }),
+              ],
+            },
+            {
+              uid: 'g2',
+              id: '002',
+              title: '码头',
+              note: '',
+              lines: [
+                makeLine(LINE_UID, 'Dia_ch01_002-1', { text: { zh: '码头', en: '', ja: '' } }),
+              ],
+              options: [],
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  const commandCell = (rows: ExportRowSets, id: string): string =>
+    rows.dialogue.slice(1).find((row) => row[0] === id)?.[7] ?? '';
+
+  it('「剧情.播放对话# <uid>」导出成对话 ID（uid 里的 - 不会被当成运算符）', () => {
+    expect(commandCell(buildRows(makeProject()), 'Dia_ch01_001-1')).toBe(
+      '("剧情.播放对话# Dia_ch01_002-1")',
+    );
+  });
+
+  it('选项的条件与结果里指向对话行的目标同样翻成对话 ID', () => {
+    const row = buildRows(makeProject()).options.slice(1).find((item) => item[0] === 'Dia_ch01_001-3A');
+    expect(row?.[2]).toBe('("剧情# Dia_ch01_002-1 = 1")');
+    // 不是对话行的目标不动：物品 ID 原样保留
+    expect(row?.[3]).toBe('("背包#Item_Coin>=10")');
+    expect(row?.[4]).toBe('("剧情.播放对话# Dia_ch01_002-1","任务.接取# Task_Test_01")');
+  });
+
+  it('没有 uid 的手写指令原样输出，一个字符都不改', () => {
+    expect(commandCell(buildRows(makeProject()), 'Dia_ch01_001-2')).toBe('("背包# Item_Coin >= 10")');
+  });
+
+  it('引用已经被删掉时（uid 对不上了）保持原样，不把文本改坏', () => {
+    const project = makeProject();
+    project.chapters[0].groups[0].lines[0].command = '剧情.播放对话# 某个不存在的-uid-0000';
+    expect(commandCell(buildRows(project), 'Dia_ch01_001-1')).toBe(
+      '("剧情.播放对话# 某个不存在的-uid-0000")',
+    );
   });
 });
 

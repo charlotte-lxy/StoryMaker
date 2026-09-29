@@ -107,14 +107,14 @@ export function buildRows(project: Project): ExportRowSets {
   for (const chapter of project.chapters) {
     for (const group of chapter.groups) {
       for (const line of group.lines) {
-        pushLine(line, group, ref, groupOf, dialogue, locale);
+        pushLine(line, group, ref, groupOf, idOf, dialogue, locale);
 
         // 「选项」行的选项紧随该行输出，与现有本地化表的排列习惯一致
         if (line.kind !== '选项') continue;
         for (const optionUid of line.optionIds) {
           const option = group.options.find((o) => o.uid === optionUid);
           if (option === undefined) continue; // 悬空引用交由校验层报告
-          pushOption(option, ref, groupOf, options, locale);
+          pushOption(option, ref, groupOf, idOf, options, locale);
         }
       }
     }
@@ -128,15 +128,44 @@ export function buildRows(project: Project): ExportRowSets {
   return { dialogue, options, locale };
 }
 
+/**
+ * 把指令 / 条件里指向对话行的目标翻译成对话 ID。
+ *
+ * 界面上选跳转目标时，指令文本里存的是**行的 uid**（内部引用一律指向 uid，
+ * 这样插行、拖拽、删行之后重排 ID 也不会把引用写坏），但导出给 Unreal 的
+ * 必须是对话 ID，所以这里做一次翻译：`剧情.播放对话# <uid>` → `# Dia_ch01_001-1`。
+ *
+ * 取目标不能靠解析指令：uid 里带 `-`，解析器会把第一个 `-` 当成运算符
+ * （`8f3c1b2a-1234-…` 会被拆成 目标=8f3c1b2a + 运算符=-）。所以只认 `#`
+ * 后面那一截，并从长到短找一个"正好是已知 uid"的前缀——目标后面可能紧跟
+ * `.属性` 或 `=结果`，这样两步都不会切错。
+ */
+function translateLineTarget(text: string, idOf: Map<string, string>): string {
+  const hash = text.indexOf('#');
+  if (hash < 0) return text;
+
+  let start = hash + 1;
+  while (start < text.length && /\s/.test(text[start])) start += 1;
+
+  for (let end = text.length; end > start; end -= 1) {
+    const readableId = idOf.get(text.slice(start, end));
+    if (readableId === undefined) continue;
+    return text.slice(0, start) + readableId + text.slice(end);
+  }
+  return text;
+}
+
 function pushLine(
   line: Line,
   group: Group,
   ref: RefFn,
   groupOf: Map<string, Group>,
+  idOf: Map<string, string>,
   dialogue: string[][],
   locale: string[][],
 ): void {
   const isDialogue = line.kind === '对话';
+  const translate = (text: string): string => translateLineTarget(text, idOf);
 
   dialogue.push([
     line.readableId,
@@ -146,7 +175,7 @@ function pushLine(
     isDialogue && line.autoAdvance ? 'True' : '',
     isDialogue ? textIdOf(line.readableId) : '',
     formatArrayLiteral(line.kind === '选项' ? line.optionIds.map(ref).filter((id) => id !== '') : []),
-    formatArrayLiteral(commandsOf(line, group, groupOf)),
+    formatArrayLiteral(commandsOf(line, group, groupOf).map(translate)),
   ]);
 
   // 只有「对话」行有文本，其余两种类型不进本地化表
@@ -196,16 +225,19 @@ function pushOption(
   option: StoryOption,
   ref: RefFn,
   groupOf: Map<string, Group>,
+  idOf: Map<string, string>,
   options: string[][],
   locale: string[][],
 ): void {
+  const translate = (text: string): string => translateLineTarget(text, idOf);
+
   options.push([
     option.readableId,
     textIdOf(option.readableId),
-    // 条件、结果都是文本，原样写出
-    formatArrayLiteral(option.appearConditions),
-    formatArrayLiteral(option.enableConditions),
-    formatArrayLiteral(option.results),
+    // 条件、结果都是文本，原样写出；只有指向对话行的目标要把 uid 翻成对话 ID
+    formatArrayLiteral(option.appearConditions.map(translate)),
+    formatArrayLiteral(option.enableConditions.map(translate)),
+    formatArrayLiteral(option.results.map(translate)),
     // 「跳转到首句对话」记的是段落，这里现取该段落当时的第一句
     resolveNext(option.nextId, ref, groupOf),
   ]);
