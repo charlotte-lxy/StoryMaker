@@ -16,7 +16,7 @@ import { createCollabClient } from '../src/core/collab/client';
 import type { CollabStatus, Conflict } from '../src/core/collab/protocol';
 import { resolveConflicts, resolveFirstContact } from '../src/core/collab/resolve';
 import { createSyncSession, type FirstContact, type SyncBase, type SyncSession } from '../src/core/collab/session';
-import type { Project } from '../src/core/types';
+import type { Line, Project } from '../src/core/types';
 
 const WS_URL = process.env.STORYMAKER_COLLAB_URL ?? 'ws://127.0.0.1:1999';
 
@@ -51,7 +51,14 @@ function makeProject(name: string): Project {
     images: [],
     sounds: [],
     commands: [],
-    chapters: [{ uid: 'ch1', id: 'ch01', title: '第一章', groups: [] }],
+    chapters: [
+      {
+        uid: 'ch1',
+        id: 'ch01',
+        title: '第一章',
+        groups: [{ uid: 'g1', id: '001', title: '开场', note: '', lines: [], options: [] }],
+      },
+    ],
     variables: [],
     uiTexts: [],
     battle: {
@@ -65,6 +72,21 @@ function makeProject(name: string): Project {
       weapons: [],
     },
     exportSettings: [],
+  };
+}
+
+function makeLine(uid: string, zh: string): Line {
+  return {
+    uid,
+    readableId: `Dia_${uid}`,
+    kind: '对话',
+    characterId: 'CHA_甲',
+    displayName: '',
+    text: { zh, en: '', ja: '' },
+    autoAdvance: false,
+    command: '',
+    optionIds: [],
+    note: '',
   };
 }
 
@@ -226,6 +248,12 @@ try {
   await sleep(200);
 
   // ---------- 3. 首次对账：两边都有一份内容 ----------
+  // 先让 A/B 退场：它们还连着的话，新客户端打招呼时它们也会回自己的 snapshot，
+  // 一个场景里混进别的文档就说不清了。每个场景要各自独立。
+  a.client.disconnect();
+  b.client.disconnect();
+  await sleep(150);
+
   console.log('');
   console.log('【3】首次对账：两边都有一份内容，都没有共同起点');
 
@@ -261,6 +289,58 @@ try {
       c.doc().chapters.map((chapter) => chapter.uid).join(','),
     );
   }
+
+  // ---------- 4. 离线在中间插一行，重连后位置不能错 ----------
+  c.client.disconnect();
+  d.client.disconnect();
+  await sleep(150);
+
+  console.log('');
+  console.log('【4】离线在中间插一行，重连后位置不能错');
+
+  const e = makePeer('E', makeProject('E 的项目'));
+  e.update((draft) => {
+    draft.chapters[0].groups[0].lines = [
+      makeLine('l1', '一'),
+      makeLine('l2', '二'),
+      makeLine('l3', '三'),
+      makeLine('l4', '四'),
+    ];
+  });
+  const f = makePeer('F', makeProject('未命名项目'));
+  f.update((draft) => {
+    draft.characters = [];
+    draft.chapters = [];
+  });
+  peers.push(e, f);
+
+  if (!(await connect(e))) throw new Error('E 连不上');
+  e.session.announce();
+  await sleep(150);
+  await e.session.publishLocalChange();
+
+  if (!(await connect(f))) throw new Error('F 连不上');
+  f.session.announce();
+  const fGotFour = await waitFor(() => f.doc().chapters[0]?.groups[0]?.lines.length === 4, 3000);
+  check(fGotFour, 'F 先拿到了那四行');
+
+  f.client.disconnect();
+  await sleep(150);
+
+  // E 离线在第二行后面插一条（这才是「在中间插入」）
+  e.update((draft) => {
+    draft.chapters[0].groups[0].lines.splice(2, 0, makeLine('l9', '插进来的'));
+  });
+  await e.session.publishLocalChange();
+  await sleep(200);
+
+  if (!(await connect(f))) throw new Error('F 重连失败');
+  f.session.announce();
+  const fGotFive = await waitFor(() => f.doc().chapters[0]?.groups[0]?.lines.length === 5, 3000);
+  check(fGotFive, 'F 重连后拿到了插入的那一行');
+
+  const order = f.doc().chapters[0]?.groups[0]?.lines.map((line) => line.uid).join(',') ?? '';
+  check(order === 'l1,l2,l9,l3,l4', '插入位置正确，没被丢到末尾', order);
 } catch (error) {
   failed = true;
   console.error('✗ 校验过程出错：', error);

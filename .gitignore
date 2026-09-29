@@ -9,4 +9,7 @@ build/marker-result.txt
 *.tsbuildinfo
 .dev-session.json
 .dev-project.json
+# 协作同步的元数据和备份：跟着项目文件长出来，属于本机状态，不进仓库
+*.sync
+*.backup-*.json
 .DS_Store

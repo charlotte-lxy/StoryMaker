@@ -214,9 +214,12 @@ export function diffProject(base: unknown, current: unknown): Patch[] {
       }
 
       for (const item of afterItems) {
-        if (!beforeUids.includes(item.uid)) {
-          patches.push({ kind: 'add', collection: path, item: clone(item) });
-        }
+        if (beforeUids.includes(item.uid)) continue;
+        // 锚点取它前面那一条（不管那条是不是新增的）：对面会按 patch 顺序依次插入，
+        // 所以连续新增也能保持先后。第一条就是新增的话，用 null 表示插到最前。
+        const at = afterItems.findIndex((entry) => entry.uid === item.uid);
+        const afterUid = at <= 0 ? null : afterItems[at - 1].uid;
+        patches.push({ kind: 'add', collection: path, item: clone(item), afterUid });
       }
 
       for (const beforeItem of beforeItems) {
@@ -243,6 +246,22 @@ export function diffProject(base: unknown, current: unknown): Patch[] {
 function findCollection(root: unknown, collectionPath: string): UidItem[] | null {
   const node = getByPath(root, splitPath(collectionPath));
   return isUidCollection(node) ? node : null;
+}
+
+/** 按 afterUid 把新条目插进集合，见 protocol.ts 里对这三个取值的说明 */
+function insertItem(
+  collection: UidItem[],
+  item: UidItem,
+  afterUid: string | null | undefined,
+): void {
+  let index = collection.length;
+  if (afterUid === null) {
+    index = 0;
+  } else if (afterUid !== undefined) {
+    const at = collection.findIndex((entry) => entry.uid === afterUid);
+    index = at < 0 ? collection.length : at + 1;
+  }
+  collection.splice(index, 0, item);
 }
 
 /**
@@ -287,7 +306,7 @@ export function applyPatches<T>(doc: T, patches: readonly Patch[]): MergeResult<
         skipped += 1;
         continue;
       }
-      collection.push(clone(patch.item) as UidItem);
+      insertItem(collection, clone(patch.item) as UidItem, patch.afterUid);
       applied += 1;
       continue;
     }
@@ -388,7 +407,7 @@ export function applyPatchForced<T>(doc: T, patch: Patch): T {
       if (index >= 0) {
         collection[index] = clone(patch.item) as UidItem; // 同 uid 就以对方这条为准
       } else {
-        collection.push(clone(patch.item) as UidItem);
+        insertItem(collection, clone(patch.item) as UidItem, patch.afterUid);
       }
     }
     return next as T;

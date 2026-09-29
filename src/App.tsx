@@ -618,6 +618,9 @@ export default function App() {
 
   /** 新建：先让用户选一个 .json 存到哪儿，再把空项目写进去 */
   const handleCreate = async (): Promise<void> => {
+    // 换项目文件之前先退出协作。不然新文档会跟旧的基准做 diff，算出来的是
+    // 「删光所有条目、再加一批新的」，广播出去等于把别人的项目洗掉了。
+    collab.disconnect();
     if (host === undefined) return;
     setPicking(true);
     const target = await host.pickNewProjectPath(project.name).catch(() => null);
@@ -638,6 +641,8 @@ export default function App() {
 
   /** 打开已有的项目 JSON */
   const handleOpen = async (): Promise<void> => {
+    // 同上：换文档前先退出协作，免得把「整份替换」当成改动广播出去
+    collab.disconnect();
     if (host === undefined) return;
     setPicking(true);
     const picked = await host.pickProject().catch(() => null);
@@ -775,14 +780,22 @@ export default function App() {
             type="button"
             onClick={() =>
               askConfirm(
-                '新建会换一个项目文件，当前项目里还没保存的改动会丢失。确定吗？',
+                '新建会换一个项目文件，并退出协作（别人不受影响），当前还没保存的改动也会丢失。确定吗？',
                 () => void handleCreate(),
               )
             }
           >
             新建
           </button>
-          <button type="button" onClick={() => void handleOpen()}>
+          <button
+            type="button"
+            onClick={() =>
+              askConfirm(
+                '打开项目会退出协作（别人不受影响），当前还没保存的改动也会丢失。确定吗？',
+                () => void handleOpen(),
+              )
+            }
+          >
             打开项目
           </button>
           <button type="button" onClick={() => void handleSave()}>

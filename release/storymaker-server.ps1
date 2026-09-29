@@ -105,14 +105,25 @@ function Test-SamePath([string]$left, [string]$right) {
   return [string]::Equals($a, $b, [StringComparison]::OrdinalIgnoreCase)
 }
 
-# 这个服务允许碰的范围：当前项目文件本身，以及它旁边的协作元数据 <项目>.sync
-# （协作同步用它存"上次同步到什么状态"，好算出离线期间改了什么）。
-# 别的路径一律拒绝——这是本服务的安全边界，不要为了让某个功能方便就放宽。
+# 这个服务允许碰的范围（只有下面三条，别的路径一律拒绝——这是本服务的安全边界，
+# 不要为了让某个功能方便就放宽）：
+#   1. 当前项目文件本身
+#   2. <项目>.sync                  协作元数据，记"上次同步到哪一版"
+#   3. <项目>.backup-<时间戳>.json   首次对账时被舍弃的那一份另存的备份
 function Test-AllowedPath([string]$target) {
   if ([string]::IsNullOrEmpty($target)) { return $false }
   if (Test-SamePath $target $script:ProjectPath) { return $true }
   if ([string]::IsNullOrEmpty($script:ProjectPath)) { return $false }
-  return Test-SamePath $target ($script:ProjectPath + '.sync')
+
+  if (Test-SamePath $target ($script:ProjectPath + '.sync')) { return $true }
+
+  $normalized = $target -replace '/', '\'
+  $prefix = ($script:ProjectPath + '.backup-') -replace '/', '\'
+  if ($normalized.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase) -and
+      $normalized.EndsWith('.json', [StringComparison]::OrdinalIgnoreCase)) {
+    return $true
+  }
+  return $false
 }
 
 # ---------- 系统文件对话框 ----------

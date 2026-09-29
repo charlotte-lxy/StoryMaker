@@ -37,6 +37,8 @@ export interface HostApi {
   readSidecar: (filePath: string) => Promise<string | null>;
   /** 写协作元数据：存的是"上次同步到什么状态"，用来算离线期间改了什么 */
   writeSidecar: (filePath: string, content: string) => Promise<void>;
+  /** 把一份内容另存为备份（首次对账舍弃某一份时用）。backupPath 是目标文件的完整路径 */
+  writeBackup: (backupPath: string, content: string) => Promise<void>;
   /** 导出二进制（xlsx 等）：弹保存框；取消返回 null */
   exportFile: (suggestedName: string, data: ArrayBuffer) => Promise<string | null>;
   /** 在文件管理器里定位文件 */
@@ -79,6 +81,19 @@ export function baseName(filePath: string): string {
  */
 export function sidecarPath(filePath: string): string {
   return `${filePath}.sync`;
+}
+
+/**
+ * 备份文件的路径：<项目>.backup-<年月日>-<时分秒>.json，和项目文件同目录。
+ *
+ * 带时间戳是为了每次对账都留一份——万一连选错两次，前一次还找得回来。
+ */
+export function backupPath(filePath: string, at: Date): string {
+  const pad = (value: number): string => String(value).padStart(2, '0');
+  const stamp =
+    `${at.getFullYear()}${pad(at.getMonth() + 1)}${pad(at.getDate())}` +
+    `-${pad(at.getHours())}${pad(at.getMinutes())}${pad(at.getSeconds())}`;
+  return `${filePath}.backup-${stamp}.json`;
 }
 
 const TOKEN_HEADER = 'X-StoryMaker-Token';
@@ -164,6 +179,13 @@ function serverHost(token: string): HostApi {
       if (!response.ok) throw new Error('写入协作元数据失败');
     },
 
+    writeBackup: async (backupTarget, content) => {
+      const response = await post(`/api/write${query(backupTarget)}`, content, {
+        'Content-Type': 'application/json; charset=utf-8',
+      });
+      if (!response.ok) throw new Error('备份文件写不进去');
+    },
+
     exportFile: async (suggestedName, data) => {
       const response = await post(
         `/api/export?suggestedName=${encodeURIComponent(suggestedName)}`,
@@ -193,6 +215,7 @@ function desktopHost(bridge: DesktopBridge): HostApi {
     // 桌面版的主进程本来就按路径读写，.sync 直接搭车
     readSidecar: (filePath) => bridge.readProject(sidecarPath(filePath)),
     writeSidecar: (filePath, content) => bridge.writeProject(sidecarPath(filePath), content),
+    writeBackup: (backupTarget, content) => bridge.writeProject(backupTarget, content),
     exportFile: (suggestedName, data) => bridge.exportFile(suggestedName, data),
     revealFile: (filePath) => bridge.revealFile(filePath),
   };

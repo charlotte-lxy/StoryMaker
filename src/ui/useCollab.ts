@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { HostApi } from '../core/host';
+import { backupPath, type HostApi } from '../core/host';
 import { createCollabClient, type CollabClient } from '../core/collab/client';
 import type { CollabStatus, Conflict } from '../core/collab/protocol';
 import { resolveConflicts, resolveFirstContact, type ConflictChoice, type FirstContactChoice } from '../core/collab/resolve';
@@ -181,7 +181,22 @@ export function useCollab(options: {
         return;
       }
 
-      const result = resolveFirstContact(projectRef.current, info.remoteDoc as Project, choice);
+      const localDoc = projectRef.current;
+      const remoteDoc = info.remoteDoc as Project;
+      const result = resolveFirstContact(localDoc, remoteDoc, choice);
+
+      // 被舍弃的那一份另存成备份——界面上跟用户这么承诺过，就得真写。
+      // 只有两种"二选一"需要：「两份都保留」没有东西被丢，「先不同步」什么都没发生。
+      const api = hostRef.current;
+      const path = pathRef.current;
+      if (choice !== 'both' && api !== undefined && path !== null) {
+        const dropped = choice === 'remote' ? localDoc : remoteDoc;
+        const target = backupPath(path, new Date());
+        void api.writeBackup(target, JSON.stringify(dropped, null, 2)).catch(() => {
+          setDetail(`备份没写成功（${target}），被舍弃的那份已经不在界面上了`);
+        });
+      }
+
       void session.applyResolution(result.doc);
     },
     [firstContact, disconnect],

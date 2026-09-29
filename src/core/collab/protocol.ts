@@ -31,6 +31,16 @@ export interface AddPatch {
   kind: 'add';
   collection: CollectionPath;
   item: { uid: string } & Record<string, unknown>;
+  /**
+   * 插在哪一条之后：
+   *   省略      → 追加到末尾
+   *   null      → 插到最前
+   *   某个 uid  → 插在它后面；找不到那个 uid 就退化成追加末尾
+   *
+   * 为什么必须带位置：不带的话，「在中间插入一行」到了对面就变成加在最后，
+   * 而 readableId 又跟着重编号，界面上看起来就是序号乱了（12453 那种）。
+   */
+  afterUid?: string | null;
 }
 
 /** 删掉一条 */

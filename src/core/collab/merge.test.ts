@@ -362,6 +362,30 @@ describe('diff → apply 往返', () => {
     expect(deepEqual(result.doc, current)).toBe(true);
   });
 
+  it('在中间插入新条目：新条目应该落在原位，不是被丢到末尾', () => {
+    const base = makeProject();
+    base.chapters[0].groups[0].lines = [
+      makeLine('l1', '一'),
+      makeLine('l2', '二'),
+      makeLine('l3', '三'),
+      makeLine('l4', '四'),
+    ];
+    const current = makeProject();
+    current.chapters[0].groups[0].lines = [
+      makeLine('l1', '一'),
+      makeLine('l2', '二'),
+      makeLine('l9', '插进来的'),
+      makeLine('l3', '三'),
+      makeLine('l4', '四'),
+    ];
+
+    const patches = diffProject(base, current);
+    const result = applyPatches(base, patches);
+
+    expect(result.conflicts).toHaveLength(0);
+    expect(deepEqual(result.doc, current)).toBe(true);
+  });
+
   it('只有顺序变化时也能往返', () => {
     const base = makeProject();
     base.chapters[0].groups[0].lines = [makeLine('l1', '一'), makeLine('l2', '二'), makeLine('l3', '三')];
