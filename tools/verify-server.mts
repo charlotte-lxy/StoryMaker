@@ -207,6 +207,31 @@ try {
   const foreign = await api(running, `/api/read?path=${encodeURIComponent(projectFile)}`, { token });
   check(foreign.status === 403, '不许读当前项目文件以外的文件', String(foreign.status));
 
+  // 协作元数据：当前项目旁边的 .sync 是专门放开的（同步靠它记"上次同步到哪一版"）。
+  // 但放开这一个兄弟文件之后，别的路径必须仍然一律拒绝——这是安全边界，不能跟着松。
+  const syncFile = `${otherFile}.sync`;
+  const syncWrite = await api(running, `/api/write?path=${encodeURIComponent(syncFile)}`, {
+    token,
+    body: '{"clock":7}',
+  });
+  check(syncWrite.status === 200, '当前项目旁边的 .sync 可以写', String(syncWrite.status));
+
+  const syncRead = await api(running, `/api/read?path=${encodeURIComponent(syncFile)}`, { token });
+  const syncText = syncRead.status === 200 ? await syncRead.text() : '';
+  check(syncText === '{"clock":7}', '.sync 能原样读回来', syncText);
+
+  const stranger = join(work, '别人的文件.json');
+  const strangerWrite = await api(running, `/api/write?path=${encodeURIComponent(stranger)}`, {
+    token,
+    body: '{}',
+  });
+  check(strangerWrite.status === 403, '放开 .sync 之后，别的路径仍然被拒', String(strangerWrite.status));
+
+  const strangerSync = await api(running, `/api/read?path=${encodeURIComponent(`${stranger}.sync`)}`, {
+    token,
+  });
+  check(strangerSync.status === 403, '别的项目的 .sync 也不许碰', String(strangerSync.status));
+
   const missing = await api(running, `/api/read?path=${encodeURIComponent(otherFile)}`, { token });
   check(missing.status === 200, '切换过项目文件后读的是新文件');
 

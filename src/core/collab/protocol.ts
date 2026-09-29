@@ -119,3 +119,23 @@ export function splitPath(path: string): string[] {
 export function joinPath(segments: readonly string[]): string {
   return segments.join('/');
 }
+
+/**
+ * 客户端之间通过外挂服务端广播的消息。
+ *
+ * 服务端只做转发（而且会把你自己的消息也回显给你），所以收到消息后第一件事
+ * 就是拿 clientId 把自己发的过滤掉，见 client.ts。
+ */
+export interface CollabMessage {
+  type: 'hello' | 'snapshot' | 'patch' | 'bye';
+  clientId: string;
+  /** Lamport 时钟：本地改动时自增，收到别人的消息时取 max 再自增 */
+  clock: number;
+  /** type=snapshot 时带完整文档 */
+  doc?: unknown;
+  /** type=patch 时带改动 */
+  patches?: Patch[];
+}
+
+/** 连接状态。offline 不等于坏掉——那一律按纯本地用，这是设计的一部分 */
+export type CollabStatus = 'offline' | 'connecting' | 'online';

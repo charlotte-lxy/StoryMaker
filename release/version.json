@@ -1,6 +1,6 @@
 {
-  "version": "0.1.12",
-  "index.html": "abe4cd7e6ea6183a350f24d69bb51d147132dd01524afe07db0bc2d586214138",
-  "storymaker-server.ps1": "d44d6f4fe906febada12cbbeffc90a122a3a1349edc84273eddd6446df05d9a3",
+  "version": "0.1.14",
+  "index.html": "f3c613b86fc124aabe1f9df65f305d79a24e8f232b7eaa36bd13042f52371e75",
+  "storymaker-server.ps1": "7147d17f0708fba5e49dc4f3f0dcc6cc2aeca71f57c276cbb6c5b25572d2e02b",
   "启动StoryMaker.bat": "94a3bd3ca816b44bf85c3732775829f49e547fa95c4add1ab4198154c8df7c61"
 }

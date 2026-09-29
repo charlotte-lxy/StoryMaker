@@ -33,6 +33,10 @@ export interface HostApi {
   readProject: (filePath: string) => Promise<string | null>;
   /** 把内容写进指定路径 */
   writeProject: (filePath: string, content: string) => Promise<void>;
+  /** 读项目文件旁边的协作元数据（<项目>.sync）；没有或读不了返回 null */
+  readSidecar: (filePath: string) => Promise<string | null>;
+  /** 写协作元数据：存的是"上次同步到什么状态"，用来算离线期间改了什么 */
+  writeSidecar: (filePath: string, content: string) => Promise<void>;
   /** 导出二进制（xlsx 等）：弹保存框；取消返回 null */
   exportFile: (suggestedName: string, data: ArrayBuffer) => Promise<string | null>;
   /** 在文件管理器里定位文件 */
@@ -65,6 +69,16 @@ declare global {
 export function baseName(filePath: string): string {
   const parts = filePath.split(/[\\/]/);
   return parts[parts.length - 1] ?? filePath;
+}
+
+/**
+ * 协作元数据的路径：就放在项目文件旁边，名字后面加 .sync。
+ *
+ * 为什么不塞进项目文件本身——那会污染策划的数据、也会被导出流程牵连；
+ * 为什么不塞进 localStorage——那又会绕过本地服务"只碰它记住的那个文件"的边界。
+ */
+export function sidecarPath(filePath: string): string {
+  return `${filePath}.sync`;
 }
 
 const TOKEN_HEADER = 'X-StoryMaker-Token';
@@ -138,6 +152,18 @@ function serverHost(token: string): HostApi {
       if (!response.ok) throw new Error('写入项目文件失败');
     },
 
+    readSidecar: async (filePath) => {
+      const response = await post(`/api/read${query(sidecarPath(filePath))}`);
+      return response.ok ? await response.text() : null;
+    },
+
+    writeSidecar: async (filePath, content) => {
+      const response = await post(`/api/write${query(sidecarPath(filePath))}`, content, {
+        'Content-Type': 'application/json; charset=utf-8',
+      });
+      if (!response.ok) throw new Error('写入协作元数据失败');
+    },
+
     exportFile: async (suggestedName, data) => {
       const response = await post(
         `/api/export?suggestedName=${encodeURIComponent(suggestedName)}`,
@@ -164,6 +190,9 @@ function desktopHost(bridge: DesktopBridge): HostApi {
     pickProject: () => bridge.pickProject(),
     readProject: (filePath) => bridge.readProject(filePath),
     writeProject: (filePath, content) => bridge.writeProject(filePath, content),
+    // 桌面版的主进程本来就按路径读写，.sync 直接搭车
+    readSidecar: (filePath) => bridge.readProject(sidecarPath(filePath)),
+    writeSidecar: (filePath, content) => bridge.writeProject(sidecarPath(filePath), content),
     exportFile: (suggestedName, data) => bridge.exportFile(suggestedName, data),
     revealFile: (filePath) => bridge.revealFile(filePath),
   };

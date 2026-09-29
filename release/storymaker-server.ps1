@@ -105,6 +105,16 @@ function Test-SamePath([string]$left, [string]$right) {
   return [string]::Equals($a, $b, [StringComparison]::OrdinalIgnoreCase)
 }
 
+# 这个服务允许碰的范围：当前项目文件本身，以及它旁边的协作元数据 <项目>.sync
+# （协作同步用它存"上次同步到什么状态"，好算出离线期间改了什么）。
+# 别的路径一律拒绝——这是本服务的安全边界，不要为了让某个功能方便就放宽。
+function Test-AllowedPath([string]$target) {
+  if ([string]::IsNullOrEmpty($target)) { return $false }
+  if (Test-SamePath $target $script:ProjectPath) { return $true }
+  if ([string]::IsNullOrEmpty($script:ProjectPath)) { return $false }
+  return Test-SamePath $target ($script:ProjectPath + '.sync')
+}
+
 # ---------- 系统文件对话框 ----------
 
 # 对话框弹出时不会自动变成"前台窗口"（前台锁），有可能躲在浏览器后面，
@@ -435,11 +445,11 @@ function Handle-Request($stream, $request) {
 
     '/api/read' {
       $target = [string]$request.Query['path']
-      if (-not (Test-SamePath $target $script:ProjectPath)) {
-        Send-Json $stream @{ error = '只能读当前项目文件' } '403 Forbidden'
+      if (-not (Test-AllowedPath $target)) {
+        Send-Json $stream @{ error = '只能读当前项目文件（以及它旁边的协作元数据）' } '403 Forbidden'
         return
       }
-      $bytes = Read-FileBytes $script:ProjectPath
+      $bytes = Read-FileBytes $target
       if ($null -eq $bytes) {
         Send-Json $stream @{ error = '这个文件读不出来' } '404 Not Found'
         return
@@ -450,13 +460,13 @@ function Handle-Request($stream, $request) {
 
     '/api/write' {
       $target = [string]$request.Query['path']
-      if (-not (Test-SamePath $target $script:ProjectPath)) {
-        Send-Json $stream @{ error = '只能写当前项目文件' } '403 Forbidden'
+      if (-not (Test-AllowedPath $target)) {
+        Send-Json $stream @{ error = '只能写当前项目文件（以及它旁边的协作元数据）' } '403 Forbidden'
         return
       }
       try {
         # 浏览器发来的本来就是 UTF-8 字节，原样落盘，不做任何转码
-        [IO.File]::WriteAllBytes($script:ProjectPath, $request.Body)
+        [IO.File]::WriteAllBytes($target, $request.Body)
       } catch {
         Send-Json $stream @{ error = "写不进去：$($_.Exception.Message)" } '500 Internal Server Error'
         return

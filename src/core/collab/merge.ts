@@ -87,46 +87,6 @@ function getByPath(root: unknown, segments: readonly string[]): unknown {
   return node;
 }
 
-/** 沿路径就地替换（调用方已经克隆过了） */
-function setByPath(root: Record<string, unknown>, segments: readonly string[], value: unknown): boolean {
-  if (segments.length === 0) return false;
-  let node: unknown = root;
-  for (let i = 0; i < segments.length - 1; i++) {
-    const segment = segments[i];
-    if (Array.isArray(node)) {
-      node = node.find((item) => isPlainObject(item) && item.uid === segment);
-    } else if (isPlainObject(node)) {
-      node = node[segment];
-    } else {
-      return false;
-    }
-  }
-  const last = segments[segments.length - 1];
-  if (Array.isArray(node)) {
-    const index = node.findIndex((item) => isPlainObject(item) && item.uid === last);
-    if (index < 0) return false;
-    node[index] = value;
-    return true;
-  }
-  if (isPlainObject(node)) {
-    node[last] = value;
-    return true;
-  }
-  return false;
-}
-
-/** 沿路径删掉一条 */
-function removeByPath(root: Record<string, unknown>, segments: readonly string[]): boolean {
-  if (segments.length === 0) return false;
-  const parent = getByPath(root, segments.slice(0, -1));
-  if (!Array.isArray(parent)) return false;
-  const uid = segments[segments.length - 1];
-  const index = parent.findIndex((item) => isPlainObject(item) && item.uid === uid);
-  if (index < 0) return false;
-  parent.splice(index, 1);
-  return true;
-}
-
 // ---------- 字段路径（点分层级） ----------
 
 function getFieldValue(target: unknown, field: string): unknown {
