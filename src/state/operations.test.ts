@@ -31,6 +31,7 @@ function makeLine(uid: string, readableId: string, zh: string): Line {
     jumpGroupUid: null,
     jumpConditions: [],
     command: '',
+    specialContent: null,
     optionIds: [],
     note: '',
   };
@@ -377,6 +378,24 @@ describe('插入「跳转到段落」块', () => {
   it('普通块插出来的行不是跳转行', () => {
     const next = insertLine(makeProject(), 'g1', 0, '指令');
     expect(next.chapters[0].groups[0].lines[0].jumpGroupUid).toBeNull();
+  });
+});
+
+describe('插入「特殊演出效果」块', () => {
+  it('插出来的是「指令」行，带着一个还没填的指令内容', () => {
+    const next = renumberOneGroup(insertLine(makeProject(), 'g1', 1, '特殊演出效果'), 'g1');
+    const line = next.chapters[0].groups[0].lines[1];
+
+    expect(line.kind).toBe('指令');
+    // null 表示"不是特殊演出效果行"，空串表示"是但还没填内容"
+    expect(line.specialContent).toBe('');
+    expect(line.jumpGroupUid).toBeNull();
+    expect(line.command).toBe('');
+  });
+
+  it('普通块插出来的行不是特殊演出效果行', () => {
+    const next = insertLine(makeProject(), 'g1', 0, '指令');
+    expect(next.chapters[0].groups[0].lines[0].specialContent).toBeNull();
   });
 });
 

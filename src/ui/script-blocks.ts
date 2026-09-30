@@ -18,8 +18,8 @@ export const BLOCK_MIME = 'application/x-storymaker-block';
  */
 export const LINES_MIME = 'application/x-storymaker-lines';
 
-/** 块的名字。三种行类型直接沿用行类型名，跳转块单独一个 */
-export type BlockId = LineKind | '跳转到段落';
+/** 块的名字。三种行类型直接沿用行类型名，另两种也是往列表里插「指令」行，各自单独一个 */
+export type BlockId = LineKind | '跳转到段落' | '特殊演出效果';
 
 export interface ScriptBlock {
   id: BlockId;
@@ -33,6 +33,7 @@ export const SCRIPT_BLOCKS: readonly ScriptBlock[] = [
   { id: '选项', name: '选项', note: '弹出选项框，跳转到其他对话上' },
   { id: '指令', name: '指令', note: '修改游戏数据或播放演出效果' },
   { id: '跳转到段落', name: '跳转到段落', note: '直接播另一个段落的第一句' },
+  { id: '特殊演出效果', name: '特殊演出效果', note: '拼一条「特殊# 指令名称」的指令' },
 ];
 
 /** 这次拖拽是不是从脚本块区发起的（dragover 阶段只能看类型，读不到数据） */

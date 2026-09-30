@@ -91,6 +91,8 @@ function makeLine(kind: LineKind, over: Partial<Line> = {}): Line {
     text: { zh: '', en: '', ja: '' },
     autoAdvance: false,
     command: '',
+    // 老项目里没有这个字段：null = 普通行（不是「特殊演出效果」行）
+    specialContent: null,
     // 老项目里没有这个字段：null = 普通行（不是「跳转到段落」行）
     jumpGroupUid: null,
     jumpConditions: [],
@@ -477,6 +479,8 @@ function migrateGroup(group: Group, chapterId: string, changes: IdChange[]): voi
           text: asLocalized(raw.text),
           autoAdvance: raw.autoAdvance === true,
           command: asString(raw.command),
+          // 后加的字段：字符串就是它的「指令内容」，其它（含老项目里的 undefined）当普通行
+          specialContent: typeof raw.specialContent === 'string' ? raw.specialContent : null,
           // 后加的字段：字符串就是它引用的段落 uid，其它（含老项目里的 undefined）当普通行
           jumpGroupUid: typeof raw.jumpGroupUid === 'string' ? raw.jumpGroupUid : null,
           jumpConditions: Array.isArray(raw.jumpConditions)

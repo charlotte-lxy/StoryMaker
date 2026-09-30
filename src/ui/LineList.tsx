@@ -8,7 +8,11 @@ import {
   type ReactNode,
 } from 'react';
 
-import type { CommandTargets } from '../core/command-build';
+import {
+  buildSpecialCommand,
+  specialEffectNameOf,
+  type CommandTargets,
+} from '../core/command-build';
 import type { Character, CommandDef, Group, Line, StoryOption } from '../core/types';
 import type { GroupLineRefs } from '../state/operations';
 import { lineSequenceOf } from '../core/ids';
@@ -454,7 +458,9 @@ export function LineList(props: Props) {
                     </>
                   )}
 
-                  {line.kind === '指令' && line.jumpGroupUid === null && (
+                  {line.kind === '指令' &&
+                    line.jumpGroupUid === null &&
+                    line.specialContent === null && (
                     <Field label="指令" className="line-field-command">
                       <CommandInput
                         value={line.command}
@@ -468,6 +474,35 @@ export function LineList(props: Props) {
                         onChange={(next) => props.onUpdateLine(line.uid, { command: next })}
                       />
                     </Field>
+                  )}
+
+                  {/* 「特殊演出效果」：只有两个输入框，指令就是「特殊# 指令名称」；
+                      「指令内容」只给自己看，不导出也不参与拼装 */}
+                  {line.kind === '指令' && line.specialContent !== null && (
+                    <>
+                      <Field label="特殊指令名称" className="line-field-special-name">
+                        <input
+                          value={specialEffectNameOf(line.command)}
+                          placeholder="例如 SP_CameraShake"
+                          title="特殊指令名称：导出时拼成「特殊# 指令名称」"
+                          onChange={(event) =>
+                            props.onUpdateLine(line.uid, {
+                              command: buildSpecialCommand(event.target.value),
+                            })
+                          }
+                        />
+                      </Field>
+
+                      <Field label="指令内容" className="line-field-special-content">
+                        <input
+                          value={line.specialContent}
+                          placeholder="这条指令做什么（只给自己看，不导出）"
+                          onChange={(event) =>
+                            props.onUpdateLine(line.uid, { specialContent: event.target.value })
+                          }
+                        />
+                      </Field>
+                    </>
                   )}
   
                   <Field label="操作" className="line-field-actions">

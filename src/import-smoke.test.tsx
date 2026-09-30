@@ -44,13 +44,10 @@ it.skipIf(!hasData)('载入导入数据后能渲染出剧情行', async () => {
   expect(screen.getAllByText('选项列表').length).toBeGreaterThan(0);
 });
 
-it.skipIf(!hasData)('导入数据里的「指令」行能渲染出指令输入框', async () => {
+it.skipIf(!hasData)('导入数据里的「指令」行能渲染出指令下拉', async () => {
   seed();
   await renderApp();
-  // 「指令」行一行只放一条指令：一个可手写的预览框 + 一排下拉
-  expect(
-    screen.getAllByPlaceholderText('点这里手写指令，或用右侧下拉选择').length,
-  ).toBeGreaterThan(0);
+  // 「指令」行一行只放一条指令，字典里能选的就只留下拉
   expect(screen.getAllByTitle('选择指令').length).toBeGreaterThan(0);
   // 老的「＋ 新增指令」按钮已经没有了
   expect(screen.queryByText('＋ 新增指令')).toBeNull();

@@ -57,6 +57,7 @@ function dialogueLine(uid: string, readableId: string, zh: string): Line {
     text: { zh, en: '', ja: '' },
     autoAdvance: false,
     command: '',
+    specialContent: null,
     jumpGroupUid: null,
     jumpConditions: [],
     optionIds: [],
@@ -648,14 +649,29 @@ describe('脚本块与三种类型的行', () => {
     expect(rows(container).kinds).toEqual(['对话', '指令']);
   });
 
-  it('「指令」行只放一条指令，预览与下拉都是横向的', async () => {
+  it('「指令」行只放一条指令，只有下拉、没有手写预览框', async () => {
     await renderApp();
     dropBlock('指令');
 
-    expect(screen.getByPlaceholderText('点这里手写指令，或用右侧下拉选择')).toBeTruthy();
     expect(screen.getByTitle('选择指令')).toBeTruthy();
+    // 新建的空指令行只摆下拉，不再摆一个能手写的指令预览框
+    expect(screen.queryByPlaceholderText('点这里手写指令，或用右侧下拉选择')).toBeNull();
     // 一行只有一条指令，没有"再加一条"的按钮
     expect(screen.queryByText('＋ 新增指令')).toBeNull();
+  });
+
+  it('字典里匹配不上的指令（手写的演出指令）仍然摆一个输入框，看得见也改得动', async () => {
+    const project = createEmptyProject();
+    project.chapters[0].groups[0].lines = [
+      { ...dialogueLine('a1', 'Dia_ch01_001-1', ''), kind: '指令', command: '剧情.音效# S_1' },
+    ];
+    seedProjectFile(JSON.stringify(project));
+
+    await renderApp();
+
+    // 字典里没有「剧情.音效」这条，下拉选不中，所以要靠输入框把原文显示出来
+    const input = screen.getByPlaceholderText('点这里手写指令，或用右侧下拉选择') as HTMLInputElement;
+    expect(input.value).toBe('剧情.音效# S_1');
   });
 
   it('行可以删除', async () => {
@@ -1064,9 +1080,10 @@ describe('对话列表的批量编辑', () => {
       displayAliasUid: '',
       text: { zh, en: '', ja: '' },
       autoAdvance: false,
+      command: '',
+      specialContent: null,
       jumpGroupUid: null,
       jumpConditions: [],
-      command: '',
       optionIds: [],
       note: '',
     };
@@ -1456,6 +1473,47 @@ describe('「跳转到段落」脚本块', () => {
     expect(container.querySelector('.line-card')?.getAttribute('data-line-uid')).toBe('a1');
     // 高亮的正是那条「跳转到段落」条目
     expect(container.querySelector('.line-card.flash')?.getAttribute('data-line-uid')).toBe('a2');
+  });
+});
+
+describe('「特殊演出效果」脚本块', () => {
+  const TITLE = '拖到列表里插入「特殊演出效果」，或单击直接加到最后一行';
+
+  /** 列表里最后一张卡片上的字段名 */
+  const fieldNames = (container: HTMLElement): (string | null)[] => {
+    const cards = container.querySelectorAll('.line-card');
+    const card = cards[cards.length - 1];
+    return [...card.querySelectorAll('.line-field-name')].map((el) => el.textContent);
+  };
+
+  it('单击块插入一条「指令」行，只有两个输入框、没有指令下拉', async () => {
+    const { container } = await renderApp();
+    fireEvent.click(screen.getByTitle(TITLE));
+
+    expect(container.querySelector('.type-card-指令')).toBeTruthy();
+    expect(fieldNames(container)).toEqual(['脚本类型', '特殊指令名称', '指令内容', '操作']);
+    // 普通「指令」行那一排字典下拉不出现
+    expect(screen.queryByTitle('选择指令')).toBeNull();
+  });
+
+  it('「特殊指令名称」拼成「特殊# 名称」，「指令内容」存下来但不进指令', async () => {
+    await renderApp();
+    fireEvent.click(screen.getByTitle(TITLE));
+
+    fireEvent.change(screen.getByPlaceholderText('例如 SP_CameraShake'), {
+      target: { value: 'SP_CameraShake' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('这条指令做什么（只给自己看，不导出）'), {
+      target: { value: '屏幕震一下' },
+    });
+
+    await waitFor(() => expect(host.written.length).toBeGreaterThan(0), { timeout: 3000 });
+    const saved = JSON.parse(host.disk.get(DEFAULT_PROJECT_PATH) ?? '{}');
+    const lines = saved.chapters[0].groups[0].lines;
+    const line = lines[lines.length - 1];
+    expect(line.kind).toBe('指令');
+    expect(line.command).toBe('特殊# SP_CameraShake');
+    expect(line.specialContent).toBe('屏幕震一下');
   });
 });
 

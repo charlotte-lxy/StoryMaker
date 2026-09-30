@@ -16,6 +16,7 @@ function makeLine(uid: string, zh: string): Line {
     jumpGroupUid: null,
     jumpConditions: [],
     command: '',
+    specialContent: null,
     optionIds: [],
     note: '',
   };

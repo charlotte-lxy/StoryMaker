@@ -288,6 +288,8 @@ describe('老结构自动迁移', () => {
     expect(line.readableId).toBe('Dia_ch01_001-1');
     // 老项目里没有 jumpGroupUid：要当成普通指令行，别被认成「跳转到段落」行
     expect(line.jumpGroupUid).toBeNull();
+    // 老项目里也没有 specialContent：别被认成「特殊演出效果」行
+    expect(line.specialContent).toBeNull();
     // 可用条件同样要补成空表，不然导出时读到 undefined 会炸
     expect(line.jumpConditions).toEqual([]);
   });
@@ -329,6 +331,45 @@ describe('老结构自动迁移', () => {
 
     expect(groupOf(result!.project).lines[0].jumpGroupUid).toBe('g2');
     expect(groupOf(result!.project).lines[0].jumpConditions).toEqual(['背包#Item_Coin>=10']);
+  });
+
+  it('「特殊演出效果」行的指令与指令内容都读得回来', () => {
+    const result = normalizeProject({
+      version: 1,
+      chapters: [
+        {
+          uid: 'c1',
+          id: 'ch01',
+          title: '序章',
+          groups: [
+            {
+              uid: 'g1',
+              id: '001',
+              title: '开场',
+              options: [],
+              lines: [
+                {
+                  uid: 'l1',
+                  readableId: 'Dia_ch01_001-1',
+                  kind: '指令',
+                  command: '特殊# SP_CameraShake',
+                  specialContent: '屏幕震一下',
+                  characterId: '',
+                  displayAliasUid: '',
+                  text: { zh: '', en: '', ja: '' },
+                  autoAdvance: false,
+                  optionIds: [],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const line = groupOf(result!.project).lines[0];
+    expect(line.command).toBe('特殊# SP_CameraShake');
+    expect(line.specialContent).toBe('屏幕震一下');
   });
 
   it('缺字段的老数据能补齐，不抛错', () => {

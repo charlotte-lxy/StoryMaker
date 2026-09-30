@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildCommand, commandDefLabel, commandDefNote, matchCommandDef } from './command-build';
+import {
+  buildCommand,
+  buildSpecialCommand,
+  commandDefLabel,
+  commandDefNote,
+  matchCommandDef,
+  specialEffectNameOf,
+} from './command-build';
 import type { CommandDef } from './types';
 
 function makeDef(over: Partial<CommandDef> = {}): CommandDef {
@@ -49,6 +56,28 @@ describe('指令拼装', () => {
       value: 'number',
     });
     expect(buildCommand(def, 'Item_Coin', '10')).toBe('背包# Item_Coin>=10');
+  });
+});
+
+describe('「特殊演出效果」指令', () => {
+  it('只拼指令名称，「指令内容」不参与拼装', () => {
+    expect(buildSpecialCommand('SP_CameraShake')).toBe('特殊# SP_CameraShake');
+  });
+
+  it('名称还没填时这一行是空的，不写出半截指令', () => {
+    expect(buildSpecialCommand('')).toBe('');
+    expect(buildSpecialCommand('   ')).toBe('');
+  });
+
+  it('能从指令文本里把名称取回来', () => {
+    expect(specialEffectNameOf('特殊# SP_001')).toBe('SP_001');
+    expect(specialEffectNameOf('')).toBe('');
+  });
+
+  it('不是这个格式时原样返回，好让人看见并改掉', () => {
+    expect(specialEffectNameOf('剧情.演出# CHA_伊芙.表情=开心')).toBe(
+      '剧情.演出# CHA_伊芙.表情=开心',
+    );
   });
 });
 

@@ -31,8 +31,10 @@ export function ScriptPalette({ onPick }: Props) {
             event.dataTransfer.effectAllowed = 'copy';
           }}
         >
-          {/* 「跳转到段落」导出时也是「指令」行，标签沿用指令的配色 */}
-          <span className={`type-tag type-${block.id === '跳转到段落' ? '指令' : block.id}`}>
+          {/* 「跳转到段落」「特殊演出效果」导出时也是「指令」行，标签沿用指令的配色 */}
+          <span
+            className={`type-tag type-${block.id === '对话' || block.id === '选项' ? block.id : '指令'}`}
+          >
             {block.name}
           </span>
           <span className="script-block-note">{block.note}</span>

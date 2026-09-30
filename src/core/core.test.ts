@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createEmptyBattle } from './battle';
 
+import { buildSpecialCommand } from './command-build';
 import { escapeCsvField, parseCsv, toCsv, withBom, withoutBom } from './csv';
 import { formatArrayLiteral, parseArrayLiteral } from './array-literal';
 import { firstLineRef, makeLineId, makeOptionId, renumberGroup, textIdOf } from './ids';
@@ -21,6 +22,7 @@ function makeLine(uid: string, readableId: string, over: Partial<Line> = {}): Li
     jumpGroupUid: null,
     jumpConditions: [],
     command: '',
+    specialContent: null,
     optionIds: [],
     note: '',
     ...over,
@@ -389,6 +391,60 @@ describe('导出：指令里指向对话行的目标翻译成对话 ID', () => {
     expect(commandCell(buildRows(project), 'Dia_ch01_001-1')).toBe(
       '("剧情.播放对话# 某个不存在的-uid-0000")',
     );
+  });
+});
+
+describe('导出：特殊演出效果', () => {
+  /** 一条「特殊演出效果」行：指令是现拼的「特殊# 名称」，「指令内容」只给自己看 */
+  function makeProject(): Project {
+    return {
+      version: 1,
+      name: '特殊演出效果',
+      characters: [],
+      sounds: [],
+      commands: [],
+      items: [],
+      quests: [],
+      images: [],
+      variables: [],
+      uiTexts: [],
+      battle: createEmptyBattle(),
+      exportSettings: [],
+      chapters: [
+        {
+          uid: 'c1',
+          id: 'ch01',
+          title: '序章',
+          groups: [
+            {
+              uid: 'g1',
+              id: '001',
+              title: '开场',
+              note: '',
+              lines: [
+                makeLine('u1', 'Dia_ch01_001-1', {
+                  kind: '指令',
+                  command: buildSpecialCommand('SP_CameraShake'),
+                  specialContent: '屏幕震一下，只给自己看',
+                }),
+              ],
+              options: [],
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  it('文本类型还是「指令」，指令列表写「特殊# 指令名称」', () => {
+    const row = buildRows(makeProject()).dialogue[1];
+    expect(row[1]).toBe('指令');
+    expect(row[7]).toBe('("特殊# SP_CameraShake")');
+  });
+
+  it('「指令内容」不进导出：本地化表里没有它', () => {
+    const rows = buildRows(makeProject());
+    expect(rows.locale.flat().some((cell) => cell.includes('屏幕震一下'))).toBe(false);
   });
 });
 

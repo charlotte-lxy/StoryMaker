@@ -101,6 +101,7 @@ export function createLine(
     text: { zh: '', en: '', ja: '' },
     autoAdvance: false,
     command: '',
+    specialContent: null,
     jumpGroupUid: null,
     jumpConditions: [],
     optionIds: [],
@@ -109,14 +110,16 @@ export function createLine(
 }
 
 /**
- * 能拖进对话列表的脚本块：三种行类型，外加「跳转到段落」。
+ * 能拖进对话列表的脚本块：三种行类型，外加「跳转到段落」与「特殊演出效果」。
  *
- * 「跳转到段落」生成的是「指令」行（导出时文本类型就是指令），
- * 只是它的指令内容由所选段落现拼，所以要单独区分开。
+ * 后两种生成的都是「指令」行（导出时文本类型就是指令）：
+ * 「跳转到段落」的指令内容由所选段落现拼，「特殊演出效果」的指令内容只有指令名称。
  */
-export type InsertKind = LineKind | '跳转到段落';
+export type InsertKind = LineKind | '跳转到段落' | '特殊演出效果';
 
 export const JUMP_BLOCK = '跳转到段落';
+
+export const SPECIAL_BLOCK = '特殊演出效果';
 
 export function createOption(hostLineId: string, index: number): StoryOption {
   return {
@@ -308,15 +311,18 @@ export function insertLine(
     if (location === undefined) return;
     const { chapter, group } = location;
     const at = Math.max(0, Math.min(index, group.lines.length));
-    // 「跳转到段落」也是一条指令行，只是多带一个段落引用（还没选时是空串）
+    // 「跳转到段落」「特殊演出效果」也是指令行，只是各多带一个自己的字段
     const jump = kind === JUMP_BLOCK;
+    const special = kind === SPECIAL_BLOCK;
     const line = createLine(
       chapter.id,
       group.id,
       group.lines.length + 1,
-      jump ? '指令' : kind,
+      jump || special ? '指令' : kind,
     );
     if (jump) line.jumpGroupUid = '';
+    // 空串 = 是「特殊演出效果」行，但内容还没填（null 是普通行）
+    if (special) line.specialContent = '';
     // 「选项」行默认带一个选项，省得策划还要先点一下加号
     if (kind === '选项') {
       const option = createOption(line.readableId, 0);

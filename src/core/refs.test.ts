@@ -28,6 +28,7 @@ function line(uid: string, readableId: string, over: Partial<Line> = {}): Line {
     text: { zh: '', en: '', ja: '' },
     autoAdvance: false,
     command: '',
+    specialContent: null,
     jumpGroupUid: null,
     jumpConditions: [],
     optionIds: [],

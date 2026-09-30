@@ -14,8 +14,9 @@ import { parseCommand } from '../state/operations';
 /**
  * 指令 / 条件的条目式填写。
  *
- * 第一行是可编辑的文本框——既能直接手写，也会被下面的下拉选择覆盖。
- * 下面一排下拉从指令字典取值，逐级联动。
+ * 条目式列表（选项的条件与结果）：最上面一行是可编辑的文本框——既能直接手写，
+ * 也会被下面的下拉选择覆盖；下面一排下拉从指令字典取值，逐级联动。
+ * 「指令」行的单条填写（inline）只在字典里匹配不上时摆一个输入框，其余只留下拉。
  *
  * category 用来把范围限定在字典的某一部分：选项的出现/可用条件只能选「条件」，
  * 对话行的指令栏和选项的结果只能选「指令」。两边的格式一样，混在一起会选错。
@@ -122,6 +123,15 @@ export function CommandListInput({
           return [];
         })();
 
+        /**
+         * 摆不摆「文本输入框」。
+         *
+         * 条目式列表（选项的条件与结果）一直摆：那里一条一条都是手写的。
+         * 「指令」行只在下拉匹配不上时摆一个——匹配得上就只留下拉，同一件事不显示两遍；
+         * 空行也不摆（新建的指令行只有下拉，跟改之前一样干净）。
+         */
+        const showRawText = !inline || (text.trim() !== '' && def === undefined);
+
         return (
           <div
             className={[
@@ -147,51 +157,55 @@ export function CommandListInput({
               setOverIndex(null);
             }}
           >
-            <div className="command-item-head">
-              {!inline && (
-                <span
-                  className="drag-handle command-drag"
-                  title="按住上下拖动可调整顺序"
-                  draggable
-                  onDragStart={(event) => {
-                    setDragIndex(index);
-                    event.dataTransfer.effectAllowed = 'move';
-                  }}
-                  onDragEnd={() => {
-                    setDragIndex(null);
-                    setOverIndex(null);
-                  }}
-                />
-              )}
-              {/* 第一行既能手写，也会被下面的下拉覆盖。
-                  条目式的列表用不可见文本副本把宽度撑开；「指令」行的单条填写
-                  宽度固定，免得整行跟着内容忽宽忽窄。 */}
-              {inline ? (
-                <input
-                  className="command-text-inline"
-                  value={text}
-                  placeholder={emptyHint}
-                  onChange={(event) => updateAt(index, event.target.value)}
-                />
-              ) : (
-                <span className="command-field">
-                  <span className="command-probe" aria-hidden="true">
-                    {text === '' ? emptyHint : text}
-                  </span>
+            {/* 「指令」行（inline）平时不摆指令预览框：指令只由下面的下拉拼。
+                只有字典里匹配不上的（手写的演出指令、老数据，如「剧情.音效# S_1」）
+                才留一个输入框，否则那一行的内容在下拉里选不中、看不见。 */}
+            {showRawText && (
+              <div className="command-item-head">
+                {!inline && (
+                  <span
+                    className="drag-handle command-drag"
+                    title="按住上下拖动可调整顺序"
+                    draggable
+                    onDragStart={(event) => {
+                      setDragIndex(index);
+                      event.dataTransfer.effectAllowed = 'move';
+                    }}
+                    onDragEnd={() => {
+                      setDragIndex(null);
+                      setOverIndex(null);
+                    }}
+                  />
+                )}
+                {inline ? (
                   <input
-                    className="command-text-input"
+                    className="command-text-inline"
                     value={text}
                     placeholder={emptyHint}
                     onChange={(event) => updateAt(index, event.target.value)}
                   />
-                </span>
-              )}
-              {showRemove && (
-                <button type="button" title="删除这一条" onClick={() => removeAt(index)}>
-                  ×
-                </button>
-              )}
-            </div>
+                ) : (
+                  /* 条目式列表：既能手写，也会被下面的下拉覆盖。
+                     宽度由不可见文本副本撑开。 */
+                  <span className="command-field">
+                    <span className="command-probe" aria-hidden="true">
+                      {text === '' ? emptyHint : text}
+                    </span>
+                    <input
+                      className="command-text-input"
+                      value={text}
+                      placeholder={emptyHint}
+                      onChange={(event) => updateAt(index, event.target.value)}
+                    />
+                  </span>
+                )}
+                {showRemove && (
+                  <button type="button" title="删除这一条" onClick={() => removeAt(index)}>
+                    ×
+                  </button>
+                )}
+              </div>
+            )}
 
             <div className="command-pickers">
               <select
@@ -324,8 +338,8 @@ export function CommandListInput({
 /**
  * 单条指令的填写（「指令」行用它：一行只放一条指令）。
  *
- * 复用条目式的预览 + 下拉，只是排成横向一行，也没有增删按钮——
- * 增删由「指令」行自己的删除按钮负责。
+ * 复用条目式的下拉，排成横向一行，也没有增删按钮——增删由「指令」行自己的删除按钮负责。
+ * 文本输入框只在下拉匹配不上时出现（见 CommandListInput 里的 showRawText）。
  */
 export function CommandInput(
   props: Omit<Props, 'value' | 'onChange' | 'addLabel' | 'emptyHint'> & {

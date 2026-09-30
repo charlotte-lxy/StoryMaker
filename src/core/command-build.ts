@@ -114,6 +114,25 @@ export function buildCommand(def: CommandDef, target: string, value: string): st
   return text;
 }
 
+/** 「特殊演出效果」块的指令头；拼出来的指令形如 `特殊# SP_001` */
+const SPECIAL_EFFECT_HEAD = '特殊#';
+
+/**
+ * 拼一条「特殊演出效果」指令：`特殊# <指令名称>`。
+ *
+ * 「指令内容」那一栏只是给人看的说明，**不参与拼装**；名称还没填时返回空串，
+ * 导出后这一行是空的（由校验条提示）。
+ */
+export function buildSpecialCommand(name: string): string {
+  return name.trim() === '' ? '' : `${SPECIAL_EFFECT_HEAD} ${name}`;
+}
+
+/** 从指令文本里取回「特殊演出效果」的指令名称；不是这个格式时原样返回，好让人看见并改掉 */
+export function specialEffectNameOf(command: string): string {
+  if (!command.startsWith(SPECIAL_EFFECT_HEAD)) return command;
+  return command.slice(SPECIAL_EFFECT_HEAD.length).replace(/^\s+/, '');
+}
+
 /**
  * 指令定义在下拉里的显示名。
  *

@@ -895,6 +895,11 @@ textarea {
   border-left-color: var(--type-指令);
 }
 
+/* 「特殊演出效果」导出时也是「指令」行，沿用指令的配色 */
+.block-特殊演出效果 {
+  border-left-color: var(--type-指令);
+}
+
 .script-block .type-tag {
   flex-shrink: 0;
   height: 20px;
@@ -1860,6 +1865,15 @@ table.lines tbody tr.line-row:hover {
 }
 
 .line-field-condition {
+  flex: 1 1 320px;
+}
+
+/* 「特殊演出效果」行：特殊指令名称 + 指令内容 */
+.line-field-special-name {
+  flex: 0 1 240px;
+}
+
+.line-field-special-content {
   flex: 1 1 320px;
 }
 
@@ -2991,7 +3005,7 @@ tr.locale-form-note td {
   min-width: 0;
 }
 
-/* 下拉紧跟预览框，不要被推到行尾 */
+/* 下拉紧跟前面的输入框，不要被推到行尾 */
 .command-item.inline .command-pickers {
   flex: 0 1 auto;
   flex-wrap: nowrap;
@@ -3014,7 +3028,7 @@ tr.locale-form-note td {
   max-width: 100%;
 }
 
-/* 「指令」行的预览框：宽度固定，字重正常，不跟着内容忽宽忽窄 */
+/* 「指令」行匹配不上字典时（手写指令）才出现的输入框：宽度固定，不跟着内容忽宽忽窄 */
 .command-text-inline {
   width: 260px;
   flex: 0 0 auto;

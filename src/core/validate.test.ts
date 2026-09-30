@@ -18,6 +18,7 @@ function makeLine(uid: string, readableId: string, over: Partial<Line> = {}): Li
     jumpGroupUid: null,
     jumpConditions: [],
     command: '',
+    specialContent: null,
     optionIds: [],
     note: '',
     ...over,
