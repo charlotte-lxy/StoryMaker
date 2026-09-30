@@ -20,7 +20,8 @@ import {
   skillTag,
   tagStructLiteral,
 } from './battle';
-import type { GasPair, Project } from './types';
+import { attributeNameOf, eventNameOf, skillNameOf } from './refs';
+import type { BattleData, GasModifier, GasPair, Project } from './types';
 
 export const GAMEPLAY_TAGS_SHEET = 'GASGameplayTags';
 export const ATTRIBUTE_SHEET = 'GAS属性';
@@ -79,15 +80,23 @@ export interface BattleSheetRows {
 /** 样例里的布尔写法是 True / False */
 const boolText = (value: boolean): string => (value ? 'True' : 'False');
 
-/** 角色 / 武器的技能列表存的是技能名，导出成技能 Tag */
-const skillTags = (names: readonly string[]): string[] =>
-  names.map(skillTag).filter((tag) => tag !== '');
+/** 角色 / 武器的技能列表存的是技能表的 uid，导出成技能 Tag */
+const skillTags = (battle: BattleData, uids: readonly string[]): string[] =>
+  uids.map((uid) => skillTag(skillNameOf(battle, uid))).filter((tag) => tag !== '');
 
-/** 角色属性列表的 key 是属性名，导出成属性 Tag */
-const attributePairs = (pairs: readonly GasPair[]): GasPair[] =>
+/** 监听事件列表同理，导出成事件 Tag */
+const eventTags = (battle: BattleData, uids: readonly string[]): string[] =>
+  uids.map((uid) => eventTag(eventNameOf(battle, uid))).filter((tag) => tag !== '');
+
+/** 修改器列表：属性那一格是属性表的 uid，先取回属性名再合成文本 */
+const modifierTextsOf = (battle: BattleData, modifiers: readonly GasModifier[]): string[] =>
+  modifierTexts(modifiers, (uid) => attributeNameOf(battle, uid));
+
+/** 角色属性列表的 key 是属性表的 uid，导出成属性 Tag */
+const attributePairs = (battle: BattleData, pairs: readonly GasPair[]): GasPair[] =>
   pairs
     .filter((pair) => pair.key.trim() !== '')
-    .map((pair) => ({ ...pair, key: attributeTag(pair.key) }));
+    .map((pair) => ({ ...pair, key: attributeTag(attributeNameOf(battle, pair.key)) }));
 
 /** 只清掉整行都空的情况，值本身保持原样 */
 const filledPairs = (pairs: readonly GasPair[]): GasPair[] =>
@@ -123,7 +132,7 @@ export function buildBattleRows(project: Project): BattleSheetRows {
           row.maxStacks,
           boolText(row.refreshDuration),
           boolText(row.refreshPeriod),
-          formatArrayLiteral(modifierTexts(row.modifiers)),
+          formatArrayLiteral(modifierTextsOf(battle, row.modifiers)),
           classPath(battle.effectClassPrefix, row.className),
         ]),
     ],
@@ -134,8 +143,8 @@ export function buildBattleRows(project: Project): BattleSheetRows {
         .map((row) => [
           skillTag(row.name),
           row.name.trim(),
-          formatArrayLiteral(row.lockSkills.map(skillTag).filter((tag) => tag !== '')),
-          formatArrayLiteral(row.listenEvents.map(eventTag).filter((tag) => tag !== '')),
+          formatArrayLiteral(skillTags(battle, row.lockSkillUids)),
+          formatArrayLiteral(eventTags(battle, row.listenEventUids)),
           formatPairLiteral(filledPairs(row.parameters)),
           classPath(battle.skillClassPrefix, row.className),
         ]),
@@ -153,8 +162,8 @@ export function buildBattleRows(project: Project): BattleSheetRows {
         .map((row) => [
           row.id.trim(),
           row.name,
-          formatPairLiteral(attributePairs(filledPairs(row.attributes))),
-          formatArrayLiteral(skillTags(row.skills)),
+          formatPairLiteral(attributePairs(battle, filledPairs(row.attributes))),
+          formatArrayLiteral(skillTags(battle, row.skillUids)),
         ]),
     ],
     weapons: [
@@ -167,8 +176,8 @@ export function buildBattleRows(project: Project): BattleSheetRows {
           row.description,
           row.magazine,
           row.attackSpeed,
-          formatArrayLiteral(modifierTexts(row.modifiers)),
-          formatArrayLiteral(skillTags(row.skills)),
+          formatArrayLiteral(modifierTextsOf(battle, row.modifiers)),
+          formatArrayLiteral(skillTags(battle, row.skillUids)),
         ]),
     ],
   };

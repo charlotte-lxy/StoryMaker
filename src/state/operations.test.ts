@@ -24,7 +24,7 @@ function makeLine(uid: string, readableId: string, zh: string): Line {
     uid,
     readableId,
     kind: '对话',
-    characterId: '',
+    characterUid: '',
     displayName: '',
     text: { zh, en: '', ja: '' },
     autoAdvance: false,

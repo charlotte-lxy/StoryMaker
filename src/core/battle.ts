@@ -59,18 +59,25 @@ export function tagStructLiteral(tag: string): string {
 /**
  * 修改器合成出来的文本：持续类型#属性名 运算符 值，如「基础#生命值-Damage」。
  *
+ * 修改器里存的是属性表的 uid，所以属性名要由调用方查出来传进来
+ * （查不到时传原值，悬空引用就原样导出，跟改之前一样）。
  * 属性名或值还没填时不合成，免得导出一堆半截字符串。
  */
-export function modifierText(modifier: GasModifier): string {
-  const attribute = modifier.attribute.trim();
+export function modifierText(modifier: GasModifier, attributeName: string): string {
+  const attribute = attributeName.trim();
   const value = modifier.value.trim();
   if (attribute === '' || value === '') return '';
   return `${modifier.duration}#${attribute}${modifier.operator}${value}`;
 }
 
 /** 修改器列表的文本形式，空的一律丢掉 */
-export function modifierTexts(modifiers: readonly GasModifier[]): string[] {
-  return modifiers.map(modifierText).filter((text) => text !== '');
+export function modifierTexts(
+  modifiers: readonly GasModifier[],
+  attributeNameOf: (attributeUid: string) => string,
+): string[] {
+  return modifiers
+    .map((modifier) => modifierText(modifier, attributeNameOf(modifier.attributeUid)))
+    .filter((text) => text !== '');
 }
 
 /** 类名补成 Unreal 需要的全路径：BP_GA_Heal → /Script/.../BP_GA_Heal.BP_GA_Heal_C' */
@@ -150,15 +157,15 @@ export function collectGameplayTags(battle: BattleData): GameplayTagEntry[] {
   return entries;
 }
 
-/** 界面与导出都要的几张表的 Tag 清单（判断引用是否悬空时用） */
+/** 界面与导出都要的几张表的 uid 清单（判断引用是否悬空时用） */
 export function battleIndex(project: Project): {
   attributes: Set<string>;
   skills: Set<string>;
   events: Set<string>;
 } {
   return {
-    attributes: new Set(project.battle.attributes.map((row) => row.name.trim()).filter(Boolean)),
-    skills: new Set(project.battle.skills.map((row) => row.name.trim()).filter(Boolean)),
-    events: new Set(project.battle.events.map((row) => row.name.trim()).filter(Boolean)),
+    attributes: new Set(project.battle.attributes.map((row) => row.uid)),
+    skills: new Set(project.battle.skills.map((row) => row.uid)),
+    events: new Set(project.battle.events.map((row) => row.uid)),
   };
 }

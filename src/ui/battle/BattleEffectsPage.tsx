@@ -23,7 +23,10 @@ interface Props {
 export function BattleEffectsPage({ project, onChange }: Props) {
   const editorRef = useScrollMemory('battle:effects');
   const rows = project.battle.effects;
-  const attributes = project.battle.attributes.map((row) => row.name.trim()).filter(Boolean);
+  // 修改器的属性那一格存的是属性表的 uid，候选只有「有名字」的才给（没名字合不出 Tag）
+  const attributes = project.battle.attributes
+    .map((row) => ({ value: row.uid, label: row.name.trim() }))
+    .filter((item) => item.label !== '');
   const drag = useRowDrag((from, to) => onChange(reorderBattleRow(project, 'effects', from, to)));
 
   const counts = new Map<string, number>();

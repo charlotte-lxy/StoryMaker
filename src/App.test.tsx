@@ -51,7 +51,7 @@ function dialogueLine(uid: string, readableId: string, zh: string): Line {
     uid,
     readableId,
     kind: '对话',
-    characterId: '',
+    characterUid: '',
     displayName: '',
     text: { zh, en: '', ja: '' },
     autoAdvance: false,
@@ -195,6 +195,28 @@ describe('界面冒烟测试', () => {
     fireEvent.click(screen.getByText(/新增角色/));
     expect(screen.getByDisplayValue('CHA_角色1')).toBeTruthy();
     expect(screen.getByDisplayValue('角色1')).toBeTruthy();
+  });
+
+  it('改角色 ID 之后，对话行里的角色引用不会断', async () => {
+    await renderApp();
+    fireEvent.click(within(rail()).getByText('角色'));
+    fireEvent.click(screen.getByText(/新增角色/));
+    fireEvent.click(within(rail()).getByText('剧情'));
+
+    const characterSelect = () =>
+      screen.getByTitle('角色：导出时写入「角色ID」列') as HTMLSelectElement;
+    // 下拉里存的是角色 uid，显示的是角色名
+    const pickedUid = [...characterSelect().options].find((option) => option.value !== '')?.value;
+    expect(pickedUid).toBeTruthy();
+    fireEvent.change(characterSelect(), { target: { value: pickedUid } });
+
+    // 把角色表里那一行的 ID 改掉：引用按 uid 找，所以这一行不该跟着断
+    fireEvent.click(within(rail()).getByText('角色'));
+    fireEvent.change(screen.getByPlaceholderText('CHA_'), { target: { value: 'CHA_改过的' } });
+
+    fireEvent.click(within(rail()).getByText('剧情'));
+    expect(characterSelect().value).toBe(pickedUid);
+    expect(characterSelect().selectedOptions[0].textContent).toBe('角色1');
   });
 
   it('能切换到本地化模块，并列出默认那行的文本 key', async () => {
@@ -587,14 +609,18 @@ describe('脚本块与三种类型的行', () => {
     fireEvent.change(defSelect, { target: { value: picked } });
 
     const targetSelect = screen.getByTitle('目标对象') as HTMLSelectElement;
-    expect(targetSelect.value).toBe('CHA_角色1');
+    // 目标存的是角色 uid，下拉里显示的是角色 ID
+    const pickedTarget = targetSelect.value;
+    expect(pickedTarget).not.toBe('');
+    expect(targetSelect.selectedOptions[0].textContent).toContain('CHA_角色1');
 
     // 切走再回来：下拉框要按预览框里的指令重新解析出来
     fireEvent.click(within(rail()).getByText('角色'));
     fireEvent.click(within(rail()).getByText('剧情'));
 
     expect((screen.getByTitle('选择指令') as HTMLSelectElement).value).toBe(picked);
-    expect((screen.getByTitle('目标对象') as HTMLSelectElement).value).toBe('CHA_角色1');
+    // uid 里带 `-`，解析时不能被当成减号切坏
+    expect((screen.getByTitle('目标对象') as HTMLSelectElement).value).toBe(pickedTarget);
   });
 });
 
@@ -873,7 +899,7 @@ describe('对话列表的批量编辑', () => {
       uid,
       readableId,
       kind: '对话',
-      characterId: '',
+      characterUid: '',
       displayName: '',
       text: { zh, en: '', ja: '' },
       autoAdvance: false,
@@ -1400,8 +1426,11 @@ describe('战斗模块', () => {
     fireEvent.click(screen.getByText('＋ 添加修改器'));
 
     const attribute = screen.getByTitle('属性名') as HTMLSelectElement;
-    expect([...attribute.options].map((option) => option.value)).toEqual(['', '生命值']);
-    expect(attribute.value).toBe('生命值');
+    // 候选里第二项就是刚建的属性：值是 uid，显示的是属性名
+    expect(attribute.options).toHaveLength(2);
+    expect(attribute.options[1].textContent).toBe('生命值');
+    expect(attribute.value).toBe(attribute.options[1].value);
+    expect(attribute.value).not.toBe('生命值');
 
     fireEvent.change(screen.getByTitle('运算符'), { target: { value: '-' } });
     fireEvent.change(screen.getByPlaceholderText('参数名或数值'), { target: { value: 'Damage' } });

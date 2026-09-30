@@ -25,8 +25,13 @@ interface Props {
 export function BattleSkillsPage({ project, onChange }: Props) {
   const editorRef = useScrollMemory('battle:skills');
   const rows = project.battle.skills;
-  const skillNames = project.battle.skills.map((row) => row.name.trim()).filter(Boolean);
-  const eventNames = project.battle.events.map((row) => row.name.trim()).filter(Boolean);
+  // 两个多选存的是 uid：技能改名、事件改名都不会把引用写坏
+  const skillOptions = project.battle.skills
+    .map((row) => ({ value: row.uid, label: row.name.trim() }))
+    .filter((item) => item.label !== '');
+  const eventOptions = project.battle.events
+    .map((row) => ({ value: row.uid, label: row.name.trim() }))
+    .filter((item) => item.label !== '');
   const drag = useRowDrag((from, to) => onChange(reorderBattleRow(project, 'skills', from, to)));
 
   const counts = new Map<string, number>();
@@ -102,21 +107,23 @@ export function BattleSkillsPage({ project, onChange }: Props) {
                   </td>
                   <td>
                     <MultiSelect
-                      values={row.lockSkills}
-                      options={skillNames}
+                      values={row.lockSkillUids}
+                      options={skillOptions}
                       placeholder="未锁定"
                       title="勾选这个技能要锁定的其他技能"
-                      onChange={(next) => onChange(updateBattleList(project, 'skills', row.uid, 'lockSkills', next))}
+                      onChange={(next) =>
+                        onChange(updateBattleList(project, 'skills', row.uid, 'lockSkillUids', next))
+                      }
                     />
                   </td>
                   <td>
                     <MultiSelect
-                      values={row.listenEvents}
-                      options={eventNames}
+                      values={row.listenEventUids}
+                      options={eventOptions}
                       placeholder="未监听"
                       title="勾选这个技能要监听的事件"
                       onChange={(next) =>
-                        onChange(updateBattleList(project, 'skills', row.uid, 'listenEvents', next))
+                        onChange(updateBattleList(project, 'skills', row.uid, 'listenEventUids', next))
                       }
                     />
                   </td>

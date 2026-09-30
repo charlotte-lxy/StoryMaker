@@ -41,7 +41,7 @@ const FIELD_NAMES: Record<string, string> = {
   'text.en': '文本（英文）',
   'text.ja': '文本（日文）',
   command: '指令',
-  characterId: '角色ID',
+  characterUid: '角色',
   displayName: '显示名称',
   autoAdvance: '强制自动播放',
   nextId: '跳转目标',
@@ -51,6 +51,13 @@ const FIELD_NAMES: Record<string, string> = {
   optionIds: '选项列表',
   fixedValues: '候选值',
   readableId: '对话ID',
+  /* 战斗模块：引用的都是 uid，标签说清是「哪一栏的引用」 */
+  attributeUid: '属性',
+  attributes: '属性列表',
+  lockSkillUids: '锁定GA列表',
+  listenEventUids: '监听事件列表',
+  skillUids: '技能列表',
+  modifiers: '修改器列表',
 };
 
 /** 在项目里按 uid 找条目，顺手记下它在哪个集合字段下 */

@@ -14,7 +14,7 @@ function makeLine(uid: string, readableId: string, over: Partial<Line> = {}): Li
     uid,
     readableId,
     kind: '对话',
-    characterId: '',
+    characterUid: '',
     displayName: '',
     text: { zh: '', en: '', ja: '' },
     autoAdvance: false,
@@ -396,7 +396,8 @@ describe('导出三张表', () => {
   function makeProject(): Project {
     const talk = makeLine('u1', 'Dia_ch01_001-1', {
       kind: '对话',
-      characterId: 'CHA_Q版伊芙',
+      // 角色表是空的：这一格原样写出，导出结果跟改之前一样
+      characterUid: 'CHA_Q版伊芙',
       displayName: 'Q版伊芙',
       text: { zh: '你好', en: 'Hello', ja: 'こんにちは' },
     });

@@ -9,7 +9,7 @@ function makeLine(uid: string, zh: string): Line {
     uid,
     readableId: `Dia_${uid}`,
     kind: '对话',
-    characterId: 'CHA_甲',
+    characterUid: 'c1',
     displayName: '',
     text: { zh, en: 'Hi', ja: 'こんにちは' },
     autoAdvance: false,

@@ -30,8 +30,8 @@ export type BattlePage =
 export type BattleRowKey = 'attributes' | 'effects' | 'skills' | 'events' | 'characters' | 'weapons';
 
 /** 新建修改器：默认「基础 + 第一个属性 + 加号」，值留空等策划填 */
-export function createModifier(attribute = ''): GasModifier {
-  return { uid: newUid(), duration: '基础', attribute, operator: '+', value: '' };
+export function createModifier(attributeUid = ''): GasModifier {
+  return { uid: newUid(), duration: '基础', attributeUid, operator: '+', value: '' };
 }
 
 export function createPair(key = ''): GasPair {
@@ -62,7 +62,7 @@ export function addBattleRow(project: Project, key: BattleRowKey): Project {
         id: `${ID_PREFIX.characters}${n}`,
         name: '',
         attributes: [],
-        skills: [],
+        skillUids: [],
       };
       draft.battle.characters.push(row);
       return;
@@ -80,7 +80,7 @@ export function addBattleRow(project: Project, key: BattleRowKey): Project {
         magazine: '-1',
         attackSpeed: '1',
         modifiers: [],
-        skills: [],
+        skillUids: [],
       };
       draft.battle.weapons.push(row);
       return;
@@ -105,8 +105,8 @@ export function addBattleRow(project: Project, key: BattleRowKey): Project {
         uid: newUid(),
         name,
         className: '',
-        lockSkills: [],
-        listenEvents: [],
+        lockSkillUids: [],
+        listenEventUids: [],
         parameters: [],
         tagNote: '',
       });
@@ -196,7 +196,8 @@ export function addModifier(project: Project, key: 'effects' | 'weapons', uid: s
   return mutate(project, (draft) => {
     const owner = modifierOwners(draft, key).find((row) => row.uid === uid);
     if (owner === undefined) return;
-    owner.modifiers.push(createModifier(draft.battle.attributes[0]?.name ?? ''));
+    // 默认选属性表第一条：修改器里存的是那一行的 uid
+    owner.modifiers.push(createModifier(draft.battle.attributes[0]?.uid ?? ''));
   });
 }
 
@@ -285,7 +286,7 @@ export function updateBattleList(
   project: Project,
   key: 'skills' | 'characters' | 'weapons',
   uid: string,
-  field: 'lockSkills' | 'listenEvents' | 'skills',
+  field: 'lockSkillUids' | 'listenEventUids' | 'skillUids',
   values: string[],
 ): Project {
   return mutate(project, (draft) => {

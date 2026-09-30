@@ -23,8 +23,13 @@ interface Props {
 export function BattleCharactersPage({ project, onChange }: Props) {
   const editorRef = useScrollMemory('battle:characters');
   const rows = project.battle.characters;
-  const attributeNames = project.battle.attributes.map((row) => row.name.trim()).filter(Boolean);
-  const skillNames = project.battle.skills.map((row) => row.name.trim()).filter(Boolean);
+  // 属性 / 技能两格的候选都带上 uid：存的是引用，改名字不会断
+  const attributeOptions = project.battle.attributes
+    .map((row) => ({ value: row.uid, label: row.name.trim() }))
+    .filter((item) => item.label !== '');
+  const skillOptions = project.battle.skills
+    .map((row) => ({ value: row.uid, label: row.name.trim() }))
+    .filter((item) => item.label !== '');
   const drag = useRowDrag((from, to) => onChange(reorderBattleRow(project, 'characters', from, to)));
 
   const counts = new Map<string, number>();
@@ -88,7 +93,7 @@ export function BattleCharactersPage({ project, onChange }: Props) {
                   <td>
                     <PairList
                       pairs={row.attributes}
-                      keyOptions={attributeNames}
+                      keyOptions={attributeOptions}
                       keyPlaceholder="选属性"
                       valuePlaceholder="数值"
                       addLabel="＋ 添加属性"
@@ -101,11 +106,13 @@ export function BattleCharactersPage({ project, onChange }: Props) {
                   </td>
                   <td>
                     <MultiSelect
-                      values={row.skills}
-                      options={skillNames}
+                      values={row.skillUids}
+                      options={skillOptions}
                       placeholder="未选技能"
                       title="勾选这个角色会的技能"
-                      onChange={(next) => onChange(updateBattleList(project, 'characters', row.uid, 'skills', next))}
+                      onChange={(next) =>
+                        onChange(updateBattleList(project, 'characters', row.uid, 'skillUids', next))
+                      }
                     />
                   </td>
                   <td>

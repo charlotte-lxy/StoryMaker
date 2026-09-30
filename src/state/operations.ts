@@ -7,6 +7,7 @@
 import { createEmptyBattle } from '../core/battle';
 import { EXPORT_SUBTABLES } from '../core/export-settings';
 import { makeLineId, makeOptionId, newUid, renumberGroup, groupUidOfFirstLine, type IdChange } from '../core/ids';
+import { collectRefUids } from '../core/refs';
 import type {
   Chapter,
   CommandDef,
@@ -93,7 +94,7 @@ export function createLine(
     uid: newUid(),
     readableId: makeLineId(chapterId, groupId, index),
     kind,
-    characterId: '',
+    characterUid: '',
     displayName: '',
     text: { zh: '', en: '', ja: '' },
     autoAdvance: false,
@@ -644,18 +645,30 @@ export interface ParsedCommand {
 /**
  * 解析指令：主指令[.分支]# 目标对象[.目标属性][运算符 目标结果]
  *
- * 方括号部分都可以省略，所以拆解要小心两处歧义：
+ * 方括号部分都可以省略，所以拆解要小心三处歧义：
  *   1. `背包# Like_西园寺雪+1` 的 `+1` 是运算符加数值，不能并进目标
  *   2. `剧情.播放对话# P_Test_001-1` 的 `-1` 是 ID 的一部分，不是减法
- * 因此先看整体是否就是「ID-数字」这种形状，是的话整个当目标。
+ *   3. `剧情.演出# 8f3c1b2a-1234-4def-….表情=挥手` 的 `-` 是 **uid** 的一部分
+ *
+ * 第三条靠 isUid 判定：界面上从下拉里选的目标写进文本的是 uid，uid 里带 `-`，
+ * 只靠正则一定会被当成减号切坏。所以先按已知 uid 把 `#` 后面那一截的目标切出来，
+ * 剩下的部分再走下面那两套正则。手敲的 ID / 名字（isUid 不认）照旧走正则。
  */
-export function parseCommand(text: string): ParsedCommand | null {
+export function parseCommand(
+  text: string,
+  isUid: (value: string) => boolean = () => false,
+): ParsedCommand | null {
   const head = /^\s*([^.#]+)(?:\.([^#]+))?#\s*(.*?)\s*$/.exec(text);
   if (head === null) return null;
 
   const name = head[1].trim();
   const branch = (head[2] ?? '').trim();
   const rest = head[3];
+
+  const uidTarget = uidTargetOf(rest, isUid);
+  if (uidTarget !== null) {
+    return { name, branch, target: uidTarget, ...tailOf(rest.slice(uidTarget.length)) };
+  }
 
   const base = { name, branch, attribute: '', operator: '', value: '' };
 
@@ -685,6 +698,28 @@ export function parseCommand(text: string): ParsedCommand | null {
   return null;
 }
 
+/** `#` 后面那一截的开头正好是一个已知 uid 时返回它，否则 null */
+function uidTargetOf(rest: string, isUid: (value: string) => boolean): string | null {
+  for (let end = rest.length; end > 0; end -= 1) {
+    const candidate = rest.slice(0, end);
+    if (isUid(candidate)) return candidate;
+  }
+  return null;
+}
+
+/**
+ * uid 目标后面剩下的一截，只有「.属性」与「运算符 结果」两种东西，可以都省略。
+ * 目标已经在外面切掉了，这里不必再防 uid 里的 `-`。
+ */
+function tailOf(tail: string): Pick<ParsedCommand, 'attribute' | 'operator' | 'value'> {
+  const withValue = /^(?:\.([^\s=+\-]+))?\s*(>=|<=|==|!=|>|<|\+|-|=)\s*(.*?)$/.exec(tail);
+  if (withValue !== null) {
+    return { attribute: withValue[1] ?? '', operator: withValue[2], value: withValue[3] };
+  }
+  const attributeOnly = /^\.([^\s=+\-]+)$/.exec(tail);
+  return { attribute: attributeOnly?.[1] ?? '', operator: '', value: '' };
+}
+
 export interface CommandLocation {
   groupUid: string;
   lineUid: string;
@@ -702,6 +737,9 @@ export interface CommandUsage {
 /** 汇总剧情中用到的全部指令（只有「指令」行会写指令），按文本去重 */
 export function collectCommands(project: Project): CommandUsage[] {
   const map = new Map<string, CommandUsage>();
+  // 目标写的是 uid，解析时要把 uid 认出来（uid 里带 `-`，见 parseCommand）
+  const uids = collectRefUids(project);
+  const isUid = (value: string): boolean => uids.has(value);
 
   for (const chapter of project.chapters) {
     for (const group of chapter.groups) {
@@ -713,7 +751,7 @@ export function collectCommands(project: Project): CommandUsage[] {
 
         let entry = map.get(text);
         if (entry === undefined) {
-          entry = { text, count: 0, parsed: parseCommand(text), locations: [] };
+          entry = { text, count: 0, parsed: parseCommand(text, isUid), locations: [] };
           map.set(text, entry);
         }
         entry.count += 1;

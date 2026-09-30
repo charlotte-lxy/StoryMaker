@@ -28,8 +28,13 @@ export interface Line {
   uid: string;
   readableId: string;
   kind: LineKind;
-  /** 角色 ID，如 CHA_伊芙；只有「对话」行使用 */
-  characterId: string;
+  /**
+   * 角色表那一行的 **uid**；只有「对话」行使用。
+   *
+   * 存 uid 而不是角色 ID：这样在角色表里把 CHA_角色1 改成 CHA_XXX，
+   * 所有引用它的对话都不会断。导出时再翻成角色 ID（见 core/refs.ts）。
+   */
+  characterUid: string;
   /** 角色显示名称，可覆盖角色本名（如未识别身份时显示 unknown｛声纹识别中…｝）；只有「对话」行使用 */
   displayName: string;
   /** 台词（中英日）；只有「对话」行使用 */
@@ -164,15 +169,21 @@ export interface GasModifier {
   uid: string;
   /** 持续类型：基础 / 临时 / 固定 */
   duration: string;
-  /** 属性名，从属性表里选 */
-  attribute: string;
+  /** 属性表那一行的 uid，导出时按它取属性名再合成 Tag */
+  attributeUid: string;
   /** 运算符：+ - * / = */
   operator: string;
   /** GA 参数名或固定值，如 Damage、40 */
   value: string;
 }
 
-/** 键值对：技能的参数赋值、角色预设的属性数值都用它 */
+/**
+ * 键值对：技能的参数赋值、角色预设的属性数值都用它。
+ *
+ * `key` 的含义看它挂在哪儿：
+ *   - 技能「参数赋值列表」：手填的参数名（不是引用，导出原样写出）
+ *   - 角色预设「属性列表」：属性表那一行的 **uid**（改属性名也不会断）
+ */
 export interface GasPair {
   uid: string;
   key: string;
@@ -236,10 +247,10 @@ export interface GasSkill {
   name: string;
   /** 类名，如 BP_GA_Heal，导出时补成 GA类 全路径 */
   className: string;
-  /** 锁定 GA 列表：技能名 */
-  lockSkills: string[];
-  /** 监听事件列表：事件名 */
-  listenEvents: string[];
+  /** 锁定 GA 列表：技能表那一行的 uid，导出成技能 Tag */
+  lockSkillUids: string[];
+  /** 监听事件列表：事件表那一行的 uid，导出成事件 Tag */
+  listenEventUids: string[];
   /** 参数赋值列表 */
   parameters: GasPair[];
   tagNote: string;
@@ -251,10 +262,13 @@ export interface GasCharacter {
   /** 角色 ID，如 CHA_测试主角 */
   id: string;
   name: string;
-  /** 属性列表：属性名下挂数值 */
+  /**
+   * 属性列表：键值对里的 key 是**属性表那一行的 uid**（改属性名也不会断），
+   * 值就是这一行要填的数值。
+   */
   attributes: GasPair[];
-  /** 技能列表：技能名 */
-  skills: string[];
+  /** 技能列表：技能表那一行的 uid */
+  skillUids: string[];
 }
 
 /** 武器，导出成 GAS武器 */
@@ -268,7 +282,8 @@ export interface GasWeapon {
   magazine: string;
   attackSpeed: string;
   modifiers: GasModifier[];
-  skills: string[];
+  /** 技能列表：技能表那一行的 uid */
+  skillUids: string[];
 }
 
 /**

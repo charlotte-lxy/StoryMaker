@@ -23,8 +23,12 @@ interface Props {
 export function BattleWeaponsPage({ project, onChange }: Props) {
   const editorRef = useScrollMemory('battle:weapons');
   const rows = project.battle.weapons;
-  const attributes = project.battle.attributes.map((row) => row.name.trim()).filter(Boolean);
-  const skillNames = project.battle.skills.map((row) => row.name.trim()).filter(Boolean);
+  const attributes = project.battle.attributes
+    .map((row) => ({ value: row.uid, label: row.name.trim() }))
+    .filter((item) => item.label !== '');
+  const skillOptions = project.battle.skills
+    .map((row) => ({ value: row.uid, label: row.name.trim() }))
+    .filter((item) => item.label !== '');
   const drag = useRowDrag((from, to) => onChange(reorderBattleRow(project, 'weapons', from, to)));
 
   const counts = new Map<string, number>();
@@ -129,11 +133,11 @@ export function BattleWeaponsPage({ project, onChange }: Props) {
                   </td>
                   <td>
                     <MultiSelect
-                      values={row.skills}
-                      options={skillNames}
+                      values={row.skillUids}
+                      options={skillOptions}
                       placeholder="未选技能"
                       title="勾选这把武器带的技能"
-                      onChange={(next) => onChange(updateBattleList(project, 'weapons', row.uid, 'skills', next))}
+                      onChange={(next) => onChange(updateBattleList(project, 'weapons', row.uid, 'skillUids', next))}
                     />
                   </td>
                   <td>

@@ -10,6 +10,7 @@
  */
 
 import type { CommandDef, Project, TargetKind } from '../core/types';
+import { collectRefUids } from './refs';
 import type { LookupKind } from '../state/operations';
 
 export interface CommandTargets {
@@ -19,6 +20,14 @@ export interface CommandTargets {
   images: { id: string; label: string }[];
   sounds: { id: string; label: string }[];
   lines: { id: string; label: string }[];
+  /**
+   * 项目里所有能当引用目标的 uid。
+   *
+   * 下拉里的 `id` 一律是 uid（内部引用只认 uid，改 ID、改名字都不会断），
+   * 这个集合用来把指令文本里的 uid 目标认出来——uid 里带 `-`，
+   * 光靠正则解析会被当成减号（见 parseCommand）。
+   */
+  uids: Set<string>;
 }
 
 /**
@@ -45,17 +54,22 @@ export function targetKindToLookup(kind: TargetKind): LookupKind | null {
   }
 }
 
-/** 把项目里的各张表整理成下拉需要的候选列表 */
+/**
+ * 把项目里的各张表整理成下拉需要的候选列表。
+ *
+ * 每条候选的 `id` 是**那一行的 uid**，`label` 才是给人看的可读 ID / 名字：
+ * 下拉里存 uid，导出时（见 core/export.ts）再翻回 ID，所以改 ID 不会把引用写坏。
+ */
 export function collectCommandTargets(
   project: Project,
   lineLabels: { id: string; label: string }[],
 ): CommandTargets {
-  const toOptions = (rows: { id: string; name: string }[]) =>
-    rows.map((row) => ({ id: row.id, label: row.name === '' ? row.id : `${row.name}（${row.id}）` }));
+  const toOptions = (rows: { uid: string; id: string; name: string }[]) =>
+    rows.map((row) => ({ id: row.uid, label: row.name === '' ? row.id : `${row.name}（${row.id}）` }));
 
   return {
     characters: project.characters.map((c) => ({
-      id: c.id,
+      id: c.uid,
       label: c.name === '' ? c.id : `${c.name}（${c.id}）`,
     })),
     items: toOptions(project.items),
@@ -63,6 +77,7 @@ export function collectCommandTargets(
     images: toOptions(project.images),
     sounds: toOptions(project.sounds),
     lines: lineLabels,
+    uids: collectRefUids(project),
   };
 }
 

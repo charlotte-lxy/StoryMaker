@@ -16,12 +16,13 @@ export function CharacterEditor({ project, onAdd, onRemove, onUpdate, focusUid =
   const [draftExpression, setDraftExpression] = useState<Record<string, string>>({});
   const editorRef = useScrollMemory('character');
 
-  const usageOf = (id: string): number => {
+  /** 有多少行对话用了这个角色：按 uid 数（改角色 ID 不会影响这件事） */
+  const usageOf = (characterUid: string): number => {
     let count = 0;
     for (const chapter of project.chapters) {
       for (const group of chapter.groups) {
         for (const line of group.lines) {
-          if (line.characterId === id) count += 1;
+          if (line.characterUid === characterUid) count += 1;
         }
       }
     }
@@ -70,7 +71,7 @@ export function CharacterEditor({ project, onAdd, onRemove, onUpdate, focusUid =
           </thead>
           <tbody>
             {project.characters.map((character) => {
-              const used = usageOf(character.id);
+              const used = usageOf(character.uid);
               const duplicated =
                 project.characters.filter((c) => c.id === character.id).length > 1;
               return (

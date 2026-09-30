@@ -11,7 +11,7 @@ function makeLine(uid: string, readableId: string, over: Partial<Line> = {}): Li
     uid,
     readableId,
     kind: '对话',
-    characterId: 'CHA_伊芙',
+    characterUid: 'CHA_伊芙',
     displayName: '伊芙',
     text: { zh: '台词', en: '', ja: '' },
     autoAdvance: false,
@@ -41,7 +41,8 @@ function makeProject(group: Partial<Group>): Project {
   return {
     version: 1,
     name: 'p',
-    characters: [],
+    // 默认那一行对话引用的是这个角色（老数据里按角色 ID 写也算认得出来）
+    characters: [{ uid: 'ch1', id: 'CHA_伊芙', name: '伊芙', expressions: [], actions: [] }],
     sounds: [],
     commands: [],
     items: [],
@@ -188,11 +189,49 @@ it('被正确引用的选项不告警', () => {
 
 it('抓出空文本与缺失角色，且都只是告警', () => {
   const project = makeProject({
-    lines: [makeLine('u1', 'Dia_ch01_001-1', { text: { zh: '  ', en: '', ja: '' }, characterId: '' })],
+    lines: [makeLine('u1', 'Dia_ch01_001-1', { text: { zh: '  ', en: '', ja: '' }, characterUid: '' })],
   });
   const report = validateProject(project);
   expect(report.errors).toBe(0);
   expect(report.issues.map((i) => i.code).sort()).toEqual(['empty-text', 'no-character']);
+});
+
+it('引用的角色不在角色表里只提醒一句：导出照样写这个 ID', () => {
+  const project = makeProject({
+    lines: [makeLine('u1', 'Dia_ch01_001-1', { characterUid: 'CHA_别的人' })],
+  });
+  const report = validateProject(project);
+  expect(report.errors).toBe(0);
+  expect(report.issues.map((i) => i.code)).toEqual(['unknown-character']);
+  expect(report.issues[0].message).toContain('CHA_别的人');
+});
+
+it('引用的角色是 uid 却找不到（那一行被删了）算必须修复', () => {
+  const deleted = '3f2a1b4c-0000-4000-8000-000000000000';
+  const project = makeProject({
+    lines: [makeLine('u1', 'Dia_ch01_001-1', { characterUid: deleted })],
+  });
+  const report = validateProject(project);
+  expect(report.errors).toBe(1);
+  expect(report.issues[0].code).toBe('unknown-character');
+  expect(report.issues[0].lineUid).toBe('u1');
+  // uid 读不出是哪一条，提示里就不摆乱码
+  expect(report.issues[0].message).not.toContain(deleted);
+});
+
+it('指令指向的目标被删掉之后（uid 悬空）会报出来，手写的 ID 不报', () => {
+  const project = makeProject({
+    lines: [
+      makeLine('u1', 'Dia_ch01_001-1', {
+        kind: '指令',
+        command: '剧情.演出# 3f2a1b4c-0000-4000-8000-000000000000.表情=挥手',
+      }),
+      makeLine('u2', 'Dia_ch01_001-2', { kind: '指令', command: '特殊# SP_001' }),
+    ],
+  });
+  const report = validateProject(project);
+  expect(report.issues.map((i) => i.code)).toEqual(['dangling-command-target']);
+  expect(report.issues[0].lineUid).toBe('u1');
 });
 
 it('抓出跳到其他章节的选项（跳转目标只能选同一章）', () => {
@@ -210,7 +249,7 @@ it('抓出跳到其他章节的选项（跳转目标只能选同一章）', () =
         id: '001',
         title: '别章段落',
         note: '',
-        lines: [makeLine('u-other', 'Dia_ch02_001-1', { characterId: 'CHA_伊芙' })],
+        lines: [makeLine('u-other', 'Dia_ch02_001-1', { characterUid: 'CHA_伊芙' })],
         options: [],
       },
     ],
@@ -228,7 +267,7 @@ it('「指令」行只要求填了指令，不检查台词与角色', () => {
     lines: [
       makeLine('u1', 'Dia_ch01_001-1', {
         kind: '指令',
-        characterId: '',
+        characterUid: '',
         text: { zh: '', en: '', ja: '' },
       }),
     ],
@@ -239,7 +278,7 @@ it('「指令」行只要求填了指令，不检查台词与角色', () => {
     lines: [
       makeLine('u1', 'Dia_ch01_001-1', {
         kind: '指令',
-        characterId: '',
+        characterUid: '',
         text: { zh: '', en: '', ja: '' },
         command: '剧情.特殊# SP_ch01_001',
       }),
@@ -253,7 +292,7 @@ it('「选项」行必须有选项，且不检查台词', () => {
     lines: [
       makeLine('u1', 'Dia_ch01_001-1', {
         kind: '选项',
-        characterId: '',
+        characterUid: '',
         text: { zh: '', en: '', ja: '' },
       }),
     ],
@@ -264,7 +303,7 @@ it('「选项」行必须有选项，且不检查台词', () => {
     lines: [
       makeLine('u1', 'Dia_ch01_001-1', {
         kind: '选项',
-        characterId: '',
+        characterUid: '',
         text: { zh: '', en: '', ja: '' },
         optionIds: ['o-a'],
       }),

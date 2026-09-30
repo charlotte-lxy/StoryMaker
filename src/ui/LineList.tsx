@@ -12,6 +12,7 @@ import type { CommandTargets } from '../core/command-build';
 import type { Character, CommandDef, Group, Line, StoryOption } from '../core/types';
 import type { GroupLineRefs } from '../state/operations';
 import { lineSequenceOf } from '../core/ids';
+import { looksLikeUid } from '../core/refs';
 import { CommandInput, CommandListInput } from './CommandListInput';
 import { OptionListEditor } from './OptionListEditor';
 import { LINES_MIME, blockKindOf, isBlockDrag, type BlockId } from './script-blocks';
@@ -285,22 +286,27 @@ export function LineList(props: Props) {
                     <>
                       <Field label="角色" className="line-field-character">
                         <select
-                          value={line.characterId}
+                          value={line.characterUid}
                           title="角色：导出时写入「角色ID」列"
                           onChange={(event) =>
-                            props.onUpdateLine(line.uid, { characterId: event.target.value })
+                            props.onUpdateLine(line.uid, { characterUid: event.target.value })
                           }
                         >
                           <option value="">（未指定）</option>
+                          {/* 存的是角色 uid：在角色表里改 ID 不会把这一行写坏 */}
                           {props.characters.map((character) => (
-                            <option key={character.uid} value={character.id}>
+                            <option key={character.uid} value={character.uid}>
                               {character.name}
                             </option>
                           ))}
-                          {line.characterId !== '' &&
-                            !props.characters.some((c) => c.id === line.characterId) && (
-                              <option value={line.characterId}>
-                                {line.characterId}（不在角色表中）
+                          {line.characterUid !== '' &&
+                            !props.characters.some((c) => c.uid === line.characterUid) && (
+                              <option value={line.characterUid}>
+                                {/* uid 读不出是哪一条，就别把乱码摆出来 */}
+                                {looksLikeUid(line.characterUid)
+                                  ? '已删除的角色'
+                                  : line.characterUid}
+                                （不在角色表中）
                               </option>
                             )}
                         </select>
@@ -389,11 +395,11 @@ export function LineList(props: Props) {
                           defs={props.commandDefs}
                           category="条件"
                           targets={props.commandTargets}
-                          expressionsOf={(id) =>
-                            props.characters.find((c) => c.id === id)?.expressions ?? []
+                          expressionsOf={(uid) =>
+                            props.characters.find((c) => c.uid === uid)?.expressions ?? []
                           }
-                          actionsOf={(id) =>
-                            props.characters.find((c) => c.id === id)?.actions ?? []
+                          actionsOf={(uid) =>
+                            props.characters.find((c) => c.uid === uid)?.actions ?? []
                           }
                           onChange={(next) => props.onUpdateLine(line.uid, { jumpConditions: next })}
                           addLabel="＋ 新增条件"
@@ -410,10 +416,10 @@ export function LineList(props: Props) {
                         defs={props.commandDefs}
                         category="指令"
                         targets={props.commandTargets}
-                        expressionsOf={(id) =>
-                          props.characters.find((c) => c.id === id)?.expressions ?? []
+                        expressionsOf={(uid) =>
+                          props.characters.find((c) => c.uid === uid)?.expressions ?? []
                         }
-                        actionsOf={(id) => props.characters.find((c) => c.id === id)?.actions ?? []}
+                        actionsOf={(uid) => props.characters.find((c) => c.uid === uid)?.actions ?? []}
                         onChange={(next) => props.onUpdateLine(line.uid, { command: next })}
                       />
                     </Field>

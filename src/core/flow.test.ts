@@ -10,7 +10,7 @@ function makeLine(uid: string, readableId: string, over: Partial<Line> = {}): Li
     uid,
     readableId,
     kind: '对话',
-    characterId: '',
+    characterUid: '',
     displayName: '',
     text: { zh: '', en: '', ja: '' },
     autoAdvance: false,

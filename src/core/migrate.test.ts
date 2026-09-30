@@ -85,8 +85,8 @@ describe('老结构自动迁移', () => {
     expect(group.lines[2].autoAdvance).toBe(true);
     expect(group.lines[3].optionIds).toEqual(['o-a', 'o-b']);
 
-    // 内容一个字都没改
-    expect(group.lines[1].characterId).toBe('CHA_伊芙');
+    // 内容一个字都没改；角色那一格从角色 ID 换成了角色表的 uid
+    expect(group.lines[1].characterUid).toBe('ch1');
     expect(group.lines[1].text.en).toBe('one');
   });
 

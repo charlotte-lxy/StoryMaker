@@ -37,6 +37,7 @@ import {
 import { PLAY_DIALOGUE_HEAD } from './command-build';
 import { IMPORT_SETTINGS_SHEET, buildImportSettingRows } from './export-settings';
 import { firstLineIdOf, groupUidOfFirstLine, textIdOf } from './ids';
+import { characterIdOf, collectRefMaps, translateTarget, type UidToId } from './refs';
 import type { Group, Line, Project, StoryOption } from './types';
 
 export const DIALOGUE_SHEET = '对话';
@@ -74,15 +75,8 @@ export interface ExportRowSets {
 }
 
 /** uid → 可读 ID。导出时把内部引用翻译成 Unreal 需要的 ID。 */
-function buildIdMap(project: Project): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const chapter of project.chapters) {
-    for (const group of chapter.groups) {
-      for (const line of group.lines) map.set(line.uid, line.readableId);
-      for (const option of group.options) map.set(option.uid, option.readableId);
-    }
-  }
-  return map;
+function buildIdMap(project: Project): UidToId {
+  return collectRefMaps(project).byUid;
 }
 
 /** 段落 uid → 段落。选项的「跳转到首句」和「跳转到段落」行都要按它现取第一句 */
@@ -109,7 +103,7 @@ export function buildRows(project: Project): ExportRowSets {
   for (const chapter of project.chapters) {
     for (const group of chapter.groups) {
       for (const line of group.lines) {
-        pushLine(line, group, ref, groupOf, idOf, dialogue, locale);
+        pushLine(project, line, group, ref, groupOf, idOf, dialogue, locale);
 
         // 「选项」行的选项紧随该行输出，与现有本地化表的排列习惯一致
         if (line.kind !== '选项') continue;
@@ -130,34 +124,8 @@ export function buildRows(project: Project): ExportRowSets {
   return { dialogue, options, locale };
 }
 
-/**
- * 把指令 / 条件里指向对话行的目标翻译成对话 ID。
- *
- * 界面上选跳转目标时，指令文本里存的是**行的 uid**（内部引用一律指向 uid，
- * 这样插行、拖拽、删行之后重排 ID 也不会把引用写坏），但导出给 Unreal 的
- * 必须是对话 ID，所以这里做一次翻译：`剧情.播放对话# <uid>` → `# Dia_ch01_001-1`。
- *
- * 取目标不能靠解析指令：uid 里带 `-`，解析器会把第一个 `-` 当成运算符
- * （`8f3c1b2a-1234-…` 会被拆成 目标=8f3c1b2a + 运算符=-）。所以只认 `#`
- * 后面那一截，并从长到短找一个"正好是已知 uid"的前缀——目标后面可能紧跟
- * `.属性` 或 `=结果`，这样两步都不会切错。
- */
-function translateLineTarget(text: string, idOf: Map<string, string>): string {
-  const hash = text.indexOf('#');
-  if (hash < 0) return text;
-
-  let start = hash + 1;
-  while (start < text.length && /\s/.test(text[start])) start += 1;
-
-  for (let end = text.length; end > start; end -= 1) {
-    const readableId = idOf.get(text.slice(start, end));
-    if (readableId === undefined) continue;
-    return text.slice(0, start) + readableId + text.slice(end);
-  }
-  return text;
-}
-
 function pushLine(
+  project: Project,
   line: Line,
   group: Group,
   ref: RefFn,
@@ -167,12 +135,14 @@ function pushLine(
   locale: string[][],
 ): void {
   const isDialogue = line.kind === '对话';
-  const translate = (text: string): string => translateLineTarget(text, idOf);
+  // 指令 / 条件里指向各张表的目标存的都是 uid，导出前统一翻成可读 ID
+  const translate = (text: string): string => translateTarget(text, idOf);
 
   dialogue.push([
     line.readableId,
     line.kind,
-    isDialogue ? line.characterId : '',
+    // 角色那一格存的是角色 uid，这里翻回角色 ID；找不到对应行就原样写出
+    isDialogue ? characterIdOf(project, line.characterUid) : '',
     isDialogue ? line.displayName : '',
     isDialogue && line.autoAdvance ? 'True' : '',
     isDialogue ? textIdOf(line.readableId) : '',
@@ -237,12 +207,12 @@ function pushOption(
   options: string[][],
   locale: string[][],
 ): void {
-  const translate = (text: string): string => translateLineTarget(text, idOf);
+  const translate = (text: string): string => translateTarget(text, idOf);
 
   options.push([
     option.readableId,
     textIdOf(option.readableId),
-    // 条件、结果都是文本，原样写出；只有指向对话行的目标要把 uid 翻成对话 ID
+    // 条件、结果都是文本，原样写出；只有指向各表的目标要把 uid 翻成可读 ID
     formatArrayLiteral(option.appearConditions.map(translate)),
     formatArrayLiteral(option.enableConditions.map(translate)),
     formatArrayLiteral(option.results.map(translate)),

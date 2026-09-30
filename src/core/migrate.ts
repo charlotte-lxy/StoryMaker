@@ -16,6 +16,7 @@
 
 import { DEFAULT_EFFECT_CLASS_PREFIX, DEFAULT_SKILL_CLASS_PREFIX } from './battle';
 import { newUid, renumberGroup, type IdChange } from './ids';
+import { collectRefMaps, translateTarget } from './refs';
 import type {
   BattleData,
   Chapter,
@@ -37,6 +38,8 @@ export interface NormalizeResult {
 /** 读取时用的宽松行：字段可能是任何类型，逐个收窄 */
 interface RawLine extends Partial<Line> {
   commands?: unknown;
+  /** 老字段：角色 ID。现在存的是角色 uid，读的时候要按表换过来 */
+  characterId?: unknown;
 }
 
 /**
@@ -78,7 +81,7 @@ function makeLine(kind: LineKind, over: Partial<Line> = {}): Line {
     uid: newUid(),
     readableId: '',
     kind,
-    characterId: '',
+    characterUid: '',
     displayName: '',
     text: { zh: '', en: '', ja: '' },
     autoAdvance: false,
@@ -152,6 +155,9 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
     }
   }
 
+  // 各张表都补齐之后再统一换引用：引用的目标可能排在引用它的人后面
+  migrateRefs(project);
+
   return { project, changes };
 }
 
@@ -166,7 +172,8 @@ function normalizeBattle(input: unknown): BattleData {
     (Array.isArray(value) ? value : []).filter(isRecord).map((row) => ({
       uid: asUid(row.uid),
       duration: asString(row.duration) || '基础',
-      attribute: asString(row.attribute),
+      // 老字段 attribute 存的是属性名，后面统一按表换过来
+      attributeUid: asString(row.attributeUid) || asString(row.attribute),
       operator: asString(row.operator) || '+',
       value: asString(row.value),
     }));
@@ -180,6 +187,12 @@ function normalizeBattle(input: unknown): BattleData {
 
   const names = (value: unknown): string[] =>
     (Array.isArray(value) ? value : []).filter((item): item is string => typeof item === 'string');
+
+  /** 引用列表：优先读新字段（uid），没有就退回老字段（名字 / ID），后面统一换 */
+  const refs = (row: Record<string, unknown>, key: string, legacyKey: string): string[] => {
+    const next = names(row[key]);
+    return next.length > 0 ? next : names(row[legacyKey]);
+  };
 
   const text = (row: Record<string, unknown>, key: string): string => asString(row[key]);
   const flag = (row: Record<string, unknown>, key: string): boolean => row[key] === true;
@@ -212,8 +225,8 @@ function normalizeBattle(input: unknown): BattleData {
       uid: asUid(row.uid),
       name: text(row, 'name'),
       className: text(row, 'className'),
-      lockSkills: names(row.lockSkills),
-      listenEvents: names(row.listenEvents),
+      lockSkillUids: refs(row, 'lockSkillUids', 'lockSkills'),
+      listenEventUids: refs(row, 'listenEventUids', 'listenEvents'),
       parameters: pairs(row.parameters),
       tagNote: text(row, 'tagNote'),
     })),
@@ -228,7 +241,7 @@ function normalizeBattle(input: unknown): BattleData {
       id: text(row, 'id'),
       name: text(row, 'name'),
       attributes: pairs(row.attributes),
-      skills: names(row.skills),
+      skillUids: refs(row, 'skillUids', 'skills'),
     })),
     weapons: rows('weapons').map((row) => ({
       uid: asUid(row.uid),
@@ -238,9 +251,94 @@ function normalizeBattle(input: unknown): BattleData {
       magazine: text(row, 'magazine'),
       attackSpeed: text(row, 'attackSpeed'),
       modifiers: modifiers(row.modifiers),
-      skills: names(row.skills),
+      skillUids: refs(row, 'skillUids', 'skills'),
     })),
   };
+}
+
+/**
+ * 把按「ID / 名字」存的引用换成 uid。
+ *
+ * 新写的文件里引用本来就是 uid，这里对它们是空操作；老文件、手改过的 JSON、
+ * 以及策划在指令里手敲的 `背包# Item_Coin` 都会在这一步归一到 uid。
+ * 表里找不到对应行时**原样保留**（可能只是那一行还没建），交给校验条去报悬空。
+ */
+function migrateRefs(project: Project): void {
+  const maps = collectRefMaps(project);
+  const battle = project.battle;
+
+  /** 已经是已知 uid 就留着，否则按可读 ID 换一次 */
+  const toUid = (value: string): string => {
+    const trimmed = value.trim();
+    if (trimmed === '' || maps.byUid.has(trimmed)) return value;
+    return maps.byId.get(trimmed) ?? value;
+  };
+
+  /** 战斗表里的引用：已经是那一行的 uid 就留着，否则按名字找那一行 */
+  const toRowUid = (value: string, uids: Set<string>, byName: Map<string, string>): string => {
+    const trimmed = value.trim();
+    if (trimmed === '' || uids.has(trimmed)) return value;
+    return byName.get(trimmed) ?? value;
+  };
+
+  const nameMap = (rows: { uid: string; name: string }[]): Map<string, string> => {
+    const map = new Map<string, string>();
+    for (const row of rows) {
+      const name = row.name.trim();
+      if (name !== '' && !map.has(name)) map.set(name, row.uid);
+    }
+    return map;
+  };
+
+  const attributeByName = nameMap(battle.attributes);
+  const skillByName = nameMap(battle.skills);
+  const eventByName = nameMap(battle.events);
+  const attributeUids = new Set(battle.attributes.map((row) => row.uid));
+  const skillUids = new Set(battle.skills.map((row) => row.uid));
+  const eventUids = new Set(battle.events.map((row) => row.uid));
+
+  for (const chapter of project.chapters) {
+    for (const group of chapter.groups) {
+      for (const line of group.lines) {
+        line.characterUid = toUid(line.characterUid);
+        line.command = translateTarget(line.command, maps.byId);
+        line.jumpConditions = line.jumpConditions.map((text) => translateTarget(text, maps.byId));
+      }
+      for (const option of group.options) {
+        option.appearConditions = option.appearConditions.map((text) =>
+          translateTarget(text, maps.byId),
+        );
+        option.enableConditions = option.enableConditions.map((text) =>
+          translateTarget(text, maps.byId),
+        );
+        option.results = option.results.map((text) => translateTarget(text, maps.byId));
+      }
+    }
+  }
+
+  for (const effect of battle.effects) {
+    for (const modifier of effect.modifiers) {
+      modifier.attributeUid = toRowUid(modifier.attributeUid, attributeUids, attributeByName);
+    }
+  }
+  for (const skill of battle.skills) {
+    skill.lockSkillUids = skill.lockSkillUids.map((ref) => toRowUid(ref, skillUids, skillByName));
+    skill.listenEventUids = skill.listenEventUids.map((ref) =>
+      toRowUid(ref, eventUids, eventByName),
+    );
+  }
+  for (const character of battle.characters) {
+    for (const pair of character.attributes) {
+      pair.key = toRowUid(pair.key, attributeUids, attributeByName);
+    }
+    character.skillUids = character.skillUids.map((ref) => toRowUid(ref, skillUids, skillByName));
+  }
+  for (const weapon of battle.weapons) {
+    for (const modifier of weapon.modifiers) {
+      modifier.attributeUid = toRowUid(modifier.attributeUid, attributeUids, attributeByName);
+    }
+    weapon.skillUids = weapon.skillUids.map((ref) => toRowUid(ref, skillUids, skillByName));
+  }
 }
 
 function migrateGroup(group: Group, chapterId: string, changes: IdChange[]): void {  let migrated = false;
@@ -263,7 +361,8 @@ function migrateGroup(group: Group, chapterId: string, changes: IdChange[]): voi
         makeLine(rawKind as LineKind, {
           uid: asUid(raw.uid),
           readableId: asString(raw.readableId),
-          characterId: asString(raw.characterId),
+          // 新结构存的是角色 uid；老结构存的是角色 ID，后面统一按表换过来
+          characterUid: asString(raw.characterUid) || asString(raw.characterId),
           displayName: asString(raw.displayName),
           text: asLocalized(raw.text),
           autoAdvance: raw.autoAdvance === true,
@@ -298,7 +397,7 @@ function migrateGroup(group: Group, chapterId: string, changes: IdChange[]): voi
         makeLine('对话', {
           uid: asUid(raw.uid),
           readableId: asString(raw.readableId),
-          characterId: asString(raw.characterId),
+          characterUid: asString(raw.characterUid) || asString(raw.characterId),
           displayName: asString(raw.displayName),
           text,
           autoAdvance: raw.autoAdvance === true,

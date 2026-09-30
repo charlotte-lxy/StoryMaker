@@ -8,6 +8,7 @@
  */
 
 import { groupUidOfFirstLine, textIdOf } from './ids';
+import { collectRefUids, leadingUid, looksLikeUid } from './refs';
 import type { Group, LocalizedText, Project } from './types';
 
 export type IssueLevel = 'error' | 'warning';
@@ -46,6 +47,8 @@ export type IssueCode =
   | 'orphan-option'
   | 'empty-text'
   | 'no-character'
+  | 'unknown-character'
+  | 'dangling-command-target'
   | 'empty-command'
   | 'empty-option-list'
   | 'missing-translation'
@@ -77,6 +80,44 @@ function ownerLineUid(group: Group, optionUid: string): string {
 
 export function validateProject(project: Project): ValidationReport {
   const issues: Issue[] = [];
+
+  /**
+   * 引用在提示里怎么写给人看。
+   *
+   * 内部引用存的是 uid，uid 读不出是哪一条，所以干脆不写进提示；
+   * 老数据 / 手写的 ID、名字则照原样显示，方便照着改。
+   */
+  const refText = (raw: string): string => (looksLikeUid(raw) ? '' : `「${raw.trim()}」`);
+
+  /** 项目里所有能当引用目标的 uid（指令目标悬空检查用） */
+  const refUids = collectRefUids(project);
+  /** 角色表里所有 uid：对话行的角色引用必须落在里面（老数据里按 ID 写的也认） */
+  const characterUids = new Set(project.characters.map((row) => row.uid));
+
+  /**
+   * 指令 / 条件里指向各表的目标：改动后写进文本的是 uid，
+   * 引用的那一行被删掉之后这个 uid 就悬空了（导出会写出一串乱码）。
+   * 只报「看起来就是 uid 又找不到」的，老数据里的 ID / 名字照旧不报。
+   */
+  const checkCommandTarget = (
+    text: string,
+    where: string,
+    targetId: string,
+    lineUid: string,
+    groupUid: string,
+  ): void => {
+    const uid = leadingUid(text);
+    if (uid === '' || refUids.has(uid)) return;
+    issues.push({
+      level: 'error',
+      code: 'dangling-command-target',
+      targetId,
+      where,
+      message: '指令 / 条件指向的目标已经被删掉了，请在对应表里重新选一次',
+      lineUid,
+      groupUid,
+    });
+  };
 
   /** 每个可读 ID 出现几次，以及第一次出现的位置（报重复 ID 时能点过去） */
   interface Seen {
@@ -219,6 +260,9 @@ export function validateProject(project: Project): ValidationReport {
                 ...at,
               });
             }
+            for (const condition of line.jumpConditions) {
+              checkCommandTarget(condition, where, line.readableId, at.lineUid, at.groupUid);
+            }
             continue;
           }
           if (line.command.trim() === '') {
@@ -231,6 +275,7 @@ export function validateProject(project: Project): ValidationReport {
               ...at,
             });
           }
+          checkCommandTarget(line.command, where, line.readableId, at.lineUid, at.groupUid);
           continue;
         }
 
@@ -245,7 +290,7 @@ export function validateProject(project: Project): ValidationReport {
           });
         }
 
-        if (line.characterId.trim() === '') {
+        if (line.characterUid.trim() === '') {
           issues.push({
             level: 'warning',
             code: 'no-character',
@@ -254,11 +299,40 @@ export function validateProject(project: Project): ValidationReport {
             message: '未指定角色',
             ...at,
           });
+        } else {
+          // 角色那一格存的是角色 uid；老数据里按角色 ID 写的也认
+          const ref = line.characterUid.trim();
+          const known =
+            characterUids.has(ref) || project.characters.some((row) => row.id.trim() === ref);
+          if (!known) {
+            // uid 找不到 = 那一行被删了，导出会写出乱码，算必须修复；
+            // 老数据 / 手写的角色 ID 找不到只提醒一句：可能角色表还没建全，
+            // 而导出照样写这个 ID（跟改之前一样）
+            const deleted = looksLikeUid(ref);
+            issues.push({
+              level: deleted ? 'error' : 'warning',
+              code: 'unknown-character',
+              targetId: line.readableId,
+              where,
+              message: deleted
+                ? '这一行引用的角色已经被删掉了，请在角色表里重新选一次'
+                : `引用的角色${refText(ref)}不在角色表里`,
+              ...at,
+            });
+          }
         }
       }
 
       for (const option of group.options) {
         const lineUid = ownerLineUid(group, option.uid);
+
+        for (const text of [
+          ...option.appearConditions,
+          ...option.enableConditions,
+          ...option.results,
+        ]) {
+          checkCommandTarget(text, where, option.readableId, lineUid, group.uid);
+        }
 
         if (!referencedOptions.has(option.uid)) {
           issues.push({

@@ -10,7 +10,13 @@
  */
 
 import { collectLocaleEntries } from '../core/localization';
-import type { GasModifier, GasPair, Project } from '../core/types';
+import {
+  attributeNameOf,
+  characterIdOf,
+  eventNameOf,
+  skillNameOf,
+} from '../core/refs';
+import type { BattleData, GasModifier, GasPair, Project } from '../core/types';
 import type { BattlePage } from './battle-operations';
 
 /** 能被搜的模块，也是搜索页最上面那排筛选按钮的顺序 */
@@ -180,8 +186,32 @@ function pairFields(pairs: GasPair[]): string[] {
   return pairs.flatMap((pair) => [pair.key, pair.value]);
 }
 
-function modifierFields(modifiers: GasModifier[]): string[] {
-  return modifiers.flatMap((row) => [row.duration, row.attribute, row.operator, row.value]);
+function modifierFields(battle: BattleData, modifiers: GasModifier[]): string[] {
+  return modifiers.flatMap((row) => [
+    row.duration,
+    attributeNameOf(battle, row.attributeUid),
+    row.operator,
+    row.value,
+  ]);
+}
+
+/**
+ * 引用的名字也要能搜到。
+ *
+ * 引用字段里存的是 uid（一长串乱码，搜它没意义），但策划想搜的是
+ * 「哪些武器带了这个技能」这种问题，所以这里一律换成解析出来的名字。
+ */
+function characterFields(project: Project, characterUid: string): string[] {
+  const ref = characterUid.trim();
+  if (ref === '') return [];
+  const id = characterIdOf(project, ref);
+  const name = project.characters.find((row) => row.uid === ref)?.name.trim() ?? '';
+  return [id, name].filter((text) => text !== '');
+}
+
+/** 战斗表里的引用列：换成解析出来的名字，一个都解析不出来时留着原值 */
+function refFields(refs: readonly string[], nameOf: (ref: string) => string): string[] {
+  return refs.map((ref) => ref.trim()).filter((ref) => ref !== '').map(nameOf);
 }
 
 /** 剧情：章节名、段落名、「章节 / 段落」下的每一行对话与每个选项 */
@@ -219,7 +249,7 @@ function storyDrafts(project: Project): Draft[] {
             line.text.zh,
             line.text.en,
             line.text.ja,
-            line.characterId,
+            ...characterFields(project, line.characterUid),
             line.displayName,
             line.command,
             ...line.jumpConditions,
@@ -344,7 +374,7 @@ function battleDrafts(project: Project): Draft[] {
         row.period,
         row.reduceStacks,
         row.maxStacks,
-        ...modifierFields(row.modifiers),
+        ...modifierFields(battle, row.modifiers),
       ],
       target: { kind: 'battle', page: 'effects', uid: row.uid },
     });
@@ -359,8 +389,8 @@ function battleDrafts(project: Project): Draft[] {
         row.name,
         row.className,
         row.tagNote,
-        ...row.lockSkills,
-        ...row.listenEvents,
+        ...refFields(row.lockSkillUids, (ref) => skillNameOf(battle, ref)),
+        ...refFields(row.listenEventUids, (ref) => eventNameOf(battle, ref)),
         ...pairFields(row.parameters),
       ],
       target: { kind: 'battle', page: 'skills', uid: row.uid },
@@ -372,7 +402,17 @@ function battleDrafts(project: Project): Draft[] {
       submodule: '角色预设',
       rowNumber: index + 1,
       rowLabel: row.id || row.name,
-      fields: [row.id, row.name, ...pairFields(row.attributes), ...row.skills],
+      fields: [
+        row.id,
+        row.name,
+        // 属性列表的 key 是属性 uid，换成属性名才搜得到
+        ...refFields(
+          row.attributes.map((pair) => pair.key),
+          (ref) => attributeNameOf(battle, ref),
+        ),
+        ...row.attributes.map((pair) => pair.value),
+        ...refFields(row.skillUids, (ref) => skillNameOf(battle, ref)),
+      ],
       target: { kind: 'battle', page: 'characters', uid: row.uid },
     });
   });
@@ -388,8 +428,8 @@ function battleDrafts(project: Project): Draft[] {
         row.description,
         row.magazine,
         row.attackSpeed,
-        ...modifierFields(row.modifiers),
-        ...row.skills,
+        ...modifierFields(battle, row.modifiers),
+        ...refFields(row.skillUids, (ref) => skillNameOf(battle, ref)),
       ],
       target: { kind: 'battle', page: 'weapons', uid: row.uid },
     });

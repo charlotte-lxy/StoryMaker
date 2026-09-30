@@ -196,8 +196,8 @@ export function OptionListEditor(props: Props) {
             defs={props.commandDefs}
             category="条件"
             targets={props.commandTargets}
-            expressionsOf={(id) => props.characters.find((c) => c.id === id)?.expressions ?? []}
-            actionsOf={(id) => props.characters.find((c) => c.id === id)?.actions ?? []}
+            expressionsOf={(uid) => props.characters.find((c) => c.uid === uid)?.expressions ?? []}
+            actionsOf={(uid) => props.characters.find((c) => c.uid === uid)?.actions ?? []}
             onChange={(next) => props.onUpdateOption(option.uid, { appearConditions: next })}
             addLabel="＋ 新增条件"
             emptyHint="尚未设置出现条件"
@@ -211,8 +211,8 @@ export function OptionListEditor(props: Props) {
             defs={props.commandDefs}
             category="条件"
             targets={props.commandTargets}
-            expressionsOf={(id) => props.characters.find((c) => c.id === id)?.expressions ?? []}
-            actionsOf={(id) => props.characters.find((c) => c.id === id)?.actions ?? []}
+            expressionsOf={(uid) => props.characters.find((c) => c.uid === uid)?.expressions ?? []}
+            actionsOf={(uid) => props.characters.find((c) => c.uid === uid)?.actions ?? []}
             onChange={(next) => props.onUpdateOption(option.uid, { enableConditions: next })}
             addLabel="＋ 新增条件"
             emptyHint="尚未设置可用条件"
@@ -226,8 +226,8 @@ export function OptionListEditor(props: Props) {
             defs={props.commandDefs}
             category="指令"
             targets={props.commandTargets}
-            expressionsOf={(id) => props.characters.find((c) => c.id === id)?.expressions ?? []}
-            actionsOf={(id) => props.characters.find((c) => c.id === id)?.actions ?? []}
+            expressionsOf={(uid) => props.characters.find((c) => c.uid === uid)?.expressions ?? []}
+            actionsOf={(uid) => props.characters.find((c) => c.uid === uid)?.actions ?? []}
             onChange={(next) => props.onUpdateOption(option.uid, { results: next })}
             addLabel="＋ 新增结果"
             emptyHint="选中后执行的指令"

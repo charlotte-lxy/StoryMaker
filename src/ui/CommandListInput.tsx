@@ -27,9 +27,9 @@ interface Props {
   /** 限定只能选哪一类 */
   category: '条件' | '指令';
   targets: CommandTargets;
-  /** 取某个角色的表情或动作清单 */
-  expressionsOf: (characterId: string) => string[];
-  actionsOf: (characterId: string) => string[];
+  /** 取某个角色的表情或动作清单（传的是角色的 uid） */
+  expressionsOf: (characterUid: string) => string[];
+  actionsOf: (characterUid: string) => string[];
   onChange: (next: string[]) => void;
   addLabel?: string;
   emptyHint?: string;
@@ -51,9 +51,11 @@ interface Draft {
  * 切换模块时组件会被卸载重建，光靠本地 state 记住「选过什么」是不够的：
  * 回来之后下拉就变回「选择指令…」了。指令文本本身才是唯一事实，
  * 所以这里把它解析回下拉的选项。
+ *
+ * 目标那一格存的是 uid，uid 里带 `-`，解析时要先把 uid 认出来（见 parseCommand）。
  */
 function draftFromText(text: string, available: CommandDef[], targets: CommandTargets): Draft {
-  const parsed = parseCommand(text);
+  const parsed = parseCommand(text, (value) => targets.uids.has(value));
   if (parsed === null) return { defUid: '', target: '', value: '' };
 
   const def = matchCommandDef(parsed, available, targets);

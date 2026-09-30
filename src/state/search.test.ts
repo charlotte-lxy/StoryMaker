@@ -16,7 +16,8 @@ import { searchProject } from './search';
 function makeProject(): Project {
   const base = mutate(createEmptyProject('搜索测试'), (draft) => {
     draft.chapters[0].groups[0].lines[0].text.zh = '我们该走了';
-    draft.chapters[0].groups[0].lines[0].characterId = 'CHA_伊芙';
+    // 角色那一格存的是角色 uid：搜索要能把这一行按角色名 / 角色 ID 找出来
+    draft.chapters[0].groups[0].lines[0].characterUid = 'c1';
     draft.characters.push({
       uid: 'c1',
       id: 'CHA_伊芙',

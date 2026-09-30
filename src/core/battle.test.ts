@@ -26,7 +26,8 @@ import { validateBattle } from './battle-validate';
 import type { GasEffect, GasModifier, GasPair, Project } from './types';
 
 function modifier(over: Partial<GasModifier> = {}): GasModifier {
-  return { uid: 'm1', duration: '基础', attribute: '生命值', operator: '-', value: 'Damage', ...over };
+  // 属性那一格存的是属性表的 uid：a1 = 生命值
+  return { uid: 'm1', duration: '基础', attributeUid: 'a1', operator: '-', value: 'Damage', ...over };
 }
 
 function pair(key: string, value: string): GasPair {
@@ -66,8 +67,8 @@ function makeProject(): Project {
       uid: 's1',
       name: '回血',
       className: 'BP_GA_Heal',
-      lockSkills: [],
-      listenEvents: [],
+      lockSkillUids: [],
+      listenEventUids: [],
       parameters: [],
       tagNote: '',
     },
@@ -75,8 +76,9 @@ function makeProject(): Project {
       uid: 's2',
       name: '加速',
       className: 'BP_GA_IncreaseSpeed',
-      lockSkills: ['回血'],
-      listenEvents: ['受击'],
+      // 引用的是那一行的 uid：s1 = 回血、v1 = 受击
+      lockSkillUids: ['s1'],
+      listenEventUids: ['v1'],
       parameters: [pair('Speed', '10'), pair('Attack', '20')],
       tagNote: '加速技能',
     },
@@ -86,8 +88,9 @@ function makeProject(): Project {
       uid: 'c1',
       id: 'CHA_测试主角',
       name: '测试主角',
-      attributes: [pair('移动速度', '5'), pair('生命值', '100')],
-      skills: ['回血', '加速'],
+      // 属性列表的 key 是属性 uid：a2 = 移动速度、a1 = 生命值
+      attributes: [pair('a2', '5'), pair('a1', '100')],
+      skillUids: ['s1', 's2'],
     },
   ];
   battle.weapons = [
@@ -98,8 +101,8 @@ function makeProject(): Project {
       description: '测试用直线远程武器',
       magazine: '10',
       attackSpeed: '1',
-      modifiers: [modifier({ duration: '固定', attribute: '移动速度', operator: '+', value: '40' })],
-      skills: ['回血'],
+      modifiers: [modifier({ duration: '固定', attributeUid: 'a2', operator: '+', value: '40' })],
+      skillUids: ['s1'],
     },
   ];
 
@@ -139,12 +142,16 @@ describe('战斗模块的 Tag 合成', () => {
   });
 
   it('修改器文本是「持续类型#属性名 运算符 值」，没填完的不合成', () => {
-    expect(modifierText(modifier())).toBe('基础#生命值-Damage');
-    expect(modifierText(modifier({ duration: '固定', attribute: '移动速度', operator: '+', value: '40' }))).toBe(
+    const nameOf = (): string => '生命值';
+    expect(modifierText(modifier(), '生命值')).toBe('基础#生命值-Damage');
+    expect(modifierText(modifier({ duration: '固定', attributeUid: 'a2', operator: '+', value: '40' }), '移动速度')).toBe(
       '固定#移动速度+40',
     );
-    expect(modifierText(modifier({ value: '' }))).toBe('');
-    expect(modifierTexts([modifier(), modifier({ uid: 'm2', value: '' })])).toEqual(['基础#生命值-Damage']);
+    // 属性名查不出来（悬空引用）时不合成，免得导出半截字符串
+    expect(modifierText(modifier({ value: '' }), '生命值')).toBe('');
+    expect(modifierTexts([modifier(), modifier({ uid: 'm2', value: '' })], nameOf)).toEqual([
+      '基础#生命值-Damage',
+    ]);
   });
 
   it('类名补成 Unreal 的全路径', () => {
@@ -167,8 +174,8 @@ describe('战斗模块的 Tag 合成', () => {
       uid: 's3',
       name: '',
       className: '',
-      lockSkills: [],
-      listenEvents: [],
+      lockSkillUids: [],
+      listenEventUids: [],
       parameters: [],
       tagNote: '',
     });
@@ -294,7 +301,7 @@ describe('战斗模块的校验', () => {
   it('修改器引用不存在的属性、值没填，各报一条', () => {
     const project = makeProject();
     project.battle.effects[0].modifiers = [
-      modifier({ uid: 'm1', attribute: '不存在的属性' }),
+      modifier({ uid: 'm1', attributeUid: '不存在的属性' }),
       modifier({ uid: 'm2', value: '' }),
     ];
 
@@ -309,12 +316,24 @@ describe('战斗模块的校验', () => {
 
   it('技能锁定的 GA 被删掉之后会报悬空引用', () => {
     const project = makeProject();
-    project.battle.skills[1].lockSkills = ['已经删掉的技能'];
+    project.battle.skills[1].lockSkillUids = ['已经删掉的技能'];
 
     const report = validateBattle(project);
 
     expect(report.issues.map((item) => item.code)).toEqual(['battle-dangling-ref']);
     expect(report.issues[0].message).toContain('已经删掉的技能');
+  });
+
+  it('引用行被删掉之后（uid 悬空）也说得出是哪一栏坏了', () => {
+    const project = makeProject();
+    project.battle.weapons[0].skillUids = ['8f3c1b2a-1234-4def-9abc-0123456789ab'];
+
+    const report = validateBattle(project);
+
+    expect(report.issues.map((item) => item.code)).toEqual(['battle-dangling-ref']);
+    // uid 读不出是哪一条，就不把乱码摆出来
+    expect(report.issues[0].message).not.toContain('8f3c1b2a');
+    expect(report.issues[0].message).toContain('技能列表');
   });
 
   it('角色属性列表里同一属性写两次会报错', () => {
