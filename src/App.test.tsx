@@ -1443,6 +1443,31 @@ describe('战斗模块', () => {
     expect(within(locks[0]).getByText('防御')).toBeTruthy();
   });
 
+  it('属性表的行可以拖动排序，导出顺序跟着变', async () => {
+    await openBattle();
+    fireEvent.click(screen.getByText('＋ 新增属性'));
+    fireEvent.click(screen.getByText('＋ 新增属性'));
+
+    const names = screen.getAllByPlaceholderText('属性名');
+    fireEvent.change(names[0], { target: { value: '生命值' } });
+    fireEvent.change(names[1], { target: { value: '攻击力' } });
+
+    // 只有最左边那格有把手：整行都是输入框，整行可拖会抢掉选文字
+    const handles = [...document.querySelectorAll('.drag-handle')];
+    expect(handles).toHaveLength(2);
+    const rows = [...document.querySelectorAll('tbody tr')];
+
+    fireEvent.dragStart(handles[0], { dataTransfer: rowTransfer() });
+    expect(rows[0].className).toContain('dragging');
+    fireEvent.dragOver(rows[1], { dataTransfer: rowTransfer() });
+    expect(rows[1].className).toContain('drop-target');
+    fireEvent.drop(rows[1], { dataTransfer: rowTransfer() });
+
+    const after = screen.getAllByPlaceholderText('属性名') as HTMLInputElement[];
+    expect(after.map((input) => input.value)).toEqual(['攻击力', '生命值']);
+    expect(document.querySelector('tr.dragging')).toBeNull();
+  });
+
   it('底部有战斗校验条：属性名重复报「必须修复」，点它能跳到那一行', async () => {
     await openBattle();
     fireEvent.click(screen.getByText('＋ 新增属性'));
@@ -1464,6 +1489,101 @@ describe('战斗模块', () => {
     fireEvent.click(rows[0]);
     expect(document.querySelector('.battle-nav.active')?.textContent).toContain('属性');
     expect(document.querySelector('tr.line-row.flash')).toBeTruthy();
+  });
+});
+
+describe('全局搜索', () => {
+  const searchBox = () =>
+    screen.getByPlaceholderText('全局搜索：对话、角色、数据表、GAS、本地化…');
+
+  /** 搜索页最上面那排模块筛选 */
+  const filterBox = () => document.querySelector('.search-filters') as HTMLElement;
+
+  it('搜索框点开后是模块筛选：「全部」在最左边，一次只选中一个', async () => {
+    await renderApp();
+    fireEvent.focus(searchBox());
+
+    expect([...document.querySelectorAll('.search-filter')].map((item) => item.textContent)).toEqual([
+      '全部',
+      '剧情',
+      '角色',
+      '物品',
+      '任务',
+      '立绘',
+      '音效',
+      '条件与指令',
+      '战斗',
+      '本地化',
+    ]);
+    expect(document.querySelector('.search-filter.active')?.textContent).toBe('全部');
+
+    fireEvent.click(within(filterBox()).getByText('战斗'));
+    const active = [...document.querySelectorAll('.search-filter.active')];
+    expect(active).toHaveLength(1);
+    expect(active[0].textContent).toBe('战斗');
+
+    // 点旁边空白处收起下拉页
+    fireEvent.click(document.querySelector('.search-mask') as HTMLElement);
+    expect(document.querySelector('.search-panel')).toBeNull();
+
+    // 再点一下输入框又能展开（焦点本来就还在输入框上，不会走 onFocus）
+    fireEvent.click(searchBox());
+    expect(document.querySelector('.search-panel')).toBeTruthy();
+  });
+
+  it('输入关键词后按模块两层列结果，每条左边标着子模块与行号，点一条跳到那一行', async () => {
+    await renderApp();
+    fireEvent.change(screen.getByPlaceholderText('中文台词'), { target: { value: '我们该走了' } });
+
+    fireEvent.change(searchBox(), { target: { value: '该走' } });
+
+    // 两层：第一层是模块，第二层是这个模块里的命中
+    const groups = [...document.querySelectorAll('.search-group')];
+    expect(groups.map((group) => group.querySelector('.search-group-head')?.textContent)).toEqual([
+      '剧情1 条',
+      '本地化1 条',
+    ]);
+
+    const hit = groups[0].querySelector('.search-hit') as HTMLElement;
+    expect(hit.querySelector('.search-hit-where')?.textContent).toBe(
+      '序章 / 开场 · 第 1 行 · Dia_ch01_001-1',
+    );
+    expect(hit.querySelector('.search-hit-text')?.textContent).toBe('我们该走了');
+
+    fireEvent.click(hit);
+    expect(document.querySelector('.search-panel')).toBeNull();
+    expect(document.querySelector('.line-card.flash')).toBeTruthy();
+  });
+
+  it('模块筛选把结果限制在选中的模块里', async () => {
+    await renderApp();
+    fireEvent.change(screen.getByPlaceholderText('中文台词'), { target: { value: '该走' } });
+    fireEvent.change(searchBox(), { target: { value: '该走' } });
+
+    // 剧本里没有这个词
+    fireEvent.click(within(filterBox()).getByText('角色'));
+    expect(document.querySelectorAll('.search-group')).toHaveLength(0);
+    expect(screen.getByText('没有匹配「该走」的条目。')).toBeTruthy();
+  });
+
+  it('点数据表的结果会切到那个模块，并高亮那一行', async () => {
+    await renderApp();
+    fireEvent.click(within(rail()).getByText('物品'));
+    fireEvent.click(screen.getByText('＋ 新增一行'));
+    fireEvent.change(screen.getByPlaceholderText('例如：金币'), { target: { value: '金币' } });
+
+    // 先换到别的模块，确认跳转会自己切回来
+    fireEvent.click(within(rail()).getByText('设置'));
+
+    fireEvent.change(searchBox(), { target: { value: '金币' } });
+    const hit = document.querySelector('.search-hit') as HTMLElement;
+    expect(hit.querySelector('.search-hit-where')?.textContent).toBe('物品表 · 第 1 行 · Item_1');
+    fireEvent.click(hit);
+
+    expect(document.querySelector('.rail-item.active')?.textContent).toContain('物品');
+    const row = document.querySelector('tr.line-row.flash') as HTMLElement;
+    expect(row).toBeTruthy();
+    expect(row.dataset.searchUid).toBeTruthy();
   });
 });
 

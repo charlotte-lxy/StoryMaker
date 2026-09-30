@@ -8,9 +8,11 @@ interface Props {
   onAdd: () => void;
   onRemove: (characterUid: string) => void;
   onUpdate: (characterUid: string, patch: Partial<Character>) => void;
+  /** 全局搜索跳过来的那一行：交给上层滚过去，这里只负责高亮它 */
+  focusUid?: string | null;
 }
 
-export function CharacterEditor({ project, onAdd, onRemove, onUpdate }: Props) {
+export function CharacterEditor({ project, onAdd, onRemove, onUpdate, focusUid = null }: Props) {
   const [draftExpression, setDraftExpression] = useState<Record<string, string>>({});
   const editorRef = useScrollMemory('character');
 
@@ -72,7 +74,11 @@ export function CharacterEditor({ project, onAdd, onRemove, onUpdate }: Props) {
               const duplicated =
                 project.characters.filter((c) => c.id === character.id).length > 1;
               return (
-                <tr key={character.uid} className="line-row">
+                <tr
+                  key={character.uid}
+                  className={`line-row${focusUid === character.uid ? ' flash' : ''}`}
+                  data-search-uid={character.uid}
+                >
                   <td>
                     <input
                       value={character.id}

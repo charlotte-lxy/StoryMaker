@@ -5,11 +5,13 @@ import {
   addModifier,
   removeBattleRow,
   removeModifier,
+  reorderBattleRow,
   updateBattleRow,
   updateClassPrefix,
   updateModifier,
 } from '../../state/battle-operations';
 import { ModifierList } from './ModifierList';
+import { OrderCell, useRowDrag } from './row-drag';
 import { useScrollMemory } from '../view-memory';
 
 interface Props {
@@ -22,6 +24,7 @@ export function BattleEffectsPage({ project, onChange }: Props) {
   const editorRef = useScrollMemory('battle:effects');
   const rows = project.battle.effects;
   const attributes = project.battle.attributes.map((row) => row.name.trim()).filter(Boolean);
+  const drag = useRowDrag((from, to) => onChange(reorderBattleRow(project, 'effects', from, to)));
 
   const counts = new Map<string, number>();
   for (const row of rows) {
@@ -61,6 +64,9 @@ export function BattleEffectsPage({ project, onChange }: Props) {
           <table className="lines battle-table">
             <thead>
               <tr>
+                <th rowSpan={2} className="cell-order" title="拖动下面的把手调整顺序，导出顺序跟着变">
+                  顺序
+                </th>
                 <th rowSpan={2} style={{ width: 150 }}>
                   效果名
                 </th>
@@ -94,8 +100,9 @@ export function BattleEffectsPage({ project, onChange }: Props) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
-                <tr className="line-row" key={row.uid} data-battle-uid={row.uid}>
+              {rows.map((row, index) => (
+                <tr key={row.uid} data-battle-uid={row.uid} {...drag.rowProps(index)}>
+                  <OrderCell index={index} drag={drag} />
                   <td>
                     <input
                       value={row.name}

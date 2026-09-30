@@ -31,9 +31,11 @@ interface Props {
   onAdd: (kind: LookupKind) => void;
   onRemove: (kind: LookupKind, uid: string) => void;
   onUpdate: (kind: LookupKind, uid: string, patch: Partial<LookupRow>) => void;
+  /** 全局搜索跳过来的那一行：交给上层滚过去，这里只负责高亮它 */
+  focusUid?: string | null;
 }
 
-export function LookupEditor({ project, kind, onAdd, onRemove, onUpdate }: Props) {
+export function LookupEditor({ project, kind, onAdd, onRemove, onUpdate, focusUid = null }: Props) {
   const editorRef = useScrollMemory(`lookup:${kind}`);
   const rows = project[kind];
   const meta = TITLES[kind];
@@ -66,7 +68,11 @@ export function LookupEditor({ project, kind, onAdd, onRemove, onUpdate }: Props
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.uid} className="line-row">
+              <tr
+                key={row.uid}
+                className={`line-row${focusUid === row.uid ? ' flash' : ''}`}
+                data-search-uid={row.uid}
+              >
                 <td>
                   <input
                     value={row.id}

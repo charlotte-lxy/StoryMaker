@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 
-import { textIdOf } from '../core/ids';
+import { collectLocaleEntries } from '../core/localization';
 import type { LangKey, LocalizedText, Project, UiTextRow } from '../core/types';
 import { AutoGrowTextarea } from './AutoGrowTextarea';
 import { useRememberedChoice, useScrollMemory } from './view-memory';
@@ -18,14 +18,6 @@ interface Props {
    * 短暂高亮后由上层清成 null。
    */
   focusUid?: string | null;
-}
-
-interface LocEntry {
-  uid: string;
-  key: string;
-  kindLabel: string;
-  text: LocalizedText;
-  groupLabel: string;
 }
 
 const LANGS: { lang: LangKey; label: string }[] = [
@@ -79,58 +71,7 @@ export function LocalizationEditor({
   const [draft, setDraft] = useState<UiDraft>(EMPTY_DRAFT);
   const editorRef = useScrollMemory('locale');
 
-  const entries = useMemo(() => {
-    const list: LocEntry[] = [];
-    const seen = new Set<string>();
-
-    for (const chapter of project.chapters) {
-      for (const group of chapter.groups) {
-        const groupLabel = `${chapter.title || chapter.id} / ${group.title || group.id}`;
-
-        for (const line of group.lines) {
-          // 只有「对话」行有文本，「指令」行与「选项」行本身不进本地化表
-          if (line.kind === '对话') {
-            list.push({
-              uid: line.uid,
-              key: textIdOf(line.readableId),
-              kindLabel: '对话',
-              text: line.text,
-              groupLabel,
-            });
-            seen.add(line.uid);
-          }
-
-          for (const optionUid of line.optionIds) {
-            const option = group.options.find((o) => o.uid === optionUid);
-            if (option === undefined) continue;
-            list.push({
-              uid: option.uid,
-              key: textIdOf(option.readableId),
-              kindLabel: '选项',
-              text: option.text,
-              groupLabel,
-            });
-            seen.add(option.uid);
-          }
-        }
-
-        // 没有被任何「选项」行引用的选项也要列出来，否则会漏翻
-        for (const option of group.options) {
-          if (seen.has(option.uid)) continue;
-          list.push({
-            uid: option.uid,
-            key: textIdOf(option.readableId),
-            kindLabel: '选项（未挂载）',
-            text: option.text,
-            groupLabel,
-          });
-          seen.add(option.uid);
-        }
-      }
-    }
-
-    return list;
-  }, [project]);
+  const entries = useMemo(() => collectLocaleEntries(project), [project]);
 
   const uiTexts = project.uiTexts;
 

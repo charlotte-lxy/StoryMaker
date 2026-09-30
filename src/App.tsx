@@ -32,6 +32,7 @@ import {
 } from './core/validate';
 import { validateBattle } from './core/battle-validate';
 import type { BattlePage } from './state/battle-operations';
+import type { SearchTarget } from './state/search';
 import {
   addChapter,
   addCharacter,
@@ -86,8 +87,10 @@ import { CommandEditor } from './ui/CommandEditor';
 import { ConflictPanel } from './ui/ConflictPanel';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { ExportEditor } from './ui/ExportEditor';
+import { FileMenu } from './ui/FileMenu';
 import { FirstContactDialog } from './ui/FirstContactDialog';
 import { ForeignProjectDialog } from './ui/ForeignProjectDialog';
+import { GlobalSearch } from './ui/GlobalSearch';
 import { IssuePanel } from './ui/IssuePanel';
 import { LineList } from './ui/LineList';
 import { LocalizationEditor } from './ui/LocalizationEditor';
@@ -170,6 +173,8 @@ export default function App() {
   const [focusLocaleUid, setFocusLocaleUid] = useState<string | null>(null);
   /** 校验条里点过来的战斗数据：切到哪个子页面、高亮哪一行 */
   const [focusBattle, setFocusBattle] = useState<{ page: BattlePage; uid: string } | null>(null);
+  /** 全局搜索里点过来的表行（角色 / 物品任务立绘音效 / 指令字典）：滚到并高亮那一行 */
+  const [focusRowUid, setFocusRowUid] = useState<string | null>(null);
   const [toast, setToast] = useState('');
   /** 门槛页上的提示：上次的文件打不开、没检测到本地服务 */
   const [gateNote, setGateNote] = useState('');
@@ -614,6 +619,38 @@ export default function App() {
     }
   };
 
+  /** 全局搜索里点一条结果：切到它所在的模块，滚到并闪一下那一行 */
+  const handleSearchJump = (target: SearchTarget): void => {
+    switch (target.kind) {
+      case 'chapter':
+        setModule('story');
+        handleOpenChapter(target.uid);
+        return;
+      case 'group':
+        setModule('story');
+        openGroup(target.uid);
+        return;
+      case 'line':
+        handleJumpToLine(target.uid);
+        return;
+      case 'option':
+        handleJumpToOption(target.uid);
+        return;
+      case 'battle':
+        setModule('battle');
+        setFocusBattle({ page: target.page, uid: target.uid });
+        return;
+      case 'locale':
+        setModule('locale');
+        setFocusLocaleUid(target.uid);
+        return;
+      case 'row':
+        setModule(target.module);
+        setFocusRowUid(target.uid);
+        return;
+    }
+  };
+
   /** 跳到某个对话行：切到它所在的段落，并短暂高亮 */
   const handleJumpToLine = (lineUid: string): void => {
     for (const chapter of project.chapters) {
@@ -651,6 +688,23 @@ export default function App() {
     const timer = window.setTimeout(() => setFocusBattle(null), 1800);
     return () => window.clearTimeout(timer);
   }, [focusBattle]);
+
+  // 全局搜索跳过来的表行：等目标模块渲染出来之后，把带 data-search-uid 的那一行滚到眼前。
+  // 高亮由各自页面按 focusUid 渲出来，这里只管滚——省得往每个页面里塞一份滚动逻辑
+  useEffect(() => {
+    if (focusRowUid === null) return;
+    for (const node of document.querySelectorAll<HTMLElement>('[data-search-uid]')) {
+      if (node.dataset.searchUid !== focusRowUid) continue;
+      node.scrollIntoView({ block: 'center' });
+      return;
+    }
+  }, [focusRowUid, module]);
+
+  useEffect(() => {
+    if (focusRowUid === null) return;
+    const timer = window.setTimeout(() => setFocusRowUid(null), 1800);
+    return () => window.clearTimeout(timer);
+  }, [focusRowUid]);
 
   // 拖动分隔线时不要每动一下都写盘，松手后再记住宽度
   useEffect(() => {
@@ -952,42 +1006,33 @@ export default function App() {
           }
         />
 
-        <div className="toolbar-group">
-          <button
-            type="button"
-            onClick={() =>
-              askConfirm(
-                '新建会换一个项目文件，并退出协作（别人不受影响），当前还没保存的改动也会丢失。确定吗？',
-                () => void handleCreate(),
-              )
-            }
-          >
-            新建
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              askConfirm(
-                '打开项目会退出协作（别人不受影响），当前还没保存的改动也会丢失。确定吗？',
-                () => void handleOpen(),
-              )
-            }
-          >
-            打开项目
-          </button>
-          <button type="button" onClick={() => void handleSave()}>
-            保存
-          </button>
-          <button type="button" onClick={() => void handleSaveAs()}>
-            另存为
-          </button>
-        </div>
+        <FileMenu
+          onNew={() =>
+            askConfirm(
+              '新建会换一个项目文件，并退出协作（别人不受影响），当前还没保存的改动也会丢失。确定吗？',
+              () => void handleCreate(),
+            )
+          }
+          onOpen={() =>
+            askConfirm(
+              '打开项目会退出协作（别人不受影响），当前还没保存的改动也会丢失。确定吗？',
+              () => void handleOpen(),
+            )
+          }
+          onSave={() => void handleSave()}
+          onSaveAs={() => void handleSaveAs()}
+        />
 
+        {/* 全局搜索：靠 CSS 绝对居中摆在标题栏正中，位置不随左右两边的控件变化 */}
+        <GlobalSearch project={project} onJump={handleSearchJump} />
+
+        <span className="spacer" />
+
+        {/* 当前项目文件名：和协作状态、校验结果一样是「现在什么情况」，因此归到右边一组，
+            中间那块地方留给全局搜索框 */}
         <span className="file-chip" title={projectPath ?? '还没有项目文件'}>
           {projectPath === null ? '未指定项目文件' : baseName(projectPath)}
         </span>
-
-        <span className="spacer" />
 
         <CollabBadge
           status={collab.status}
@@ -1105,6 +1150,7 @@ export default function App() {
               {module === 'character' && (
                 <CharacterEditor
                   project={project}
+                  focusUid={focusRowUid}
                   onAdd={() => setProject((prev) => addCharacter(prev))}
                   onRemove={handleRemoveCharacter}
                   onUpdate={updateCharacter}
@@ -1138,6 +1184,7 @@ export default function App() {
                 <LookupEditor
                   project={project}
                   kind={module}
+                  focusUid={focusRowUid}
                   onAdd={handleLookup.add}
                   onRemove={handleLookup.remove}
                   onUpdate={handleLookup.update}
@@ -1147,6 +1194,7 @@ export default function App() {
               {module === 'command' && (
                 <CommandEditor
                   project={project}
+                  focusUid={focusRowUid}
                   onRenameCommand={handleRenameCommand}
                   onJumpToLine={handleJumpToLine}
                   onAddDef={(category) => setProject((prev) => addCommandDef(prev, category))}

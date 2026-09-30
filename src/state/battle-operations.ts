@@ -153,6 +153,28 @@ export function updateBattleRow(
   });
 }
 
+/**
+ * 拖拽排序：把 from 位置的行移到 to 位置。
+ *
+ * 六张主表都是「数组顺序 = 导出顺序」，所以这里只挪数组，没有别的要跟着改的东西；
+ * GameplayTags 管理器是收集出来的，不在这里排。
+ */
+export function reorderBattleRow(
+  project: Project,
+  key: BattleRowKey,
+  from: number,
+  to: number,
+): Project {
+  return mutate(project, (draft) => {
+    // 六张表的行类型各不相同，排顺序只关心「是个带 uid 的行」，统一放到这一个视图上
+    const list: { uid: string }[] = draft.battle[key];
+    if (from === to) return;
+    if (from < 0 || to < 0 || from >= list.length || to >= list.length) return;
+    const [moved] = list.splice(from, 1);
+    list.splice(to, 0, moved);
+  });
+}
+
 /** 类名路径前缀：技能用 GA 的，效果用 GE 的 */
 export function updateClassPrefix(
   project: Project,

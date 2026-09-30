@@ -15,6 +15,12 @@ const PROJECT_PATH = 'D:\\策划\\序章.json';
 const nameInput = () => screen.getByTitle('项目名称，也是导出文件名');
 const gateButton = (label: string) => screen.findByRole('button', { name: label });
 
+/** 标题栏左上的「文件」菜单：新建、打开、保存、另存为都收在里面 */
+const fileItem = (label: string) => screen.getByRole('button', { name: label });
+function openFileMenu(): void {
+  fireEvent.click(screen.getByTitle('项目文件：新建 / 打开 / 保存 / 另存为'));
+}
+
 beforeEach(() => {
   window.localStorage.clear();
   vi.restoreAllMocks();
@@ -137,7 +143,8 @@ describe('保存与另存为', () => {
     await screen.findByDisplayValue('磁盘上的项目');
 
     fireEvent.change(nameInput(), { target: { value: '改过的名字' } });
-    fireEvent.click(screen.getByText('保存'));
+    openFileMenu();
+    fireEvent.click(fileItem('保存'));
 
     expect(await screen.findByText(`已保存到 ${PROJECT_PATH}`)).toBeTruthy();
     expect(host.disk.get(PROJECT_PATH)).toContain('改过的名字');
@@ -153,7 +160,8 @@ describe('保存与另存为', () => {
 
     const nextPath = 'D:\\策划\\第二个.json';
     host.nextNewPath = nextPath;
-    fireEvent.click(screen.getByText('另存为'));
+    openFileMenu();
+    fireEvent.click(fileItem('另存为'));
 
     expect(await screen.findByText(`已另存为 ${nextPath}`)).toBeTruthy();
     expect(host.disk.get(nextPath)).toContain('磁盘上的项目');

@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 
 import { useScrollMemory } from './view-memory';
 
@@ -13,6 +13,8 @@ interface Props {
   onAddDef: (category: '条件' | '指令') => void;
   onRemoveDef: (uid: string) => void;
   onUpdateDef: (uid: string, patch: Partial<CommandDef>) => void;
+  /** 全局搜索跳过来的字典行：交给上层滚过去，这里只负责切页与高亮 */
+  focusUid?: string | null;
 }
 
 const TARGET_OPTIONS: { value: TargetKind; label: string }[] = [
@@ -49,12 +51,19 @@ export function CommandEditor({
   onAddDef,
   onRemoveDef,
   onUpdateDef,
+  focusUid = null,
 }: Props) {
   const editorRef = useScrollMemory('command');
   const [tab, setTab] = useState<'dict' | 'usage'>('dict');
   const commands = useMemo(() => collectCommands(project), [project]);
   const [editingText, setEditingText] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+
+  // 全局搜索跳过来的字典行：先切回「字典」这一页，不然那一行根本不在跟前
+  useEffect(() => {
+    if (focusUid === null) return;
+    setTab('dict');
+  }, [focusUid]);
 
   /** 每条实际用到的指令属于条件还是指令 */
   const usageByCategory = useMemo(() => {
@@ -91,7 +100,11 @@ export function CommandEditor({
         </thead>
         <tbody>
           {defs.map((def) => (
-            <tr className="line-row" key={def.uid}>
+            <tr
+              className={`line-row${focusUid === def.uid ? ' flash' : ''}`}
+              key={def.uid}
+              data-search-uid={def.uid}
+            >
               <td>
                 <input
                   value={def.head}
