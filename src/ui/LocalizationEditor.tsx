@@ -14,8 +14,7 @@ interface Props {
   onRemoveUiText: (uid: string) => void;
   onUpdateUiText: (uid: string, patch: Partial<UiTextRow>) => void;
   /**
-   * 改「角色名本地化」里的一条。中文会写回角色表的「默认名称」或对话行的「显示名」，
-   * 英文日文写进译文表。
+   * 改「角色名本地化」里的一条。中文与英文日文都挂在角色表那一行 / 别名上。
    */
   onUpdateNameText: (uid: string, lang: LangKey, value: string) => void;
   /**
@@ -57,7 +56,7 @@ function missingTranslation(text: LocalizedText): boolean {
  * 分三页，左侧窄栏切换，窄栏下方是搜索框，搜的是当前这一页：
  *   剧情本地化   - 从剧本里自动收集的对话与选项文本，不能增删条目，只能改译文
  *   UI 本地化    - 程序给的界面文案（TXT_Widget_* 这类），条目自己增删改
- *   角色名本地化 - 角色表的「默认名称」与对话行填了「显示名」的那一格，key 自动生成
+ *   角色名本地化 - 角色表的「显示名称」：默认名称与各别名，key 自动生成
  *
  * 剧情这一页不需要任何"重排后同步"的逻辑：文本挂在 uid 上，
  * 拖拽排序只改变可读 ID，因此 TXT_xxx 这个 key 会自动跟着新编号走，
@@ -79,7 +78,7 @@ export function LocalizationEditor({
   const editorRef = useScrollMemory('locale');
 
   const entries = useMemo(() => collectLocaleEntries(project), [project]);
-  /** 角色名 / 显示名：中文来自角色表与对话行 */
+  /** 角色名 / 别名：中文与译文都挂在角色表那一行上 */
   const nameEntries = useMemo(() => collectNameEntries(project), [project]);
 
   const uiTexts = project.uiTexts;
@@ -122,7 +121,7 @@ export function LocalizationEditor({
     [uiTexts],
   );
 
-  /** 角色名 / 显示名的中文在角色表与对话行上，这里只看英文日文缺没缺 */
+  /** 角色名与别名的中文、译文都在角色表那一行上，这里只看英文日文缺没缺 */
   const nameUntranslated = useMemo(
     () =>
       nameEntries.filter((entry) =>
@@ -213,8 +212,8 @@ export function LocalizationEditor({
             </>
           ) : (
             <>
-              共 {nameEntries.length} 条角色名 / 显示名：中文取自角色表的「默认名称」与对话行的
-              「显示名」（在这一页改中文会写回那里），
+              共 {nameEntries.length} 条角色名 / 别名：都在角色表的「显示名称」里
+              （默认名称与各别名，在这一页改会写回角色表），
               {nameUntranslated > 0 ? (
                 <strong className="warn-text">{nameUntranslated} 条缺英文或日文</strong>
               ) : (
@@ -247,7 +246,7 @@ export function LocalizationEditor({
             type="button"
             className={page === 'name' ? 'locale-nav active' : 'locale-nav'}
             onClick={() => setPage('name')}
-            title="角色表的「默认名称」与对话行填了「显示名」的那一格，key 自动生成"
+            title="角色表「显示名称」里的默认名称与各别名，key 自动生成"
           >
             角色名本地化
             <span className="count">{nameEntries.length}</span>
@@ -426,10 +425,10 @@ export function LocalizationEditor({
             </>
           ) : nameEntries.length === 0 ? (
             <div className="empty-state">
-              还没有角色名或显示名。先去「角色」模块建角色，或在「剧情」里给某一行填上「显示名」。
+              还没有角色名或别名。先去「角色」模块建角色、给他的「显示名称」添几个别名。
             </div>
           ) : shownNameEntries.length === 0 ? (
-            <div className="empty-state">没有匹配「{query.trim()}」的角色名或显示名。</div>
+            <div className="empty-state">没有匹配「{query.trim()}」的角色名或别名。</div>
           ) : (
             <table className="lines">
               <thead>
@@ -469,7 +468,7 @@ export function LocalizationEditor({
                               placeholder={item.lang === 'zh' ? '中文原文' : '待翻译'}
                               title={
                                 item.lang === 'zh'
-                                  ? '中文改的是角色表的「默认名称」/ 对话行的「显示名」'
+                                  ? '中文改的是角色表「显示名称」里的默认名称 / 别名文字'
                                   : undefined
                               }
                               onChange={(event) =>

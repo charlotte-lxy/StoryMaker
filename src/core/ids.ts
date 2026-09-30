@@ -60,12 +60,13 @@ export function characterNameKeyOf(characterId: string): string {
 }
 
 /**
- * 对话行「显示名」的本地化 key：TXT_ + 对话ID + _DisplayName。
+ * 角色「别名」的本地化 key：TXT_ + 角色ID + _OtherName- + 别名序号（从 1 开始）。
  *
- * 对话表里填了显示名的那一格，导出时写的就是这个 key。
+ * 序号就是别名在角色表里的位置（别名1 → -1），所以删掉靠前的别名时，
+ * 后面的序号会跟着往前挪——译文挂在别名自己身上，会一起挪过去。
  */
-export function displayNameKeyOf(readableId: string): string {
-  return `${textIdOf(readableId)}_DisplayName`;
+export function aliasNameKeyOf(characterId: string, index: number): string {
+  return `${textIdOf(characterId)}_OtherName-${index + 1}`;
 }
 
 /**

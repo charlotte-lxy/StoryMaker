@@ -208,16 +208,19 @@ describe.skipIf(!hasSamples)('真实样例端到端验证', () => {
     }
   });
 
-  it('本地化表覆盖所有「对话」行、选项与填了的显示名，key 不重复', () => {
+  it('本地化表覆盖所有「对话」行与选项，写进对话表的名称 key 也都在表里', () => {
     const keys = locale.slice(1).map((row) => row[0]);
     expect(new Set(keys).size).toBe(keys.length);
 
     const talkRows = dialogue.slice(1).filter((row) => row[1] === '对话').length;
-    // 填了「显示名」的对话行还会各多一条 TXT_<对话ID>_DisplayName
-    const displayNames = dialogue
+    expect(keys.length).toBeGreaterThanOrEqual(talkRows + options.slice(1).length);
+
+    // 显示名那一格写的是角色表里的名称 key（同一角色多行共用一条），按「表里有没有」核对
+    const nameKeys = dialogue
       .slice(1)
-      .filter((row) => row[1] === '对话' && row[3] !== '').length;
-    expect(keys).toHaveLength(talkRows + options.slice(1).length + displayNames);
+      .map((row) => row[3])
+      .filter((key) => key !== '');
+    for (const key of nameKeys) expect(keys).toContain(key);
   });
 
   it('对话表不含任何跳转列，跳转只由选项表承担', () => {

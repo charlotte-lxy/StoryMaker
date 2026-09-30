@@ -53,7 +53,7 @@ function dialogueLine(uid: string, readableId: string, zh: string): Line {
     readableId,
     kind: '对话',
     characterUid: '',
-    displayName: '',
+    displayAliasUid: '',
     text: { zh, en: '', ja: '' },
     autoAdvance: false,
     command: '',
@@ -253,6 +253,68 @@ describe('界面冒烟测试', () => {
     expect(document.querySelector('.play-position-chip')?.textContent).toBe('战斗对话框');
   });
 
+  it('角色表的「显示名称」：一行默认名称，点「添加别名」加一行，能删', async () => {
+    await renderApp();
+    fireEvent.click(within(rail()).getByText('角色'));
+    fireEvent.click(screen.getByText(/新增角色/));
+
+    /** 显示名称那一格里各行的标签：默认名称 / 别名1 / 别名2… */
+    const tags = () =>
+      [...document.querySelectorAll('.name-list .name-tag')].map((el) => el.textContent);
+
+    expect(tags()).toEqual(['默认名称']);
+
+    fireEvent.click(screen.getByText('＋ 添加别名'));
+    expect(tags()).toEqual(['默认名称', '别名1']);
+    fireEvent.change(screen.getByPlaceholderText('这个角色的另一种写法'), {
+      target: { value: 'unknown' },
+    });
+    expect(screen.getByDisplayValue('unknown')).toBeTruthy();
+
+    fireEvent.click(screen.getByText('＋ 添加别名'));
+    expect(tags()).toEqual(['默认名称', '别名1', '别名2']);
+
+    // 删掉第一个：后面的顶上来变成「别名1」
+    fireEvent.click(screen.getAllByTitle(/删除这个别名/)[0]);
+    expect(tags()).toEqual(['默认名称', '别名1']);
+  });
+
+  it('对话行的显示名从角色的别名里挑，换角色就回到「（默认名称）」', async () => {
+    await renderApp();
+    fireEvent.click(within(rail()).getByText('角色'));
+    fireEvent.click(screen.getByText(/新增角色/));
+    fireEvent.click(screen.getByText('＋ 添加别名'));
+    fireEvent.change(screen.getByPlaceholderText('这个角色的另一种写法'), {
+      target: { value: 'HUD' },
+    });
+
+    fireEvent.click(within(rail()).getByText('剧情'));
+    const characterSelect = screen.getByTitle('角色：导出时写入「角色ID」列') as HTMLSelectElement;
+    const displaySelect = () =>
+      screen.getByTitle(
+        '显示名：默认用角色的默认名称，也可以挑他的某个别名（在「角色」模块里维护）',
+      ) as HTMLSelectElement;
+
+    // 还没选角色：显示名没得挑
+    expect(displaySelect().disabled).toBe(true);
+
+    const uid = [...characterSelect.options].find((option) => option.value !== '')?.value;
+    fireEvent.change(characterSelect, { target: { value: uid } });
+    expect([...displaySelect().options].map((option) => option.textContent)).toEqual([
+      '（默认名称）',
+      'HUD',
+    ]);
+    expect(displaySelect().value).toBe('');
+
+    // 选别名
+    fireEvent.change(displaySelect(), { target: { value: displaySelect().options[1].value } });
+    expect(displaySelect().value).toBe(displaySelect().options[1].value);
+
+    // 换角色（清空）→ 回到「（默认名称）」
+    fireEvent.change(characterSelect, { target: { value: '' } });
+    expect(displaySelect().value).toBe('');
+  });
+
   it('能切换到本地化模块，并列出默认那行的文本 key', async () => {
     await renderApp();
     fireEvent.click(within(rail()).getByText('本地化'));
@@ -390,7 +452,7 @@ describe('界面冒烟测试', () => {
   });
 
   describe('本地化模块：角色名本地化', () => {
-    /** 一个角色 + 一行填了「显示名」的对话 */
+    /** 一个角色（带一个别名）+ 选了那个别名的对话 */
     function seedNameProject() {
       const project = createEmptyProject();
       project.characters = [
@@ -398,29 +460,33 @@ describe('界面冒烟测试', () => {
           uid: 'ch1',
           id: 'CHA_伊芙',
           name: '伊芙',
+          nameEn: '',
+          nameJa: '',
           playPosition: '战斗对话框',
+          aliases: [{ uid: 'al1', text: 'Q版伊芙', en: '', ja: '' }],
           expressions: ['微笑'],
           actions: [],
         },
       ];
-      project.chapters[0].groups[0].lines[0].displayName = 'Q版伊芙';
+      project.chapters[0].groups[0].lines[0].characterUid = 'ch1';
+      project.chapters[0].groups[0].lines[0].displayAliasUid = 'al1';
       return seedProjectFile(JSON.stringify(project));
     }
 
-    it('收集角色表的默认名称与对话行填了的显示名，key 自动生成', async () => {
+    it('收集角色表的默认名称与别名，key 自动生成', async () => {
       seedNameProject();
       await renderApp();
       fireEvent.click(within(rail()).getByText('本地化'));
       fireEvent.click(screen.getByText('角色名本地化'));
 
       expect(screen.getByText('TXT_CHA_伊芙_DefaultName')).toBeTruthy();
-      expect(screen.getByText('TXT_Dia_ch01_001-1_DisplayName')).toBeTruthy();
-      // 中文来自角色表与对话行，不是另存一份
+      expect(screen.getByText('TXT_CHA_伊芙_OtherName-1')).toBeTruthy();
+      // 中文来自角色表里的默认名称与别名文字，不是另存一份
       expect(screen.getByDisplayValue('伊芙')).toBeTruthy();
       expect(screen.getByDisplayValue('Q版伊芙')).toBeTruthy();
     });
 
-    it('改中文写回角色表与对话行，改英文写进译文表', async () => {
+    it('改默认名称的中文写回角色表，改别名中文写回别名', async () => {
       const host = seedNameProject();
       await renderApp();
       fireEvent.click(within(rail()).getByText('本地化'));
@@ -431,21 +497,21 @@ describe('界面冒烟测试', () => {
         return [...row.querySelectorAll('textarea')] as HTMLTextAreaElement[];
       };
 
-      // 第一行是角色名：改中文 → 写回角色表的「默认名称」，改英文 → 进译文表
+      // 第一行是默认名称，第二行是别名1
       fireEvent.change(boxesOf(0)[0], { target: { value: '伊芙（新）' } });
       fireEvent.change(boxesOf(0)[1], { target: { value: 'Eve' } });
-      // 第二行是显示名：改中文 → 写回对话行的「显示名」
       fireEvent.change(boxesOf(1)[0], { target: { value: 'Q版伊芙（新）' } });
 
       await waitFor(() => expect(host.written.length).toBeGreaterThan(0), { timeout: 3000 });
       const saved = JSON.parse(host.disk.get(DEFAULT_PROJECT_PATH) ?? '{}');
       expect(saved.characters[0].name).toBe('伊芙（新）');
-      expect(saved.chapters[0].groups[0].lines[0].displayName).toBe('Q版伊芙（新）');
-      expect(saved.nameTexts).toEqual([{ uid: 'ch1', en: 'Eve', ja: '' }]);
+      expect(saved.characters[0].nameEn).toBe('Eve');
+      expect(saved.characters[0].aliases[0].text).toBe('Q版伊芙（新）');
 
-      // 切到角色表核对：默认名称是刚改的那个
+      // 切到角色表核对：默认名称与别名都是刚改的
       fireEvent.click(within(rail()).getByText('角色'));
       expect(screen.getByDisplayValue('伊芙（新）')).toBeTruthy();
+      expect(screen.getByDisplayValue('Q版伊芙（新）')).toBeTruthy();
     });
   });
 
@@ -749,7 +815,7 @@ describe('章节流程图与分栏', () => {
                     readableId: 'Dia_ch01_001-1',
                     kind: '选项',
                     characterId: '',
-                    displayName: '',
+                    displayAliasUid: '',
                     text: { zh: '', en: '', ja: '' },
                     autoAdvance: false,
                     command: '',
@@ -779,7 +845,7 @@ describe('章节流程图与分栏', () => {
                     readableId: 'Dia_ch01_002-1',
                     kind: '对话',
                     characterId: '',
-                    displayName: '',
+                    displayAliasUid: '',
                     text: { zh: '海风很大', en: '', ja: '' },
                     autoAdvance: false,
                     command: '',
@@ -995,7 +1061,7 @@ describe('对话列表的批量编辑', () => {
       readableId,
       kind: '对话',
       characterUid: '',
-      displayName: '',
+      displayAliasUid: '',
       text: { zh, en: '', ja: '' },
       autoAdvance: false,
       jumpGroupUid: null,

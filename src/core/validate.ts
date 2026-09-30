@@ -49,6 +49,7 @@ export type IssueCode =
   | 'empty-text'
   | 'no-character'
   | 'unknown-character'
+  | 'unknown-display-name'
   | 'dangling-command-target'
   | 'empty-command'
   | 'empty-option-list'
@@ -92,8 +93,6 @@ export function validateProject(project: Project): ValidationReport {
 
   /** 项目里所有能当引用目标的 uid（指令目标悬空检查用） */
   const refUids = collectRefUids(project);
-  /** 角色表里所有 uid：对话行的角色引用必须落在里面（老数据里按 ID 写的也认） */
-  const characterUids = new Set(project.characters.map((row) => row.uid));
 
   /**
    * 指令 / 条件里指向各表的目标：改动后写进文本的是 uid，
@@ -303,9 +302,10 @@ export function validateProject(project: Project): ValidationReport {
         } else {
           // 角色那一格存的是角色 uid；老数据里按角色 ID 写的也认
           const ref = line.characterUid.trim();
-          const known =
-            characterUids.has(ref) || project.characters.some((row) => row.id.trim() === ref);
-          if (!known) {
+          const character = project.characters.find(
+            (row) => row.uid === ref || row.id.trim() === ref,
+          );
+          if (character === undefined) {
             // uid 找不到 = 那一行被删了，导出会写出乱码，算必须修复；
             // 老数据 / 手写的角色 ID 找不到只提醒一句：可能角色表还没建全，
             // 而导出照样写这个 ID（跟改之前一样）
@@ -320,6 +320,19 @@ export function validateProject(project: Project): ValidationReport {
                 : `引用的角色${refText(ref)}不在角色表里`,
               ...at,
             });
+          } else {
+            // 显示名选的是角色的别名：那一条还在不在？
+            const aliasRef = line.displayAliasUid.trim();
+            if (aliasRef !== '' && !character.aliases.some((alias) => alias.uid === aliasRef)) {
+              issues.push({
+                level: 'warning',
+                code: 'unknown-display-name',
+                targetId: line.readableId,
+                where,
+                message: `这一行选的显示名${refText(aliasRef)}已经不在角色「${character.name || character.id}」的别名里了，请重新选一个`,
+                ...at,
+              });
+            }
           }
         }
       }

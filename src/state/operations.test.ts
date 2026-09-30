@@ -25,7 +25,7 @@ function makeLine(uid: string, readableId: string, zh: string): Line {
     readableId,
     kind: '对话',
     characterUid: '',
-    displayName: '',
+    displayAliasUid: '',
     text: { zh, en: '', ja: '' },
     autoAdvance: false,
     jumpGroupUid: null,
@@ -48,7 +48,6 @@ function makeProject(): Project {
     images: [],
     variables: [],
     uiTexts: [],
-    nameTexts: [],
     battle: createEmptyBattle(),
     exportSettings: [],
     chapters: [

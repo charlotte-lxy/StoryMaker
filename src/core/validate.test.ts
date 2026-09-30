@@ -12,7 +12,7 @@ function makeLine(uid: string, readableId: string, over: Partial<Line> = {}): Li
     readableId,
     kind: '对话',
     characterUid: 'CHA_伊芙',
-    displayName: '',
+    displayAliasUid: '',
     text: { zh: '台词', en: '', ja: '' },
     autoAdvance: false,
     jumpGroupUid: null,
@@ -41,8 +41,21 @@ function makeProject(group: Partial<Group>): Project {
   return {
     version: 1,
     name: 'p',
-    // 默认那一行对话引用的是这个角色（老数据里按角色 ID 写也算认得出来）
-    characters: [{ uid: 'ch1', id: 'CHA_伊芙', name: '伊芙', playPosition: '剧情对话框', expressions: [], actions: [] }],
+    // 默认那一行对话引用的是这个角色（老数据里按角色 ID 写也算认得出来）；
+    // 角色名的译文先给全：本地化校验的用例各自管自己那几条，别每次多出一条角色名
+    characters: [
+      {
+        uid: 'ch1',
+        id: 'CHA_伊芙',
+        name: '伊芙',
+        nameEn: 'Eve',
+        nameJa: 'イヴ',
+        playPosition: '剧情对话框',
+        aliases: [],
+        expressions: [],
+        actions: [],
+      },
+    ],
     sounds: [],
     commands: [],
     items: [],
@@ -50,8 +63,6 @@ function makeProject(group: Partial<Group>): Project {
     images: [],
     variables: [],
     uiTexts: [],
-    // 角色名的译文先给全：本地化校验的用例各自管自己那几条，别每次多出一条角色名
-    nameTexts: [{ uid: 'ch1', en: 'Eve', ja: 'イヴ' }],
     battle: createEmptyBattle(),
     exportSettings: [],
     chapters: [
@@ -236,6 +247,16 @@ it('指令指向的目标被删掉之后（uid 悬空）会报出来，手写的
   expect(report.issues[0].lineUid).toBe('u1');
 });
 
+it('选中的显示名已经不在角色的别名里 → 提醒一句', () => {
+  const project = makeProject({
+    lines: [makeLine('u1', 'Dia_ch01_001-1', { displayAliasUid: '早删掉的别名' })],
+  });
+  const report = validateProject(project);
+  expect(report.issues.map((i) => i.code)).toEqual(['unknown-display-name']);
+  expect(report.issues[0].message).toContain('早删掉的别名');
+  expect(report.issues[0].lineUid).toBe('u1');
+});
+
 it('抓出跳到其他章节的选项（跳转目标只能选同一章）', () => {
   const project = makeProject({
     lines: [makeLine('u1', 'Dia_ch01_001-1', { kind: '选项', optionIds: ['o-a'] })],
@@ -365,27 +386,21 @@ describe('本地化校验', () => {
     expect(report.issues[2].localeUid).toBe('ui-4');
   });
 
-  it('角色名本地化：角色的默认名称与对话行的显示名都算译文，缺英日各报一条', () => {
-    const project = makeProject({
-      lines: [
-        makeLine('u1', 'Dia_ch01_001-1', {
-          displayName: 'Q版伊芙',
-          text: { zh: '台词', en: 'Line', ja: 'セリフ' },
-        }),
-      ],
-    });
-    // 角色名的译文先清掉，这一条才轮得到它报
-    project.nameTexts = [];
+  it('角色名本地化：默认名称与别名都算译文，缺英日各报一条；对话行的显示名不再单收', () => {
+    const project = makeProject({ lines: [], options: [] });
+    project.characters[0].nameEn = '';
+    project.characters[0].nameJa = '';
+    project.characters[0].aliases = [{ uid: 'al1', text: 'Q版伊芙', en: '', ja: '' }];
 
     const report = validateLocalization(project);
 
     expect(report.errors).toBe(0);
     expect(report.issues.map((i) => [i.targetId, i.message])).toEqual([
       ['TXT_CHA_伊芙_DefaultName', '缺英文、日文'],
-      ['TXT_Dia_ch01_001-1_DisplayName', '缺英文、日文'],
+      ['TXT_CHA_伊芙_OtherName-1', '缺英文、日文'],
     ]);
-    // 点一条要跳到角色表 / 对话行那一行（本地化模块会切到「角色名本地化」页）
-    expect(report.issues.map((i) => i.localeUid)).toEqual(['ch1', 'u1']);
+    // 点一条要跳到角色表那一行（本地化模块会切到「角色名本地化」页）
+    expect(report.issues.map((i) => i.localeUid)).toEqual(['ch1', 'al1']);
     expect(report.issues[0].where).toContain('角色名本地化');
   });
 });

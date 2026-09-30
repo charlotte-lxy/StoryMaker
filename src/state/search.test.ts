@@ -22,7 +22,7 @@ function makeProject(): Project {
       uid: 'c1',
       id: 'CHA_伊芙',
       name: '伊芙',
-      playPosition: '剧情对话框',
+      playPosition: '剧情对话框', nameEn: '', nameJa: '', aliases: [],
       expressions: ['微笑'],
       actions: [],
     });

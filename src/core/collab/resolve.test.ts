@@ -8,7 +8,7 @@ function makeProject(name = '测试项目'): Project {
   return {
     version: 1,
     name,
-    characters: [{ uid: 'c1', id: 'CHA_甲', name: '甲', playPosition: '剧情对话框', expressions: [], actions: [] }],
+    characters: [{ uid: 'c1', id: 'CHA_甲', name: '甲', playPosition: '剧情对话框', nameEn: '', nameJa: '', aliases: [], expressions: [], actions: [] }],
     items: [],
     quests: [],
     images: [],
@@ -19,7 +19,6 @@ function makeProject(name = '测试项目'): Project {
     ],
     variables: [],
     uiTexts: [],
-    nameTexts: [],
     battle: {
       skillClassPrefix: '',
       effectClassPrefix: '',
@@ -134,12 +133,12 @@ describe('resolveFirstContact', () => {
 
   it('两份都保留：两边的条目都留下，uid 相同的以服务端为准', () => {
     const local = makeProject('我的项目');
-    local.characters.push({ uid: 'c3', id: 'CHA_丙', name: '丙', playPosition: '剧情对话框', expressions: [], actions: [] });
+    local.characters.push({ uid: 'c3', id: 'CHA_丙', name: '丙', playPosition: '剧情对话框', nameEn: '', nameJa: '', aliases: [], expressions: [], actions: [] });
     local.chapters.push({ uid: 'ch3', id: 'ch03', title: '我这边独有的章节', groups: [] });
 
     const remote = makeProject('服务端的项目');
-    remote.characters[0] = { uid: 'c1', id: 'CHA_甲', name: '服务端那边的甲', playPosition: '剧情对话框', expressions: [], actions: [] };
-    remote.characters.push({ uid: 'c2', id: 'CHA_乙', name: '乙', playPosition: '剧情对话框', expressions: [], actions: [] });
+    remote.characters[0] = { uid: 'c1', id: 'CHA_甲', name: '服务端那边的甲', playPosition: '剧情对话框', nameEn: '', nameJa: '', aliases: [], expressions: [], actions: [] };
+    remote.characters.push({ uid: 'c2', id: 'CHA_乙', name: '乙', playPosition: '剧情对话框', nameEn: '', nameJa: '', aliases: [], expressions: [], actions: [] });
     remote.chapters.push({ uid: 'ch2', id: 'ch02', title: '服务端独有的章节', groups: [] });
 
     const result = resolveFirstContact(local, remote, 'both');

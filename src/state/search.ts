@@ -16,7 +16,7 @@ import {
   eventNameOf,
   skillNameOf,
 } from '../core/refs';
-import type { BattleData, GasModifier, GasPair, Project } from '../core/types';
+import type { BattleData, GasModifier, GasPair, Line, Project } from '../core/types';
 import type { BattlePage } from './battle-operations';
 
 /** 能被搜的模块，也是搜索页最上面那排筛选按钮的顺序 */
@@ -209,6 +209,19 @@ function characterFields(project: Project, characterUid: string): string[] {
   return [id, name].filter((text) => text !== '');
 }
 
+/**
+ * 这一行实际显示的名字：选了别名就是别名文字，否则是角色的默认名称。
+ *
+ * 别名引用已经失效（角色表里删了、或老数据没归进去）时把原值原样拿出来搜。
+ */
+function displayNameOfLine(project: Project, line: Line): string {
+  const ref = line.displayAliasUid.trim();
+  if (ref === '') return '';
+  const character = project.characters.find((row) => row.uid === line.characterUid);
+  const alias = character?.aliases.find((item) => item.uid === ref);
+  return alias?.text.trim() ?? ref;
+}
+
 /** 战斗表里的引用列：换成解析出来的名字，一个都解析不出来时留着原值 */
 function refFields(refs: readonly string[], nameOf: (ref: string) => string): string[] {
   return refs.map((ref) => ref.trim()).filter((ref) => ref !== '').map(nameOf);
@@ -250,7 +263,8 @@ function storyDrafts(project: Project): Draft[] {
             line.text.en,
             line.text.ja,
             ...characterFields(project, line.characterUid),
-            line.displayName,
+            // 这一行实际显示的名字（默认名称或选中的别名），搜角色名时要能命中
+            displayNameOfLine(project, line),
             line.command,
             ...line.jumpConditions,
             line.note,

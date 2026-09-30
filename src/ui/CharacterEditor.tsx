@@ -3,6 +3,7 @@ import { useState } from 'react';
 import {
   PLAY_POSITIONS,
   type Character,
+  type CharacterAlias,
   type PlayPosition,
   type Project,
 } from '../core/types';
@@ -13,11 +14,24 @@ interface Props {
   onAdd: () => void;
   onRemove: (characterUid: string) => void;
   onUpdate: (characterUid: string, patch: Partial<Character>) => void;
+  /** 别名：加一个空行、删一个、改文字 */
+  onAddAlias: (characterUid: string) => void;
+  onRemoveAlias: (characterUid: string, aliasUid: string) => void;
+  onUpdateAlias: (aliasUid: string, patch: Partial<CharacterAlias>) => void;
   /** 全局搜索跳过来的那一行：交给上层滚过去，这里只负责高亮它 */
   focusUid?: string | null;
 }
 
-export function CharacterEditor({ project, onAdd, onRemove, onUpdate, focusUid = null }: Props) {
+export function CharacterEditor({
+  project,
+  onAdd,
+  onRemove,
+  onUpdate,
+  onAddAlias,
+  onRemoveAlias,
+  onUpdateAlias,
+  focusUid = null,
+}: Props) {
   const [draftExpression, setDraftExpression] = useState<Record<string, string>>({});
   const editorRef = useScrollMemory('character');
 
@@ -98,11 +112,46 @@ export function CharacterEditor({ project, onAdd, onRemove, onUpdate, focusUid =
                     )}
                   </td>
                   <td>
-                    <input
-                      value={character.name}
-                      placeholder="显示名称"
-                      onChange={(event) => onUpdate(character.uid, { name: event.target.value })}
-                    />
+                    {/* 显示名称：第一行是默认名称，下面每行一个别名 */}
+                    <div className="name-list">
+                      <div className="name-row">
+                        <span className="name-tag">默认名称</span>
+                        <input
+                          value={character.name}
+                          placeholder="默认名称"
+                          onChange={(event) => onUpdate(character.uid, { name: event.target.value })}
+                        />
+                      </div>
+
+                      {character.aliases.map((alias, index) => (
+                        <div className="name-row" key={alias.uid}>
+                          <span className="name-tag">别名{index + 1}</span>
+                          <input
+                            value={alias.text}
+                            placeholder="这个角色的另一种写法"
+                            onChange={(event) =>
+                              onUpdateAlias(alias.uid, { text: event.target.value })
+                            }
+                          />
+                          <button
+                            type="button"
+                            className="mini danger"
+                            title="删除这个别名（对话行里选过它的会变成「已不在别名里」，校验条会提醒）"
+                            onClick={() => onRemoveAlias(character.uid, alias.uid)}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+
+                      <button
+                        type="button"
+                        className="option-add name-add"
+                        onClick={() => onAddAlias(character.uid)}
+                      >
+                        ＋ 添加别名
+                      </button>
+                    </div>
                   </td>
                   <td>
                     <select

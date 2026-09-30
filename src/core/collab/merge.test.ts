@@ -10,7 +10,7 @@ function makeLine(uid: string, zh: string): Line {
     readableId: `Dia_${uid}`,
     kind: '对话',
     characterUid: 'c1',
-    displayName: '',
+    displayAliasUid: '',
     text: { zh, en: 'Hi', ja: 'こんにちは' },
     autoAdvance: false,
     jumpGroupUid: null,
@@ -25,7 +25,7 @@ function makeProject(): Project {
   return {
     version: 1,
     name: '测试项目',
-    characters: [{ uid: 'c1', id: 'CHA_甲', name: '甲', playPosition: '剧情对话框', expressions: [], actions: [] }],
+    characters: [{ uid: 'c1', id: 'CHA_甲', name: '甲', playPosition: '剧情对话框', nameEn: '', nameJa: '', aliases: [], expressions: [], actions: [] }],
     items: [{ uid: 'i1', id: 'Item_Coin', name: '金币' }],
     quests: [],
     images: [],
@@ -60,7 +60,6 @@ function makeProject(): Project {
     ],
     variables: [],
     uiTexts: [],
-    nameTexts: [],
     battle: {
       skillClassPrefix: '',
       effectClassPrefix: '',

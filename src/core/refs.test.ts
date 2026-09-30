@@ -24,7 +24,7 @@ function line(uid: string, readableId: string, over: Partial<Line> = {}): Line {
     readableId,
     kind: '对话',
     characterUid: '',
-    displayName: '',
+    displayAliasUid: '',
     text: { zh: '', en: '', ja: '' },
     autoAdvance: false,
     command: '',
@@ -96,7 +96,7 @@ function makeProject(): Project {
     version: 1,
     name: '引用测试',
     characters: [
-      { uid: 'ch1', id: 'CHA_伊芙', name: '伊芙', playPosition: '剧情对话框', expressions: ['微笑'], actions: ['挥手'] },
+      { uid: 'ch1', id: 'CHA_伊芙', name: '伊芙', playPosition: '剧情对话框', nameEn: '', nameJa: '', aliases: [], expressions: ['微笑'], actions: ['挥手'] },
     ],
     items: [{ uid: 'it1', id: 'Item_Coin', name: '金币' }],
     quests: [],
@@ -105,7 +105,6 @@ function makeProject(): Project {
     commands: [],
     variables: [],
     uiTexts: [],
-    nameTexts: [],
     battle: makeBattle(),
     exportSettings: [],
     chapters: [

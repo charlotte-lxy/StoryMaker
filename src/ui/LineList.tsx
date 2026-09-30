@@ -196,9 +196,14 @@ export function LineList(props: Props) {
     <div className="line-list" ref={listRef} onDragOver={handleDragOver} onDrop={handleDrop}>
       {group.lines.map((line, index) => {
         const hasNote = line.note.trim() !== '';
+        const character = props.characters.find((item) => item.uid === line.characterUid);
         /** 这一行选的角色的播放位置；没选角色、或引用已经失效时为空 */
-        const playPosition =
-          props.characters.find((item) => item.uid === line.characterUid)?.playPosition ?? '';
+        const playPosition = character?.playPosition ?? '';
+        /** 选中的别名已经不在这个角色的别名里（角色表里删了 / 老数据没收进来） */
+        const danglingAlias =
+          line.displayAliasUid.trim() !== '' &&
+          (character === undefined ||
+            !character.aliases.some((alias) => alias.uid === line.displayAliasUid));
         const sequence = lineSequenceOf(line.readableId) === '' ? String(index + 1) : lineSequenceOf(line.readableId);
         const selected = props.selectedLineUids.includes(line.uid);
         /** 段内序号：完整 ID 太长，这里只标 "-" 后面那截，完整 ID 放到悬浮提示里 */
@@ -292,7 +297,11 @@ export function LineList(props: Props) {
                           value={line.characterUid}
                           title="角色：导出时写入「角色ID」列"
                           onChange={(event) =>
-                            props.onUpdateLine(line.uid, { characterUid: event.target.value })
+                            // 换了角色，原来选的别名就不属于他了：回到「（默认名称）」
+                            props.onUpdateLine(line.uid, {
+                              characterUid: event.target.value,
+                              displayAliasUid: '',
+                            })
                           }
                         >
                           <option value="">（未指定）</option>
@@ -313,14 +322,38 @@ export function LineList(props: Props) {
                               </option>
                             )}
                         </select>
-                        <input
-                          value={line.displayName}
-                          placeholder="显示名"
-                          title="显示名：导出时写入「角色显示名称」列（换成 TXT_ 开头的文本 key），留空则用角色 ID"
+                        {/* 显示名：从所选角色的默认名称 / 别名里挑一个 */}
+                        <select
+                          className={danglingAlias ? 'missing' : ''}
+                          value={line.displayAliasUid}
+                          disabled={character === undefined}
+                          title="显示名：默认用角色的默认名称，也可以挑他的某个别名（在「角色」模块里维护）"
                           onChange={(event) =>
-                            props.onUpdateLine(line.uid, { displayName: event.target.value })
+                            props.onUpdateLine(line.uid, { displayAliasUid: event.target.value })
                           }
-                        />
+                        >
+                          {character === undefined ? (
+                            <option value="">（先选角色）</option>
+                          ) : (
+                            <>
+                              <option value="">（默认名称）</option>
+                              {character.aliases.map((alias, index) => (
+                                <option key={alias.uid} value={alias.uid}>
+                                  {alias.text.trim() === '' ? `别名${index + 1}` : alias.text}
+                                </option>
+                              ))}
+                              {/* 角色表里删掉的那个别名：原样列出来好让人改回去 */}
+                              {danglingAlias && (
+                                <option value={line.displayAliasUid}>
+                                  {looksLikeUid(line.displayAliasUid)
+                                    ? '已删除的别名'
+                                    : line.displayAliasUid}
+                                  （不在别名里）
+                                </option>
+                              )}
+                            </>
+                          )}
+                        </select>
                         {/* 旁边标一下这个角色的播放位置：在角色表里改，这里跟着变 */}
                         {playPosition !== '' && (
                           <span

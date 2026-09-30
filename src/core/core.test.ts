@@ -15,7 +15,7 @@ function makeLine(uid: string, readableId: string, over: Partial<Line> = {}): Li
     readableId,
     kind: '对话',
     characterUid: '',
-    displayName: '',
+    displayAliasUid: '',
     text: { zh: '', en: '', ja: '' },
     autoAdvance: false,
     jumpGroupUid: null,
@@ -198,7 +198,6 @@ describe('导出：跳到首句与跳到段落', () => {
       images: [],
       variables: [],
       uiTexts: [],
-      nameTexts: [],
       battle: createEmptyBattle(),
       exportSettings: [],
       chapters: [
@@ -313,7 +312,6 @@ describe('导出：指令里指向对话行的目标翻译成对话 ID', () => {
       images: [],
       variables: [],
       uiTexts: [],
-      nameTexts: [],
       battle: createEmptyBattle(),
       exportSettings: [],
       chapters: [
@@ -400,7 +398,7 @@ describe('导出三张表', () => {
       kind: '对话',
       // 角色表是空的：这一格原样写出，导出结果跟改之前一样
       characterUid: 'CHA_Q版伊芙',
-      displayName: 'Q版伊芙',
+      displayAliasUid: 'Q版伊芙',
       text: { zh: '你好', en: 'Hello', ja: 'こんにちは' },
     });
     const optionLine = makeLine('u2', 'Dia_ch01_001-2', {
@@ -441,7 +439,6 @@ describe('导出三张表', () => {
       images: [],
       variables: [],
       uiTexts: [],
-      nameTexts: [],
       battle: createEmptyBattle(),
       exportSettings: [],
       chapters: [
@@ -485,14 +482,38 @@ describe('导出三张表', () => {
     for (const row of rows.dialogue) expect(row).toHaveLength(9);
   });
 
-  it('「对话」行填角色与文本ID，两个列表都留空；显示名换成文本 key', () => {
-    const row = byId('Dia_ch01_001-1');
+  it('「对话」行填角色与文本ID，两个列表都留空；显示名那一格写名称的文本 key', () => {
+    const withAlias = makeProject();
+    withAlias.characters = [
+      {
+        uid: 'ch1',
+        id: 'CHA_Q版伊芙',
+        name: '伊芙',
+        nameEn: '',
+        nameJa: '',
+        playPosition: '剧情对话框',
+        aliases: [{ uid: 'al1', text: 'Q版伊芙', en: '', ja: '' }],
+        expressions: [],
+        actions: [],
+      },
+    ];
+    withAlias.chapters[0].groups[0].lines[0].characterUid = 'ch1';
+    withAlias.chapters[0].groups[0].lines[0].displayAliasUid = 'al1';
+
+    const pick = (project: Project): string[] =>
+      buildRows(project).dialogue.find((item) => item[0] === 'Dia_ch01_001-1') ?? [];
+
+    const row = pick(withAlias);
     expect(row[2]).toBe('CHA_Q版伊芙'); // 角色ID
-    // 填了显示名的行，这一格写 key，中文进本地化表
-    expect(row[3]).toBe('TXT_Dia_ch01_001-1_DisplayName');
+    // 选了别名1 → 这一格写它的 key，中文在本地化表里
+    expect(row[3]).toBe('TXT_CHA_Q版伊芙_OtherName-1');
     expect(row[5]).toBe('TXT_Dia_ch01_001-1'); // 文本ID
     expect(row[6]).toBe(''); // 选项列表
     expect(row[7]).toBe(''); // 指令列表
+
+    // 选「（默认名称）」时写默认名称的 key
+    withAlias.chapters[0].groups[0].lines[0].displayAliasUid = '';
+    expect(pick(withAlias)[3]).toBe('TXT_CHA_Q版伊芙_DefaultName');
   });
 
   it('「选项」行填选项列表，指令列表汇总名下选项的结果', () => {
@@ -542,15 +563,13 @@ describe('导出三张表', () => {
     expect(optA[5]).toBe('Dia_ch01_002-1');
   });
 
-  it('本地化表覆盖「对话」行、选项与显示名，顺序为选项行后紧跟其选项', () => {
+  it('本地化表覆盖「对话」行与选项，顺序为选项行后紧跟其选项', () => {
     expect(rows.locale.slice(1).map((r) => r[0])).toEqual([
       'TXT_Dia_ch01_001-1',
       'TXT_Dia_ch01_001-2A',
       'TXT_Dia_ch01_001-2B',
       'TXT_Dia_ch01_002-1',
       'TXT_Dia_ch01_003-1',
-      // 只收填了「显示名」的行，接在对话 / 选项文本后面
-      'TXT_Dia_ch01_001-1_DisplayName',
     ]);
   });
 
@@ -571,19 +590,18 @@ describe('导出三张表', () => {
 
     const uiRows = buildRows(withUi);
 
-    // 表头不变：5 条对话 / 选项文本 + 2 条 UI + 1 条显示名
-    expect(uiRows.locale).toHaveLength(9);
+    // 表头不变：5 条对话 / 选项文本 + 2 条 UI（角色名走的是「角色」子表那一套）
+    expect(uiRows.locale).toHaveLength(8);
     expect(uiRows.locale.slice(6)).toEqual([
       ['TXT_Widget_开始游戏', '开始游戏', 'Start Game', 'ゲーム開始'],
       ['TXT_Widget_设置', '设置', 'Setting', '設定'],
-      ['TXT_Dia_ch01_001-1_DisplayName', 'Q版伊芙', '', ''],
     ]);
     // UI 文本不进对话表与选项表
     expect(uiRows.dialogue.flat()).not.toContain('开始游戏');
     expect(uiRows.options.flat()).not.toContain('开始游戏');
   });
 
-  it('角色子表：行名是角色 ID，写着播放位置、默认名称的文本 key 与表情差分列表', () => {
+  it('角色子表：行名是角色 ID，写着播放位置、显示名称的文本 key 与表情差分列表', () => {
     const withCharacters = makeProject();
     withCharacters.characters = [
       {
@@ -591,22 +609,27 @@ describe('导出三张表', () => {
         id: 'CHA_Q版伊芙',
         name: 'Q版伊芙',
         playPosition: '战斗对话框',
+        nameEn: '',
+        nameJa: '',
+        aliases: [{ uid: 'al1', text: 'unknown', en: '', ja: '' }],
         expressions: ['默认', '开心'],
         actions: ['默认'],
       },
     ];
 
     const tables = buildRows(withCharacters);
-    expect(tables.characters[0]).toEqual(['', '播放位置', '默认名称', '表情差分列表']);
+    expect(tables.characters[0]).toEqual(['', '播放位置', '显示名称', '表情差分列表']);
     expect(tables.characters[1]).toEqual([
       'CHA_Q版伊芙',
       '战斗对话框',
       'TXT_CHA_Q版伊芙_DefaultName',
       '("默认","开心")',
     ]);
-    // 默认名称的中文进本地化表，这一格只放 key
+    // 默认名称的中文进本地化表，这一格只放 key；别名不进这张子表
     expect(tables.characters.flat()).not.toContain('Q版伊芙');
+    expect(tables.characters.flat().some((cell) => cell.includes('OtherName'))).toBe(false);
     expect(tables.locale).toContainEqual(['TXT_CHA_Q版伊芙_DefaultName', 'Q版伊芙', '', '']);
+    expect(tables.locale).toContainEqual(['TXT_CHA_Q版伊芙_OtherName-1', 'unknown', '', '']);
   });
 
   it('生成含各张子表的 xlsx', async () => {

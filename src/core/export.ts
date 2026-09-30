@@ -37,15 +37,15 @@ import {
 import { PLAY_DIALOGUE_HEAD } from './command-build';
 import { IMPORT_SETTINGS_SHEET, buildImportSettingRows } from './export-settings';
 import {
+  aliasNameKeyOf,
   characterNameKeyOf,
-  displayNameKeyOf,
   firstLineIdOf,
   groupUidOfFirstLine,
   textIdOf,
 } from './ids';
 import { collectNameEntries } from './localization';
 import { characterIdOf, collectRefMaps, translateTarget, type UidToId } from './refs';
-import type { Group, Line, Project, StoryOption } from './types';
+import type { Character, Group, Line, Project, StoryOption } from './types';
 
 export const DIALOGUE_SHEET = '对话';
 export const OPTION_SHEET = '选项';
@@ -83,7 +83,7 @@ export const LOCALE_HEADER: readonly string[] = ['', '中文', '英文', '日文
  * 第一列是行名（角色 ID，「默认名称」在本地化表里，所以这一格写的是文本 key）；
  * 播放位置直接写中文选项名，Unreal 那边认这三个串。
  */
-export const STORY_CHARACTER_HEADER: readonly string[] = ['', '播放位置', '默认名称', '表情差分列表'];
+export const STORY_CHARACTER_HEADER: readonly string[] = ['', '播放位置', '显示名称', '表情差分列表'];
 
 export interface ExportRowSets {
   dialogue: string[][];
@@ -118,11 +118,12 @@ export function buildRows(project: Project): ExportRowSets {
   const options: string[][] = [[...OPTION_HEADER]];
   const locale: string[][] = [[...LOCALE_HEADER]];
   const characters: string[][] = [[...STORY_CHARACTER_HEADER]];
+  const characterOf = new Map(project.characters.map((row) => [row.uid, row]));
 
   for (const chapter of project.chapters) {
     for (const group of chapter.groups) {
       for (const line of group.lines) {
-        pushLine(project, line, group, ref, groupOf, idOf, dialogue, locale);
+        pushLine(project, line, group, ref, groupOf, idOf, characterOf, dialogue, locale);
 
         // 「选项」行的选项紧随该行输出，与现有本地化表的排列习惯一致
         if (line.kind !== '选项') continue;
@@ -142,7 +143,7 @@ export function buildRows(project: Project): ExportRowSets {
     characters.push([
       id,
       character.playPosition,
-      // 默认名称跟对话文本一样进本地化表，这一格写 key
+      // 显示名跟对话文本一样进本地化表，这一格写默认名称的 key（别名不导出）
       characterNameKeyOf(id),
       formatArrayLiteral(character.expressions),
     ]);
@@ -153,12 +154,34 @@ export function buildRows(project: Project): ExportRowSets {
     locale.push([row.key, row.text.zh, row.text.en, row.text.ja]);
   }
 
-  // 角色名与显示名也进本地化表（中文来自角色表 / 对话行，英文日文来自 nameTexts）
+  // 角色名与别名也进本地化表（中文就是角色表里的默认名称 / 别名文字）
   for (const entry of collectNameEntries(project)) {
     locale.push([entry.key, entry.zh, entry.en, entry.ja]);
   }
 
   return { dialogue, options, locale, characters };
+}
+
+/**
+ * 对话行「角色显示名称」那一格写什么。
+ *
+ * 选的是角色的默认名称 → `TXT_<角色ID>_DefaultName`；选的是别名 N →
+ * `TXT_<角色ID>_OtherName-N`。两者都在本地化表里，中文不直接进这一列。
+ * 没选角色、或选中的别名已经不在角色表里时留空（由校验条报出来）。
+ */
+function displayNameKeyOfLine(
+  line: Line,
+  characterOf: Map<string, Character>,
+): string {
+  if (line.kind !== '对话') return '';
+  const character = characterOf.get(line.characterUid);
+  if (character === undefined || character.id.trim() === '') return '';
+
+  const ref = line.displayAliasUid.trim();
+  if (ref === '') return characterNameKeyOf(character.id.trim());
+
+  const index = character.aliases.findIndex((alias) => alias.uid === ref);
+  return index < 0 ? '' : aliasNameKeyOf(character.id.trim(), index);
 }
 
 function pushLine(
@@ -168,6 +191,7 @@ function pushLine(
   ref: RefFn,
   groupOf: Map<string, Group>,
   idOf: Map<string, string>,
+  characterOf: Map<string, Character>,
   dialogue: string[][],
   locale: string[][],
 ): void {
@@ -180,8 +204,8 @@ function pushLine(
     line.kind,
     // 角色那一格存的是角色 uid，这里翻回角色 ID；找不到对应行就原样写出
     isDialogue ? characterIdOf(project, line.characterUid) : '',
-    // 填了「显示名」的行，这一格写文本 key，中文走本地化表（跟「文本ID」列一个套路）
-    isDialogue && line.displayName.trim() !== '' ? displayNameKeyOf(line.readableId) : '',
+    // 显示名那一格写文本 key（默认名称 / 别名），中文在本地化表里
+    displayNameKeyOfLine(line, characterOf),
     isDialogue && line.autoAdvance ? 'True' : '',
     isDialogue ? textIdOf(line.readableId) : '',
     formatArrayLiteral(line.kind === '选项' ? line.optionIds.map(ref).filter((id) => id !== '') : []),

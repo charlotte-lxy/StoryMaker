@@ -21,6 +21,7 @@ import {
   DEFAULT_PLAY_POSITION,
   type BattleData,
   type Chapter,
+  type Character,
   type GasModifier,
   type GasPair,
   type Group,
@@ -41,6 +42,8 @@ interface RawLine extends Partial<Line> {
   commands?: unknown;
   /** 老字段：角色 ID。现在存的是角色 uid，读的时候要按表换过来 */
   characterId?: unknown;
+  /** 老字段：显示名（自由文本）。现在存的是别名 uid，读的时候要收进角色表 */
+  displayName?: unknown;
 }
 
 /**
@@ -83,7 +86,8 @@ function makeLine(kind: LineKind, over: Partial<Line> = {}): Line {
     readableId: '',
     kind,
     characterUid: '',
-    displayName: '',
+    // 老结构里的「显示名」文本先原样放这儿，等角色表补齐后由 migrateDisplayNames 收进别名
+    displayAliasUid: '',
     text: { zh: '', en: '', ja: '' },
     autoAdvance: false,
     command: '',
@@ -125,16 +129,15 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
       text: asLocalized(row.text),
     }));
 
-  // 角色名 / 显示名的译文同样是后加的
-  const rawNameTexts: unknown = project.nameTexts;
-  project.nameTexts = (Array.isArray(rawNameTexts) ? rawNameTexts : [])
-    .filter(isRecord)
-    .map((row) => ({
-      uid: asString(row.uid),
-      en: asString(row.en),
-      ja: asString(row.ja),
-    }))
-    .filter((row) => row.uid !== '');
+  // 角色名 / 显示名的译文是老版本单独存的（nameTexts，按 uid 挂）；
+  // 现在译文就挂在角色和别名自己身上，这里先把老表读出来备用，最后不再保留
+  const rawNameTexts: unknown = (project as unknown as Record<string, unknown>).nameTexts;
+  const legacyNameTexts = new Map<string, { en: string; ja: string }>();
+  for (const row of (Array.isArray(rawNameTexts) ? rawNameTexts : []).filter(isRecord)) {
+    const uid = asString(row.uid);
+    if (uid !== '') legacyNameTexts.set(uid, { en: asString(row.en), ja: asString(row.ja) });
+  }
+  delete (project as unknown as Record<string, unknown>).nameTexts;
 
   // 战斗模块也是后加的：缺哪张表补哪张，路径前缀缺了就用默认值
   project.battle = normalizeBattle(project.battle);
@@ -150,14 +153,38 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
       subTable: asString(row.subTable),
     }));
 
-  for (const character of project.characters) {
-    if (!Array.isArray(character.expressions)) character.expressions = [];
-    if (!Array.isArray(character.actions)) character.actions = [];
-    // 播放位置是后加的字段：老项目里没有，给默认值（空串也给默认）
-    if (asString(character.playPosition) === '') {
-      character.playPosition = DEFAULT_PLAY_POSITION;
-    }
-  }
+  const rawCharacters = project.characters as unknown as Record<string, unknown>[];
+  project.characters = rawCharacters.filter(isRecord).map((row) => {
+    const uid = asUid(row.uid);
+    const legacy = legacyNameTexts.get(uid);
+    return {
+      uid,
+      id: asString(row.id),
+      name: asString(row.name),
+      // 默认名称的译文：老版本存在 nameTexts 里，现在挂在角色上
+      nameEn: asString(row.nameEn) || (legacy?.en ?? ''),
+      nameJa: asString(row.nameJa) || (legacy?.ja ?? ''),
+      // 播放位置是后加的字段：老项目里没有，给默认值（空串也给默认）
+      playPosition:
+        asString(row.playPosition) === ''
+          ? DEFAULT_PLAY_POSITION
+          : (asString(row.playPosition) as Character['playPosition']),
+      aliases: (Array.isArray(row.aliases) ? row.aliases : [])
+        .filter(isRecord)
+        .map((item) => ({
+          uid: asUid(item.uid),
+          text: asString(item.text),
+          en: asString(item.en),
+          ja: asString(item.ja),
+        })),
+      expressions: Array.isArray(row.expressions)
+        ? row.expressions.filter((item): item is string => typeof item === 'string')
+        : [],
+      actions: Array.isArray(row.actions)
+        ? row.actions.filter((item): item is string => typeof item === 'string')
+        : [],
+    };
+  });
 
   const changes: IdChange[] = [];
   for (const chapter of project.chapters as (Chapter & { groups?: Group[] })[]) {
@@ -171,10 +198,75 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
     }
   }
 
-  // 各张表都补齐之后再统一换引用：引用的目标可能排在引用它的人后面
+  // 各张表都补齐之后再统一换引用（角色 uid 也在这时候定下来），
+  // 然后才能把对话行的显示名收进角色表的别名里
   migrateRefs(project);
+  migrateDisplayNames(project, legacyNameTexts);
 
   return { project, changes };
+}
+
+/**
+ * 把对话行里原来的「显示名」收进角色表的别名里。
+ *
+ *   - 与角色的默认名称相同  → 这一行改成「（默认名称）」
+ *   - 别的写法            → 给该角色建一个别名（同一个写法只建一个，多行共用），
+ *                          行里改成选这个别名
+ *   - 没选角色 / 角色已删   → 收不进去，原样留着，交给校验条报出来
+ *
+ * 老的 TXT_<对话ID>_DisplayName 译文一并搬到新别名上（同一个别名多行都有译文时取第一条非空的），
+ * 免得本地化同事白填一遍。
+ */
+function migrateDisplayNames(
+  project: Project,
+  legacyNameTexts: Map<string, { en: string; ja: string }>,
+): void {
+  const byUid = new Map(project.characters.map((row) => [row.uid, row]));
+  /** 老数据里按角色 ID 写的也算，跟校验层一个口径 */
+  const findCharacter = (ref: string): Character | undefined =>
+    byUid.get(ref) ?? project.characters.find((row) => row.id.trim() === ref.trim());
+
+  for (const chapter of project.chapters) {
+    for (const group of chapter.groups) {
+      for (const line of group.lines) {
+        // 已经迁过的（uid 指得到别名）不再动
+        const character = findCharacter(line.characterUid);
+        const current = line.displayAliasUid.trim();
+        if (
+          character !== undefined &&
+          (current === '' || character.aliases.some((alias) => alias.uid === current))
+        ) {
+          continue;
+        }
+
+        // 这一格现在是别名 uid；老结构里放的是显示名文本（migrateGroup 原样搬过来的）
+        const text = line.displayAliasUid.trim();
+        const translation = legacyNameTexts.get(line.uid);
+
+        if (character === undefined) {
+          // 没角色可归：文本原样留着（界面上显示成「不在别名里」），校验条会提醒
+          line.displayAliasUid = text;
+          continue;
+        }
+        if (text === '' || text === character.name.trim()) {
+          line.displayAliasUid = '';
+          continue;
+        }
+
+        let alias = character.aliases.find((item) => item.text.trim() === text);
+        if (alias === undefined) {
+          alias = { uid: newUid(), text, en: '', ja: '' };
+          character.aliases.push(alias);
+        }
+        // 译文只填一次：同一个别名被多行用到时，取第一条非空的
+        if (alias.en === '' && alias.ja === '') {
+          alias.en = translation?.en ?? '';
+          alias.ja = translation?.ja ?? '';
+        }
+        line.displayAliasUid = alias.uid;
+      }
+    }
+  }
 }
 
 /** 战斗模块：缺的表补空、缺的字段给默认值，手改过的 JSON 也不至于让界面拿到 undefined */
@@ -379,7 +471,9 @@ function migrateGroup(group: Group, chapterId: string, changes: IdChange[]): voi
           readableId: asString(raw.readableId),
           // 新结构存的是角色 uid；老结构存的是角色 ID，后面统一按表换过来
           characterUid: asString(raw.characterUid) || asString(raw.characterId),
-          displayName: asString(raw.displayName),
+          // 新结构存的是别名 uid；老结构里是显示名文本，先原样放这儿，
+          // 后面由 migrateDisplayNames 收进角色表的别名里
+          displayAliasUid: asString(raw.displayAliasUid) || asString(raw.displayName),
           text: asLocalized(raw.text),
           autoAdvance: raw.autoAdvance === true,
           command: asString(raw.command),
@@ -414,7 +508,7 @@ function migrateGroup(group: Group, chapterId: string, changes: IdChange[]): voi
           uid: asUid(raw.uid),
           readableId: asString(raw.readableId),
           characterUid: asString(raw.characterUid) || asString(raw.characterId),
-          displayName: asString(raw.displayName),
+          displayAliasUid: asString(raw.displayAliasUid) || asString(raw.displayName),
           text,
           autoAdvance: raw.autoAdvance === true,
           note: asString(raw.note),

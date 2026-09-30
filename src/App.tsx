@@ -36,6 +36,7 @@ import type { SearchTarget } from './state/search';
 import {
   addChapter,
   addCharacter,
+  addCharacterAlias,
   addCommandDef,
   addGroup,
   addLookupRow,
@@ -50,6 +51,7 @@ import {
   mutate,
   removeChapter,
   removeCharacter,
+  removeCharacterAlias,
   removeCommandDef,
   removeGroup,
   removeLine,
@@ -63,6 +65,7 @@ import {
   renumberOneGroup,
   reorderLine,
   setGroupNote,
+  updateCharacterAlias,
   updateCommandDef,
   updateLookupRow,
   updateNameText,
@@ -1155,6 +1158,15 @@ export default function App() {
                   onAdd={() => setProject((prev) => addCharacter(prev))}
                   onRemove={handleRemoveCharacter}
                   onUpdate={updateCharacter}
+                  onAddAlias={(characterUid) =>
+                    setProject((prev) => addCharacterAlias(prev, characterUid))
+                  }
+                  onRemoveAlias={(characterUid, aliasUid) =>
+                    setProject((prev) => removeCharacterAlias(prev, characterUid, aliasUid))
+                  }
+                  onUpdateAlias={(aliasUid, patch) =>
+                    setProject((prev) => updateCharacterAlias(prev, aliasUid, patch))
+                  }
                 />
               )}
 

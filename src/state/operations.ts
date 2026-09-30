@@ -11,6 +11,7 @@ import { collectRefUids } from '../core/refs';
 import {
   DEFAULT_PLAY_POSITION,
   type Chapter,
+  type CharacterAlias,
   type CommandDef,
   type ExportSettingRow,
   type Group,
@@ -96,7 +97,7 @@ export function createLine(
     readableId: makeLineId(chapterId, groupId, index),
     kind,
     characterUid: '',
-    displayName: '',
+    displayAliasUid: '',
     text: { zh: '', en: '', ja: '' },
     autoAdvance: false,
     command: '',
@@ -141,7 +142,6 @@ export function createEmptyProject(name = '未命名项目'): Project {
     commands: defaultCommandDefs(),
     variables: [],
     uiTexts: [],
-    nameTexts: [],
     battle: createEmptyBattle(),
     exportSettings: [],
     chapters: [
@@ -537,7 +537,10 @@ export function addCharacter(project: Project): Project {
       uid: newUid(),
       id: `CHA_角色${n}`,
       name: `角色${n}`,
+      nameEn: '',
+      nameJa: '',
       playPosition: DEFAULT_PLAY_POSITION,
+      aliases: [],
       // 建角色时给一份常用默认表情，可自行增删
       expressions: ['默认', '开心', '生气', '悲伤', '害羞'],
       actions: ['默认'],
@@ -548,6 +551,46 @@ export function addCharacter(project: Project): Project {
 export function removeCharacter(project: Project, characterUid: string): Project {
   return mutate(project, (draft) => {
     draft.characters = draft.characters.filter((c) => c.uid !== characterUid);
+  });
+}
+
+/* ---------- 角色的别名（「显示名称」里除默认名称之外的写法） ---------- */
+
+/** 给角色加一个空别名；行里的「别名1」「别名2」按位置算，不单独存 */
+export function addCharacterAlias(project: Project, characterUid: string): Project {
+  return mutate(project, (draft) => {
+    const character = draft.characters.find((row) => row.uid === characterUid);
+    if (character === undefined) return;
+    character.aliases.push({ uid: newUid(), text: '', en: '', ja: '' });
+  });
+}
+
+export function removeCharacterAlias(
+  project: Project,
+  characterUid: string,
+  aliasUid: string,
+): Project {
+  return mutate(project, (draft) => {
+    const character = draft.characters.find((row) => row.uid === characterUid);
+    if (character === undefined) return;
+    character.aliases = character.aliases.filter((alias) => alias.uid !== aliasUid);
+  });
+}
+
+/** 改一个别名（别名 uid 全局唯一，按它找就行） */
+export function updateCharacterAlias(
+  project: Project,
+  aliasUid: string,
+  patch: Partial<CharacterAlias>,
+): Project {
+  return mutate(project, (draft) => {
+    for (const character of draft.characters) {
+      const alias = character.aliases.find((row) => row.uid === aliasUid);
+      if (alias !== undefined) {
+        Object.assign(alias, patch);
+        return;
+      }
+    }
   });
 }
 
@@ -844,14 +887,13 @@ export function updateUiText(project: Project, uid: string, patch: Partial<UiTex
   });
 }
 
-/* ---------- 角色名 / 显示名的译文 ---------- */
+/* ---------- 角色名 / 别名的译文 ---------- */
 
 /**
- * 改「角色名本地化」里的一条。
+ * 改「角色名本地化」里的一条：默认名称，或某个别名。
  *
- * 中文那一份不在本地化表里：角色名的中文是角色表的「默认名称」，显示名的中文是
- * 对话行的「显示名」，所以在这一页改中文就直接写回那两个地方（免得存两份）；改英日
- * 才写进 project.nameTexts，按 uid 挂回去。
+ * 中文与译文都挂在角色表那一行上（默认名称：name / nameEn / nameJa；别名：text / en / ja），
+ * 所以这里按 uid 找到是哪一个（角色 uid 或别名 uid），改对应字段。别名 uid 全局唯一。
  */
 export function updateNameText(
   project: Project,
@@ -860,30 +902,19 @@ export function updateNameText(
   value: string,
 ): Project {
   return mutate(project, (draft) => {
-    if (lang === 'zh') {
-      const character = draft.characters.find((row) => row.uid === uid);
-      if (character !== undefined) {
-        character.name = value;
+    for (const character of draft.characters) {
+      if (character.uid === uid) {
+        const field = lang === 'zh' ? 'name' : lang === 'en' ? 'nameEn' : 'nameJa';
+        Object.assign(character, { [field]: value });
         return;
       }
-      for (const chapter of draft.chapters) {
-        for (const group of chapter.groups) {
-          const line = group.lines.find((row) => row.uid === uid);
-          if (line !== undefined) {
-            line.displayName = value;
-            return;
-          }
-        }
+      const alias = character.aliases.find((row) => row.uid === uid);
+      if (alias !== undefined) {
+        const field = lang === 'zh' ? 'text' : lang;
+        Object.assign(alias, { [field]: value });
+        return;
       }
-      return;
     }
-
-    const row = draft.nameTexts.find((item) => item.uid === uid);
-    if (row === undefined) {
-      draft.nameTexts.push({ uid, en: lang === 'en' ? value : '', ja: lang === 'ja' ? value : '' });
-      return;
-    }
-    Object.assign(row, { [lang]: value });
   });
 }
 

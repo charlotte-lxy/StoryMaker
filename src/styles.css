@@ -2191,6 +2191,35 @@ tr.drop-target {
   white-space: nowrap;
 }
 
+/* ---------- 角色表的「显示名称」：默认名称 + 若干别名 ---------- */
+
+.name-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 「默认名称」「别名1」这种小标：固定宽度，几行的输入框左边对齐 */
+.name-tag {
+  flex-shrink: 0;
+  width: 52px;
+  color: var(--text-dim);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.name-add {
+  align-self: flex-start;
+  padding: 2px 10px;
+  font-size: 11px;
+}
+
 tr.group-heading td {
   background: var(--head-bg);
   font-size: 11px;

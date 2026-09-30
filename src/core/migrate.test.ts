@@ -147,14 +147,99 @@ describe('老结构自动迁移', () => {
     // 有文本的：一条指令 + 一行保留文本的对话
     expect(group.lines.map((line) => line.kind)).toEqual(['指令', '对话', '指令']);
     expect(group.lines[1].uid).toBe('a1');
-    expect(group.lines[1].displayName).toBe('HUD');
+    // 老结构里的显示名「HUD」被收进角色表的别名里（那一行没选角色，所以原样留着）
+    expect(group.lines[1].displayAliasUid).toBe('HUD');
     expect(group.lines[1].text.zh).toBe('认知能力鉴定——失败');
     // 没文本的：只剩指令
     expect(group.lines[2].command).toBe('剧情.特殊# SP_3');
   });
 
-  it('已经是新结构的数据原样保留，不产生对照表', () => {
+  it('对话行的显示名收进角色表的别名：同名只建一个，译文跟着搬', () => {
     const result = normalizeProject({
+      version: 1,
+      name: '老项目',
+      characters: [{ uid: 'ch1', id: 'CHA_旁白', name: '旁白' }],
+      items: [],
+      quests: [],
+      images: [],
+      sounds: [],
+      commands: [],
+      variables: [],
+      uiTexts: [],
+      // 老版本把译名单独存在这里，迁移时要搬到别名上
+      nameTexts: [{ uid: 'l1', en: 'HUD', ja: 'HUD' }],
+      chapters: [
+        {
+          uid: 'c1',
+          id: 'ch01',
+          title: '序章',
+          groups: [
+            {
+              uid: 'g1',
+              id: '001',
+              title: '开场',
+              options: [],
+              lines: [
+                {
+                  uid: 'l1',
+                  readableId: 'Dia_ch01_001-1',
+                  kind: '对话',
+                  characterId: 'CHA_旁白',
+                  displayName: 'HUD',
+                  text: { zh: '第一句' },
+                },
+                {
+                  uid: 'l2',
+                  readableId: 'Dia_ch01_001-2',
+                  kind: '对话',
+                  characterId: 'CHA_旁白',
+                  displayName: 'HUD',
+                  text: { zh: '第二句' },
+                },
+                {
+                  uid: 'l3',
+                  readableId: 'Dia_ch01_001-3',
+                  kind: '对话',
+                  characterId: 'CHA_旁白',
+                  displayName: '旁白',
+                  text: { zh: '第三句' },
+                },
+                {
+                  uid: 'l4',
+                  readableId: 'Dia_ch01_001-4',
+                  kind: '对话',
+                  characterId: '',
+                  displayName: '没角色的名字',
+                  text: { zh: '第四句' },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const project = result!.project;
+    const character = project.characters[0];
+    // 两行都写 HUD：只建一个别名，译文从老表搬过来
+    expect(character.aliases).toHaveLength(1);
+    expect(character.aliases[0].text).toBe('HUD');
+    expect(character.aliases[0].en).toBe('HUD');
+
+    const lines = project.chapters[0].groups[0].lines;
+    expect(lines[0].displayAliasUid).toBe(character.aliases[0].uid);
+    expect(lines[1].displayAliasUid).toBe(character.aliases[0].uid);
+    // 与默认名称相同 → 回到「（默认名称）」
+    expect(lines[2].displayAliasUid).toBe('');
+    // 没选角色，收不进去：原样留着，交给校验条提醒
+    expect(lines[3].displayAliasUid).toBe('没角色的名字');
+
+    // 再读一遍不变
+    const twice = normalizeProject(JSON.parse(JSON.stringify(project)) as unknown);
+    expect(JSON.stringify(twice!.project)).toBe(JSON.stringify(project));
+  });
+
+  it('已经是新结构的数据原样保留，不产生对照表', () => {    const result = normalizeProject({
       version: 1,
       name: '新项目',
       items: [],
@@ -183,7 +268,7 @@ describe('老结构自动迁移', () => {
                   command: '剧情.特殊# SP_1',
                   note: '这句要等 BGM 淡出',
                   characterId: '',
-                  displayName: '',
+                  displayAliasUid: '',
                   text: { zh: '', en: '', ja: '' },
                   autoAdvance: false,
                   optionIds: [],
@@ -230,7 +315,7 @@ describe('老结构自动迁移', () => {
                   jumpGroupUid: 'g2',
                   jumpConditions: ['背包#Item_Coin>=10'],
                   characterId: '',
-                  displayName: '',
+                  displayAliasUid: '',
                   text: { zh: '', en: '', ja: '' },
                   autoAdvance: false,
                   optionIds: [],

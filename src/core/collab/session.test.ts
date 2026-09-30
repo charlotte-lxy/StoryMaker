@@ -8,7 +8,7 @@ function makeProject(name = '测试项目'): Project {
   return {
     version: 1,
     name,
-    characters: [{ uid: 'c1', id: 'CHA_甲', name: '甲', playPosition: '剧情对话框', expressions: [], actions: [] }],
+    characters: [{ uid: 'c1', id: 'CHA_甲', name: '甲', playPosition: '剧情对话框', nameEn: '', nameJa: '', aliases: [], expressions: [], actions: [] }],
     items: [{ uid: 'i1', id: 'Item_Coin', name: '金币' }],
     quests: [],
     images: [],
@@ -33,7 +33,6 @@ function makeProject(name = '测试项目'): Project {
     ],
     variables: [],
     uiTexts: [],
-    nameTexts: [],
     battle: {
       skillClassPrefix: '',
       effectClassPrefix: '',
