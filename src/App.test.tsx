@@ -1566,8 +1566,7 @@ describe('全局搜索', () => {
     expect(screen.getByText('没有匹配「该走」的条目。')).toBeTruthy();
   });
 
-  it('点数据表的结果会切到那个模块，并高亮那一行', async () => {
-    await renderApp();
+  it('点数据表的结果会切到那个模块，并高亮那一行', async () => {    await renderApp();
     fireEvent.click(within(rail()).getByText('物品'));
     fireEvent.click(screen.getByText('＋ 新增一行'));
     fireEvent.change(screen.getByPlaceholderText('例如：金币'), { target: { value: '金币' } });
@@ -1584,6 +1583,22 @@ describe('全局搜索', () => {
     const row = document.querySelector('tr.line-row.flash') as HTMLElement;
     expect(row).toBeTruthy();
     expect(row.dataset.searchUid).toBeTruthy();
+  });
+
+  it('跳指令字典的行：停在「使用情况」页也会切回字典页，并定位到那一行', async () => {
+    await renderApp();
+    fireEvent.click(within(rail()).getByText('条件与指令'));
+    fireEvent.click(screen.getByRole('button', { name: /使用情况/ }));
+    expect(document.querySelector('.tab.active')?.textContent).toContain('使用情况');
+
+    fireEvent.change(searchBox(), { target: { value: '背包' } });
+    const hit = document.querySelector('.search-hit') as HTMLElement;
+    expect(hit.querySelector('.search-hit-where')?.textContent).toBe('指令字典 · 条件 · 第 1 行 · 背包');
+    fireEvent.click(hit);
+
+    expect(document.querySelector('.tab.active')?.textContent).toContain('字典');
+    const row = document.querySelector('tr.line-row.flash') as HTMLElement;
+    expect(row?.dataset.searchUid).toBeTruthy();
   });
 });
 

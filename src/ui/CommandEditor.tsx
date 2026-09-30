@@ -65,6 +65,13 @@ export function CommandEditor({
     setTab('dict');
   }, [focusUid]);
 
+  // 切回字典页之后再把那一行滚到眼前。上层统一的那次滚动是在同一轮里跑的，
+  // 当时字典表还没渲染出来（页面停在「使用情况」上），会落空
+  useEffect(() => {
+    if (focusUid === null || tab !== 'dict') return;
+    document.querySelector(`[data-search-uid="${focusUid}"]`)?.scrollIntoView({ block: 'center' });
+  }, [focusUid, tab]);
+
   /** 每条实际用到的指令属于条件还是指令 */
   const usageByCategory = useMemo(() => {
     const grouped: Record<string, typeof commands> = { 条件: [], 指令: [], 未定义: [] };
