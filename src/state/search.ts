@@ -62,9 +62,24 @@ export interface SearchHit {
   rowNumber: number;
   /** 这一行的标识：名字 / ID / 对话 ID / 本地化 key */
   rowLabel: string;
-  /** 命中的那段文字；命中的就是行标识本身时留空，免得同一句话显示两遍 */
-  text: string;
+  /** 行标识里要标出来的区间 */
+  labelMarks: Span[];
+  /**
+   * 命中的另外几个字段（行标识自己不算，免得同一句话显示两遍）。
+   * 每条片段自带要高亮的区间，界面上照着标黄。
+   */
+  snippets: SearchSnippet[];
   target: SearchTarget;
+}
+
+/** 高亮区间：[起点, 终点)，按字符串下标算 */
+export type Span = [number, number];
+
+export interface SearchSnippet {
+  /** 片段原文；命中点太靠前 / 靠后时会掐掉两头并带省略号 */
+  text: string;
+  /** 这条片段里要高亮的区间 */
+  marks: Span[];
 }
 
 export interface SearchGroup {
@@ -80,7 +95,7 @@ interface Draft {
   submodule: string;
   rowNumber: number;
   rowLabel: string;
-  /** 参与匹配的文字，按优先级排：越靠前越可能是"这一行是什么" */
+  /** 参与匹配的文字，按优先级排：越靠前越可能是「这一行是什么」 */
   fields: string[];
   target: SearchTarget;
 }
@@ -93,22 +108,72 @@ interface Draft {
  */
 const MAX_PER_MODULE = 100;
 
-/** 命中片段最长显示这么多字 */
-const PREVIEW_LIMIT = 80;
+/** 一条结果里最多再显示几个命中的字段（行标识之外） */
+const MAX_SNIPPETS = 2;
+
+/** 命中片段最长这么多字；命中点靠后时，前面留一点上下文 */
+const SNIPPET_LIMIT = 60;
+const SNIPPET_CONTEXT = 16;
 
 const MODULE_LABEL = new Map(SEARCH_MODULES.map((item) => [item.key, item.label]));
 
-/** 命中就返回命中的那段原文，没命中返回 null */
-function findHit(fields: string[], needle: string): string | null {
-  for (const field of fields) {
-    if (field.trim() !== '' && field.toLowerCase().includes(needle)) return field;
+/**
+ * 关键词出现的位置，按起点排好、把重叠的并起来。
+ *
+ * 大小写折叠偶尔会改变长度（比如 İ），那种串上折叠后的下标对不上原文，
+ * 就退回区分大小写地找——宁可漏标，也不能标错位置。
+ */
+function matchSpans(text: string, terms: string[]): Span[] {
+  if (text === '') return [];
+  const lower = text.toLowerCase();
+  const haystack = lower.length === text.length ? lower : text;
+
+  const spans: Span[] = [];
+  for (const term of terms) {
+    if (term === '') continue;
+    let from = 0;
+    for (;;) {
+      const at = haystack.indexOf(term, from);
+      if (at < 0) break;
+      spans.push([at, at + term.length]);
+      from = at + term.length;
+    }
   }
-  return null;
+
+  spans.sort((a, b) => a[0] - b[0]);
+  const merged: Span[] = [];
+  for (const span of spans) {
+    const last = merged[merged.length - 1];
+    if (last !== undefined && span[0] <= last[1]) last[1] = Math.max(last[1], span[1]);
+    else merged.push(span);
+  }
+  return merged;
 }
 
-function shorten(text: string): string {
-  const oneLine = text.replace(/\s+/g, ' ').trim();
-  return oneLine.length > PREVIEW_LIMIT ? `${oneLine.slice(0, PREVIEW_LIMIT)}…` : oneLine;
+/**
+ * 把一个字段裁成一段能看的片段，并算出里面要高亮的位置。
+ *
+ * 从命中点前面留一点上下文，而不是无条件从头截：很长的一句台词里，
+ * 命中的那两个字很可能在第 80 个字之后，从头截会让人看不到自己搜的词。
+ */
+function snippetOf(raw: string, terms: string[]): SearchSnippet | null {
+  const text = raw.replace(/\s+/g, ' ').trim();
+  const spans = matchSpans(text, terms);
+  if (spans.length === 0) return null;
+
+  const first = spans[0][0];
+  const start = first <= SNIPPET_CONTEXT ? 0 : first - SNIPPET_CONTEXT;
+  const end = Math.min(text.length, start + SNIPPET_LIMIT);
+  const head = start > 0 ? '…' : '';
+  const tail = end < text.length ? '…' : '';
+
+  const marks: Span[] = [];
+  for (const [from, to] of spans) {
+    if (from >= end) break;
+    marks.push([from - start + head.length, Math.min(to, end) - start + head.length]);
+  }
+
+  return { text: head + text.slice(start, end) + tail, marks };
 }
 
 function pairFields(pairs: GasPair[]): string[] {
@@ -364,18 +429,30 @@ function localeDrafts(project: Project): Draft[] {
   return drafts;
 }
 
-/** 把一组记录按关键词过一遍，一条都没命中就返回 null（界面上整组不显示） */
-function groupOf(module: SearchModuleKey, drafts: Draft[], needle: string): SearchGroup | null {
+/**
+ * 把一组记录按关键词过一遍，一条都没命中就返回 null（界面上整组不显示）。
+ *
+ * 多个关键词是「都要命中」：每个词出现在这行的任意一个字段里就行，不必挤在同一个字段。
+ */
+function groupOf(module: SearchModuleKey, drafts: Draft[], terms: string[]): SearchGroup | null {
   const hits: SearchHit[] = [];
 
   for (const draft of drafts) {
-    const matched = findHit(draft.fields, needle);
-    if (matched === null) continue;
+    const matchesRow = terms.every((term) =>
+      draft.fields.some((field) => field.toLowerCase().includes(term)),
+    );
+    if (!matchesRow) continue;
+
     hits.push({
       submodule: draft.submodule,
       rowNumber: draft.rowNumber,
       rowLabel: draft.rowLabel,
-      text: matched === draft.rowLabel ? '' : shorten(matched),
+      labelMarks: matchSpans(draft.rowLabel, terms),
+      snippets: draft.fields
+        .filter((field) => field !== draft.rowLabel)
+        .map((field) => snippetOf(field, terms))
+        .filter((snippet): snippet is SearchSnippet => snippet !== null)
+        .slice(0, MAX_SNIPPETS),
       target: draft.target,
     });
   }
@@ -392,6 +469,8 @@ function groupOf(module: SearchModuleKey, drafts: Draft[], needle: string): Sear
 /**
  * 按关键词搜项目。
  *
+ * 关键词用空格隔开，每一个都要命中（Like 中 = 同时含 Like 和 中）；
+ * 命中的每一个词都会在结果里标出来。
  * only 为 null 表示「全部」模块；空关键词直接返回空数组（不搜等于不显示结果）。
  */
 export function searchProject(
@@ -399,8 +478,12 @@ export function searchProject(
   query: string,
   only: SearchModuleKey | null = null,
 ): SearchGroup[] {
-  const needle = query.trim().toLowerCase();
-  if (needle === '') return [];
+  const terms = query
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((term) => term !== '');
+  if (terms.length === 0) return [];
 
   const builders: { module: SearchModuleKey; drafts: () => Draft[] }[] = [
     { module: 'story', drafts: () => storyDrafts(project) },
@@ -417,7 +500,7 @@ export function searchProject(
   const groups: SearchGroup[] = [];
   for (const builder of builders) {
     if (only !== null && only !== builder.module) continue;
-    const group = groupOf(builder.module, builder.drafts(), needle);
+    const group = groupOf(builder.module, builder.drafts(), terms);
     if (group !== null) groups.push(group);
   }
   return groups;

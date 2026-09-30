@@ -448,6 +448,15 @@ textarea {
   white-space: nowrap;
 }
 
+/* 命中的字：跟跳过去闪一下那一行用同一套黄 */
+.search-panel mark {
+  padding: 0 1px;
+  border-radius: 3px;
+  background: var(--flash-bg);
+  color: var(--text);
+  font-weight: 600;
+}
+
 /* 窗口不够宽时，绝对居中会和左边的项目名挤在一起：退回成普通的一行，
    由它在左右两组之间自己占位（此时隐藏那个撑开用的 spacer） */
 @media (max-width: 1250px) {

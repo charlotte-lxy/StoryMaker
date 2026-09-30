@@ -1585,6 +1585,27 @@ describe('全局搜索', () => {
     expect(row.dataset.searchUid).toBeTruthy();
   });
 
+  it('多个关键词用空格隔开：都要命中，命中的字标黄', async () => {
+    await renderApp();
+    fireEvent.click(within(rail()).getByText('战斗'));
+    fireEvent.click(screen.getByText('＋ 新增属性'));
+    fireEvent.change(screen.getByPlaceholderText('属性名'), { target: { value: 'Like_田中美代子' } });
+    fireEvent.click(within(rail()).getByText('剧情'));
+
+    fireEvent.change(searchBox(), { target: { value: 'Like 中' } });
+    const hit = document.querySelector('.search-hit') as HTMLElement;
+    expect(hit.querySelector('.search-hit-where')?.textContent).toBe(
+      '属性表（AS） · 第 1 行 · Like_田中美代子',
+    );
+    // 两个词各自标黄，不是一个整段
+    expect([...hit.querySelectorAll('mark')].map((mark) => mark.textContent)).toEqual(['Like', '中']);
+
+    // 只命中一半的词就搜不出来
+    fireEvent.change(searchBox(), { target: { value: 'Like 中村' } });
+    expect(document.querySelectorAll('.search-hit')).toHaveLength(0);
+    expect(screen.getByText('没有匹配「Like 中村」的条目。')).toBeTruthy();
+  });
+
   it('跳指令字典的行：停在「使用情况」页也会切回字典页，并定位到那一行', async () => {
     await renderApp();
     fireEvent.click(within(rail()).getByText('条件与指令'));

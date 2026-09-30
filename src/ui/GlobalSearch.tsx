@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 
 import type { Project } from '../core/types';
 import {
@@ -6,6 +6,7 @@ import {
   searchProject,
   type SearchModuleKey,
   type SearchTarget,
+  type Span,
 } from '../state/search';
 
 interface Props {
@@ -14,12 +15,28 @@ interface Props {
   onJump: (target: SearchTarget) => void;
 }
 
+/** 把命中的几段标黄；marks 是按顺序排好的 [起点, 终点) */
+function Marked({ text, marks }: { text: string; marks: Span[] }) {
+  if (marks.length === 0) return <>{text}</>;
+
+  const parts: ReactNode[] = [];
+  let at = 0;
+  marks.forEach(([from, to], index) => {
+    if (from > at) parts.push(text.slice(at, from));
+    parts.push(<mark key={index}>{text.slice(from, to)}</mark>);
+    at = to;
+  });
+  if (at < text.length) parts.push(text.slice(at));
+  return <>{parts}</>;
+}
+
 /**
  * 标题栏正中的全局搜索。
  *
  * 点一下输入框展开下拉页：最上面一排是模块筛选（「全部」在最左边，一次只选中一个），
  * 下面按模块分两层列结果——第一层是模块，第二层是这个模块里的模糊命中，
  * 每条左边标着「子模块 · 第几行 · 行标识」，点一条直接跳过去。
+ * 关键词用空格隔开，每个都要命中，命中的字在结果里标黄。
  *
  * 面板与遮罩都挂在 toolbar 上（不是挂在输入框那个盒子里）：输入框在窄窗口下会
  * 退回成普通的一行，挂在自己身上会让面板跟着一起动。
@@ -44,7 +61,7 @@ export function GlobalSearch({ project, onJump }: Props) {
           className="search-input"
           value={query}
           placeholder="全局搜索：对话、角色、数据表、GAS、本地化…"
-          title="点这里展开搜索页；输入关键词后按模块分组列出结果，点一条直接跳过去"
+          title="点这里展开搜索页；多个关键词用空格隔开（都要命中，例如「Like 中」），命中处会标黄，点一条直接跳过去"
           onFocus={() => setOpen(true)}
           // 点一下也要展开：点空白处只是收起面板，输入框还留着焦点，
           // 光靠 onFocus 再点它不会重新触发
@@ -91,6 +108,9 @@ export function GlobalSearch({ project, onJump }: Props) {
                 <div className="search-empty">
                   输入关键词开始搜索：对话文本、章节段落名、角色、物品、任务、立绘、音效、
                   条件与指令、GAS 各表、本地化都能搜。
+                  <br />
+                  多个关键词用空格隔开，每个都要命中——比如「Like 中」会列出同时含这两个词的行，
+                  命中处标黄。
                 </div>
               ) : total === 0 ? (
                 <div className="search-empty">没有匹配「{keyword}」的条目。</div>
@@ -119,11 +139,14 @@ export function GlobalSearch({ project, onJump }: Props) {
                         }}
                       >
                         <span className="search-hit-where">
-                          {hit.submodule} · 第 {hit.rowNumber} 行 · {hit.rowLabel}
+                          {hit.submodule} · 第 {hit.rowNumber} 行 ·{' '}
+                          <Marked text={hit.rowLabel} marks={hit.labelMarks} />
                         </span>
-                        {hit.text === '' ? null : (
-                          <span className="search-hit-text">{hit.text}</span>
-                        )}
+                        {hit.snippets.map((snippet, index) => (
+                          <span className="search-hit-text" key={index}>
+                            <Marked text={snippet.text} marks={snippet.marks} />
+                          </span>
+                        ))}
                       </button>
                     ))}
                   </div>
