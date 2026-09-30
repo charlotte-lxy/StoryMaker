@@ -198,6 +198,7 @@ describe('导出：跳到首句与跳到段落', () => {
       images: [],
       variables: [],
       uiTexts: [],
+      nameTexts: [],
       battle: createEmptyBattle(),
       exportSettings: [],
       chapters: [
@@ -312,6 +313,7 @@ describe('导出：指令里指向对话行的目标翻译成对话 ID', () => {
       images: [],
       variables: [],
       uiTexts: [],
+      nameTexts: [],
       battle: createEmptyBattle(),
       exportSettings: [],
       chapters: [
@@ -439,6 +441,7 @@ describe('导出三张表', () => {
       images: [],
       variables: [],
       uiTexts: [],
+      nameTexts: [],
       battle: createEmptyBattle(),
       exportSettings: [],
       chapters: [
@@ -482,10 +485,11 @@ describe('导出三张表', () => {
     for (const row of rows.dialogue) expect(row).toHaveLength(9);
   });
 
-  it('「对话」行填角色与文本ID，两个列表都留空', () => {
+  it('「对话」行填角色与文本ID，两个列表都留空；显示名换成文本 key', () => {
     const row = byId('Dia_ch01_001-1');
     expect(row[2]).toBe('CHA_Q版伊芙'); // 角色ID
-    expect(row[3]).toBe('Q版伊芙'); // 显示名
+    // 填了显示名的行，这一格写 key，中文进本地化表
+    expect(row[3]).toBe('TXT_Dia_ch01_001-1_DisplayName');
     expect(row[5]).toBe('TXT_Dia_ch01_001-1'); // 文本ID
     expect(row[6]).toBe(''); // 选项列表
     expect(row[7]).toBe(''); // 指令列表
@@ -538,13 +542,15 @@ describe('导出三张表', () => {
     expect(optA[5]).toBe('Dia_ch01_002-1');
   });
 
-  it('本地化表只覆盖「对话」行与选项，顺序为选项行后紧跟其选项', () => {
+  it('本地化表覆盖「对话」行、选项与显示名，顺序为选项行后紧跟其选项', () => {
     expect(rows.locale.slice(1).map((r) => r[0])).toEqual([
       'TXT_Dia_ch01_001-1',
       'TXT_Dia_ch01_001-2A',
       'TXT_Dia_ch01_001-2B',
       'TXT_Dia_ch01_002-1',
       'TXT_Dia_ch01_003-1',
+      // 只收填了「显示名」的行，接在对话 / 选项文本后面
+      'TXT_Dia_ch01_001-1_DisplayName',
     ]);
   });
 
@@ -565,18 +571,45 @@ describe('导出三张表', () => {
 
     const uiRows = buildRows(withUi);
 
-    // 表头不变，UI 的行接在 5 条对话 / 选项文本之后
-    expect(uiRows.locale).toHaveLength(8);
+    // 表头不变：5 条对话 / 选项文本 + 2 条 UI + 1 条显示名
+    expect(uiRows.locale).toHaveLength(9);
     expect(uiRows.locale.slice(6)).toEqual([
       ['TXT_Widget_开始游戏', '开始游戏', 'Start Game', 'ゲーム開始'],
       ['TXT_Widget_设置', '设置', 'Setting', '設定'],
+      ['TXT_Dia_ch01_001-1_DisplayName', 'Q版伊芙', '', ''],
     ]);
     // UI 文本不进对话表与选项表
     expect(uiRows.dialogue.flat()).not.toContain('开始游戏');
     expect(uiRows.options.flat()).not.toContain('开始游戏');
   });
 
-  it('生成含三张工作表的 xlsx', async () => {
+  it('角色子表：行名是角色 ID，写着播放位置、默认名称的文本 key 与表情差分列表', () => {
+    const withCharacters = makeProject();
+    withCharacters.characters = [
+      {
+        uid: 'ch1',
+        id: 'CHA_Q版伊芙',
+        name: 'Q版伊芙',
+        playPosition: '战斗对话框',
+        expressions: ['默认', '开心'],
+        actions: ['默认'],
+      },
+    ];
+
+    const tables = buildRows(withCharacters);
+    expect(tables.characters[0]).toEqual(['', '播放位置', '默认名称', '表情差分列表']);
+    expect(tables.characters[1]).toEqual([
+      'CHA_Q版伊芙',
+      '战斗对话框',
+      'TXT_CHA_Q版伊芙_DefaultName',
+      '("默认","开心")',
+    ]);
+    // 默认名称的中文进本地化表，这一格只放 key
+    expect(tables.characters.flat()).not.toContain('Q版伊芙');
+    expect(tables.locale).toContainEqual(['TXT_CHA_Q版伊芙_DefaultName', 'Q版伊芙', '', '']);
+  });
+
+  it('生成含各张子表的 xlsx', async () => {
     const buffer = await exportWorkbook(project);
     const workbook = new ExcelJS.Workbook();
     // exceljs 自己声明的 Buffer 类型与 DOM 的 ArrayBuffer 名义不同，运行时可互换
@@ -586,6 +619,7 @@ describe('导出三张表', () => {
       '对话',
       '选项',
       '本地化',
+      '角色',
       'GASGameplayTags',
       'GAS属性',
       'GAS效果',

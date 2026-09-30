@@ -48,6 +48,7 @@ function makeProject(): Project {
     images: [],
     variables: [],
     uiTexts: [],
+    nameTexts: [],
     battle: createEmptyBattle(),
     exportSettings: [],
     chapters: [

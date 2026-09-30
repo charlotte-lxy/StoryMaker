@@ -5,7 +5,7 @@
  * 「第几行」就是本地化页面上从上往下数的行号，两边各算一遍迟早会对不上。
  */
 
-import { textIdOf } from './ids';
+import { characterNameKeyOf, displayNameKeyOf, textIdOf } from './ids';
 import type { LocalizedText, Project } from './types';
 
 export interface LocaleEntry {
@@ -67,6 +67,73 @@ export function collectLocaleEntries(project: Project): LocaleEntry[] {
           groupLabel,
         });
         seen.add(option.uid);
+      }
+    }
+  }
+
+  return list;
+}
+
+/**
+ * 「角色名本地化」页的一条：角色的默认名称，或对话行的显示名。
+ *
+ * 中文在角色表 / 对话行上，英文日文在 project.nameTexts 里（按 uid 挂回来）。
+ * 页面上从上往下数的行号就是这个数组的顺序，全局搜索也按它算。
+ */
+export interface NameEntry {
+  /** 角色表那一行的 uid，或对话行的 uid */
+  uid: string;
+  /** TXT_<角色ID>_DefaultName 或 TXT_<对话ID>_DisplayName */
+  key: string;
+  /** 是角色名还是显示名 */
+  kindLabel: '角色名' | '显示名';
+  zh: string;
+  en: string;
+  ja: string;
+  /** 在哪儿填的，列表里按它分段 */
+  groupLabel: string;
+}
+
+/**
+ * 收集角色名与显示名的本地化条目。
+ *
+ * 顺序：先角色表（按表里的顺序），再剧本里有填显示名的对话行（按剧本顺序）。
+ * 角色 ID 空着的行拼不出 key，跳过（角色表里会就地提示）。
+ */
+export function collectNameEntries(project: Project): NameEntry[] {
+  const texts = new Map(project.nameTexts.map((row) => [row.uid, row]));
+  const list: NameEntry[] = [];
+
+  for (const character of project.characters) {
+    const id = character.id.trim();
+    if (id === '') continue;
+    const text = texts.get(character.uid);
+    list.push({
+      uid: character.uid,
+      key: characterNameKeyOf(id),
+      kindLabel: '角色名',
+      zh: character.name,
+      en: text?.en ?? '',
+      ja: text?.ja ?? '',
+      groupLabel: '角色表',
+    });
+  }
+
+  for (const chapter of project.chapters) {
+    for (const group of chapter.groups) {
+      for (const line of group.lines) {
+        // 只收「填了显示名」的行：没填的导出那一格本来就是空的
+        if (line.displayName.trim() === '') continue;
+        const text = texts.get(line.uid);
+        list.push({
+          uid: line.uid,
+          key: displayNameKeyOf(line.readableId),
+          kindLabel: '显示名',
+          zh: line.displayName,
+          en: text?.en ?? '',
+          ja: text?.ja ?? '',
+          groupLabel: `${chapter.title || chapter.id} / ${group.title || group.id}`,
+        });
       }
     }
   }

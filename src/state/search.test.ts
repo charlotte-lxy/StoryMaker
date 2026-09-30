@@ -22,6 +22,7 @@ function makeProject(): Project {
       uid: 'c1',
       id: 'CHA_伊芙',
       name: '伊芙',
+      playPosition: '剧情对话框',
       expressions: ['微笑'],
       actions: [],
     });
@@ -86,10 +87,12 @@ describe('全局搜索', () => {
   });
 
   it('一个词同时命中好几个模块时，按模块分组返回', () => {
-    // 「伊芙」既是那一行的角色 ID，也是角色表里的一条
+    // 「伊芙」既是那一行的角色 ID，也是角色表里的一条，
+    // 还是本地化表里那条角色名的 key（TXT_CHA_伊芙_DefaultName）
     expect(searchProject(project, '伊芙').map((group) => group.module)).toEqual([
       'story',
       'character',
+      'locale',
     ]);
   });
 
@@ -121,6 +124,8 @@ describe('全局搜索', () => {
     expect(groups[0].hits.map((hit) => [hit.submodule, hit.rowNumber, hit.rowLabel])).toEqual([
       ['剧情本地化', 1, 'TXT_Dia_ch01_001-1'],
       ['UI 本地化', 1, 'TXT_Widget_开始游戏'],
+      // 角色名 / 显示名的 key 也是 TXT_ 开头
+      ['角色名本地化', 1, 'TXT_CHA_伊芙_DefaultName'],
     ]);
   });
 

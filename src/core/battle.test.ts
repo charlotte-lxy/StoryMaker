@@ -118,6 +118,7 @@ function makeProject(): Project {
     chapters: [],
     variables: [],
     uiTexts: [],
+    nameTexts: [],
     battle,
     exportSettings: [],
   };

@@ -208,12 +208,16 @@ describe.skipIf(!hasSamples)('真实样例端到端验证', () => {
     }
   });
 
-  it('本地化表覆盖所有「对话」行与选项，key 不重复', () => {
+  it('本地化表覆盖所有「对话」行、选项与填了的显示名，key 不重复', () => {
     const keys = locale.slice(1).map((row) => row[0]);
     expect(new Set(keys).size).toBe(keys.length);
 
     const talkRows = dialogue.slice(1).filter((row) => row[1] === '对话').length;
-    expect(keys).toHaveLength(talkRows + options.slice(1).length);
+    // 填了「显示名」的对话行还会各多一条 TXT_<对话ID>_DisplayName
+    const displayNames = dialogue
+      .slice(1)
+      .filter((row) => row[1] === '对话' && row[3] !== '').length;
+    expect(keys).toHaveLength(talkRows + options.slice(1).length + displayNames);
   });
 
   it('对话表不含任何跳转列，跳转只由选项表承担', () => {

@@ -12,7 +12,7 @@ function makeLine(uid: string, readableId: string, over: Partial<Line> = {}): Li
     readableId,
     kind: '对话',
     characterUid: 'CHA_伊芙',
-    displayName: '伊芙',
+    displayName: '',
     text: { zh: '台词', en: '', ja: '' },
     autoAdvance: false,
     jumpGroupUid: null,
@@ -42,7 +42,7 @@ function makeProject(group: Partial<Group>): Project {
     version: 1,
     name: 'p',
     // 默认那一行对话引用的是这个角色（老数据里按角色 ID 写也算认得出来）
-    characters: [{ uid: 'ch1', id: 'CHA_伊芙', name: '伊芙', expressions: [], actions: [] }],
+    characters: [{ uid: 'ch1', id: 'CHA_伊芙', name: '伊芙', playPosition: '剧情对话框', expressions: [], actions: [] }],
     sounds: [],
     commands: [],
     items: [],
@@ -50,6 +50,8 @@ function makeProject(group: Partial<Group>): Project {
     images: [],
     variables: [],
     uiTexts: [],
+    // 角色名的译文先给全：本地化校验的用例各自管自己那几条，别每次多出一条角色名
+    nameTexts: [{ uid: 'ch1', en: 'Eve', ja: 'イヴ' }],
     battle: createEmptyBattle(),
     exportSettings: [],
     chapters: [
@@ -361,5 +363,29 @@ describe('本地化校验', () => {
     expect(report.issues[1].localeUid).toBe('ui-3');
     expect(report.issues[1].message).toBe('缺英文、日文');
     expect(report.issues[2].localeUid).toBe('ui-4');
+  });
+
+  it('角色名本地化：角色的默认名称与对话行的显示名都算译文，缺英日各报一条', () => {
+    const project = makeProject({
+      lines: [
+        makeLine('u1', 'Dia_ch01_001-1', {
+          displayName: 'Q版伊芙',
+          text: { zh: '台词', en: 'Line', ja: 'セリフ' },
+        }),
+      ],
+    });
+    // 角色名的译文先清掉，这一条才轮得到它报
+    project.nameTexts = [];
+
+    const report = validateLocalization(project);
+
+    expect(report.errors).toBe(0);
+    expect(report.issues.map((i) => [i.targetId, i.message])).toEqual([
+      ['TXT_CHA_伊芙_DefaultName', '缺英文、日文'],
+      ['TXT_Dia_ch01_001-1_DisplayName', '缺英文、日文'],
+    ]);
+    // 点一条要跳到角色表 / 对话行那一行（本地化模块会切到「角色名本地化」页）
+    expect(report.issues.map((i) => i.localeUid)).toEqual(['ch1', 'u1']);
+    expect(report.issues[0].where).toContain('角色名本地化');
   });
 });

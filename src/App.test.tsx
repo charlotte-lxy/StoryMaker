@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Line } from './core/types';
 import {
+  DEFAULT_PROJECT_PATH,
   clearFakeHost,
   renderApp,
   seedEmptyProject,
@@ -219,13 +220,46 @@ describe('界面冒烟测试', () => {
     expect(characterSelect().selectedOptions[0].textContent).toBe('角色1');
   });
 
+  it('角色表有「播放位置」一列，默认剧情对话框，可改成别的', async () => {
+    await renderApp();
+    fireEvent.click(within(rail()).getByText('角色'));
+    fireEvent.click(screen.getByText(/新增角色/));
+
+    const position = screen.getByTitle(/播放位置/) as HTMLSelectElement;
+    expect([...position.options].map((option) => option.value)).toEqual([
+      '剧情对话框',
+      '战斗对话框',
+      '屏幕中间',
+    ]);
+    expect(position.value).toBe('剧情对话框');
+
+    fireEvent.change(position, { target: { value: '屏幕中间' } });
+    expect(position.value).toBe('屏幕中间');
+  });
+
+  it('对话列表里选好角色后，角色旁边标出这个角色的播放位置', async () => {
+    await renderApp();
+    fireEvent.click(within(rail()).getByText('角色'));
+    fireEvent.click(screen.getByText(/新增角色/));
+    fireEvent.change(screen.getByTitle(/播放位置/), { target: { value: '战斗对话框' } });
+
+    fireEvent.click(within(rail()).getByText('剧情'));
+    const characterSelect = screen.getByTitle('角色：导出时写入「角色ID」列') as HTMLSelectElement;
+    // 还没选角色：没有标记
+    expect(document.querySelector('.play-position-chip')).toBeNull();
+
+    const uid = [...characterSelect.options].find((option) => option.value !== '')?.value;
+    fireEvent.change(characterSelect, { target: { value: uid } });
+    expect(document.querySelector('.play-position-chip')?.textContent).toBe('战斗对话框');
+  });
+
   it('能切换到本地化模块，并列出默认那行的文本 key', async () => {
     await renderApp();
     fireEvent.click(within(rail()).getByText('本地化'));
     expect(screen.getAllByText('TXT_Dia_ch01_001-1').length).toBeGreaterThan(0);
   });
 
-  describe('本地化模块：剧情 / UI 两页', () => {
+  describe('本地化模块：剧情 / UI / 角色名 三页', () => {
     /** 一条剧情台词 + 两条 UI 文案 */
     function seedLocaleProject(): void {
       const project = createEmptyProject();
@@ -247,12 +281,13 @@ describe('界面冒烟测试', () => {
       fireEvent.click(within(rail()).getByText('本地化'));
     }
 
-    it('侧边栏分两页，默认停在自动收集的剧情本地化', async () => {
+    it('侧边栏分三页，默认停在自动收集的剧情本地化', async () => {
       seedLocaleProject();
       await openLocale();
 
       expect(screen.getByText('剧情本地化')).toBeTruthy();
       expect(screen.getByText('UI 本地化')).toBeTruthy();
+      expect(screen.getByText('角色名本地化')).toBeTruthy();
       // 剧情这一页列出对话的文本 key，UI 的条目不在这一页
       expect(screen.getByText('TXT_Dia_ch01_001-1')).toBeTruthy();
       expect(screen.queryByDisplayValue('TXT_Widget_开始游戏')).toBeNull();
@@ -351,6 +386,66 @@ describe('界面冒烟测试', () => {
           '还没有 UI 文本。在上面那个表单里填好 key 与译文，点「添加」就会插到列表最前面。',
         ),
       ).toBeTruthy();
+    });
+  });
+
+  describe('本地化模块：角色名本地化', () => {
+    /** 一个角色 + 一行填了「显示名」的对话 */
+    function seedNameProject() {
+      const project = createEmptyProject();
+      project.characters = [
+        {
+          uid: 'ch1',
+          id: 'CHA_伊芙',
+          name: '伊芙',
+          playPosition: '战斗对话框',
+          expressions: ['微笑'],
+          actions: [],
+        },
+      ];
+      project.chapters[0].groups[0].lines[0].displayName = 'Q版伊芙';
+      return seedProjectFile(JSON.stringify(project));
+    }
+
+    it('收集角色表的默认名称与对话行填了的显示名，key 自动生成', async () => {
+      seedNameProject();
+      await renderApp();
+      fireEvent.click(within(rail()).getByText('本地化'));
+      fireEvent.click(screen.getByText('角色名本地化'));
+
+      expect(screen.getByText('TXT_CHA_伊芙_DefaultName')).toBeTruthy();
+      expect(screen.getByText('TXT_Dia_ch01_001-1_DisplayName')).toBeTruthy();
+      // 中文来自角色表与对话行，不是另存一份
+      expect(screen.getByDisplayValue('伊芙')).toBeTruthy();
+      expect(screen.getByDisplayValue('Q版伊芙')).toBeTruthy();
+    });
+
+    it('改中文写回角色表与对话行，改英文写进译文表', async () => {
+      const host = seedNameProject();
+      await renderApp();
+      fireEvent.click(within(rail()).getByText('本地化'));
+      fireEvent.click(screen.getByText('角色名本地化'));
+
+      const boxesOf = (index: number) => {
+        const row = document.querySelectorAll('.locale-main tbody tr.line-row')[index];
+        return [...row.querySelectorAll('textarea')] as HTMLTextAreaElement[];
+      };
+
+      // 第一行是角色名：改中文 → 写回角色表的「默认名称」，改英文 → 进译文表
+      fireEvent.change(boxesOf(0)[0], { target: { value: '伊芙（新）' } });
+      fireEvent.change(boxesOf(0)[1], { target: { value: 'Eve' } });
+      // 第二行是显示名：改中文 → 写回对话行的「显示名」
+      fireEvent.change(boxesOf(1)[0], { target: { value: 'Q版伊芙（新）' } });
+
+      await waitFor(() => expect(host.written.length).toBeGreaterThan(0), { timeout: 3000 });
+      const saved = JSON.parse(host.disk.get(DEFAULT_PROJECT_PATH) ?? '{}');
+      expect(saved.characters[0].name).toBe('伊芙（新）');
+      expect(saved.chapters[0].groups[0].lines[0].displayName).toBe('Q版伊芙（新）');
+      expect(saved.nameTexts).toEqual([{ uid: 'ch1', en: 'Eve', ja: '' }]);
+
+      // 切到角色表核对：默认名称是刚改的那个
+      fireEvent.click(within(rail()).getByText('角色'));
+      expect(screen.getByDisplayValue('伊芙（新）')).toBeTruthy();
     });
   });
 
@@ -1702,6 +1797,7 @@ describe('导出模块', () => {
       '对话',
       '选项',
       '本地化',
+      '角色',
       'GASGameplayTags',
       'GAS属性',
       'GAS效果',
@@ -1726,6 +1822,7 @@ describe('导出模块', () => {
       '对话',
       '选项',
       '本地化',
+      '角色',
       'GASGameplayTags',
       'GAS属性',
       'GAS效果',

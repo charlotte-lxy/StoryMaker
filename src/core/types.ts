@@ -117,6 +117,18 @@ export interface VariableDecl {
   label: string;
 }
 
+/**
+ * 角色对话的「播放位置」：这一句台词在哪儿显示。
+ *
+ * 存的就是中文选项名——导出时直接写进单元格，Unreal 那边认这三个串。
+ */
+export const PLAY_POSITIONS = ['剧情对话框', '战斗对话框', '屏幕中间'] as const;
+
+export type PlayPosition = (typeof PLAY_POSITIONS)[number];
+
+/** 新建角色时的默认播放位置 */
+export const DEFAULT_PLAY_POSITION: PlayPosition = '剧情对话框';
+
 /** 角色表中的一条角色 */
 export interface Character {
   uid: string;
@@ -124,6 +136,8 @@ export interface Character {
   id: string;
   /** 默认名称。只在编辑界面的下拉框里显示，不直接参与导出。 */
   name: string;
+  /** 播放位置：剧情对话框 / 战斗对话框 / 屏幕中间 */
+  playPosition: PlayPosition;
   /**
    * 该角色的表情差分清单，供指令「剧情.演出# 角色.表情=」的下拉使用。
    * 不同角色的差分可以不同，所以挂在角色上而不是做成全局清单。
@@ -131,6 +145,20 @@ export interface Character {
   expressions: string[];
   /** 该角色的动作清单，供指令「剧情.演出# 角色.动作=」的下拉使用 */
   actions: string[];
+}
+
+/**
+ * 角色名 / 显示名的译文。
+ *
+ * 中文那一份不在这里：角色名的中文是角色表的「默认名称」，显示名的中文是对话行的
+ * 「显示名」，本地化页里改中文就直接写回那两个地方（免得同一句话存两份、迟早对不上）。
+ * 这里只存另外两种语言。
+ */
+export interface NameTextRow {
+  /** 挂在谁身上：角色表那一行的 uid，或对话行的 uid */
+  uid: string;
+  en: string;
+  ja: string;
 }
 
 /**
@@ -379,6 +407,11 @@ export interface Project {
   variables: VariableDecl[];
   /** UI 本地化表：界面文案，导出时接在本地化表的对话 / 选项文本后面 */
   uiTexts: UiTextRow[];
+  /**
+   * 角色名与显示名的译文（本地化模块的「角色名本地化」页）。
+   * 中文在角色表与对话行上，这里只有英文 / 日文，靠 uid 挂回去。
+   */
+  nameTexts: NameTextRow[];
   /** 战斗模块（GAS）的数据，导出成 GAS 开头的几张子表 */
   battle: BattleData;
   /** Unreal 导入设置，导出成「导入设置」子表 */

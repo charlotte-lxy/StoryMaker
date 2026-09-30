@@ -17,16 +17,17 @@
 import { DEFAULT_EFFECT_CLASS_PREFIX, DEFAULT_SKILL_CLASS_PREFIX } from './battle';
 import { newUid, renumberGroup, type IdChange } from './ids';
 import { collectRefMaps, translateTarget } from './refs';
-import type {
-  BattleData,
-  Chapter,
-  GasModifier,
-  GasPair,
-  Group,
-  Line,
-  LineKind,
-  LocalizedText,
-  Project,
+import {
+  DEFAULT_PLAY_POSITION,
+  type BattleData,
+  type Chapter,
+  type GasModifier,
+  type GasPair,
+  type Group,
+  type Line,
+  type LineKind,
+  type LocalizedText,
+  type Project,
 } from './types';
 
 export interface NormalizeResult {
@@ -124,6 +125,17 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
       text: asLocalized(row.text),
     }));
 
+  // 角色名 / 显示名的译文同样是后加的
+  const rawNameTexts: unknown = project.nameTexts;
+  project.nameTexts = (Array.isArray(rawNameTexts) ? rawNameTexts : [])
+    .filter(isRecord)
+    .map((row) => ({
+      uid: asString(row.uid),
+      en: asString(row.en),
+      ja: asString(row.ja),
+    }))
+    .filter((row) => row.uid !== '');
+
   // 战斗模块也是后加的：缺哪张表补哪张，路径前缀缺了就用默认值
   project.battle = normalizeBattle(project.battle);
 
@@ -141,6 +153,10 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
   for (const character of project.characters) {
     if (!Array.isArray(character.expressions)) character.expressions = [];
     if (!Array.isArray(character.actions)) character.actions = [];
+    // 播放位置是后加的字段：老项目里没有，给默认值（空串也给默认）
+    if (asString(character.playPosition) === '') {
+      character.playPosition = DEFAULT_PLAY_POSITION;
+    }
   }
 
   const changes: IdChange[] = [];

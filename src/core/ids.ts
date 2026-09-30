@@ -51,6 +51,24 @@ export function textIdOf(readableId: string): string {
 }
 
 /**
+ * 角色「默认名称」的本地化 key：TXT_ + 角色ID + _DefaultName。
+ *
+ * 角色名不进对话表的文本列，但同样要翻译，所以单独给它一条本地化条目。
+ */
+export function characterNameKeyOf(characterId: string): string {
+  return `${textIdOf(characterId)}_DefaultName`;
+}
+
+/**
+ * 对话行「显示名」的本地化 key：TXT_ + 对话ID + _DisplayName。
+ *
+ * 对话表里填了显示名的那一格，导出时写的就是这个 key。
+ */
+export function displayNameKeyOf(readableId: string): string {
+  return `${textIdOf(readableId)}_DisplayName`;
+}
+
+/**
  * 取可读 ID 里"段内序号"那一截，如 Dia_ch01_001-22 → 22。
  *
  * 界面上到处用完整 ID 太占地方，策划自己记的也是这个序号；

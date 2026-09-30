@@ -9,7 +9,7 @@
  * 跟眼睛看到的对得上。要跳的行由界面按 uid 找，这里只负责给出目标。
  */
 
-import { collectLocaleEntries } from '../core/localization';
+import { collectLocaleEntries, collectNameEntries } from '../core/localization';
 import {
   attributeNameOf,
   characterIdOf,
@@ -463,6 +463,17 @@ function localeDrafts(project: Project): Draft[] {
       rowLabel: row.key,
       fields: [row.key, row.text.zh, row.text.en, row.text.ja],
       target: { kind: 'locale', uid: row.uid },
+    });
+  });
+
+  // 角色名 / 显示名（key 是生成的，中文来自角色表与对话行）
+  collectNameEntries(project).forEach((entry, index) => {
+    drafts.push({
+      submodule: '角色名本地化',
+      rowNumber: index + 1,
+      rowLabel: entry.key,
+      fields: [entry.key, entry.zh, entry.en, entry.ja],
+      target: { kind: 'locale', uid: entry.uid },
     });
   });
 

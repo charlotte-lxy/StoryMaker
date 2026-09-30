@@ -11,7 +11,7 @@ function makeProject(): Project {
   return {
     version: 1,
     name: '测试项目',
-    characters: [{ uid: 'c1', id: 'CHA_甲', name: '甲', expressions: [], actions: [] }],
+    characters: [{ uid: 'c1', id: 'CHA_甲', name: '甲', playPosition: '剧情对话框', expressions: [], actions: [] }],
     items: [],
     quests: [],
     images: [],
@@ -20,6 +20,7 @@ function makeProject(): Project {
     chapters: [{ uid: 'ch1', id: 'ch01', title: '第一章', groups: [] }],
     variables: [],
     uiTexts: [],
+    nameTexts: [],
     battle: {
       skillClassPrefix: '',
       effectClassPrefix: '',

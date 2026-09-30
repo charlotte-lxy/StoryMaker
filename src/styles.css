@@ -2180,6 +2180,17 @@ tr.drop-target {
   vertical-align: middle;
 }
 
+/* 对话行里角色旁边那个「播放位置」小标：只读，点不动 */
+.play-position-chip {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text-dim);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 tr.group-heading td {
   background: var(--head-bg);
   font-size: 11px;

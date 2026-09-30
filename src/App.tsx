@@ -65,6 +65,7 @@ import {
   setGroupNote,
   updateCommandDef,
   updateLookupRow,
+  updateNameText,
   updateTextByUid,
   updateUiText,
   type InsertKind,
@@ -1171,6 +1172,9 @@ export default function App() {
                   project={project}
                   focusUid={focusLocaleUid}
                   onUpdateText={handleUpdateText}
+                  onUpdateNameText={(uid, lang, value) =>
+                    setProject((prev) => updateNameText(prev, uid, lang, value))
+                  }
                   onAddUiText={(key, text) => setProject((prev) => addUiText(prev, key, text))}
                   onRemoveUiText={(uid) => setProject((prev) => removeUiText(prev, uid))}
                   onUpdateUiText={handleUpdateUiText}

@@ -8,21 +8,22 @@ import { createEmptyBattle } from '../core/battle';
 import { EXPORT_SUBTABLES } from '../core/export-settings';
 import { makeLineId, makeOptionId, newUid, renumberGroup, groupUidOfFirstLine, type IdChange } from '../core/ids';
 import { collectRefUids } from '../core/refs';
-import type {
-  Chapter,
-  CommandDef,
-  ExportSettingRow,
-  Group,
-  LangKey,
-  Line,
-  LineKind,
-  LocalizedText,
-  LookupRow,
-  Project,
-  StoryOption,
-  TargetKind,
-  UiTextRow,
-  ValueKind,
+import {
+  DEFAULT_PLAY_POSITION,
+  type Chapter,
+  type CommandDef,
+  type ExportSettingRow,
+  type Group,
+  type LangKey,
+  type Line,
+  type LineKind,
+  type LocalizedText,
+  type LookupRow,
+  type Project,
+  type StoryOption,
+  type TargetKind,
+  type UiTextRow,
+  type ValueKind,
 } from '../core/types';
 
 /**
@@ -140,6 +141,7 @@ export function createEmptyProject(name = '未命名项目'): Project {
     commands: defaultCommandDefs(),
     variables: [],
     uiTexts: [],
+    nameTexts: [],
     battle: createEmptyBattle(),
     exportSettings: [],
     chapters: [
@@ -535,6 +537,7 @@ export function addCharacter(project: Project): Project {
       uid: newUid(),
       id: `CHA_角色${n}`,
       name: `角色${n}`,
+      playPosition: DEFAULT_PLAY_POSITION,
       // 建角色时给一份常用默认表情，可自行增删
       expressions: ['默认', '开心', '生气', '悲伤', '害羞'],
       actions: ['默认'],
@@ -838,6 +841,49 @@ export function updateUiText(project: Project, uid: string, patch: Partial<UiTex
   return mutate(project, (draft) => {
     const row = draft.uiTexts.find((item) => item.uid === uid);
     if (row !== undefined) Object.assign(row, patch);
+  });
+}
+
+/* ---------- 角色名 / 显示名的译文 ---------- */
+
+/**
+ * 改「角色名本地化」里的一条。
+ *
+ * 中文那一份不在本地化表里：角色名的中文是角色表的「默认名称」，显示名的中文是
+ * 对话行的「显示名」，所以在这一页改中文就直接写回那两个地方（免得存两份）；改英日
+ * 才写进 project.nameTexts，按 uid 挂回去。
+ */
+export function updateNameText(
+  project: Project,
+  uid: string,
+  lang: 'zh' | 'en' | 'ja',
+  value: string,
+): Project {
+  return mutate(project, (draft) => {
+    if (lang === 'zh') {
+      const character = draft.characters.find((row) => row.uid === uid);
+      if (character !== undefined) {
+        character.name = value;
+        return;
+      }
+      for (const chapter of draft.chapters) {
+        for (const group of chapter.groups) {
+          const line = group.lines.find((row) => row.uid === uid);
+          if (line !== undefined) {
+            line.displayName = value;
+            return;
+          }
+        }
+      }
+      return;
+    }
+
+    const row = draft.nameTexts.find((item) => item.uid === uid);
+    if (row === undefined) {
+      draft.nameTexts.push({ uid, en: lang === 'en' ? value : '', ja: lang === 'ja' ? value : '' });
+      return;
+    }
+    Object.assign(row, { [lang]: value });
   });
 }
 

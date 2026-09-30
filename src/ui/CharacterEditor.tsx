@@ -1,6 +1,11 @@
 import { useState } from 'react';
 
-import type { Character, Project } from '../core/types';
+import {
+  PLAY_POSITIONS,
+  type Character,
+  type PlayPosition,
+  type Project,
+} from '../core/types';
 import { useScrollMemory } from './view-memory';
 
 interface Props {
@@ -62,8 +67,9 @@ export function CharacterEditor({ project, onAdd, onRemove, onUpdate, focusUid =
         <table className="lines">
           <thead>
             <tr>
-              <th style={{ width: '22%' }}>角色 ID</th>
-              <th style={{ width: '18%' }}>默认名称</th>
+              <th style={{ width: '20%' }}>角色 ID</th>
+              <th style={{ width: '16%' }}>默认名称</th>
+              <th style={{ width: 132 }}>播放位置</th>
               <th>表情差分</th>
               <th className="col-mid">在剧情中的使用</th>
               <th style={{ width: 74 }}>操作</th>
@@ -87,6 +93,9 @@ export function CharacterEditor({ project, onAdd, onRemove, onUpdate, focusUid =
                       onChange={(event) => onUpdate(character.uid, { id: event.target.value })}
                     />
                     {duplicated && <div className="field-error">角色 ID 重复</div>}
+                    {character.id.trim() === '' && (
+                      <div className="field-error">没填角色 ID，导出的角色表与本地化 key 都要用它</div>
+                    )}
                   </td>
                   <td>
                     <input
@@ -94,6 +103,27 @@ export function CharacterEditor({ project, onAdd, onRemove, onUpdate, focusUid =
                       placeholder="显示名称"
                       onChange={(event) => onUpdate(character.uid, { name: event.target.value })}
                     />
+                  </td>
+                  <td>
+                    <select
+                      value={character.playPosition}
+                      title="播放位置：这一角色的台词在哪儿显示——剧情对话框 / 战斗对话框 / 屏幕中间。导出时按原样写进「角色」子表"
+                      onChange={(event) =>
+                        onUpdate(character.uid, {
+                          playPosition: event.target.value as PlayPosition,
+                        })
+                      }
+                    >
+                      {PLAY_POSITIONS.map((position) => (
+                        <option key={position} value={position}>
+                          {position}
+                        </option>
+                      ))}
+                      {/* 手改过的 JSON 可能写成别的值，照原样列出来好让人改回去 */}
+                      {!PLAY_POSITIONS.includes(character.playPosition) && (
+                        <option value={character.playPosition}>{character.playPosition}（不在候选里）</option>
+                      )}
+                    </select>
                   </td>
                   <td>
                     <div className="expression-list">

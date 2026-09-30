@@ -81,6 +81,7 @@ for (const row of readSheet('人物')) {
     uid: uid(),
     id,
     name,
+    playPosition: '剧情对话框',
     expressions: ['默认', '开心', '生气', '悲伤', '害羞'],
     actions: ['默认'],
   });
@@ -236,6 +237,8 @@ const normalized = normalizeProject({
   commands,
   chapters: [{ uid: uid(), id: 'ch01', title: '序章', groups }],
   variables: [],
+  uiTexts: [],
+  nameTexts: [],
 });
 if (normalized === null) throw new Error('导入数据构建失败');
 

@@ -36,13 +36,22 @@ import {
 } from './battle-export';
 import { PLAY_DIALOGUE_HEAD } from './command-build';
 import { IMPORT_SETTINGS_SHEET, buildImportSettingRows } from './export-settings';
-import { firstLineIdOf, groupUidOfFirstLine, textIdOf } from './ids';
+import {
+  characterNameKeyOf,
+  displayNameKeyOf,
+  firstLineIdOf,
+  groupUidOfFirstLine,
+  textIdOf,
+} from './ids';
+import { collectNameEntries } from './localization';
 import { characterIdOf, collectRefMaps, translateTarget, type UidToId } from './refs';
 import type { Group, Line, Project, StoryOption } from './types';
 
 export const DIALOGUE_SHEET = '对话';
 export const OPTION_SHEET = '选项';
 export const LOCALE_SHEET = '本地化';
+/** 剧情角色表；战斗那边的「GAS角色」是另一张（见 battle-export.ts） */
+export const STORY_CHARACTER_SHEET = '角色';
 
 export const DIALOGUE_HEADER: readonly string[] = [
   '',
@@ -68,10 +77,19 @@ export const OPTION_HEADER: readonly string[] = [
 
 export const LOCALE_HEADER: readonly string[] = ['', '中文', '英文', '日文'];
 
+/**
+ * 角色表（剧情那一张）。
+ *
+ * 第一列是行名（角色 ID，「默认名称」在本地化表里，所以这一格写的是文本 key）；
+ * 播放位置直接写中文选项名，Unreal 那边认这三个串。
+ */
+export const STORY_CHARACTER_HEADER: readonly string[] = ['', '播放位置', '默认名称', '表情差分列表'];
+
 export interface ExportRowSets {
   dialogue: string[][];
   options: string[][];
   locale: string[][];
+  characters: string[][];
 }
 
 /** uid → 可读 ID。导出时把内部引用翻译成 Unreal 需要的 ID。 */
@@ -90,7 +108,7 @@ function buildGroupMap(project: Project): Map<string, Group> {
 
 type RefFn = (uid: string) => string;
 
-/** 生成三张表的行数据，供导出与测试共用 */
+/** 生成各张表的行数据，供导出与测试共用 */
 export function buildRows(project: Project): ExportRowSets {
   const idOf = buildIdMap(project);
   const groupOf = buildGroupMap(project);
@@ -99,6 +117,7 @@ export function buildRows(project: Project): ExportRowSets {
   const dialogue: string[][] = [[...DIALOGUE_HEADER]];
   const options: string[][] = [[...OPTION_HEADER]];
   const locale: string[][] = [[...LOCALE_HEADER]];
+  const characters: string[][] = [[...STORY_CHARACTER_HEADER]];
 
   for (const chapter of project.chapters) {
     for (const group of chapter.groups) {
@@ -116,12 +135,30 @@ export function buildRows(project: Project): ExportRowSets {
     }
   }
 
+  for (const character of project.characters) {
+    // 角色 ID 是这张表的行名，也是本地化 key 的一段；没填的行导出也没法命名，跳过
+    const id = character.id.trim();
+    if (id === '') continue;
+    characters.push([
+      id,
+      character.playPosition,
+      // 默认名称跟对话文本一样进本地化表，这一格写 key
+      characterNameKeyOf(id),
+      formatArrayLiteral(character.expressions),
+    ]);
+  }
+
   // UI 本地化接在对话 / 选项的文本后面，排在同一张本地化表里
   for (const row of project.uiTexts) {
     locale.push([row.key, row.text.zh, row.text.en, row.text.ja]);
   }
 
-  return { dialogue, options, locale };
+  // 角色名与显示名也进本地化表（中文来自角色表 / 对话行，英文日文来自 nameTexts）
+  for (const entry of collectNameEntries(project)) {
+    locale.push([entry.key, entry.zh, entry.en, entry.ja]);
+  }
+
+  return { dialogue, options, locale, characters };
 }
 
 function pushLine(
@@ -143,7 +180,8 @@ function pushLine(
     line.kind,
     // 角色那一格存的是角色 uid，这里翻回角色 ID；找不到对应行就原样写出
     isDialogue ? characterIdOf(project, line.characterUid) : '',
-    isDialogue ? line.displayName : '',
+    // 填了「显示名」的行，这一格写文本 key，中文走本地化表（跟「文本ID」列一个套路）
+    isDialogue && line.displayName.trim() !== '' ? displayNameKeyOf(line.readableId) : '',
     isDialogue && line.autoAdvance ? 'True' : '',
     isDialogue ? textIdOf(line.readableId) : '',
     formatArrayLiteral(line.kind === '选项' ? line.optionIds.map(ref).filter((id) => id !== '') : []),
@@ -293,10 +331,11 @@ export function buildAllSheets(project: Project): ExportedSheet[] {
   const battle = buildBattleRows(project);
 
   return [
-    // 剧情三张表
+    // 剧情四张表
     { name: DIALOGUE_SHEET, rows: story.dialogue },
     { name: OPTION_SHEET, rows: story.options },
     { name: LOCALE_SHEET, rows: story.locale },
+    { name: STORY_CHARACTER_SHEET, rows: story.characters },
     // 战斗模块（GAS）七张表
     { name: GAMEPLAY_TAGS_SHEET, rows: battle.gameplayTags },
     { name: ATTRIBUTE_SHEET, rows: battle.attributes },

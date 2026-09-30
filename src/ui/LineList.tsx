@@ -196,6 +196,9 @@ export function LineList(props: Props) {
     <div className="line-list" ref={listRef} onDragOver={handleDragOver} onDrop={handleDrop}>
       {group.lines.map((line, index) => {
         const hasNote = line.note.trim() !== '';
+        /** 这一行选的角色的播放位置；没选角色、或引用已经失效时为空 */
+        const playPosition =
+          props.characters.find((item) => item.uid === line.characterUid)?.playPosition ?? '';
         const sequence = lineSequenceOf(line.readableId) === '' ? String(index + 1) : lineSequenceOf(line.readableId);
         const selected = props.selectedLineUids.includes(line.uid);
         /** 段内序号：完整 ID 太长，这里只标 "-" 后面那截，完整 ID 放到悬浮提示里 */
@@ -313,11 +316,20 @@ export function LineList(props: Props) {
                         <input
                           value={line.displayName}
                           placeholder="显示名"
-                          title="显示名：导出时写入「角色显示名称」列，留空则用角色 ID"
+                          title="显示名：导出时写入「角色显示名称」列（换成 TXT_ 开头的文本 key），留空则用角色 ID"
                           onChange={(event) =>
                             props.onUpdateLine(line.uid, { displayName: event.target.value })
                           }
                         />
+                        {/* 旁边标一下这个角色的播放位置：在角色表里改，这里跟着变 */}
+                        {playPosition !== '' && (
+                          <span
+                            className="play-position-chip"
+                            title="这个角色的「播放位置」；在「角色」模块里改"
+                          >
+                            {playPosition}
+                          </span>
+                        )}
                       </Field>
   
                       <Field label="台词（中文）" className="line-field-text">

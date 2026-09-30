@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 
-import { collectLocaleEntries } from '../core/localization';
+import { collectLocaleEntries, collectNameEntries } from '../core/localization';
 import type { LangKey, LocalizedText, Project, UiTextRow } from '../core/types';
 import { AutoGrowTextarea } from './AutoGrowTextarea';
 import { useRememberedChoice, useScrollMemory } from './view-memory';
@@ -14,6 +14,11 @@ interface Props {
   onRemoveUiText: (uid: string) => void;
   onUpdateUiText: (uid: string, patch: Partial<UiTextRow>) => void;
   /**
+   * 改「角色名本地化」里的一条。中文会写回角色表的「默认名称」或对话行的「显示名」，
+   * 英文日文写进译文表。
+   */
+  onUpdateNameText: (uid: string, lang: LangKey, value: string) => void;
+  /**
    * 底下校验条里点过来的那一行：切到它所在的页、滚到它并闪一下。
    * 短暂高亮后由上层清成 null。
    */
@@ -26,8 +31,8 @@ const LANGS: { lang: LangKey; label: string }[] = [
   { lang: 'ja', label: '日文' },
 ];
 
-/** 本地化模块的两个页面 */
-type LocalePage = 'story' | 'ui';
+/** 本地化模块的三个页面 */
+type LocalePage = 'story' | 'ui' | 'name';
 
 /** UI 本地化最上面那一行新增表单的草稿 */
 interface UiDraft extends LocalizedText {
@@ -49,9 +54,10 @@ function missingTranslation(text: LocalizedText): boolean {
 /**
  * 本地化模块。
  *
- * 分两页，左侧窄栏切换，窄栏下方是搜索框，搜的是当前这一页：
- *   剧情本地化 - 从剧本里自动收集的对话与选项文本，不能增删条目，只能改译文
- *   UI 本地化   - 程序给的界面文案（TXT_Widget_* 这类），条目自己增删改
+ * 分三页，左侧窄栏切换，窄栏下方是搜索框，搜的是当前这一页：
+ *   剧情本地化   - 从剧本里自动收集的对话与选项文本，不能增删条目，只能改译文
+ *   UI 本地化    - 程序给的界面文案（TXT_Widget_* 这类），条目自己增删改
+ *   角色名本地化 - 角色表的「默认名称」与对话行填了「显示名」的那一格，key 自动生成
  *
  * 剧情这一页不需要任何"重排后同步"的逻辑：文本挂在 uid 上，
  * 拖拽排序只改变可读 ID，因此 TXT_xxx 这个 key 会自动跟着新编号走，
@@ -63,6 +69,7 @@ export function LocalizationEditor({
   onAddUiText,
   onRemoveUiText,
   onUpdateUiText,
+  onUpdateNameText,
   focusUid = null,
 }: Props) {
   const [page, setPage] = useRememberedChoice<LocalePage>('locale:page', 'story');
@@ -72,6 +79,8 @@ export function LocalizationEditor({
   const editorRef = useScrollMemory('locale');
 
   const entries = useMemo(() => collectLocaleEntries(project), [project]);
+  /** 角色名 / 显示名：中文来自角色表与对话行 */
+  const nameEntries = useMemo(() => collectNameEntries(project), [project]);
 
   const uiTexts = project.uiTexts;
 
@@ -90,6 +99,13 @@ export function LocalizationEditor({
         : uiTexts.filter((row) => hit([row.key, row.text.zh, row.text.en, row.text.ja], trimmed)),
     [uiTexts, trimmed],
   );
+  const shownNameEntries = useMemo(
+    () =>
+      trimmed === ''
+        ? nameEntries
+        : nameEntries.filter((entry) => hit([entry.key, entry.zh, entry.en, entry.ja], trimmed)),
+    [nameEntries, trimmed],
+  );
 
   const stats = useMemo(() => {
     let withText = 0;
@@ -106,6 +122,15 @@ export function LocalizationEditor({
     [uiTexts],
   );
 
+  /** 角色名 / 显示名的中文在角色表与对话行上，这里只看英文日文缺没缺 */
+  const nameUntranslated = useMemo(
+    () =>
+      nameEntries.filter((entry) =>
+        missingTranslation({ zh: entry.zh, en: entry.en, ja: entry.ja }),
+      ).length,
+    [nameEntries],
+  );
+
   /** UI 本地化的 key 重复提示：同一个 key 在 Unreal 里会互相覆盖 */
   const keyCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -113,8 +138,14 @@ export function LocalizationEditor({
     return counts;
   }, [uiTexts]);
 
-  const shown = page === 'story' ? shownEntries.length : shownUiTexts.length;
-  const total = page === 'story' ? entries.length : uiTexts.length;
+  const shown =
+    page === 'story'
+      ? shownEntries.length
+      : page === 'ui'
+        ? shownUiTexts.length
+        : shownNameEntries.length;
+  const total =
+    page === 'story' ? entries.length : page === 'ui' ? uiTexts.length : nameEntries.length;
 
   /** 表单里的 key 有没有和已有条目重名（去掉首尾空格后比） */
   const draftKey = draft.key.trim();
@@ -140,8 +171,10 @@ export function LocalizationEditor({
   useEffect(() => {
     if (focusUid === null) return;
     setQuery('');
-    setPage(entries.some((entry) => entry.uid === focusUid) ? 'story' : 'ui');
-    // entries 只在选页时用一下，值变了不必重跑（否则会清掉用户刚输入的搜索词）
+    if (entries.some((entry) => entry.uid === focusUid)) setPage('story');
+    else if (nameEntries.some((entry) => entry.uid === focusUid)) setPage('name');
+    else setPage('ui');
+    // 这几份清单只在选页时用一下，值变了不必重跑（否则会清掉用户刚输入的搜索词）
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusUid]);
 
@@ -153,7 +186,7 @@ export function LocalizationEditor({
       node.scrollIntoView({ block: 'center' });
       return;
     }
-  }, [focusUid, page, shownEntries, shownUiTexts]);
+  }, [focusUid, page, shownEntries, shownUiTexts, shownNameEntries]);
 
   return (
     <div className="editor" ref={editorRef}>
@@ -169,11 +202,21 @@ export function LocalizationEditor({
                 '英文日文均已填写'
               )}
             </>
-          ) : (
+          ) : page === 'ui' ? (
             <>
               共 {uiTexts.length} 条 UI 文本：
               {uiUntranslated > 0 ? (
                 <strong className="warn-text">{uiUntranslated} 条缺英文或日文</strong>
+              ) : (
+                '英文日文均已填写'
+              )}
+            </>
+          ) : (
+            <>
+              共 {nameEntries.length} 条角色名 / 显示名：中文取自角色表的「默认名称」与对话行的
+              「显示名」（在这一页改中文会写回那里），
+              {nameUntranslated > 0 ? (
+                <strong className="warn-text">{nameUntranslated} 条缺英文或日文</strong>
               ) : (
                 '英文日文均已填写'
               )}
@@ -199,6 +242,15 @@ export function LocalizationEditor({
           >
             UI 本地化
             <span className="count">{uiTexts.length}</span>
+          </button>
+          <button
+            type="button"
+            className={page === 'name' ? 'locale-nav active' : 'locale-nav'}
+            onClick={() => setPage('name')}
+            title="角色表的「默认名称」与对话行填了「显示名」的那一格，key 自动生成"
+          >
+            角色名本地化
+            <span className="count">{nameEntries.length}</span>
           </button>
 
           <input
@@ -270,7 +322,7 @@ export function LocalizationEditor({
                 </tbody>
               </table>
             )
-          ) : (
+          ) : page === 'ui' ? (
             <>
               {/* 新增表单放在整个列表上方：填好 key 与译文，点「添加」插到列表最前面 */}
               <div className="locale-add-form">
@@ -372,6 +424,66 @@ export function LocalizationEditor({
                 </tbody>
               </table>
             </>
+          ) : nameEntries.length === 0 ? (
+            <div className="empty-state">
+              还没有角色名或显示名。先去「角色」模块建角色，或在「剧情」里给某一行填上「显示名」。
+            </div>
+          ) : shownNameEntries.length === 0 ? (
+            <div className="empty-state">没有匹配「{query.trim()}」的角色名或显示名。</div>
+          ) : (
+            <table className="lines">
+              <thead>
+                <tr>
+                  <th className="col-key">文本 key</th>
+                  {LANGS.map((item) => (
+                    <th key={item.lang}>{item.label}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {shownNameEntries.map((entry, index) => {
+                  const text: LocalizedText = { zh: entry.zh, en: entry.en, ja: entry.ja };
+                  const showHeading =
+                    index === 0 || shownNameEntries[index - 1].groupLabel !== entry.groupLabel;
+                  return (
+                    <Fragment key={entry.uid}>
+                      {showHeading && (
+                        <tr className="group-heading">
+                          <td colSpan={4}>{entry.groupLabel}</td>
+                        </tr>
+                      )}
+                      <tr
+                        className={`line-row${missingTranslation(text) ? ' needs-work' : ''}${
+                          focusUid === entry.uid ? ' flash' : ''
+                        }`}
+                        data-text-uid={entry.uid}
+                      >
+                        <td className="cell-id loc-key">
+                          {entry.key}
+                          <span className="kind-chip">{entry.kindLabel}</span>
+                        </td>
+                        {LANGS.map((item) => (
+                          <td key={item.lang}>
+                            <AutoGrowTextarea
+                              value={text[item.lang]}
+                              placeholder={item.lang === 'zh' ? '中文原文' : '待翻译'}
+                              title={
+                                item.lang === 'zh'
+                                  ? '中文改的是角色表的「默认名称」/ 对话行的「显示名」'
+                                  : undefined
+                              }
+                              onChange={(event) =>
+                                onUpdateNameText(entry.uid, item.lang, event.target.value)
+                              }
+                            />
+                          </td>
+                        ))}
+                      </tr>
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
           )}
         </div>
       </div>

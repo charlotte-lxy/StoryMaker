@@ -94,6 +94,7 @@ export const COLLECTIONS: readonly string[] = [
   'chapters/*/groups/*/lines',
   'chapters/*/groups/*/options',
   'uiTexts',
+  'nameTexts',
   'exportSettings',
   'battle/attributes',
   'battle/effects',

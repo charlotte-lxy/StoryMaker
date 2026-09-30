@@ -8,6 +8,7 @@
  */
 
 import { groupUidOfFirstLine, textIdOf } from './ids';
+import { collectNameEntries } from './localization';
 import { collectRefUids, leadingUid, looksLikeUid } from './refs';
 import type { Group, LocalizedText, Project } from './types';
 
@@ -511,6 +512,15 @@ export function validateLocalization(project: Project): ValidationReport {
     }
 
     reportMissing(row.uid, key === '' ? '(空)' : key, 'UI 本地化', row.text);
+  }
+
+  // 角色名 / 显示名的译文（中文来自角色表与对话行，英文日文挂在 nameTexts 上）
+  for (const entry of collectNameEntries(project)) {
+    reportMissing(entry.uid, entry.key, `角色名本地化 · ${entry.groupLabel}`, {
+      zh: entry.zh,
+      en: entry.en,
+      ja: entry.ja,
+    });
   }
 
   return {
