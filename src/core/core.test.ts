@@ -251,7 +251,7 @@ describe('导出：跳到首句与跳到段落', () => {
     const rows = buildRows(makeJumpProject());
     const row = rows.dialogue.slice(1).find((item) => item[0] === 'Dia_ch01_001-3');
     expect(row?.[1]).toBe('指令'); // 文本类型还是「指令」
-    expect(row?.[7]).toBe('("剧情.播放对话# Dia_ch01_002-1")');
+    expect(row?.[7]).toBe('剧情.播放对话# Dia_ch01_002-1');
   });
 
   it('「跳转到段落」的可用条件写进新增的「可用条件列表」列，其它行留空', () => {
@@ -267,7 +267,7 @@ describe('导出：跳到首句与跳到段落', () => {
     const jumpRow = rows.dialogue.slice(1).find((item) => item[0] === 'Dia_ch01_001-3');
     expect(jumpRow?.[8]).toBe('("背包#Item_Coin>=10","任务# Task_Test_01=1")');
     // 指令内容照旧只有那条跳转指令，条件不混进去
-    expect(jumpRow?.[7]).toBe('("剧情.播放对话# Dia_ch01_002-1")');
+    expect(jumpRow?.[7]).toBe('剧情.播放对话# Dia_ch01_002-1');
 
     // 其它行（对话 / 选项）这一列是空的
     for (const id of ['Dia_ch01_001-1', 'Dia_ch01_001-2', 'Dia_ch01_002-1']) {
@@ -369,7 +369,7 @@ describe('导出：指令里指向对话行的目标翻译成对话 ID', () => {
 
   it('「剧情.播放对话# <uid>」导出成对话 ID（uid 里的 - 不会被当成运算符）', () => {
     expect(commandCell(buildRows(makeProject()), 'Dia_ch01_001-1')).toBe(
-      '("剧情.播放对话# Dia_ch01_002-1")',
+      '剧情.播放对话# Dia_ch01_002-1',
     );
   });
 
@@ -382,14 +382,14 @@ describe('导出：指令里指向对话行的目标翻译成对话 ID', () => {
   });
 
   it('没有 uid 的手写指令原样输出，一个字符都不改', () => {
-    expect(commandCell(buildRows(makeProject()), 'Dia_ch01_001-2')).toBe('("背包# Item_Coin >= 10")');
+    expect(commandCell(buildRows(makeProject()), 'Dia_ch01_001-2')).toBe('背包# Item_Coin >= 10');
   });
 
   it('引用已经被删掉时（uid 对不上了）保持原样，不把文本改坏', () => {
     const project = makeProject();
     project.chapters[0].groups[0].lines[0].command = '剧情.播放对话# 某个不存在的-uid-0000';
     expect(commandCell(buildRows(project), 'Dia_ch01_001-1')).toBe(
-      '("剧情.播放对话# 某个不存在的-uid-0000")',
+      '剧情.播放对话# 某个不存在的-uid-0000',
     );
   });
 });
@@ -436,10 +436,10 @@ describe('导出：特殊演出效果', () => {
     };
   }
 
-  it('文本类型还是「指令」，指令列表写「特殊# 指令名称」', () => {
+  it('文本类型还是「指令」，指令列写「特殊# 指令名称」', () => {
     const row = buildRows(makeProject()).dialogue[1];
     expect(row[1]).toBe('指令');
-    expect(row[7]).toBe('("特殊# SP_CameraShake")');
+    expect(row[7]).toBe('特殊# SP_CameraShake');
   });
 
   it('「指令内容」不进导出：本地化表里没有它', () => {
@@ -565,26 +565,26 @@ describe('导出三张表', () => {
     expect(row[3]).toBe('TXT_CHA_Q版伊芙_OtherName-1');
     expect(row[5]).toBe('TXT_Dia_ch01_001-1'); // 文本ID
     expect(row[6]).toBe(''); // 选项列表
-    expect(row[7]).toBe(''); // 指令列表
+    expect(row[7]).toBe(''); // 指令
 
     // 选「（默认名称）」时写默认名称的 key
     withAlias.chapters[0].groups[0].lines[0].displayAliasUid = '';
     expect(pick(withAlias)[3]).toBe('TXT_CHA_Q版伊芙_DefaultName');
   });
 
-  it('「选项」行填选项列表，指令列表汇总名下选项的结果', () => {
+  it('「选项」行填选项列表，指令列汇总名下选项的结果（多条换行隔开）', () => {
     const row = byId('Dia_ch01_001-2');
     expect(row[2]).toBe('');
     expect(row[5]).toBe(''); // 选项行本身没有文本
     expect(row[6]).toBe('("Dia_ch01_001-2A","Dia_ch01_001-2B")');
-    expect(row[7]).toBe('("背包#Item_Coin-10","任务.接取# Task_Test_01")');
+    expect(row[7]).toBe('背包#Item_Coin-10\n任务.接取# Task_Test_01');
   });
 
-  it('「指令」行只填指令列表', () => {
+  it('「指令」行只填指令列', () => {
     const row = byId('Dia_ch01_001-3');
     expect(row[5]).toBe('');
     expect(row[6]).toBe('');
-    expect(row[7]).toBe('("剧情.特殊# SP_ch01_001")');
+    expect(row[7]).toBe('剧情.特殊# SP_ch01_001');
   });
 
   it('「对话」行写不填强制自动播放时留空', () => {
@@ -714,7 +714,7 @@ describe('导出三张表', () => {
     expect(dialogue?.getRow(2).getCell(2).value).toBe('对话');
     expect(dialogue?.getRow(2).getCell(6).value).toBe('TXT_Dia_ch01_001-1');
     expect(dialogue?.getRow(3).getCell(2).value).toBe('选项');
-    expect(dialogue?.getRow(4).getCell(8).value).toBe('("剧情.特殊# SP_ch01_001")');
+    expect(dialogue?.getRow(4).getCell(8).value).toBe('剧情.特殊# SP_ch01_001');
 
     const options = workbook.getWorksheet('选项');
     expect(options?.getRow(2).getCell(3).value).toBe('("背包#Item_Coin>0")');

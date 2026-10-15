@@ -166,10 +166,12 @@ describe.skipIf(!hasSamples)('真实样例端到端验证', () => {
     const expected = legacyLines
       .flatMap((row) => (row[12] ?? '').length > 0 ? parseArrayLiteral(row[12]) : [])
       .filter((text) => text !== '');
+    // 新的「指令」列是普通文本：多条用换行隔开（跟老表的「指令（换行间隔）」一致）
     const actual = dialogue
       .slice(1)
       .filter((row) => row[1] === '指令')
-      .flatMap((row) => parseArrayLiteral(row[7]));
+      .flatMap((row) => row[7].split('\n'))
+      .filter((text) => text !== '');
     expect(actual).toEqual(expected);
   });
 

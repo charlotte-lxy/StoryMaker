@@ -311,7 +311,7 @@ describe('读老项目时把引用换成 uid', () => {
     expect(project.battle.characters[0].attributes[0].key).toBe('a1');
     // 换完再导出，跟老项目原来的写法一模一样
     expect(cell(buildRows(project).dialogue, 'Dia_ch01_001-2', 7)).toBe(
-      '("剧情.演出# CHA_伊芙.表情=挥手")',
+      '剧情.演出# CHA_伊芙.表情=挥手',
     );
   });
 
