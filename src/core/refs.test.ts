@@ -107,6 +107,7 @@ function makeProject(): Project {
     variables: [],
     uiTexts: [],
     battle: makeBattle(),
+    specialCommandClassPrefix: '',
     exportSettings: [],
     chapters: [
       {

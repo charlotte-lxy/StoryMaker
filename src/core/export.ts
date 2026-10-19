@@ -36,6 +36,7 @@ import {
 } from './battle-export';
 import { PLAY_DIALOGUE_HEAD } from './command-build';
 import { IMPORT_SETTINGS_SHEET, buildImportSettingRows } from './export-settings';
+import { SPECIAL_COMMAND_SHEET, buildSpecialCommandRows } from './special-commands';
 import {
   aliasNameKeyOf,
   characterNameKeyOf,
@@ -357,11 +358,12 @@ export function buildAllSheets(project: Project): ExportedSheet[] {
   const battle = buildBattleRows(project);
 
   return [
-    // 剧情四张表
+    // 剧情五张表
     { name: DIALOGUE_SHEET, rows: story.dialogue },
     { name: OPTION_SHEET, rows: story.options },
     { name: LOCALE_SHEET, rows: story.locale },
     { name: STORY_CHARACTER_SHEET, rows: story.characters },
+    { name: SPECIAL_COMMAND_SHEET, rows: buildSpecialCommandRows(project) },
     // 战斗模块（GAS）七张表
     { name: GAMEPLAY_TAGS_SHEET, rows: battle.gameplayTags },
     { name: ATTRIBUTE_SHEET, rows: battle.attributes },

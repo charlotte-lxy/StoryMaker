@@ -65,6 +65,7 @@ function makeProject(group: Partial<Group>): Project {
     variables: [],
     uiTexts: [],
     battle: createEmptyBattle(),
+    specialCommandClassPrefix: '',
     exportSettings: [],
     chapters: [
       {

@@ -119,6 +119,7 @@ export const WHOLE_FIELDS: readonly string[] = [
   'variables',
   'battle.skillClassPrefix',
   'battle.effectClassPrefix',
+  'specialCommandClassPrefix',
 ];
 
 /** 把路径拆成段 */

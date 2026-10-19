@@ -119,6 +119,7 @@ function makeProject(): Project {
     variables: [],
     uiTexts: [],
     battle,
+    specialCommandClassPrefix: '',
     exportSettings: [],
   };
 }

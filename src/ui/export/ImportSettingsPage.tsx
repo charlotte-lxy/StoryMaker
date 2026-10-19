@@ -1,10 +1,13 @@
 import type { Project } from '../../core/types';
+import { classPath } from '../../core/battle';
+import { EXPORT_SUBTABLES, csvFileName, dataTableRef } from '../../core/export-settings';
+import { specialCommandClassName } from '../../core/special-commands';
 import {
   addExportSetting,
   removeExportSetting,
   updateExportSetting,
+  updateSpecialCommandClassPrefix,
 } from '../../state/operations';
-import { EXPORT_SUBTABLES, csvFileName, dataTableRef } from '../../core/export-settings';
 import { useScrollMemory } from '../view-memory';
 
 interface Props {
@@ -41,6 +44,24 @@ export function ImportSettingsPage({ project, onChange }: Props) {
         <button type="button" className="primary" onClick={() => onChange(addExportSetting(project))}>
           ＋ 新增数据表
         </button>
+      </div>
+
+      {/* 「特殊指令」子表每一行的 Command类 都由这个前缀拼出来，换项目时改这一条 */}
+      <div className="battle-prefix-card">
+        <label className="battle-prefix-field">
+          <span className="line-field-name">特殊指令表的 Command类 前缀</span>
+          <input
+            value={project.specialCommandClassPrefix}
+            onChange={(event) =>
+              onChange(updateSpecialCommandClassPrefix(project, event.target.value))
+            }
+          />
+          <span className="hint">
+            Command类 ={' '}
+            {classPath(project.specialCommandClassPrefix, specialCommandClassName('SP_001')) ||
+              '（前缀为空）'}
+          </span>
+        </label>
       </div>
 
       {rows.length === 0 ? (

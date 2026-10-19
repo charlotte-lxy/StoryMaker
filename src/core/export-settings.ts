@@ -23,6 +23,7 @@ export const EXPORT_SUBTABLES = [
   '选项',
   '本地化',
   '角色',
+  '特殊指令',
   'GASGameplayTags',
   'GAS属性',
   'GAS效果',

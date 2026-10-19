@@ -29,6 +29,7 @@ function makeProject(name = '测试项目'): Project {
       characters: [],
       weapons: [],
     },
+    specialCommandClassPrefix: '',
     exportSettings: [],
   };
 }

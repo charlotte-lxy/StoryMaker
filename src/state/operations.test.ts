@@ -50,6 +50,7 @@ function makeProject(): Project {
     variables: [],
     uiTexts: [],
     battle: createEmptyBattle(),
+    specialCommandClassPrefix: '',
     exportSettings: [],
     chapters: [
       {

@@ -17,6 +17,7 @@
 import { DEFAULT_EFFECT_CLASS_PREFIX, DEFAULT_SKILL_CLASS_PREFIX } from './battle';
 import { newUid, renumberGroup, type IdChange } from './ids';
 import { collectRefMaps, translateTarget } from './refs';
+import { DEFAULT_SPECIAL_COMMAND_CLASS_PREFIX } from './special-commands';
 import {
   DEFAULT_PLAY_POSITION,
   type BattleData,
@@ -143,6 +144,13 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
 
   // 战斗模块也是后加的：缺哪张表补哪张，路径前缀缺了就用默认值
   project.battle = normalizeBattle(project.battle);
+
+  // 「特殊指令」子表的 Command类 前缀同样是后加的，缺了就用默认值
+  const rawSpecialPrefix: unknown = project.specialCommandClassPrefix;
+  project.specialCommandClassPrefix =
+    typeof rawSpecialPrefix === 'string' && rawSpecialPrefix !== ''
+      ? rawSpecialPrefix
+      : DEFAULT_SPECIAL_COMMAND_CLASS_PREFIX;
 
   // 导入设置同样是后加的：老项目里没有这栏
   const rawExportSettings: unknown = project.exportSettings;

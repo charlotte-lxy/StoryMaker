@@ -422,6 +422,13 @@ export interface Project {
   uiTexts: UiTextRow[];
   /** 战斗模块（GAS）的数据，导出成 GAS 开头的几张子表 */
   battle: BattleData;
+  /**
+   * 「特殊指令」子表里 Command类 的路径前缀。
+   *
+   * Command类 = 前缀 + `BP_Command_<行名>.BP_Command_<行名>_C'`，
+   * 跟战斗模块的 GA类 / GE类 前缀一个套路；换项目时在「Unreal导入设置」里改。
+   */
+  specialCommandClassPrefix: string;
   /** Unreal 导入设置，导出成「导入设置」子表 */
   exportSettings: ExportSettingRow[];
 }

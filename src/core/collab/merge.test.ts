@@ -71,6 +71,7 @@ function makeProject(): Project {
       characters: [],
       weapons: [],
     },
+    specialCommandClassPrefix: '',
     exportSettings: [],
   };
 }

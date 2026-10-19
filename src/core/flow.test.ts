@@ -58,6 +58,7 @@ function makeProject(chapters: Chapter[]): Project {
     variables: [],
     uiTexts: [],
     battle: createEmptyBattle(),
+    specialCommandClassPrefix: '',
     exportSettings: [],
     chapters,
   };

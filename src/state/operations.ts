@@ -8,6 +8,7 @@ import { createEmptyBattle } from '../core/battle';
 import { EXPORT_SUBTABLES } from '../core/export-settings';
 import { makeLineId, makeOptionId, newUid, renumberGroup, groupUidOfFirstLine, type IdChange } from '../core/ids';
 import { collectRefUids } from '../core/refs';
+import { DEFAULT_SPECIAL_COMMAND_CLASS_PREFIX } from '../core/special-commands';
 import {
   DEFAULT_PLAY_POSITION,
   type Chapter,
@@ -146,6 +147,7 @@ export function createEmptyProject(name = '未命名项目'): Project {
     variables: [],
     uiTexts: [],
     battle: createEmptyBattle(),
+    specialCommandClassPrefix: DEFAULT_SPECIAL_COMMAND_CLASS_PREFIX,
     exportSettings: [],
     chapters: [
       {
@@ -955,5 +957,12 @@ export function updateExportSetting(
   return mutate(project, (draft) => {
     const row = draft.exportSettings.find((item) => item.uid === uid);
     if (row !== undefined) Object.assign(row, patch);
+  });
+}
+
+/** 改「特殊指令」子表的 Command类 前缀 */
+export function updateSpecialCommandClassPrefix(project: Project, prefix: string): Project {
+  return mutate(project, (draft) => {
+    draft.specialCommandClassPrefix = prefix;
   });
 }

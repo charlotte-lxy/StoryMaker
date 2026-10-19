@@ -1922,6 +1922,7 @@ describe('导出模块', () => {
       '选项',
       '本地化',
       '角色',
+      '特殊指令',
       'GASGameplayTags',
       'GAS属性',
       'GAS效果',
@@ -1947,6 +1948,7 @@ describe('导出模块', () => {
       '选项',
       '本地化',
       '角色',
+      '特殊指令',
       'GASGameplayTags',
       'GAS属性',
       'GAS效果',
@@ -1975,6 +1977,51 @@ describe('导出模块', () => {
     // 切到导入设置：表头换成算出来的两列
     fireEvent.click(screen.getByText('导入设置'));
     expect(headers()).toEqual(['（行名）', '数据表引用', 'csv文件路径']);
+  });
+
+  it('「特殊指令」子表：收集剧情里用到的特殊指令，前缀改了类名跟着变', async () => {
+    const project = createEmptyProject();
+    project.chapters[0].groups[0].lines = [
+      {
+        ...dialogueLine('a1', 'Dia_ch01_001-1', ''),
+        kind: '指令',
+        command: '特殊# SP_001',
+        specialContent: '屏幕震一下',
+      },
+    ];
+    seedProjectFile(JSON.stringify(project));
+
+    await openExport();
+
+    /** 预览页上点某张子表 */
+    const openSheet = (name: string): void => {
+      fireEvent.click(screen.getByText('导出预览'));
+      const tab = [...document.querySelectorAll('.sheet-tab')].find((item) =>
+        item.textContent?.startsWith(name),
+      ) as HTMLElement;
+      fireEvent.click(tab);
+    };
+    const firstRow = (): (string | null)[] => [
+      ...document.querySelectorAll('.preview-table tbody tr.line-row td'),
+    ].map((td) => td.textContent);
+
+    openSheet('特殊指令');
+    expect(firstRow()).toEqual([
+      'SP_001',
+      "/Script/Engine.BlueprintGeneratedClass'/Game/GameContent/BP/ComponentBase/Command/SpeciesCommand/BP_Command_SP_001.BP_Command_SP_001_C'",
+      '屏幕震一下',
+    ]);
+
+    // 前缀在「Unreal 导入设置」里改，类名跟着变
+    fireEvent.click(screen.getByText('Unreal导入设置'));
+    fireEvent.change(screen.getByDisplayValue(/^\/Script\/Engine\.BlueprintGeneratedClass/), {
+      target: { value: "/Script/Engine.BlueprintGeneratedClass'/Game/BP/Cmd/" },
+    });
+
+    openSheet('特殊指令');
+    expect(firstRow()[1]).toBe(
+      "/Script/Engine.BlueprintGeneratedClass'/Game/BP/Cmd/BP_Command_SP_001.BP_Command_SP_001_C'",
+    );
   });
 });
 

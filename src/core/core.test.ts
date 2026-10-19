@@ -201,6 +201,7 @@ describe('导出：跳到首句与跳到段落', () => {
       variables: [],
       uiTexts: [],
       battle: createEmptyBattle(),
+      specialCommandClassPrefix: '',
       exportSettings: [],
       chapters: [
         {
@@ -315,6 +316,7 @@ describe('导出：指令里指向对话行的目标翻译成对话 ID', () => {
       variables: [],
       uiTexts: [],
       battle: createEmptyBattle(),
+      specialCommandClassPrefix: '',
       exportSettings: [],
       chapters: [
         {
@@ -409,6 +411,7 @@ describe('导出：特殊演出效果', () => {
       variables: [],
       uiTexts: [],
       battle: createEmptyBattle(),
+      specialCommandClassPrefix: '',
       exportSettings: [],
       chapters: [
         {
@@ -496,6 +499,7 @@ describe('导出三张表', () => {
       variables: [],
       uiTexts: [],
       battle: createEmptyBattle(),
+      specialCommandClassPrefix: '',
       exportSettings: [],
       chapters: [
         {
@@ -699,6 +703,7 @@ describe('导出三张表', () => {
       '选项',
       '本地化',
       '角色',
+      '特殊指令',
       'GASGameplayTags',
       'GAS属性',
       'GAS效果',
