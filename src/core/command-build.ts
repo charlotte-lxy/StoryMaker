@@ -197,17 +197,33 @@ export function matchCommandText(
 }
 
 /**
- * 拼一条指令文本。
+ * 把「主指令 / 分支 / 参数」拼成一条指令文本。
+ *
+ * 参数名为空或值为空的那一项不写（非必填参数没填时整项省略）。
+ */
+export function formatCommandText(
+  head: string,
+  branch: string,
+  params: readonly { name: string; value: string }[],
+): string {
+  const rest = params
+    .filter((param) => param.name.trim() !== '' && param.value.trim() !== '')
+    .map((param) => `${param.name.trim()}:${param.value.trim()}`)
+    .join(';');
+  return `${head.trim()}|${branch.trim()}|${rest}`;
+}
+
+/**
+ * 按字典定义拼一条指令文本。
  *
  * values 以参数名为键；值是空串的参数整项省略（必填没填时由校验条报出来）。
  */
 export function buildCommandText(def: CommandDef, values: Record<string, string>): string {
-  const rest = def.params
-    .map((param) => ({ name: param.name.trim(), value: (values[param.name] ?? '').trim() }))
-    .filter((param) => param.name !== '' && param.value !== '')
-    .map((param) => `${param.name}:${param.value}`)
-    .join(';');
-  return `${def.head.trim()}|${def.branch.trim()}|${rest}`;
+  return formatCommandText(
+    def.head,
+    def.branch,
+    def.params.map((param) => ({ name: param.name, value: values[param.name] ?? '' })),
+  );
 }
 
 /** 把解析出来的参数摊成「参数名 → 值」，方便回填控件 */

@@ -3137,6 +3137,53 @@ tr.locale-form-note td {
 }
 
 /* 字典里的一条定义：抬头（主指令 / 分支 / 说明）+ 可展开的参数表 */
+/* 字典按模块（主指令）分组：分组抬头 + 组内一条条条目 */
+.command-group {
+  margin-bottom: 14px;
+}
+
+.command-group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  background: var(--bg);
+}
+
+.command-group-title {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+/* 模块名：改完才生效（失焦 / 回车），改名会牵连剧情里用到的指令 */
+.command-group-name {
+  width: 150px;
+  font-weight: 600;
+}
+
+.command-group .command-def-card {
+  margin-bottom: 0;
+  border-radius: 0;
+  border-top: 0;
+}
+
+.command-group .command-def-card:last-child {
+  border-radius: 0 0 8px 8px;
+}
+
+/* 分组列表下面的「＋ 新增分组」 */
+.command-add-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
 .command-def-card {
   margin-bottom: 8px;
   padding: 8px 10px;

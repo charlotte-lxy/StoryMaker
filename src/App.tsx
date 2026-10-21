@@ -39,6 +39,7 @@ import {
   addCharacter,
   addCharacterAlias,
   addCommandDef,
+  addCommandModule,
   addCommandParam,
   addGroup,
   addLookupRow,
@@ -56,6 +57,7 @@ import {
   removeCharacter,
   removeCharacterAlias,
   removeCommandDef,
+  removeCommandModule,
   removeCommandParam,
   removeGroup,
   removeLine,
@@ -64,6 +66,9 @@ import {
   removeOption,
   removeUiText,
   renameChapter,
+  renameCommandBranch,
+  renameCommandModule,
+  renameCommandParam,
   renameGroup,
   renumberOneGroup,
   reorderLine,
@@ -1217,8 +1222,22 @@ export default function App() {
                   project={project}
                   focusUid={focusRowUid}
                   onJumpToLine={handleJumpToLine}
-                  onAddDef={(category) => setProject((prev) => addCommandDef(prev, category))}
+                  onAddModule={(category, head) =>
+                    setProject((prev) => addCommandModule(prev, category, head))
+                  }
+                  onRemoveModule={(category, head) =>
+                    setProject((prev) => removeCommandModule(prev, category, head))
+                  }
+                  onRenameModule={(category, from, to) =>
+                    setProject((prev) => renameCommandModule(prev, category, from, to))
+                  }
+                  onAddDef={(category, head) =>
+                    setProject((prev) => addCommandDef(prev, category, head))
+                  }
                   onRemoveDef={(uid) => setProject((prev) => removeCommandDef(prev, uid))}
+                  onRenameBranch={(defUid, to) =>
+                    setProject((prev) => renameCommandBranch(prev, defUid, to))
+                  }
                   onUpdateDef={(uid, patch: Partial<CommandDef>) =>
                     setProject((prev) => updateCommandDef(prev, uid, patch))
                   }
@@ -1228,6 +1247,9 @@ export default function App() {
                   }
                   onUpdateParam={(defUid, paramUid, patch: Partial<CommandParamDef>) =>
                     setProject((prev) => updateCommandParam(prev, defUid, paramUid, patch))
+                  }
+                  onRenameParam={(defUid, paramUid, name) =>
+                    setProject((prev) => renameCommandParam(prev, defUid, paramUid, name))
                   }
                   onMoveParam={(defUid, paramUid, delta) =>
                     setProject((prev) => moveCommandParam(prev, defUid, paramUid, delta))

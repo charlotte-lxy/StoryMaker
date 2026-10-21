@@ -5,7 +5,7 @@
  */
 
 import { createEmptyBattle } from '../core/battle';
-import { findCommandDef, parseCommandText } from '../core/command-build';
+import { findCommandDef, formatCommandText, parseCommandText } from '../core/command-build';
 import { defaultCommandDefs } from '../core/default-commands';
 import { EXPORT_SUBTABLES } from '../core/export-settings';
 import { makeLineId, makeOptionId, newUid, renumberGroup, groupUidOfFirstLine, type IdChange } from '../core/ids';
@@ -584,13 +584,111 @@ export function updateLookupRow(
 
 /* ---------- 指令字典 ---------- */
 
-export function addCommandDef(project: Project, category: '条件' | '指令' = '指令'): Project {
+/**
+ * 把一个模块（主指令）下的所有条目按「类别 + 主指令」挑出来。
+ *
+ * 界面按模块分组显示，新增 / 删除 / 改名都以模块为单位。
+ */
+export function commandModulesOf(
+  project: Project,
+  category: '条件' | '指令',
+): { head: string; defs: CommandDef[] }[] {
+  const groups = new Map<string, CommandDef[]>();
+  for (const def of project.commands) {
+    if (def.category !== category) continue;
+    const head = def.head.trim();
+    const list = groups.get(head);
+    if (list === undefined) groups.set(head, [def]);
+    else list.push(def);
+  }
+  return [...groups].map(([head, defs]) => ({ head, defs }));
+}
+
+/** 模块下还没被占用的分支名：新模块给空分支，已有条目的模块给「新分支」「新分支2」… */
+function nextBranchName(defs: readonly CommandDef[]): string {
+  if (defs.length === 0) return '';
+  const taken = new Set(defs.map((def) => def.branch.trim()));
+  let n = 1;
+  while (taken.has(`新分支${n === 1 ? '' : n}`)) n += 1;
+  return `新分支${n === 1 ? '' : n}`;
+}
+
+/**
+ * 在剧情里把某一类（条件 / 指令）的文本按 update 改写。
+ *
+ * 按槽位区分类别：「指令」只改「指令」行的指令栏，「条件」只改选项的出现/可用条件
+ * 与「跳转到段落」的可用条件——同一个模块名两边都有时（比如「剧情」）不会串着改。
+ */
+function mapCommandTexts(
+  project: Project,
+  category: '条件' | '指令',
+  update: (text: string) => string | null,
+): void {
+  const apply = (text: string): string => update(text) ?? text;
+  for (const chapter of project.chapters) {
+    for (const group of chapter.groups) {
+      for (const line of group.lines) {
+        if (category === '指令') {
+          if (line.kind === '指令' && line.jumpGroupUid === null) line.command = apply(line.command);
+          continue;
+        }
+        line.jumpConditions = line.jumpConditions.map(apply);
+      }
+      // 条件：所有选项（含没挂在行上的）都改
+      for (const option of group.options) {
+        option.appearConditions = option.appearConditions.map(apply);
+        option.enableConditions = option.enableConditions.map(apply);
+      }
+    }
+  }
+}
+
+/** 新增一个模块分组：先建一条「分支留空」的条目，再往里填分支与参数 */
+export function addCommandModule(
+  project: Project,
+  category: '条件' | '指令',
+  head: string,
+): Project {
   return mutate(project, (draft) => {
+    const name = head.trim();
+    if (name === '') return;
+    // 同一个类别里模块名不能重复
+    if (draft.commands.some((def) => def.category === category && def.head.trim() === name)) return;
+    draft.commands.push({ uid: newUid(), category, head: name, branch: '', params: [], note: '' });
+  });
+}
+
+/** 删除整个模块分组（连同它下面的所有条目） */
+export function removeCommandModule(
+  project: Project,
+  category: '条件' | '指令',
+  head: string,
+): Project {
+  return mutate(project, (draft) => {
+    const name = head.trim();
+    draft.commands = draft.commands.filter(
+      (def) => !(def.category === category && def.head.trim() === name),
+    );
+  });
+}
+
+/** 给某个模块加一条新条目（分支名自动避开已占用的） */
+export function addCommandDef(
+  project: Project,
+  category: '条件' | '指令',
+  head: string,
+): Project {
+  return mutate(project, (draft) => {
+    const name = head.trim();
+    if (name === '') return;
+    const defs = draft.commands.filter(
+      (def) => def.category === category && def.head.trim() === name,
+    );
     draft.commands.push({
       uid: newUid(),
       category,
-      head: category === '条件' ? '新条件' : '新指令',
-      branch: '',
+      head: name,
+      branch: nextBranchName(defs),
       params: [],
       note: '',
     });
@@ -614,6 +712,64 @@ export function updateCommandDef(
   });
 }
 
+/**
+ * 改模块名（主指令）：该模块下所有条目一起改，剧情里用到它的指令文本也一起改。
+ *
+ * 同类别里已经有同名模块时不动（模块名不能重复）。
+ */
+export function renameCommandModule(
+  project: Project,
+  category: '条件' | '指令',
+  from: string,
+  to: string,
+): Project {
+  return mutate(project, (draft) => {
+    const oldName = from.trim();
+    const newName = to.trim();
+    if (oldName === '' || newName === '' || oldName === newName) return;
+    const taken = draft.commands.some(
+      (def) => def.category === category && def.head.trim() === newName,
+    );
+    if (taken) return;
+
+    for (const def of draft.commands) {
+      if (def.category === category && def.head.trim() === oldName) def.head = newName;
+    }
+    mapCommandTexts(draft, category, (text) => {
+      const parsed = parseCommandText(text);
+      if (parsed === null || parsed.head !== oldName) return null;
+      return formatCommandText(newName, parsed.branch, parsed.params);
+    });
+  });
+}
+
+/** 改分支名：条目本身 + 剧情里用到它的指令一起改（同模块里重名时不动） */
+export function renameCommandBranch(project: Project, defUid: string, to: string): Project {
+  return mutate(project, (draft) => {
+    const def = draft.commands.find((item) => item.uid === defUid);
+    if (def === undefined) return;
+    const oldBranch = def.branch.trim();
+    const newBranch = to.trim();
+    if (oldBranch === newBranch) return;
+    const taken = draft.commands.some(
+      (item) =>
+        item.category === def.category &&
+        item.head.trim() === def.head.trim() &&
+        item.uid !== def.uid &&
+        item.branch.trim() === newBranch,
+    );
+    if (taken) return;
+
+    def.branch = newBranch;
+    const head = def.head.trim();
+    mapCommandTexts(draft, def.category, (text) => {
+      const parsed = parseCommandText(text);
+      if (parsed === null || parsed.head !== head || parsed.branch !== oldBranch) return null;
+      return formatCommandText(parsed.head, newBranch, parsed.params);
+    });
+  });
+}
+
 /* ---------- 指令的参数字典 ---------- */
 
 /** 给某条定义末尾加一个空参数（参数名先给个占位，策划自己改） */
@@ -621,9 +777,12 @@ export function addCommandParam(project: Project, defUid: string): Project {
   return mutate(project, (draft) => {
     const def = draft.commands.find((item) => item.uid === defUid);
     if (def === undefined) return;
+    const taken = new Set(def.params.map((param) => param.name.trim()));
+    let n = def.params.length + 1;
+    while (taken.has(`参数${n}`)) n += 1;
     def.params.push({
       uid: newUid(),
-      name: `参数${def.params.length + 1}`,
+      name: `参数${n}`,
       source: 'text',
       options: [],
       required: true,
@@ -650,6 +809,46 @@ export function updateCommandParam(
     const def = draft.commands.find((item) => item.uid === defUid);
     const param = def?.params.find((item) => item.uid === paramUid);
     if (param !== undefined) Object.assign(param, patch);
+  });
+}
+
+/**
+ * 改参数名：参数本身 + 剧情里用到它的指令一起改。
+ *
+ * 参数名就是导出文本里的键（`运算符:+`），所以改名要连带改所有已写好的指令；
+ * 同一个条目里已经有同名参数时不动。
+ */
+export function renameCommandParam(
+  project: Project,
+  defUid: string,
+  paramUid: string,
+  name: string,
+): Project {
+  return mutate(project, (draft) => {
+    const def = draft.commands.find((item) => item.uid === defUid);
+    const param = def?.params.find((item) => item.uid === paramUid);
+    if (def === undefined || param === undefined) return;
+    const oldName = param.name.trim();
+    const newName = name.trim();
+    if (newName === '' || oldName === newName) return;
+    if (def.params.some((item) => item.uid !== paramUid && item.name.trim() === newName)) return;
+
+    param.name = newName;
+    const head = def.head.trim();
+    const branch = def.branch.trim();
+    mapCommandTexts(draft, def.category, (text) => {
+      const parsed = parseCommandText(text);
+      if (parsed === null || parsed.head !== head || parsed.branch !== branch) return null;
+      if (!parsed.params.some((item) => item.name === oldName)) return null;
+      return formatCommandText(
+        parsed.head,
+        parsed.branch,
+        parsed.params.map((item) => ({
+          name: item.name === oldName ? newName : item.name,
+          value: item.value,
+        })),
+      );
+    });
   });
 }
 

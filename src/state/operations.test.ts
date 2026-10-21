@@ -4,14 +4,21 @@ import { createEmptyBattle } from '../core/battle';
 
 import type { Line, Project } from '../core/types';
 import {
+  addCommandDef,
+  addCommandModule,
   addUiText,
   collectGroupedLineRefs,
+  commandModulesOf,
   groupUidOfLine,
   insertLine,
   moveLines,
   moveLinesTogether,
+  removeCommandModule,
   removeLines,
   removeUiText,
+  renameCommandBranch,
+  renameCommandModule,
+  renameCommandParam,
   renumberOneGroup,
   reorderLine,
   updateTextByUid,
@@ -503,5 +510,181 @@ describe('跳转目标的两级下拉', () => {
   it('目标已失效时反查为空字符串，交由校验层报告', () => {
     const grouped = collectGroupedLineRefs(makeProject());
     expect(groupUidOfLine(grouped, 'u-missing')).toBe('');
+  });
+});
+
+describe('指令字典按模块分组与改名', () => {
+  /** 两个模块：剧情/演出（带参数）+ 背包（无分支）；剧情里两条指令分别用它们 */
+  function makeDictProject(): Project {
+    const project = makeProject();
+    const perform = {
+      uid: 'def-perform',
+      category: '指令' as const,
+      head: '剧情',
+      branch: '演出',
+      note: '',
+      params: [
+        { uid: 'p-role', name: '角色', source: 'character' as const, options: [], required: true, note: '' },
+        { uid: 'p-face', name: '表情', source: 'expression' as const, options: [], required: false, note: '' },
+      ],
+    };
+    const bag = {
+      uid: 'def-bag',
+      category: '指令' as const,
+      head: '背包',
+      branch: '',
+      note: '',
+      params: [
+        { uid: 'p-item', name: '物品', source: 'item' as const, options: [], required: true, note: '' },
+        { uid: 'p-op', name: '运算符', source: 'fixed' as const, options: ['+', '-'], required: true, note: '' },
+        { uid: 'p-count', name: '数量', source: 'number' as const, options: [], required: true, note: '' },
+      ],
+    };
+    project.commands = [perform, bag];
+    project.chapters[0].groups[0].lines = [
+      makeLine('a', 'Dia_ch01_001-1', '第一句'),
+      { ...makeLine('b', 'Dia_ch01_001-2', ''), kind: '指令', command: '剧情|演出|角色:CHA_伊芙;表情:开心' },
+      { ...makeLine('c', 'Dia_ch01_001-3', ''), kind: '指令', command: '背包||物品:Item_Coin;运算符:+;数量:1' },
+    ];
+    return project;
+  }
+
+  const commandAt = (project: Project, index: number): string =>
+    project.chapters[0].groups[0].lines[index].command;
+
+  it('按类别分组，模块顺序按字典里第一次出现排', () => {
+    const project = makeDictProject();
+    expect(commandModulesOf(project, '指令').map((module) => module.head)).toEqual(['剧情', '背包']);
+    expect(commandModulesOf(project, '条件')).toEqual([]);
+  });
+
+  it('新增模块：先建一条分支留空的条目，同类别里重名不加', () => {
+    const project = addCommandModule(makeDictProject(), '指令', '任务');
+    expect(commandModulesOf(project, '指令').map((module) => module.head)).toEqual([
+      '剧情',
+      '背包',
+      '任务',
+    ]);
+    const def = project.commands.find((item) => item.head === '任务');
+    expect(def?.branch).toBe('');
+    expect(def?.params).toEqual([]);
+
+    // 重名不加
+    expect(addCommandModule(project, '指令', '背包').commands).toHaveLength(3);
+  });
+
+  it('删除模块：连同它下面的条目一起删', () => {
+    const project = removeCommandModule(makeDictProject(), '指令', '剧情');
+    expect(project.commands.map((item) => item.head)).toEqual(['背包']);
+  });
+
+  it('模块里新增条目：分支名自动避开已占用的', () => {
+    const project = addCommandDef(makeDictProject(), '指令', '剧情');
+    const branches = project.commands
+      .filter((item) => item.head === '剧情')
+      .map((item) => item.branch);
+    expect(branches).toEqual(['演出', '新分支']);
+  });
+
+  it('改模块名：该模块条目与剧情里用到它的指令一起改，别的模块不动', () => {
+    const project = renameCommandModule(makeDictProject(), '指令', '剧情', '演出');
+    expect(project.commands.map((item) => item.head)).toEqual(['演出', '背包']);
+    expect(commandAt(project, 1)).toBe('演出|演出|角色:CHA_伊芙;表情:开心');
+    // 别的模块的指令原样
+    expect(commandAt(project, 2)).toBe('背包||物品:Item_Coin;运算符:+;数量:1');
+  });
+
+  it('改模块名撞上已有模块时不动', () => {
+    const project = makeDictProject();
+    const next = renameCommandModule(project, '指令', '剧情', '背包');
+    expect(next.commands.map((item) => item.head)).toEqual(['剧情', '背包']);
+    expect(commandAt(next, 1)).toBe('剧情|演出|角色:CHA_伊芙;表情:开心');
+  });
+
+  it('改分支名：条目与用到它的指令一起改；同模块里重名不动', () => {
+    const project = renameCommandBranch(makeDictProject(), 'def-perform', '出场');
+    expect(project.commands[0].branch).toBe('出场');
+    expect(commandAt(project, 1)).toBe('剧情|出场|角色:CHA_伊芙;表情:开心');
+
+    const clash = makeDictProject();
+    clash.commands.push({
+      uid: 'def-other',
+      category: '指令',
+      head: '剧情',
+      branch: '图片',
+      params: [],
+      note: '',
+    });
+    const next = renameCommandBranch(clash, 'def-perform', '图片');
+    expect(next.commands[0].branch).toBe('演出');
+  });
+
+  it('改参数名：参数本身与所有用到它的指令一起改', () => {
+    const project = renameCommandParam(makeDictProject(), 'def-bag', 'p-op', '运算');
+    expect(project.commands[1].params[1].name).toBe('运算');
+    expect(commandAt(project, 2)).toBe('背包||物品:Item_Coin;运算:+;数量:1');
+    // 别的参数不动
+    expect(commandAt(project, 1)).toBe('剧情|演出|角色:CHA_伊芙;表情:开心');
+  });
+
+  it('改参数名撞上同条目的已有参数时不动', () => {
+    const project = makeDictProject();
+    const next = renameCommandParam(project, 'def-bag', 'p-op', '物品');
+    expect(next.commands[1].params[1].name).toBe('运算符');
+    expect(commandAt(next, 2)).toBe('背包||物品:Item_Coin;运算符:+;数量:1');
+  });
+
+  it('改参数名只改本条目对应分支的指令，别的分支不受影响', () => {
+    const project = makeDictProject();
+    project.commands.push({
+      uid: 'def-picture',
+      category: '指令',
+      head: '剧情',
+      branch: '图片',
+      params: [
+        { uid: 'p-pic', name: '图片', source: 'image', options: [], required: true, note: '' },
+        { uid: 'p-role2', name: '角色', source: 'character', options: [], required: false, note: '' },
+      ],
+      note: '',
+    });
+    project.chapters[0].groups[0].lines.push({
+      ...makeLine('d', 'Dia_ch01_001-4', ''),
+      kind: '指令',
+      command: '剧情|图片|图片:SCE_1;角色:CHA_伊芙',
+    });
+
+    const next = renameCommandParam(project, 'def-picture', 'p-role2', '出场角色');
+    expect(next.chapters[0].groups[0].lines[3].command).toBe('剧情|图片|图片:SCE_1;出场角色:CHA_伊芙');
+    // 演出那条里的「角色」是另一个参数，不动
+    expect(commandAt(next, 1)).toBe('剧情|演出|角色:CHA_伊芙;表情:开心');
+  });
+
+  it('改条件里的参数名：只改条件槽位，不动同名模块的指令', () => {
+    const project = makeDictProject();
+    project.commands.push({
+      uid: 'def-cond',
+      category: '条件',
+      head: '剧情',
+      branch: '',
+      params: [{ uid: 'p-line', name: '对话', source: 'line', options: [], required: true, note: '' }],
+      note: '',
+    });
+    project.chapters[0].groups[0].options = [
+      {
+        uid: 'o1',
+        readableId: 'Dia_ch01_001-2A',
+        text: { zh: '选项', en: '', ja: '' },
+        nextId: '',
+        appearConditions: ['剧情||对话:Dia_ch01_001-1'],
+        enableConditions: [],
+      },
+    ];
+
+    const next = renameCommandParam(project, 'def-cond', 'p-line', '对话ID');
+    expect(next.chapters[0].groups[0].options[0].appearConditions).toEqual([
+      '剧情||对话ID:Dia_ch01_001-1',
+    ]);
+    // 「指令」类别里同名模块的指令不动
+    expect(commandAt(next, 1)).toBe('剧情|演出|角色:CHA_伊芙;表情:开心');
   });
 });

@@ -1907,6 +1907,94 @@ describe('全局搜索', () => {
   });
 });
 
+describe('条件与指令模块：按模块分组', () => {
+  /** 进到字典页（默认停在「指令」） */
+  const openDict = async (): Promise<HTMLElement> => {
+    const { container } = await renderApp();
+    fireEvent.click(within(rail()).getByText('条件与指令'));
+    return container;
+  };
+
+  it('字典按模块分组：分组名是主指令，条目里只有分支与参数（参数默认全展开）', async () => {
+    const container = await openDict();
+
+    // 默认那套字典：剧情、背包、任务、地图、特殊
+    const groups = [...container.querySelectorAll('.command-group')];
+    expect(groups.map((group) => (group.querySelector('.command-group-name') as HTMLInputElement).value)).
+      toEqual(['剧情', '背包', '任务', '地图', '特殊']);
+
+    // 剧情那组里有 5 条条目（演出 / 图片 / CG / 播放对话 / 音效）
+    const first = groups[0];
+    expect(first.querySelectorAll('.command-def-card')).toHaveLength(5);
+    // 条目抬头只有「分支」和「指令说明」，没有主指令输入框
+    const labels = [...first.querySelectorAll('.command-def-card .command-def-field > span')].map(
+      (el) => el.textContent,
+    );
+    expect(labels).not.toContain('主指令');
+    expect(labels).toContain('分支');
+    // 参数表默认就在，不需要点开
+    expect(first.querySelectorAll('.param-table').length).toBeGreaterThan(0);
+  });
+
+  it('分组下面能新增分组：填模块名 → 出现新分组，重名时不让加', async () => {
+    const container = await openDict();
+
+    fireEvent.click(screen.getByText('＋ 新增分组'));
+    const input = screen.getByPlaceholderText('新模块名，比如 剧情') as HTMLInputElement;
+
+    // 重名：按钮禁用
+    fireEvent.change(input, { target: { value: '剧情' } });
+    expect((screen.getByText('添加') as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText('模块名重复了，换一个')).toBeTruthy();
+
+    fireEvent.change(input, { target: { value: '系统' } });
+    fireEvent.click(screen.getByText('添加'));
+
+    const heads = [...container.querySelectorAll('.command-group-name')].map(
+      (el) => (el as HTMLInputElement).value,
+    );
+    expect(heads).toEqual(['剧情', '背包', '任务', '地图', '特殊', '系统']);
+    // 新分组里先有一条分支留空的条目
+    const groups2 = [...container.querySelectorAll('.command-group')];
+    const group = groups2[groups2.length - 1] as HTMLElement;
+    expect(group.querySelectorAll('.command-def-card')).toHaveLength(1);
+  });
+
+  it('改参数名会把剧情里用到它的指令一起改掉', async () => {
+    // 先放一条用「背包」的指令
+    const project = createEmptyProject();
+    project.chapters[0].groups[0].lines = [
+      {
+        ...dialogueLine('a1', 'Dia_ch01_001-1', ''),
+        kind: '指令',
+        command: '背包||物品:Item_Coin;运算符:+;数量:1',
+      },
+    ];
+    const seeded = seedProjectFile(JSON.stringify(project));
+
+    await renderApp();
+    fireEvent.click(within(rail()).getByText('条件与指令'));
+
+    // 背包分组里那条条目的「运算符」参数
+    const group = [...document.querySelectorAll('.command-group')].find(
+      (item) => (item.querySelector('.command-group-name') as HTMLInputElement).value === '背包',
+    ) as HTMLElement;
+    const nameInputs = [
+      ...group.querySelectorAll('input[placeholder="参数名"]'),
+    ] as HTMLInputElement[];
+    const opInput = nameInputs.find((input) => input.value === '运算符') as HTMLInputElement;
+
+    fireEvent.change(opInput, { target: { value: '运算' } });
+    fireEvent.blur(opInput);
+
+    // 回剧情看那条指令：参数名跟着改了
+    fireEvent.click(within(rail()).getByText('剧情'));
+    await waitFor(() => expect(seeded.written.length).toBeGreaterThan(0), { timeout: 3000 });
+    const saved = JSON.parse(seeded.disk.get(DEFAULT_PROJECT_PATH) ?? '{}');
+    expect(saved.chapters[0].groups[0].lines[0].command).toBe('背包||物品:Item_Coin;运算:+;数量:1');
+  });
+});
+
 describe('导出模块', () => {
   /** 打开导出模块 */
   async function openExport(): Promise<void> {
