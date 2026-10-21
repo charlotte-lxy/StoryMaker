@@ -455,14 +455,14 @@ describe('导出：指令里指向对话行的目标翻译成对话 ID', () => {
 });
 
 describe('导出：特殊演出效果', () => {
-  /** 一条「特殊演出效果」行：指令是现拼的「特殊||特殊指令:名称」，「指令内容」只给自己看 */
+  /** 一条「特殊演出效果」行：指令是现拼的「其他|特殊|特殊指令ID:名称」，「指令内容」只给自己看 */
   function makeProject(): Project {
     return {
       version: 1,
       name: '特殊演出效果',
       characters: [],
       sounds: [],
-      commands: [commandDef('指令', '特殊', '', [paramDef('特殊指令', 'text')])],
+      commands: [commandDef('指令', '其他', '特殊', [paramDef('特殊指令ID', 'text')])],
       items: [],
       quests: [],
       images: [],
@@ -497,10 +497,10 @@ describe('导出：特殊演出效果', () => {
     };
   }
 
-  it('文本类型还是「指令」，指令列写「特殊||特殊指令:名称」', () => {
+  it('文本类型还是「指令」，指令列写「其他|特殊|特殊指令ID:名称」', () => {
     const row = buildRows(makeProject()).dialogue[1];
     expect(row[1]).toBe('指令');
-    expect(row[7]).toBe('特殊||特殊指令:SP_CameraShake');
+    expect(row[7]).toBe('其他|特殊|特殊指令ID:SP_CameraShake');
   });
 
   it('「指令内容」不进导出：本地化表里没有它', () => {
@@ -524,7 +524,7 @@ describe('导出三张表', () => {
     });
     const commandLine = makeLine('u3', 'Dia_ch01_001-3', {
       kind: '指令',
-      command: '特殊||特殊指令:SP_ch01_001',
+      command: '其他|特殊|特殊指令ID:SP_ch01_001',
     });
     const branchA = makeLine('u4', 'Dia_ch01_002-1', {
       text: { zh: '路线A', en: 'Route A', ja: 'ルートA' },
@@ -549,7 +549,7 @@ describe('导出三张表', () => {
       characters: [],
       sounds: [],
       commands: [
-        commandDef('指令', '特殊', '', [paramDef('特殊指令', 'text')]),
+        commandDef('指令', '其他', '特殊', [paramDef('特殊指令ID', 'text')]),
         commandDef('条件', '背包', '', [
           paramDef('物品', 'item'),
           paramDef('运算符', 'fixed', ['>=', '<=', '==', '>', '<']),
@@ -651,7 +651,7 @@ describe('导出三张表', () => {
     const row = byId('Dia_ch01_001-3');
     expect(row[5]).toBe('');
     expect(row[6]).toBe('');
-    expect(row[7]).toBe('特殊||特殊指令:SP_ch01_001');
+    expect(row[7]).toBe('其他|特殊|特殊指令ID:SP_ch01_001');
   });
 
   it('「对话」行写不填强制自动播放时留空', () => {
@@ -781,7 +781,7 @@ describe('导出三张表', () => {
     expect(dialogue?.getRow(2).getCell(2).value).toBe('对话');
     expect(dialogue?.getRow(2).getCell(6).value).toBe('TXT_Dia_ch01_001-1');
     expect(dialogue?.getRow(3).getCell(2).value).toBe('选项');
-    expect(dialogue?.getRow(4).getCell(8).value).toBe('特殊||特殊指令:SP_ch01_001');
+    expect(dialogue?.getRow(4).getCell(8).value).toBe('其他|特殊|特殊指令ID:SP_ch01_001');
 
     const options = workbook.getWorksheet('选项');
     expect(options?.getRow(2).getCell(3).value).toBe('("背包||物品:Item_Coin;运算符:>;数量:0")');

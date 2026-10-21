@@ -597,7 +597,8 @@ describe('设置、自动保存与自动加载', () => {
     expect(host.written).toHaveLength(0);
   });
 
-  it('切到深色会写到 <html data-theme>，并把设置记下来', async () => {
+  it('切到深色会写到 <html data-theme>，并把设置记下来（本机设置 + 项目文件各存一份）', async () => {
+    const seeded = seedProjectFile(JSON.stringify(createEmptyProject()));
     await renderApp();
     fireEvent.click(within(rail()).getByText('设置'));
     fireEvent.click(screen.getByText('深色'));
@@ -607,6 +608,11 @@ describe('设置、自动保存与自动加载', () => {
       theme?: string;
     };
     expect(saved.theme).toBe('dark');
+
+    // 项目文件里也记一份：换台机器打开还是深色
+    await waitFor(() => expect(seeded.written.length).toBeGreaterThan(0), { timeout: 3000 });
+    const project = JSON.parse(seeded.disk.get(DEFAULT_PROJECT_PATH) ?? '{}');
+    expect(project.ui.theme).toBe('dark');
   });
 
   it('启动时按上次的设置恢复深色主题', async () => {
@@ -614,6 +620,13 @@ describe('设置、自动保存与自动加载', () => {
       'storymaker.settings.v1',
       JSON.stringify({ autoSave: true, theme: 'dark' }),
     );
+    await renderApp();
+    expect(document.documentElement.dataset.theme).toBe('dark');
+  });
+
+  it('项目文件里记了主题就以项目为准（哪怕本机设置是浅色）', async () => {
+    const project = createEmptyProject(undefined, 'dark');
+    seedProjectFile(JSON.stringify(project));
     await renderApp();
     expect(document.documentElement.dataset.theme).toBe('dark');
   });
@@ -1547,8 +1560,44 @@ describe('「特殊演出效果」脚本块', () => {
     const lines = saved.chapters[0].groups[0].lines;
     const line = lines[lines.length - 1];
     expect(line.kind).toBe('指令');
-    expect(line.command).toBe('特殊||特殊指令:SP_CameraShake');
+    expect(line.command).toBe('其他|特殊|特殊指令ID:SP_CameraShake');
     expect(line.specialContent).toBe('屏幕震一下');
+  });
+});
+
+describe('「延时」脚本块', () => {
+  const TITLE = '拖到列表里插入「延时」，或单击直接加到最后一行';
+
+  it('单击块插入一条「指令」行，只有一个秒数输入框', async () => {
+    const { container } = await renderApp();
+    fireEvent.click(screen.getByTitle(TITLE));
+
+    expect(container.querySelector('.type-card-指令')).toBeTruthy();
+    const cards = [...container.querySelectorAll('.line-card')];
+    const card = cards[cards.length - 1] as HTMLElement;
+    expect([...card.querySelectorAll('.line-field-name')].map((el) => el.textContent)).toEqual([
+      '脚本类型',
+      '秒数',
+      '操作',
+    ]);
+    // 不出普通「指令」行的字典下拉
+    expect(screen.queryByTitle('选择指令（主指令）')).toBeNull();
+    expect(screen.getByPlaceholderText('例如 0.5')).toBeTruthy();
+  });
+
+  it('填了秒数就导出成「其他|延时|时长:0.5」', async () => {
+    const seeded = seedProjectFile(JSON.stringify(createEmptyProject()));
+    await renderApp();
+    fireEvent.click(screen.getByTitle(TITLE));
+
+    fireEvent.change(screen.getByPlaceholderText('例如 0.5'), { target: { value: '0.5' } });
+
+    await waitFor(() => expect(seeded.written.length).toBeGreaterThan(0), { timeout: 3000 });
+    const saved = JSON.parse(seeded.disk.get(DEFAULT_PROJECT_PATH) ?? '{}');
+    const lines = saved.chapters[0].groups[0].lines;
+    const line = lines[lines.length - 1];
+    expect(line.kind).toBe('指令');
+    expect(line.command).toBe('其他|延时|时长:0.5');
   });
 });
 
@@ -1921,7 +1970,7 @@ describe('条件与指令模块：按模块分组', () => {
     // 默认那套字典：剧情、背包、任务、地图、特殊
     const groups = [...container.querySelectorAll('.command-group')];
     expect(groups.map((group) => (group.querySelector('.command-group-name') as HTMLInputElement).value)).
-      toEqual(['剧情', '背包', '任务', '地图', '特殊']);
+      toEqual(['剧情', '背包', '任务', '地图', '其他']);
 
     // 剧情那组里有 5 条条目（演出 / 图片 / CG / 播放对话 / 音效）
     const first = groups[0];
@@ -1953,7 +2002,7 @@ describe('条件与指令模块：按模块分组', () => {
     const heads = [...container.querySelectorAll('.command-group-name')].map(
       (el) => (el as HTMLInputElement).value,
     );
-    expect(heads).toEqual(['剧情', '背包', '任务', '地图', '特殊', '系统']);
+    expect(heads).toEqual(['剧情', '背包', '任务', '地图', '其他', '系统']);
     // 新分组里先有一条分支留空的条目
     const groups2 = [...container.querySelectorAll('.command-group')];
     const group = groups2[groups2.length - 1] as HTMLElement;

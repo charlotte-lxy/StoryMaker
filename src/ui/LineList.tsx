@@ -9,8 +9,15 @@ import {
 } from 'react';
 
 import {
+  buildDelayCommand,
   buildSpecialCommand,
+  delaySecondsOf,
+  isDelayCommandText,
   specialEffectNameOf,
+  DELAY_COMMAND_BRANCH,
+  DELAY_COMMAND_HEAD,
+  DELAY_COMMAND_PARAM,
+  SPECIAL_COMMAND_BRANCH,
   SPECIAL_COMMAND_HEAD,
   SPECIAL_COMMAND_PARAM,
   type CommandTargets,
@@ -99,14 +106,23 @@ export function LineList(props: Props) {
   const flashCardRef = useRef<HTMLElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
 
-  /** 「特殊演出效果」行拼出来的指令，参数名跟着字典走（默认「特殊指令」） */
+  /** 「特殊演出效果」行的参数名跟着字典走（默认「特殊指令ID」） */
   const specialParamName =
     props.commandDefs.find(
       (def) =>
         def.category === '指令' &&
         def.head.trim() === SPECIAL_COMMAND_HEAD &&
-        def.branch.trim() === '',
+        def.branch.trim() === SPECIAL_COMMAND_BRANCH,
     )?.params[0]?.name ?? SPECIAL_COMMAND_PARAM;
+
+  /** 「延时」行的参数名跟着字典走（默认「时长」） */
+  const delayParamName =
+    props.commandDefs.find(
+      (def) =>
+        def.category === '指令' &&
+        def.head.trim() === DELAY_COMMAND_HEAD &&
+        def.branch.trim() === DELAY_COMMAND_BRANCH,
+    )?.params[0]?.name ?? DELAY_COMMAND_PARAM;
 
   // 从别处跳转过来时，把目标行滚到视野中央
   useEffect(() => {
@@ -471,7 +487,8 @@ export function LineList(props: Props) {
 
                   {line.kind === '指令' &&
                     line.jumpGroupUid === null &&
-                    line.specialContent === null && (
+                    line.specialContent === null &&
+                    !isDelayCommandText(line.command) && (
                     <Field label="指令" className="line-field-command">
                       <CommandInput
                         value={line.command}
@@ -487,7 +504,23 @@ export function LineList(props: Props) {
                     </Field>
                   )}
 
-                  {/* 「特殊演出效果」：只有两个输入框，指令拼成「特殊||特殊指令:名称」；
+                  {/* 「延时」：只有一个秒数输入框，指令拼成「其他|延时|时长:秒数」 */}
+                  {line.kind === '指令' && isDelayCommandText(line.command) && (
+                    <Field label="秒数" className="line-field-delay">
+                      <input
+                        value={delaySecondsOf(line.command, delayParamName)}
+                        placeholder="例如 0.5"
+                        title="等这么多秒再继续往下播；可以带小数"
+                        onChange={(event) =>
+                          props.onUpdateLine(line.uid, {
+                            command: buildDelayCommand(event.target.value, delayParamName),
+                          })
+                        }
+                      />
+                    </Field>
+                  )}
+
+                  {/* 「特殊演出效果」：只有两个输入框，指令拼成「其他|特殊|特殊指令ID:名称」；
                       「指令内容」只给自己看，不导出也不参与拼装 */}
                   {line.kind === '指令' && line.specialContent !== null && (
                     <>
@@ -495,7 +528,7 @@ export function LineList(props: Props) {
                         <input
                           value={specialEffectNameOf(line.command, specialParamName)}
                           placeholder="例如 SP_CameraShake"
-                          title="特殊指令名称：导出时拼成「特殊||特殊指令:名称」"
+                          title="特殊指令名称：导出时拼成「其他|特殊|特殊指令ID:名称」"
                           onChange={(event) =>
                             props.onUpdateLine(line.uid, {
                               command: buildSpecialCommand(event.target.value, specialParamName),

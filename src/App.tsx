@@ -49,7 +49,6 @@ import {
   createEmptyProject,
   insertLine,
   locateGroup,
-  moveCommandParam,
   moveLines,
   moveLinesTogether,
   mutate,
@@ -71,6 +70,7 @@ import {
   renameCommandParam,
   renameGroup,
   renumberOneGroup,
+  reorderCommandParam,
   reorderLine,
   setGroupNote,
   updateCharacterAlias,
@@ -312,6 +312,13 @@ export default function App() {
     }, 800);
     return () => window.clearTimeout(timer);
   }, [project, projectPath, settings.autoSave, phase, host]);
+
+  // 主题：项目文件里记了就用项目的（换机器打开也一样），没记过就用本机设置
+  useEffect(() => {
+    const saved = project.ui?.theme;
+    if (saved !== 'light' && saved !== 'dark') return;
+    setSettings((prev) => (prev.theme === saved ? prev : { ...prev, theme: saved }));
+  }, [project.ui?.theme]);
 
   // 主题：写到 <html data-theme>，配色全部由 CSS 变量接管
   useEffect(() => {
@@ -800,7 +807,7 @@ export default function App() {
     setPicking(false);
     if (target === null) return;
 
-    const fresh = createEmptyProject();
+    const fresh = createEmptyProject(undefined, settings.theme);
     try {
       await host.writeProject(target, JSON.stringify(fresh, null, 2));
     } catch {
@@ -1251,8 +1258,8 @@ export default function App() {
                   onRenameParam={(defUid, paramUid, name) =>
                     setProject((prev) => renameCommandParam(prev, defUid, paramUid, name))
                   }
-                  onMoveParam={(defUid, paramUid, delta) =>
-                    setProject((prev) => moveCommandParam(prev, defUid, paramUid, delta))
+                  onReorderParam={(defUid, from, to) =>
+                    setProject((prev) => reorderCommandParam(prev, defUid, from, to))
                   }
                 />
               )}
@@ -1268,7 +1275,14 @@ export default function App() {
               {module === 'settings' && (
                 <SettingsEditor
                   settings={settings}
-                  onChange={(patch) => setSettings((prev) => ({ ...prev, ...patch }))}
+                  onChange={(patch) => {
+                    setSettings((prev) => ({ ...prev, ...patch }));
+                    // 主题跟着项目文件走：换台机器打开还是同一个颜色
+                    if (patch.theme !== undefined) {
+                      const theme = patch.theme;
+                      setProject((prev) => ({ ...prev, ui: { ...prev.ui, theme } }));
+                    }
+                  }}
                 />
               )}
 

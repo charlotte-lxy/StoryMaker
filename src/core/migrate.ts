@@ -18,6 +18,7 @@ import { DEFAULT_EFFECT_CLASS_PREFIX, DEFAULT_SKILL_CLASS_PREFIX } from './battl
 import {
   buildCommandText,
   findCommandDef,
+  formatCommandText,
   isReferenceSource,
   parseCommandText,
 } from './command-build';
@@ -162,6 +163,12 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
     typeof rawSpecialPrefix === 'string' && rawSpecialPrefix !== ''
       ? rawSpecialPrefix
       : DEFAULT_SPECIAL_COMMAND_CLASS_PREFIX;
+
+  // 界面配置（主题）也是后加的：老项目里没有，空串表示用本机设置
+  const rawUi: unknown = project.ui;
+  const rawTheme =
+    isRecord(rawUi) && typeof rawUi.theme === 'string' ? rawUi.theme : '';
+  project.ui = { theme: rawTheme === 'dark' ? 'dark' : rawTheme === 'light' ? 'light' : '' };
 
   // 导入设置同样是后加的：老项目里没有这栏
   const rawExportSettings: unknown = project.exportSettings;
@@ -764,7 +771,7 @@ function normalizeCommandDict(project: Project): void {
       continue;
     }
     const old = readOldDef(item);
-    const [head, branch] = OLD_HEAD_TO_NEW[old.head.trim()] ?? splitHead(old.head);
+    const [head, branch] = newHeadOf(old);
     const fallback = defaults.find(
       (def) => def.category === old.category && def.head === head && def.branch === branch,
     );
@@ -775,6 +782,15 @@ function normalizeCommandDict(project: Project): void {
     );
   }
 
+  // 特殊指令的位置换过一次：老项目里「指令 特殊 / 无分支」现在挂在「其他 / 特殊」下面
+  for (const def of out) {
+    if (def.category !== '指令') continue;
+    if (def.head.trim() !== '特殊' || def.branch.trim() !== '') continue;
+    def.head = '其他';
+    def.branch = '特殊';
+    if (def.params[0]?.name.trim() === '特殊指令') def.params[0].name = '特殊指令ID';
+  }
+
   // 同一个「类别 + 主指令 + 分支」只留一条：老字典里靠 branch 区分的那几条会合并到这里
   const seen = new Set<string>();
   project.commands = out.filter((def) => {
@@ -783,6 +799,28 @@ function normalizeCommandDict(project: Project): void {
     seen.add(key);
     return true;
   });
+
+  // 新脚本块（特殊演出效果 / 延时）要用到这两条；老字典里没有就补上
+  ensureDefaultDef(project, '其他', '特殊');
+  ensureDefaultDef(project, '其他', '延时');
+}
+
+/** 老指令头 → 新字典里的「主指令 + 分支」（条件与指令里的「特殊」落在不同位置） */
+function newHeadOf(old: OldCommandDef): [string, string] {
+  if (old.category === '指令' && old.head.trim() === '特殊') return ['其他', '特殊'];
+  return OLD_HEAD_TO_NEW[old.head.trim()] ?? splitHead(old.head);
+}
+
+/** 字典里缺这条指令时，从默认字典补一条 */
+function ensureDefaultDef(project: Project, head: string, branch: string): void {
+  const exists = project.commands.some(
+    (def) => def.category === '指令' && def.head.trim() === head && def.branch.trim() === branch,
+  );
+  if (exists) return;
+  const def = defaultCommandDefs().find(
+    (item) => item.category === '指令' && item.head === head && item.branch === branch,
+  );
+  if (def !== undefined) project.commands.push(def);
 }
 
 /* ---------- 指令文本：老格式 → E2 ---------- */
@@ -962,10 +1000,11 @@ function legacyCommandToText(
         add('特殊条件', target);
         add('运算符', operator);
         add('结果', value);
-      } else {
-        add('特殊指令', target);
+        return { head: '特殊', branch: '', params };
       }
-      return { head: '特殊', branch: '', params };
+      // 特殊指令现在挂在「其他 / 特殊」下面
+      add('特殊指令ID', target);
+      return { head: '其他', branch: '特殊', params };
     case '地图.进入':
       add('地图', target);
       return { head: '地图', branch: '进入', params };
@@ -1019,7 +1058,21 @@ function migrateCommandTexts(project: Project): void {
   const convert = (text: string, category: '条件' | '指令'): string => {
     const trimmed = text.trim();
     if (trimmed === '') return text;
-    if (parseCommandText(trimmed) !== null) return text; // 已经是新格式
+    const parsed = parseCommandText(trimmed);
+    if (parsed !== null) {
+      // 已经是新格式；只有「特殊指令」换过位置（特殊||特殊指令:X → 其他|特殊|特殊指令ID:X）
+      if (category === '指令' && parsed.head === '特殊' && parsed.branch === '') {
+        return formatCommandText(
+          '其他',
+          '特殊',
+          parsed.params.map((param) => ({
+            name: param.name === '特殊指令' ? '特殊指令ID' : param.name,
+            value: param.value,
+          })),
+        );
+      }
+      return text;
+    }
     const legacy = parseLegacyCommand(trimmed, isUid);
     if (legacy === null) return text;
     const mapped = legacyCommandToText(legacy, category);

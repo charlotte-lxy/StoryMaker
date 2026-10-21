@@ -1,11 +1,13 @@
 /**
  * 界面设置与「上次打开的项目」的记忆。
  *
- * 都存在本机 localStorage 里，不写进项目文件——项目文件是要发给同事、要跟着
- * 版本库走的，不该带上别人的界面偏好和磁盘路径。
+ * 项目里要跟着走的那部分界面配置（主题）存在项目文件的 `ui` 里（见 core/types.ts），
+ * 这里的 localStorage 只是本机的一份：门槛页、还没打开项目时用，也用来记自动保存开关。
  */
 
-export type ThemeName = 'light' | 'dark';
+import type { ThemeName } from '../core/types';
+
+export type { ThemeName };
 
 export interface Settings {
   /** 编辑后是否自动保存 */

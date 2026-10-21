@@ -447,6 +447,25 @@ export interface Project {
    * 跟战斗模块的 GA类 / GE类 前缀一个套路；换项目时在「Unreal导入设置」里改。
    */
   specialCommandClassPrefix: string;
+  /**
+   * 界面配置，跟着项目文件走：换台机器、换个浏览器打开，看到的还是同样的界面。
+   *
+   * 老项目里没有这一栏（缺省 = 用本机设置）。
+   */
+  ui?: ProjectUi;
   /** Unreal 导入设置，导出成「导入设置」子表 */
   exportSettings: ExportSettingRow[];
+}
+
+/** 界面主题 */
+export type ThemeName = 'light' | 'dark';
+
+/**
+ * 存在项目文件里的界面配置。
+ *
+ * 现在只有主题；以后要记别的界面状态（比如分栏比例）也往这里加。
+ */
+export interface ProjectUi {
+  /** 主题；空串表示还没记录过（打开时用本机设置） */
+  theme: ThemeName | '';
 }

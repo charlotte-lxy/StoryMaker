@@ -2,13 +2,17 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildCommandText,
+  buildDelayCommand,
   buildPlayDialogueCommand,
   buildSpecialCommand,
   commandDefLabel,
   commandDefNote,
+  delaySecondsOf,
   findCommandDef,
   forbiddenCharOf,
+  isDelayCommandText,
   isReferenceSource,
+  isSpecialCommandText,
   matchCommandText,
   paramValuesOf,
   parseCommandText,
@@ -147,25 +151,48 @@ describe('按主指令 + 分支找字典条目', () => {
   });
 });
 
-describe('跳转 / 特殊演出效果', () => {
+describe('跳转 / 特殊演出效果 / 延时', () => {
   it('跳转到段落拼成「剧情|播放对话|对话:ID」', () => {
     expect(buildPlayDialogueCommand('Dia_ch01_002-1')).toBe('剧情|播放对话|对话:Dia_ch01_002-1');
   });
 
-  it('特殊演出效果拼成「特殊||特殊指令:名称」，并且能取回来', () => {
+  it('特殊演出效果拼成「其他|特殊|特殊指令ID:名称」，并且能取回来', () => {
     const text = buildSpecialCommand('SP_CameraShake');
-    expect(text).toBe('特殊||特殊指令:SP_CameraShake');
+    expect(text).toBe('其他|特殊|特殊指令ID:SP_CameraShake');
     expect(specialEffectNameOf(text)).toBe('SP_CameraShake');
+    expect(isSpecialCommandText(text)).toBe(true);
   });
 
   it('参数名可以跟着字典改', () => {
     const text = buildSpecialCommand('SP_001', '演出编号');
-    expect(text).toBe('特殊||演出编号:SP_001');
+    expect(text).toBe('其他|特殊|演出编号:SP_001');
     expect(specialEffectNameOf(text, '演出编号')).toBe('SP_001');
+  });
+
+  it('特殊指令没填名字时也能认出是哪一种行', () => {
+    expect(buildSpecialCommand('')).toBe('其他|特殊|');
+    expect(isSpecialCommandText('其他|特殊|')).toBe(true);
   });
 
   it('不是特殊指令时原样返回，好让人看见并改掉', () => {
     expect(specialEffectNameOf('剧情|图片|图片:SCE_1')).toBe('剧情|图片|图片:SCE_1');
+    expect(isSpecialCommandText('剧情|图片|图片:SCE_1')).toBe(false);
+  });
+
+  it('延时拼成「其他|延时|时长:秒数」，能取回秒数', () => {
+    const text = buildDelayCommand('0.5');
+    expect(text).toBe('其他|延时|时长:0.5');
+    expect(delaySecondsOf(text)).toBe('0.5');
+    expect(isDelayCommandText(text)).toBe(true);
+    // 秒数为空时仍然是延时行（文本先立起来）
+    expect(buildDelayCommand('')).toBe('其他|延时|');
+    expect(isDelayCommandText('其他|延时|')).toBe(true);
+    expect(delaySecondsOf('其他|延时|')).toBe('');
+  });
+
+  it('延时不是特殊指令，两者互不影响', () => {
+    expect(isSpecialCommandText('其他|延时|时长:1')).toBe(false);
+    expect(isDelayCommandText('其他|特殊|特殊指令ID:SP_1')).toBe(false);
   });
 });
 

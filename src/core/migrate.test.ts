@@ -368,7 +368,7 @@ describe('老结构自动迁移', () => {
     });
 
     const line = groupOf(result!.project).lines[0];
-    expect(line.command).toBe('特殊||特殊指令:SP_CameraShake');
+    expect(line.command).toBe('其他|特殊|特殊指令ID:SP_CameraShake');
     expect(line.specialContent).toBe('屏幕震一下');
   });
 
@@ -381,7 +381,8 @@ describe('老结构自动迁移', () => {
 
     expect(result).not.toBeNull();
     expect(result!.project.characters).toEqual([]);
-    expect(result!.project.commands).toEqual([]);
+    // 新脚本块要用的「其他 / 特殊」「其他 / 延时」会自动补齐
+    expect(result!.project.commands.map((def) => def.branch)).toEqual(['特殊', '延时']);
     expect(groupOf(result!.project).lines).toEqual([]);
     expect(groupOf(result!.project).options).toEqual([]);
   });
@@ -452,7 +453,8 @@ describe('指令字典与指令文本迁移', () => {
       ],
     });
 
-    const defs = result!.project.commands;
+    // 四条老条目合并成「剧情 / 演出」一条；另外两条是新脚本块要用的默认条目
+    const defs = result!.project.commands.filter((def) => def.head === '剧情');
     expect(defs).toHaveLength(1);
     expect(defs[0].head).toBe('剧情');
     expect(defs[0].branch).toBe('演出');
@@ -494,7 +496,7 @@ describe('指令字典与指令文本迁移', () => {
       '剧情|演出|角色:ch1;表情:悲伤',
       '背包||物品:Item_Coin;运算符:+;数量:100',
       '剧情|图片|',
-      '特殊||特殊指令:SP_001',
+      '其他|特殊|特殊指令ID:SP_001',
       '地图|时间|运算符:+;小时:1',
     ]);
   });
@@ -514,10 +516,10 @@ describe('指令字典与指令文本迁移', () => {
   it('已经是新格式的文本原样保留', () => {
     const result = normalizeProject(
       legacyProject([
-        { uid: 'l1', readableId: 'Dia_ch01_001-1', kind: '指令', command: '特殊||特殊指令:SP_1' },
+        { uid: 'l1', readableId: 'Dia_ch01_001-1', kind: '指令', command: '其他|特殊|特殊指令ID:SP_1' },
       ]),
     );
-    expect(groupOf(result!.project).lines[0].command).toBe('特殊||特殊指令:SP_1');
+    expect(groupOf(result!.project).lines[0].command).toBe('其他|特殊|特殊指令ID:SP_1');
   });
 });
 
@@ -532,7 +534,7 @@ describe('选项结果搬成新段落', () => {
         [
           legacyOption('o1', 'Dia_ch01_001-1A', {
             nextId: 'u2',
-            results: ['特殊||特殊指令:SP_1', '背包||物品:Item_Coin;运算符:+;数量:1'],
+            results: ['其他|特殊|特殊指令ID:SP_1', '背包||物品:Item_Coin;运算符:+;数量:1'],
           }),
         ],
       ),
@@ -544,7 +546,7 @@ describe('选项结果搬成新段落', () => {
     expect(created.id).toBe('002');
     expect(created.title).toBe('（选项结果）');
     expect(created.lines.map((line) => line.command)).toEqual([
-      '特殊||特殊指令:SP_1',
+      '其他|特殊|特殊指令ID:SP_1',
       '背包||物品:Item_Coin;运算符:+;数量:1',
       '',
     ]);
@@ -562,7 +564,7 @@ describe('选项结果搬成新段落', () => {
     const result = normalizeProject(
       legacyProject(
         [{ uid: 'u1', readableId: 'Dia_ch01_001-1', kind: '选项', optionIds: ['o1'] }],
-        [legacyOption('o1', 'Dia_ch01_001-1A', { results: ['特殊||特殊指令:SP_1'] })],
+        [legacyOption('o1', 'Dia_ch01_001-1A', { results: ['其他|特殊|特殊指令ID:SP_1'] })],
       ),
     );
 

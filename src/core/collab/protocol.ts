@@ -120,6 +120,7 @@ export const WHOLE_FIELDS: readonly string[] = [
   'battle.skillClassPrefix',
   'battle.effectClassPrefix',
   'specialCommandClassPrefix',
+  'ui.theme',
 ];
 
 /** 把路径拆成段 */

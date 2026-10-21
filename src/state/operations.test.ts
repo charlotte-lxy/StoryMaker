@@ -13,6 +13,7 @@ import {
   insertLine,
   moveLines,
   moveLinesTogether,
+  mutate,
   removeCommandModule,
   removeLines,
   removeUiText,
@@ -20,10 +21,12 @@ import {
   renameCommandModule,
   renameCommandParam,
   renumberOneGroup,
+  reorderCommandParam,
   reorderLine,
   updateTextByUid,
   updateUiText,
 } from './operations';
+import { buildDelayCommand } from '../core/command-build';
 
 function makeLine(uid: string, readableId: string, zh: string): Line {
   return {
@@ -686,5 +689,48 @@ describe('指令字典按模块分组与改名', () => {
     ]);
     // 「指令」类别里同名模块的指令不动
     expect(commandAt(next, 1)).toBe('剧情|演出|角色:CHA_伊芙;表情:开心');
+  });
+
+  it('参数拖拽排序：下标对调，参数名跟着走', () => {
+    const project = reorderCommandParam(makeDictProject(), 'def-bag', 2, 0);
+    expect(project.commands[1].params.map((param) => param.name)).toEqual([
+      '数量',
+      '物品',
+      '运算符',
+    ]);
+    // 顺序只影响填写界面的摆放，已写好的指令文本不变
+    expect(commandAt(project, 2)).toBe('背包||物品:Item_Coin;运算符:+;数量:1');
+  });
+
+  it('参数拖拽排序越界 / 原地不动时原样返回', () => {
+    const project = makeDictProject();
+    expect(reorderCommandParam(project, 'def-bag', 0, 0).commands[1].params.map((p) => p.name)).toEqual(
+      ['物品', '运算符', '数量'],
+    );
+    expect(reorderCommandParam(project, 'def-bag', 0, 9).commands[1].params.map((p) => p.name)).toEqual(
+      ['物品', '运算符', '数量'],
+    );
+  });
+});
+
+describe('延时脚本块', () => {
+  it('插一条「指令」行，指令文本先立成「其他|延时|」', () => {
+    const project = insertLine(makeProject(), 'g1', 1, '延时');
+    const line = project.chapters[0].groups[0].lines[1];
+    expect(line.kind).toBe('指令');
+    expect(line.command).toBe('其他|延时|');
+    expect(line.specialContent).toBeNull();
+    expect(line.jumpGroupUid).toBeNull();
+  });
+
+  it('填了秒数之后指令是「其他|延时|时长:0.5」', () => {
+    const project = insertLine(makeProject(), 'g1', 1, '延时');
+    const line = project.chapters[0].groups[0].lines[1];
+    const next = mutate(project, (draft) => {
+      const target = draft.chapters[0].groups[0].lines[1];
+      target.command = buildDelayCommand('0.5');
+    });
+    expect(line.command).toBe('其他|延时|');
+    expect(next.chapters[0].groups[0].lines[1].command).toBe('其他|延时|时长:0.5');
   });
 });

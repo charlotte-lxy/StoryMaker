@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { useScrollMemory } from './view-memory';
+import { OrderCell, useRowDrag } from './battle/row-drag';
 
 import { collectCommands, commandModulesOf } from '../state/operations';
 import { parseCommandText } from '../core/command-build';
@@ -22,7 +23,8 @@ interface Props {
   onRemoveParam: (defUid: string, paramUid: string) => void;
   onUpdateParam: (defUid: string, paramUid: string, patch: Partial<CommandParamDef>) => void;
   onRenameParam: (defUid: string, paramUid: string, name: string) => void;
-  onMoveParam: (defUid: string, paramUid: string, delta: number) => void;
+  /** 拖动参数行调整顺序（from / to 是这一条参数里的下标） */
+  onReorderParam: (defUid: string, from: number, to: number) => void;
   /** 全局搜索 / 校验条跳过来的字典行：切到那一类，滚过去并闪一下 */
   focusUid?: string | null;
 }
@@ -106,79 +108,46 @@ function NameInput({
 }
 
 /**
- * 条件与指令模块。
+ * 一条条目的参数表。
  *
- * 左边一栏分「条件 / 指令」两页：条件用在选项的出现/可用条件上，指令用在对话行的指令栏上。
- * 每页两个页签：字典（按模块分组，每条条目有哪些参数）与使用情况（剧情里哪些地方用了它）。
- *
- * 字典按「模块（主指令）」分组：分组标题上写模块名，分组里一条条条目只写分支与参数。
- * 改模块名 / 分支名 / 参数名都会把剧情里用到它的指令一起改掉，引用不会断。
+ * 参数顺序就是填表时控件从左到右的顺序，所以这里和其他表格一样：最左边一列是拖拽把手，
+ * 按住上下拖动调整顺序。
  */
-export function CommandEditor({
-  project,
-  onJumpToLine,
-  onAddModule,
-  onRemoveModule,
-  onRenameModule,
-  onAddDef,
-  onRemoveDef,
-  onRenameBranch,
-  onUpdateDef,
+function ParamTable({
+  def,
   onAddParam,
   onRemoveParam,
   onUpdateParam,
   onRenameParam,
-  onMoveParam,
-  focusUid = null,
-}: Props) {
-  const editorRef = useScrollMemory('command');
-  const [section, setSection] = useState<Section>('指令');
-  const [tab, setTab] = useState<'dict' | 'usage'>('dict');
-  /** 正在填的「新增分组」名字（null = 没在新增） */
-  const [newHead, setNewHead] = useState<string | null>(null);
+  onReorderParam,
+}: {
+  def: CommandDef;
+  onAddParam: (defUid: string) => void;
+  onRemoveParam: (defUid: string, paramUid: string) => void;
+  onUpdateParam: (defUid: string, paramUid: string, patch: Partial<CommandParamDef>) => void;
+  onRenameParam: (defUid: string, paramUid: string, name: string) => void;
+  onReorderParam: (defUid: string, from: number, to: number) => void;
+}) {
+  const drag = useRowDrag((from, to) => onReorderParam(def.uid, from, to));
 
-  // 跳过来的那一行：先切到它所在的类别与「字典」页
-  useEffect(() => {
-    if (focusUid === null) return;
-    const def = project.commands.find((item) => item.uid === focusUid);
-    if (def === undefined) return;
-    setSection(def.category);
-    setTab('dict');
-  }, [focusUid, project.commands]);
-
-  useEffect(() => {
-    if (focusUid === null || tab !== 'dict') return;
-    document.querySelector(`[data-search-uid="${focusUid}"]`)?.scrollIntoView({ block: 'center' });
-  }, [focusUid, tab, section]);
-
-  const modules = commandModulesOf(project, section);
-  const defCount = modules.reduce((sum, module) => sum + module.defs.length, 0);
-  const usage = collectCommands(project, section);
-
-  /** 模块名在本页里是否可用（不能和别的模块重名） */
-  const moduleNameFree = (next: string, current: string): boolean =>
-    next !== '' && !modules.some((module) => module.head === next && module.head !== current);
-
-  /** 分支名在同一个模块里是否可用 */
-  const branchNameFree = (defs: CommandDef[], current: string, next: string): boolean =>
-    !defs.some((def) => def.branch.trim() === next && def.branch.trim() !== current.trim());
-
-  const renderParams = (def: CommandDef) => (
+  return (
     <div className="command-params">
       <table className="lines param-table">
         <thead>
           <tr>
+            <th className="cell-order" title="按住把手上下拖动可调整顺序（填表时控件顺序跟着变）" />
             <th style={{ width: 120 }}>参数名</th>
             <th style={{ width: 130 }}>值来源</th>
             <th style={{ width: 150 }}>选项集</th>
             <th style={{ width: 90 }}>参数类型</th>
             <th>参数说明</th>
-            <th style={{ width: 130 }}>操作</th>
+            <th style={{ width: 80 }}>操作</th>
           </tr>
         </thead>
         <tbody>
           {def.params.map((param, index) => (
-            <tr className="line-row" key={param.uid}>
+            <tr key={param.uid} {...drag.rowProps(index)}>
+              <OrderCell index={index} drag={drag} />
               <td>
                 <NameInput
                   value={param.name}
@@ -240,33 +209,13 @@ export function CommandEditor({
                 />
               </td>
               <td>
-                <div className="row-actions">
-                  <button
-                    type="button"
-                    className="mini"
-                    title="往上挪一位（填表时控件顺序跟着变）"
-                    disabled={index === 0}
-                    onClick={() => onMoveParam(def.uid, param.uid, -1)}
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    className="mini"
-                    title="往下挪一位"
-                    disabled={index === def.params.length - 1}
-                    onClick={() => onMoveParam(def.uid, param.uid, 1)}
-                  >
-                    ↓
-                  </button>
-                  <button
-                    type="button"
-                    className="mini danger"
-                    onClick={() => onRemoveParam(def.uid, param.uid)}
-                  >
-                    删除
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  className="mini danger"
+                  onClick={() => onRemoveParam(def.uid, param.uid)}
+                >
+                  删除
+                </button>
               </td>
             </tr>
           ))}
@@ -277,6 +226,66 @@ export function CommandEditor({
       </button>
     </div>
   );
+}
+
+/**
+ * 条件与指令模块。
+ *
+ * 左边一栏分「条件 / 指令」两页：条件用在选项的出现/可用条件上，指令用在对话行的指令栏上。
+ * 每页两个页签：字典（按模块分组，每条条目有哪些参数）与使用情况（剧情里哪些地方用了它）。
+ *
+ * 字典按「模块（主指令）」分组：分组标题上写模块名，分组里一条条条目只写分支与参数。
+ * 改模块名 / 分支名 / 参数名都会把剧情里用到它的指令一起改掉，引用不会断。
+ */
+export function CommandEditor({
+  project,
+  onJumpToLine,
+  onAddModule,
+  onRemoveModule,
+  onRenameModule,
+  onAddDef,
+  onRemoveDef,
+  onRenameBranch,
+  onUpdateDef,
+  onAddParam,
+  onRemoveParam,
+  onUpdateParam,
+  onRenameParam,
+  onReorderParam,
+  focusUid = null,
+}: Props) {
+  const editorRef = useScrollMemory('command');
+  const [section, setSection] = useState<Section>('指令');
+  const [tab, setTab] = useState<'dict' | 'usage'>('dict');
+  /** 正在填的「新增分组」名字（null = 没在新增） */
+  const [newHead, setNewHead] = useState<string | null>(null);
+
+  // 跳过来的那一行：先切到它所在的类别与「字典」页
+  useEffect(() => {
+    if (focusUid === null) return;
+    const def = project.commands.find((item) => item.uid === focusUid);
+    if (def === undefined) return;
+    setSection(def.category);
+    setTab('dict');
+  }, [focusUid, project.commands]);
+
+  useEffect(() => {
+    if (focusUid === null || tab !== 'dict') return;
+    document.querySelector(`[data-search-uid="${focusUid}"]`)?.scrollIntoView({ block: 'center' });
+  }, [focusUid, tab, section]);
+
+  const modules = commandModulesOf(project, section);
+  const defCount = modules.reduce((sum, module) => sum + module.defs.length, 0);
+  const usage = collectCommands(project, section);
+
+  /** 模块名在本页里是否可用（不能和别的模块重名） */
+  const moduleNameFree = (next: string, current: string): boolean =>
+    next !== '' && !modules.some((module) => module.head === next && module.head !== current);
+
+  /** 分支名在同一个模块里是否可用 */
+  const branchNameFree = (defs: CommandDef[], current: string, next: string): boolean =>
+    !defs.some((def) => def.branch.trim() === next && def.branch.trim() !== current.trim());
+
 
   return (
     <div className="command-body">
@@ -399,7 +408,14 @@ export function CommandEditor({
                         删除条目
                       </button>
                     </div>
-                    {renderParams(def)}
+                    <ParamTable
+                      def={def}
+                      onAddParam={onAddParam}
+                      onRemoveParam={onRemoveParam}
+                      onUpdateParam={onUpdateParam}
+                      onRenameParam={onRenameParam}
+                      onReorderParam={onReorderParam}
+                    />
                   </div>
                 ))}
               </section>

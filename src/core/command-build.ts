@@ -48,9 +48,15 @@ export interface CommandTargets {
 export const PLAY_DIALOGUE_HEAD = '剧情';
 export const PLAY_DIALOGUE_BRANCH = '播放对话';
 
-/** 特殊演出效果块用的主指令；参数名默认「特殊指令」 */
-export const SPECIAL_COMMAND_HEAD = '特殊';
-export const SPECIAL_COMMAND_PARAM = '特殊指令';
+/** 特殊演出效果块用的主指令 / 分支 / 参数名：`其他|特殊|特殊指令ID:SP_001` */
+export const SPECIAL_COMMAND_HEAD = '其他';
+export const SPECIAL_COMMAND_BRANCH = '特殊';
+export const SPECIAL_COMMAND_PARAM = '特殊指令ID';
+
+/** 延时块用的主指令 / 分支 / 参数名：`其他|延时|时长:0.5` */
+export const DELAY_COMMAND_HEAD = '其他';
+export const DELAY_COMMAND_BRANCH = '延时';
+export const DELAY_COMMAND_PARAM = '时长';
 
 /** 参数来源里，哪些是「指向某张表的引用」（存 uid，导出要翻成可读 ID） */
 export function isReferenceSource(source: ParamSource): boolean {
@@ -239,20 +245,57 @@ export function buildPlayDialogueCommand(lineId: string, paramName = '对话'): 
   return value === '' ? '' : `${PLAY_DIALOGUE_HEAD}|${PLAY_DIALOGUE_BRANCH}|${paramName}:${value}`;
 }
 
-/** 「特殊演出效果」块拼出来的指令：特殊||特殊指令:<名称> */
+/** 「特殊演出效果」块拼出来的指令：其他|特殊|特殊指令ID:<名称> */
 export function buildSpecialCommand(name: string, paramName = SPECIAL_COMMAND_PARAM): string {
   const value = name.trim();
-  return value === '' ? '' : `${SPECIAL_COMMAND_HEAD}||${paramName}:${value}`;
+  return formatCommandText(SPECIAL_COMMAND_HEAD, SPECIAL_COMMAND_BRANCH, [
+    { name: paramName, value },
+  ]);
+}
+
+/** 一条指令是不是「特殊演出效果」（主指令=其他、分支=特殊） */
+export function isSpecialCommandText(command: string): boolean {
+  const parsed = parseCommandText(command);
+  return (
+    parsed !== null &&
+    parsed.head === SPECIAL_COMMAND_HEAD &&
+    parsed.branch === SPECIAL_COMMAND_BRANCH
+  );
 }
 
 /**
  * 从「特殊演出效果」行的指令文本里取回指令名称。
  *
- * 主指令不是「特殊」时原样返回，好让人看见并改掉。
+ * 不是这个格式时原样返回，好让人看见并改掉。
  */
 export function specialEffectNameOf(command: string, paramName = SPECIAL_COMMAND_PARAM): string {
   const parsed = parseCommandText(command);
-  if (parsed === null || parsed.head !== SPECIAL_COMMAND_HEAD) return command;
+  if (parsed === null || !isSpecialCommandText(command)) return command;
+  const named = parsed.params.find((param) => param.name === paramName);
+  return named?.value ?? '';
+}
+
+/** 「延时」块拼出来的指令：其他|延时|时长:<秒数> */
+export function buildDelayCommand(seconds: string, paramName = DELAY_COMMAND_PARAM): string {
+  return formatCommandText(DELAY_COMMAND_HEAD, DELAY_COMMAND_BRANCH, [
+    { name: paramName, value: seconds.trim() },
+  ]);
+}
+
+/** 一条指令是不是「延时」（主指令=其他、分支=延时） */
+export function isDelayCommandText(command: string): boolean {
+  const parsed = parseCommandText(command);
+  return (
+    parsed !== null &&
+    parsed.head === DELAY_COMMAND_HEAD &&
+    parsed.branch === DELAY_COMMAND_BRANCH
+  );
+}
+
+/** 从「延时」行的指令文本里取回秒数；不是这个格式时返回空串 */
+export function delaySecondsOf(command: string, paramName = DELAY_COMMAND_PARAM): string {
+  const parsed = parseCommandText(command);
+  if (parsed === null || !isDelayCommandText(command)) return '';
   const named = parsed.params.find((param) => param.name === paramName);
   return named?.value ?? '';
 }

@@ -5,7 +5,12 @@
  */
 
 import { createEmptyBattle } from '../core/battle';
-import { findCommandDef, formatCommandText, parseCommandText } from '../core/command-build';
+import {
+  buildDelayCommand,
+  findCommandDef,
+  formatCommandText,
+  parseCommandText,
+} from '../core/command-build';
 import { defaultCommandDefs } from '../core/default-commands';
 import { EXPORT_SUBTABLES } from '../core/export-settings';
 import { makeLineId, makeOptionId, newUid, renumberGroup, groupUidOfFirstLine, type IdChange } from '../core/ids';
@@ -25,6 +30,7 @@ import {
   type LookupRow,
   type Project,
   type StoryOption,
+  type ThemeName,
   type UiTextRow,
 } from '../core/types';
 
@@ -52,16 +58,19 @@ export function createLine(
 }
 
 /**
- * 能拖进对话列表的脚本块：三种行类型，外加「跳转到段落」与「特殊演出效果」。
+ * 能拖进对话列表的脚本块：三种行类型，外加「跳转到段落」「特殊演出效果」「延时」。
  *
- * 后两种生成的都是「指令」行（导出时文本类型就是指令）：
- * 「跳转到段落」的指令内容由所选段落现拼，「特殊演出效果」的指令内容只有指令名称。
+ * 后三种生成的都是「指令」行（导出时文本类型就是指令）：
+ * 「跳转到段落」的指令内容由所选段落现拼，「特殊演出效果」只有指令名称，
+ * 「延时」只有一个秒数。
  */
-export type InsertKind = LineKind | '跳转到段落' | '特殊演出效果';
+export type InsertKind = LineKind | '跳转到段落' | '特殊演出效果' | '延时';
 
 export const JUMP_BLOCK = '跳转到段落';
 
 export const SPECIAL_BLOCK = '特殊演出效果';
+
+export const DELAY_BLOCK = '延时';
 
 export function createOption(hostLineId: string, index: number): StoryOption {
   return {
@@ -74,7 +83,7 @@ export function createOption(hostLineId: string, index: number): StoryOption {
   };
 }
 
-export function createEmptyProject(name = '未命名项目'): Project {
+export function createEmptyProject(name = '未命名项目', theme: ThemeName | '' = ''): Project {
   return {
     version: 1,
     name,
@@ -88,6 +97,7 @@ export function createEmptyProject(name = '未命名项目'): Project {
     uiTexts: [],
     battle: createEmptyBattle(),
     specialCommandClassPrefix: DEFAULT_SPECIAL_COMMAND_CLASS_PREFIX,
+    ui: { theme },
     exportSettings: [],
     chapters: [
       {
@@ -253,18 +263,21 @@ export function insertLine(
     if (location === undefined) return;
     const { chapter, group } = location;
     const at = Math.max(0, Math.min(index, group.lines.length));
-    // 「跳转到段落」「特殊演出效果」也是指令行，只是各多带一个自己的字段
+    // 「跳转到段落」「特殊演出效果」「延时」也是指令行，只是各多带一个自己的字段
     const jump = kind === JUMP_BLOCK;
     const special = kind === SPECIAL_BLOCK;
+    const delay = kind === DELAY_BLOCK;
     const line = createLine(
       chapter.id,
       group.id,
       group.lines.length + 1,
-      jump || special ? '指令' : kind,
+      jump || special || delay ? '指令' : kind,
     );
     if (jump) line.jumpGroupUid = '';
     // 空串 = 是「特殊演出效果」行，但内容还没填（null 是普通行）
     if (special) line.specialContent = '';
+    // 「延时」行：指令文本先立起来（秒数还没填），这样这一行认得自己是延时
+    if (delay) line.command = buildDelayCommand('');
     // 「选项」行默认带一个选项，省得策划还要先点一下加号
     if (kind === '选项') {
       const option = createOption(line.readableId, 0);
@@ -852,19 +865,19 @@ export function renameCommandParam(
   });
 }
 
-/** 参数顺序就是填表时控件从左到右的顺序，所以挪位子是常用操作 */
-export function moveCommandParam(
+/** 参数顺序就是填表时控件从左到右的顺序，拖拽重新排序 */
+export function reorderCommandParam(
   project: Project,
   defUid: string,
-  paramUid: string,
-  delta: number,
+  from: number,
+  to: number,
 ): Project {
   return mutate(project, (draft) => {
     const def = draft.commands.find((item) => item.uid === defUid);
     if (def === undefined) return;
-    const from = def.params.findIndex((param) => param.uid === paramUid);
-    const to = from + delta;
-    if (from < 0 || to < 0 || to >= def.params.length) return;
+    if (from === to || from < 0 || to < 0 || from >= def.params.length || to >= def.params.length) {
+      return;
+    }
     const [moved] = def.params.splice(from, 1);
     def.params.splice(to, 0, moved);
   });
