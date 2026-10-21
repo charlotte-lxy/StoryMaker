@@ -16,6 +16,7 @@ import { normalizeProject, type NormalizeResult } from './core/migrate';
 import type {
   Character,
   CommandDef,
+  CommandParamDef,
   LangKey,
   Line,
   LookupRow,
@@ -38,6 +39,7 @@ import {
   addCharacter,
   addCharacterAlias,
   addCommandDef,
+  addCommandParam,
   addGroup,
   addLookupRow,
   addOption,
@@ -46,6 +48,7 @@ import {
   createEmptyProject,
   insertLine,
   locateGroup,
+  moveCommandParam,
   moveLines,
   moveLinesTogether,
   mutate,
@@ -53,6 +56,7 @@ import {
   removeCharacter,
   removeCharacterAlias,
   removeCommandDef,
+  removeCommandParam,
   removeGroup,
   removeLine,
   removeLines,
@@ -60,13 +64,13 @@ import {
   removeOption,
   removeUiText,
   renameChapter,
-  renameCommand,
   renameGroup,
   renumberOneGroup,
   reorderLine,
   setGroupNote,
   updateCharacterAlias,
   updateCommandDef,
+  updateCommandParam,
   updateLookupRow,
   updateNameText,
   updateTextByUid,
@@ -418,11 +422,6 @@ export default function App() {
     setProject((prev) => updateUiText(prev, uid, patch));
   };
 
-  const handleRenameCommand = (from: string, to: string): void => {
-    setProject((prev) => renameCommand(prev, from, to));
-    setToast(`已把「${from}」改为「${to}」，所有使用处一起更新`);
-  };
-
   const handleLookup = {
     add: (kind: LookupKind) => setProject((prev) => addLookupRow(prev, kind)),
     remove: (kind: LookupKind, uid: string) =>
@@ -611,6 +610,12 @@ export default function App() {
     if (issue.localeUid !== undefined && issue.localeUid !== '') {
       setModule('locale');
       setFocusLocaleUid(issue.localeUid);
+      return;
+    }
+    // 字典的问题（重复定义、参数名不对）：切到「条件与指令」模块，滚到并高亮那一条
+    if (issue.commandDefUid !== undefined && issue.commandDefUid !== '') {
+      setModule('command');
+      setFocusRowUid(issue.commandDefUid);
       return;
     }
     if (issue.lineUid !== '') {
@@ -1211,12 +1216,21 @@ export default function App() {
                 <CommandEditor
                   project={project}
                   focusUid={focusRowUid}
-                  onRenameCommand={handleRenameCommand}
                   onJumpToLine={handleJumpToLine}
                   onAddDef={(category) => setProject((prev) => addCommandDef(prev, category))}
                   onRemoveDef={(uid) => setProject((prev) => removeCommandDef(prev, uid))}
                   onUpdateDef={(uid, patch: Partial<CommandDef>) =>
                     setProject((prev) => updateCommandDef(prev, uid, patch))
+                  }
+                  onAddParam={(defUid) => setProject((prev) => addCommandParam(prev, defUid))}
+                  onRemoveParam={(defUid, paramUid) =>
+                    setProject((prev) => removeCommandParam(prev, defUid, paramUid))
+                  }
+                  onUpdateParam={(defUid, paramUid, patch: Partial<CommandParamDef>) =>
+                    setProject((prev) => updateCommandParam(prev, defUid, paramUid, patch))
+                  }
+                  onMoveParam={(defUid, paramUid, delta) =>
+                    setProject((prev) => moveCommandParam(prev, defUid, paramUid, delta))
                   }
                 />
               )}

@@ -7,9 +7,15 @@
  * 每条问题都带上它属于哪个段落、哪一行，界面点一下就能跳过去。
  */
 
+import {
+  findCommandDef,
+  forbiddenCharOf,
+  isReferenceSource,
+  parseCommandText,
+} from './command-build';
 import { groupUidOfFirstLine, textIdOf } from './ids';
 import { collectNameEntries } from './localization';
-import { collectRefUids, leadingUid, looksLikeUid } from './refs';
+import { collectRefUids, looksLikeUid } from './refs';
 import type { Group, LocalizedText, Project } from './types';
 
 export type IssueLevel = 'error' | 'warning';
@@ -34,6 +40,8 @@ export interface Issue {
   /** 战斗模块的问题专用：切到哪个子页面、哪一行 */
   battlePage?: string;
   battleUid?: string;
+  /** 字典问题专用：切到「条件与指令」模块并高亮这条定义 */
+  commandDefUid?: string;
 }
 
 export type IssueCode =
@@ -52,6 +60,12 @@ export type IssueCode =
   | 'unknown-display-name'
   | 'dangling-command-target'
   | 'empty-command'
+  | 'command-format'
+  | 'unknown-command'
+  | 'missing-command-param'
+  | 'unknown-command-param'
+  | 'duplicate-command-def'
+  | 'command-param-name'
   | 'empty-option-list'
   | 'missing-translation'
   | 'empty-ui-key'
@@ -95,28 +109,95 @@ export function validateProject(project: Project): ValidationReport {
   const refUids = collectRefUids(project);
 
   /**
-   * 指令 / 条件里指向各表的目标：改动后写进文本的是 uid，
-   * 引用的那一行被删掉之后这个 uid 就悬空了（导出会写出一串乱码）。
-   * 只报「看起来就是 uid 又找不到」的，老数据里的 ID / 名字照旧不报。
+   * 一条指令 / 条件文本：格式对不对、字典里有没有、必填参数填没填、
+   * 指向各表的参数还指不指得到。
    */
-  const checkCommandTarget = (
+  const checkCommandText = (
     text: string,
+    category: '条件' | '指令',
     where: string,
     targetId: string,
     lineUid: string,
     groupUid: string,
   ): void => {
-    const uid = leadingUid(text);
-    if (uid === '' || refUids.has(uid)) return;
-    issues.push({
-      level: 'error',
-      code: 'dangling-command-target',
-      targetId,
-      where,
-      message: '指令 / 条件指向的目标已经被删掉了，请在对应表里重新选一次',
-      lineUid,
-      groupUid,
-    });
+    const trimmed = text.trim();
+    const parsed = parseCommandText(trimmed);
+    if (parsed === null) {
+      issues.push({
+        level: 'error',
+        code: 'command-format',
+        targetId,
+        where,
+        message: `「${trimmed}」不是合法写法，应该是「主指令|分支|参数名:值;参数名:值」`,
+        lineUid,
+        groupUid,
+      });
+      return;
+    }
+
+    const def = findCommandDef(project.commands, category, parsed.head, parsed.branch);
+    const label =
+      parsed.branch === '' ? parsed.head : `${parsed.head} / ${parsed.branch}`;
+    if (def === undefined) {
+      issues.push({
+        level: 'error',
+        code: 'unknown-command',
+        targetId,
+        where,
+        message: `字典里没有「${label}」这条${category}，先去「条件与指令」模块里建一条`,
+        lineUid,
+        groupUid,
+      });
+      return;
+    }
+
+    const values = new Map(parsed.params.map((param) => [param.name, param.value]));
+    for (const param of def.params) {
+      const value = values.get(param.name.trim()) ?? '';
+      if (value === '') {
+        if (param.required) {
+          issues.push({
+            level: 'error',
+            code: 'missing-command-param',
+            targetId,
+            where,
+            message: `「${label}」的必填参数「${param.name}」还没填`,
+            lineUid,
+            groupUid,
+          });
+        }
+        continue;
+      }
+      // 指向各表的参数存的是 uid，那一行被删掉之后就悬空了（导出会写出一串乱码）
+      if (
+        isReferenceSource(param.source) &&
+        looksLikeUid(value) &&
+        !refUids.has(value)
+      ) {
+        issues.push({
+          level: 'error',
+          code: 'dangling-command-target',
+          targetId,
+          where,
+          message: `参数「${param.name}」指向的目标已经被删掉了，请在对应表里重新选一次`,
+          lineUid,
+          groupUid,
+        });
+      }
+    }
+
+    for (const param of parsed.params) {
+      if (def.params.some((item) => item.name.trim() === param.name)) continue;
+      issues.push({
+        level: 'warning',
+        code: 'unknown-command-param',
+        targetId,
+        where,
+        message: `「${label}」没有参数「${param.name}」，导出后游戏那边读不到它`,
+        lineUid,
+        groupUid,
+      });
+    }
   };
 
   /** 每个可读 ID 出现几次，以及第一次出现的位置（报重复 ID 时能点过去） */
@@ -261,7 +342,14 @@ export function validateProject(project: Project): ValidationReport {
               });
             }
             for (const condition of line.jumpConditions) {
-              checkCommandTarget(condition, where, line.readableId, at.lineUid, at.groupUid);
+              checkCommandText(
+                condition,
+                '条件',
+                where,
+                line.readableId,
+                at.lineUid,
+                at.groupUid,
+              );
             }
             continue;
           }
@@ -274,8 +362,9 @@ export function validateProject(project: Project): ValidationReport {
               message: '「指令」行还没填指令，导出后这一行是空的',
               ...at,
             });
+          } else {
+            checkCommandText(line.command, '指令', where, line.readableId, at.lineUid, at.groupUid);
           }
-          checkCommandTarget(line.command, where, line.readableId, at.lineUid, at.groupUid);
           continue;
         }
 
@@ -340,12 +429,8 @@ export function validateProject(project: Project): ValidationReport {
       for (const option of group.options) {
         const lineUid = ownerLineUid(group, option.uid);
 
-        for (const text of [
-          ...option.appearConditions,
-          ...option.enableConditions,
-          ...option.results,
-        ]) {
-          checkCommandTarget(text, where, option.readableId, lineUid, group.uid);
+        for (const text of [...option.appearConditions, ...option.enableConditions]) {
+          checkCommandText(text, '条件', where, option.readableId, lineUid, group.uid);
         }
 
         if (!referencedOptions.has(option.uid)) {
@@ -422,6 +507,76 @@ export function validateProject(project: Project): ValidationReport {
           }
         }
       }
+    }
+  }
+
+  /* ---------- 指令字典本身 ---------- */
+
+  /** 同一个「类别 + 主指令 + 分支」只允许一条，不然填表时不知道该用哪条 */
+  const defKeys = new Set<string>();
+  for (const def of project.commands) {
+    const label = `${def.category}「${def.head.trim()}${def.branch.trim() === '' ? '' : ` / ${def.branch.trim()}`}」`;
+    const head = def.head.trim();
+    if (head === '') {
+      issues.push({
+        level: 'error',
+        code: 'command-param-name',
+        targetId: label,
+        where: '条件与指令',
+        message: '有一条指令 / 条件没有填主指令名',
+        lineUid: '',
+        groupUid: '',
+        commandDefUid: def.uid,
+      });
+    }
+    const key = `${def.category}|${head}|${def.branch.trim()}`;
+    if (defKeys.has(key)) {
+      issues.push({
+        level: 'error',
+        code: 'duplicate-command-def',
+        targetId: label,
+        where: '条件与指令',
+        message: `${label} 有重复定义，填表时不知道该用哪一条`,
+        lineUid: '',
+        groupUid: '',
+        commandDefUid: def.uid,
+      });
+    }
+    defKeys.add(key);
+
+    const names = new Set<string>();
+    for (const param of def.params) {
+      const name = param.name.trim();
+      const bad = name === '' ? '' : forbiddenCharOf(name);
+      if (name === '' || bad !== null) {
+        issues.push({
+          level: 'error',
+          code: 'command-param-name',
+          targetId: label,
+          where: '条件与指令',
+          message:
+            name === ''
+              ? `${label} 有一个参数没填参数名`
+              : `${label} 的参数名「${name}」里有不能用的字符「${bad}」`,
+          lineUid: '',
+          groupUid: '',
+          commandDefUid: def.uid,
+        });
+        continue;
+      }
+      if (names.has(name)) {
+        issues.push({
+          level: 'error',
+          code: 'command-param-name',
+          targetId: label,
+          where: '条件与指令',
+          message: `${label} 里有两个参数都叫「${name}」`,
+          lineUid: '',
+          groupUid: '',
+          commandDefUid: def.uid,
+        });
+      }
+      names.add(name);
     }
   }
 

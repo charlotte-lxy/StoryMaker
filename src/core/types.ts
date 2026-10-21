@@ -41,19 +41,23 @@ export interface Line {
   text: LocalizedText;
   /** 强制自动播放下一对话；只有「对话」行使用 */
   autoAdvance: boolean;
-  /** 一条演出指令，如「剧情.人物# CHA_Q版伊芙.差分 = 挥手」；只有「指令」行使用，一行一条 */
+  /**
+   * 一条指令，格式是「主指令|分支|参数名:值;参数名:值」，如 `剧情|演出|角色:CHA_x;表情:悲伤`。
+   * 只有「指令」行使用，一行一条。
+   */
   command: string;
   /**
    * 「特殊演出效果」行（脚本块里那一种）的指令内容：只给自己看，不导出。
    *
-   * 这一栏**不参与指令拼装**——这一行的指令就是 `特殊# <特殊指令名称>`（名称存在 command 里）。
+   * 这一栏**不参与指令拼装**——这一行的指令就是 `特殊||特殊指令:<特殊指令名称>`
+   * （名称存在 command 里）。
    * null 表示这一行不是「特殊演出效果」（普通「指令」行也是 null）；空串表示是，但还没填内容。
    */
   specialContent: string | null;
   /**
    * 「跳转到段落」行专用的段落引用（其它行是 null）。
    *
-   * 存的是段落 uid，导出时现拼成「剧情.播放对话# <该段落第一句的对话ID>」，
+   * 存的是段落 uid，导出时现拼成「剧情|播放对话|对话:<该段落第一句的对话ID>」，
    * 这样段落里插行、拖拽、删行之后跳转自动跟着新的第一句走。
    * 空串表示"是跳转行，但还没选段落"。
    */
@@ -77,17 +81,12 @@ export interface StoryOption {
   /** 跳转目标对话 ID */
   nextId: string;
   /**
-   * 出现条件：是否显示该选项。内容是条件文本，如「背包#Item_Coin>=10」。
+   * 出现条件：是否显示该选项。内容是条件文本，如「背包||物品:Item_Coin;运算符:>=;数量:10」。
    * 和指令一样按条目填写，只是可选范围限定为字典里的「条件」。
    */
   appearConditions: string[];
   /** 可用条件：显示但置灰不可选 */
   enableConditions: string[];
-  /**
-   * 结果列表：选中该选项后执行的指令。
-   * 它和对话行的「指令」是同一种东西，因此也走指令字典的下拉。
-   */
-  results: string[];
 }
 
 /** 段落，对应可读 ID 中的组号，如 001 */
@@ -166,11 +165,11 @@ export interface Character {
   /** 别名列表：同一角色的其他显示名（如「unknown」「HUD」） */
   aliases: CharacterAlias[];
   /**
-   * 该角色的表情差分清单，供指令「剧情.演出# 角色.表情=」的下拉使用。
+   * 该角色的表情差分清单，供指令「剧情|演出|…;表情:」这个参数的下拉使用。
    * 不同角色的差分可以不同，所以挂在角色上而不是做成全局清单。
    */
   expressions: string[];
-  /** 该角色的动作清单，供指令「剧情.演出# 角色.动作=」的下拉使用 */
+  /** 该角色的动作清单，供指令「剧情|演出|…;动作:」这个参数的下拉使用 */
   actions: string[];
 }
 
@@ -363,44 +362,63 @@ export interface ExportSettingRow {
   subTable: string;
 }
 
-/** 指令的目标对象可以来自哪张表 */
-export type TargetKind =
+/**
+ * 参数的值从哪儿来。
+ *
+ * 前 6 个是各张表里的行（存 uid，导出时才翻成可读 ID）；
+ * 「该角色表情 / 该角色动作」取同一条指令里「角色表」那个参数所选角色的清单；
+ * 手填数字 / 手填文本是自由输入；固定选项是字典里自己填的候选值。
+ */
+export type ParamSource =
   | 'character'
   | 'item'
   | 'quest'
   | 'image'
   | 'sound'
   | 'line'
-  | 'manual'
-  | 'none';
-
-/** 指令的结果怎么填 */
-export type ValueKind =
   | 'expression'
   | 'action'
   | 'number'
-  | 'fixed'
-  | 'none';
+  | 'text'
+  | 'fixed';
 
-/** 一条指令定义，驱动指令编辑时的逐级下拉 */
+/** 一条指令（或条件）的一个参数 */
+export interface CommandParamDef {
+  uid: string;
+  /**
+   * 参数名，策划自己填的中文，如「角色」「运算符」「数量」。
+   *
+   * 它同时是导出文本里的键（`运算符:+`），改了它老数据的值就对不上了，
+   * 所以上表之后不要再改名。
+   */
+  name: string;
+  /** 值来源 */
+  source: ParamSource;
+  /** 固定选项的候选值（只有 source === 'fixed' 时用） */
+  options: string[];
+  /** 必填：没填时校验报错；非必填可以不填（导出文本里整项省略） */
+  required: boolean;
+  /** 参数说明，只在界面上显示 */
+  note: string;
+}
+
+/**
+ * 一条指令定义，驱动指令编辑时的逐级下拉。
+ *
+ * 指令文本的格式是「主指令|分支|参数名:值;参数名:值」，
+ * 主指令 + 分支唯一确定一条定义；这条定义再决定参数有几个、每个怎么填。
+ */
 export interface CommandDef {
   uid: string;
   /** 属于条件还是指令 */
   category: '条件' | '指令';
-  /** 主指令，如「剧情.演出」「背包」「特殊」 */
+  /** 主指令，如「剧情」「背包」「特殊」 */
   head: string;
-  /** 分支，无分支时为空 */
+  /** 分支，无分支时为空，如「演出」「接取」 */
   branch: string;
-  /** 目标对象来源 */
-  target: TargetKind;
-  /** 目标属性，无属性时为空，如「表情」 */
-  attribute: string;
-  /** 运算符，无运算符时为空，如「=」 */
-  operator: string;
-  /** 结果来源 */
-  value: ValueKind;
-  /** 结果为固定选项时的候选值 */
-  fixedValues: string[];
+  /** 参数列表：界面按这个顺序从左到右摆控件 */
+  params: CommandParamDef[];
+  /** 指令说明，只在界面上显示 */
   note: string;
 }
 

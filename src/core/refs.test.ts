@@ -3,12 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { buildBattleRows } from './battle-export';
 import { validateBattle } from './battle-validate';
 import { createEmptyBattle } from './battle';
-import { parseArrayLiteral } from './array-literal';
 import { buildRows } from './export';
 import { normalizeProject } from './migrate';
-import { collectRefMaps, translateTarget } from './refs';
+import { collectRefMaps } from './refs';
 import type { BattleData, Line, Project } from './types';
-import { parseCommand } from '../state/operations';
 import { validateProject } from './validate';
 
 /**
@@ -103,7 +101,31 @@ function makeProject(): Project {
     quests: [],
     images: [],
     sounds: [],
-    commands: [],
+    commands: [
+      {
+        uid: 'def-perform',
+        category: '指令',
+        head: '剧情',
+        branch: '演出',
+        params: [
+          { uid: 'p-role', name: '角色', source: 'character', options: [], required: true, note: '' },
+          { uid: 'p-face', name: '表情', source: 'expression', options: [], required: false, note: '' },
+        ],
+        note: '',
+      },
+      {
+        uid: 'def-bag',
+        category: '指令',
+        head: '背包',
+        branch: '',
+        params: [
+          { uid: 'p-item', name: '物品', source: 'item', options: [], required: true, note: '' },
+          { uid: 'p-op', name: '运算符', source: 'fixed', options: ['+', '-', '='], required: true, note: '' },
+          { uid: 'p-count', name: '数量', source: 'number', options: [], required: true, note: '' },
+        ],
+        note: '',
+      },
+    ],
     variables: [],
     uiTexts: [],
     battle: makeBattle(),
@@ -126,8 +148,11 @@ function makeProject(): Project {
                 text: { zh: '你好', en: '', ja: '' },
               }),
               // 指令里的目标也是 uid：演出对象是角色，背包里是物品
-              line('l2', 'Dia_ch01_001-2', { kind: '指令', command: '剧情.演出# ch1.表情=挥手' }),
-              line('l3', 'Dia_ch01_001-3', { kind: '指令', command: '背包# it1 >= 10' }),
+              line('l2', 'Dia_ch01_001-2', {
+                kind: '指令',
+                command: '剧情|演出|角色:ch1;表情:挥手',
+              }),
+              line('l3', 'Dia_ch01_001-3', { kind: '指令', command: '背包||物品:it1;运算符:>=;数量:10' }),
             ],
             options: [],
           },
@@ -167,12 +192,10 @@ describe('改 ID 之后引用不断', () => {
     const rows = buildRows(project);
 
     // 存进去的是 uid，导出的必须是可读 ID
-    expect(parseArrayLiteral(cell(rows.dialogue, 'Dia_ch01_001-2', 7))).toEqual([
-      '剧情.演出# CHA_新名字.表情=挥手',
-    ]);
-    expect(parseArrayLiteral(cell(rows.dialogue, 'Dia_ch01_001-3', 7))).toEqual([
-      '背包# Item_Gold >= 10',
-    ]);
+    expect(cell(rows.dialogue, 'Dia_ch01_001-2', 7)).toBe('剧情|演出|角色:CHA_新名字;表情:挥手');
+    expect(cell(rows.dialogue, 'Dia_ch01_001-3', 7)).toBe(
+      '背包||物品:Item_Gold;运算符:>=;数量:10',
+    );
     expect(validateProject(project).issues).toEqual([]);
   });
 
@@ -203,43 +226,29 @@ describe('改 ID 之后引用不断', () => {
   });
 });
 
-describe('uid 与可读 ID 的翻译', () => {
-  it('指令文本里的目标按 # 后面那一截翻译，uid 里的 - 不会被当成减号', () => {
+describe('uid 与可读 ID 的对照', () => {
+  it('同一张表里 uid 与可读 ID 双向都能查', () => {
     const maps = collectRefMaps(makeProject());
     expect(maps.byUid.get('it1')).toBe('Item_Coin');
     expect(maps.byId.get('Item_Coin')).toBe('it1');
-    expect(translateTarget('背包# it1 >= 10', maps.byUid)).toBe('背包# Item_Coin >= 10');
-    expect(translateTarget('背包# Item_Coin >= 10', maps.byId)).toBe('背包# it1 >= 10');
-    // 认不出来的目标原样留着，不把文本改坏
-    expect(translateTarget('特殊# SP_001', maps.byId)).toBe('特殊# SP_001');
-  });
-
-  it('解析指令时先把已知 uid 切出来，剩下的才算运算符', () => {
-    const uid = '3f2a1b4c-0000-4000-8000-000000000000';
-    const isUid = (value: string): boolean => value === uid;
-
-    expect(parseCommand(`剧情.演出# ${uid}.表情=挥手`, isUid)).toEqual({
-      name: '剧情',
-      branch: '演出',
-      target: uid,
-      attribute: '表情',
-      operator: '=',
-      value: '挥手',
-    });
-    expect(parseCommand(`背包# ${uid}>=10`, isUid)).toEqual({
-      name: '背包',
-      branch: '',
-      target: uid,
-      attribute: '',
-      operator: '>=',
-      value: '10',
-    });
-    // 手写的 ID / 名字照旧走正则
-    expect(parseCommand('背包# Item_Coin >= 10')?.target).toBe('Item_Coin');
   });
 });
 
 describe('读老项目时把引用换成 uid', () => {
+  /** 老格式的一条指令定义（迁移时按主指令 + 分支换成新条目） */
+  const oldPerformanceDef = {
+    uid: 'def-1',
+    category: '指令',
+    head: '剧情.演出',
+    branch: '设置表情',
+    target: 'character',
+    attribute: '表情',
+    operator: '=',
+    value: 'expression',
+    fixedValues: [],
+    note: '',
+  };
+
   it('按角色 ID / 属性名 / 技能名 / 物品 ID 写的引用都会换成 uid', () => {
     const result = normalizeProject({
       version: 1,
@@ -249,7 +258,7 @@ describe('读老项目时把引用换成 uid', () => {
       quests: [],
       images: [],
       sounds: [],
-      commands: [],
+      commands: [oldPerformanceDef],
       variables: [],
       battle: {
         attributes: [{ uid: 'a1', name: '生命值' }],
@@ -305,14 +314,15 @@ describe('读老项目时把引用换成 uid', () => {
     const project = result!.project;
     const lines = project.chapters[0].groups[0].lines;
     expect(lines[0].characterUid).toBe('ch1');
-    expect(lines[1].command).toBe('剧情.演出# ch1.表情=挥手');
+    // 老文本迁成新格式，指向角色表的参数换成 uid
+    expect(lines[1].command).toBe('剧情|演出|角色:ch1;表情:挥手');
     expect(project.battle.effects[0].modifiers[0].attributeUid).toBe('a1');
     expect(project.battle.skills[1].lockSkillUids).toEqual(['s1']);
     expect(project.battle.skills[1].listenEventUids).toEqual(['v1']);
     expect(project.battle.characters[0].attributes[0].key).toBe('a1');
-    // 换完再导出，跟老项目原来的写法一模一样
+    // 换完再导出，翻回可读 ID
     expect(cell(buildRows(project).dialogue, 'Dia_ch01_001-2', 7)).toBe(
-      '剧情.演出# CHA_伊芙.表情=挥手',
+      '剧情|演出|角色:CHA_伊芙;表情:挥手',
     );
   });
 

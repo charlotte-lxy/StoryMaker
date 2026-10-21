@@ -13,10 +13,25 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { parseArrayLiteral } from './array-literal';
+import { parseCommandText } from './command-build';
 import { parseCsv } from './csv';
 import { DIALOGUE_HEADER, buildRows } from './export';
 import { normalizeProject, type LegacyLine } from './migrate';
 import type { Project, StoryOption } from './types';
+
+/**
+ * 老写法 `主指令# 目标.属性 运算符 结果` 里的目标。
+ *
+ * 只用来核对「迁移后目标没丢」：按第一个 `.` / 运算符切开，取前面那一截；
+ * 带 `-` 的 ID 会被切短，所以比对时用「包含」而不是「相等」。
+ */
+function legacyTargetOf(text: string): string {
+  const hash = text.indexOf('#');
+  if (hash < 0) return '';
+  const rest = text.slice(hash + 1).trim();
+  const cut = rest.split(/\.|\s*(?:>=|<=|==|!=|>|<|\+|-|=)/)[0].trim();
+  return cut === '移除' ? '' : cut;
+}
 
 const SCRIPT_FILE = 'TB_BSGame-脚本.csv';
 const LOCALE_FILE = 'TB_BSGame_本地化-脚本.csv';
@@ -72,7 +87,6 @@ function buildSample(): Sample {
         nextId,
         appearConditions: [],
         enableConditions: [],
-        results: [],
       });
       return;
     }
@@ -164,15 +178,22 @@ describe.skipIf(!hasSamples)('真实样例端到端验证', () => {
 
   it('老数据的指令一条不丢，顺序不变（含一行的多条指令）', () => {
     const expected = legacyLines
-      .flatMap((row) => (row[12] ?? '').length > 0 ? parseArrayLiteral(row[12]) : [])
+      .flatMap((row) => ((row[12] ?? '').length > 0 ? parseArrayLiteral(row[12]) : []))
       .filter((text) => text !== '');
-    // 新的「指令」列是普通文本：多条用换行隔开（跟老表的「指令（换行间隔）」一致）
     const actual = dialogue
       .slice(1)
       .filter((row) => row[1] === '指令')
-      .flatMap((row) => row[7].split('\n'))
+      .map((row) => row[7])
       .filter((text) => text !== '');
-    expect(actual).toEqual(expected);
+
+    // 条数与顺序都对得上，而且每条都改成了新格式
+    expect(actual).toHaveLength(expected.length);
+    for (let index = 0; index < expected.length; index += 1) {
+      expect(parseCommandText(actual[index]), actual[index]).not.toBeNull();
+      // 老写法里的目标原样出现在参数值里（「移除」那种本来就没有目标）
+      const target = legacyTargetOf(expected[index]);
+      if (target !== '') expect(actual[index]).toContain(target);
+    }
   });
 
   it('文本ID 只在「对话」行上填写', () => {
@@ -205,8 +226,8 @@ describe.skipIf(!hasSamples)('真实样例端到端验证', () => {
     ]);
     for (const row of options.slice(1)) {
       expect(row[1]).toBe(`TXT_${row[0]}`);
-      expect(row[5]).not.toBe('');
-      expect(knownIds.has(row[5])).toBe(true);
+      expect(row[4]).not.toBe('');
+      expect(knownIds.has(row[4])).toBe(true);
     }
   });
 

@@ -1,138 +1,126 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useScrollMemory } from './view-memory';
 
-import { commandDefLabel, matchCommandDef } from '../core/command-build';
-import type { CommandDef, Project, TargetKind, ValueKind } from '../core/types';
-import { collectCommands, parseCommand } from '../state/operations';
+import { collectCommands } from '../state/operations';
+import { parseCommandText } from '../core/command-build';
+import type { CommandDef, CommandParamDef, ParamSource, Project } from '../core/types';
 
 interface Props {
   project: Project;
   onJumpToLine: (lineUid: string) => void;
-  onRenameCommand: (from: string, to: string) => void;
   onAddDef: (category: '条件' | '指令') => void;
   onRemoveDef: (uid: string) => void;
   onUpdateDef: (uid: string, patch: Partial<CommandDef>) => void;
-  /** 全局搜索跳过来的字典行：交给上层滚过去，这里只负责切页与高亮 */
+  onAddParam: (defUid: string) => void;
+  onRemoveParam: (defUid: string, paramUid: string) => void;
+  onUpdateParam: (defUid: string, paramUid: string, patch: Partial<CommandParamDef>) => void;
+  onMoveParam: (defUid: string, paramUid: string, delta: number) => void;
+  /** 全局搜索 / 校验条跳过来的字典行：切到那一类，滚过去并闪一下 */
   focusUid?: string | null;
 }
 
-const TARGET_OPTIONS: { value: TargetKind; label: string }[] = [
+/** 参数的值来源，顺序按「先表格、再特殊、再手填」排 */
+const SOURCE_OPTIONS: { value: ParamSource; label: string }[] = [
   { value: 'character', label: '角色表' },
   { value: 'item', label: '物品表' },
   { value: 'quest', label: '任务表' },
   { value: 'image', label: '立绘表' },
   { value: 'sound', label: '音效表' },
   { value: 'line', label: '对话表' },
-  { value: 'manual', label: '手工填写' },
-  { value: 'none', label: '无目标' },
-];
-
-const VALUE_OPTIONS: { value: ValueKind; label: string }[] = [
-  { value: 'expression', label: '该角色的表情' },
-  { value: 'action', label: '该角色的动作' },
+  { value: 'expression', label: '该角色表情' },
+  { value: 'action', label: '该角色动作' },
   { value: 'number', label: '手填数字' },
+  { value: 'text', label: '手填文本' },
   { value: 'fixed', label: '固定选项' },
-  { value: 'none', label: '无结果' },
 ];
 
 const SECTIONS = ['条件', '指令'] as const;
+type Section = (typeof SECTIONS)[number];
+
+/** 选项集输入框里的文字 → 候选值数组：中英文逗号都认，去掉空项 */
+function splitOptions(text: string): string[] {
+  return text
+    .split(/[,，]/)
+    .map((item) => item.trim())
+    .filter((item) => item !== '');
+}
 
 /**
  * 条件与指令模块。
  *
- * 「条件」用在选项的出现/可用条件上，「指令」用在对话行的指令栏和选项的结果上。
- * 两者格式一样，但用途不同，因此在这个模块里分区展示。
+ * 左边一栏分「条件 / 指令」两页：条件用在选项的出现/可用条件上，指令用在对话行的指令栏上。
+ * 每页两个页签：字典（这条指令有哪些参数）与使用情况（剧情里哪些地方用了它）。
  */
 export function CommandEditor({
   project,
   onJumpToLine,
-  onRenameCommand,
   onAddDef,
   onRemoveDef,
   onUpdateDef,
+  onAddParam,
+  onRemoveParam,
+  onUpdateParam,
+  onMoveParam,
   focusUid = null,
 }: Props) {
   const editorRef = useScrollMemory('command');
+  const [section, setSection] = useState<Section>('指令');
   const [tab, setTab] = useState<'dict' | 'usage'>('dict');
-  const commands = useMemo(() => collectCommands(project), [project]);
-  const [editingText, setEditingText] = useState<string | null>(null);
-  const [draft, setDraft] = useState('');
+  /** 展开着参数表的定义 uid */
+  const [expanded, setExpanded] = useState<string | null>(null);
 
-  // 全局搜索跳过来的字典行：先切回「字典」这一页，不然那一行根本不在跟前
+  // 跳过来的那一行：先切到它所在的类别与「字典」页，再展开参数
   useEffect(() => {
     if (focusUid === null) return;
+    const def = project.commands.find((item) => item.uid === focusUid);
+    if (def === undefined) return;
+    setSection(def.category);
     setTab('dict');
-  }, [focusUid]);
+    setExpanded(def.uid);
+  }, [focusUid, project.commands]);
 
-  // 切回字典页之后再把那一行滚到眼前。上层统一的那次滚动是在同一轮里跑的，
-  // 当时字典表还没渲染出来（页面停在「使用情况」上），会落空
   useEffect(() => {
     if (focusUid === null || tab !== 'dict') return;
     document.querySelector(`[data-search-uid="${focusUid}"]`)?.scrollIntoView({ block: 'center' });
-  }, [focusUid, tab]);
+  }, [focusUid, tab, section]);
 
-  /** 每条实际用到的指令属于条件还是指令 */
-  const usageByCategory = useMemo(() => {
-    const grouped: Record<string, typeof commands> = { 条件: [], 指令: [], 未定义: [] };
-    for (const item of commands) {
-      const parsed = item.parsed;
-      const def = parsed === null ? undefined : matchCommandDef(parsed, project.commands);
-      grouped[def?.category ?? '未定义'].push(item);
-    }
-    return grouped;
-  }, [commands, project.commands]);
+  const defs = project.commands.filter((def) => def.category === section);
+  const usage = collectCommands(project, section);
 
-  const commitRename = (from: string): void => {
-    const next = draft.trim();
-    if (next !== '' && next !== from) onRenameCommand(from, next);
-    setEditingText(null);
-  };
-
-  const renderDefTable = (category: '条件' | '指令') => {
-    const defs = project.commands.filter((def) => def.category === category);
-    return (
-      <table className="lines">
+  const renderParams = (def: CommandDef) => (
+    <div className="command-params">
+      <table className="lines param-table">
         <thead>
           <tr>
-            <th className="col-mid">主指令</th>
-            <th className="col-mid">分支</th>
-            <th className="col-mid">目标来源</th>
-            <th className="col-narrow">属性</th>
-            <th className="col-narrow">运算符</th>
-            <th className="col-mid">结果来源</th>
-            <th>说明 / 固定值</th>
-            <th className="col-narrow">操作</th>
+            <th style={{ width: 120 }}>参数名</th>
+            <th style={{ width: 130 }}>值来源</th>
+            <th style={{ width: 150 }}>选项集</th>
+            <th style={{ width: 90 }}>参数类型</th>
+            <th>参数说明</th>
+            <th style={{ width: 130 }}>操作</th>
           </tr>
         </thead>
         <tbody>
-          {defs.map((def) => (
-            <tr
-              className={`line-row${focusUid === def.uid ? ' flash' : ''}`}
-              key={def.uid}
-              data-search-uid={def.uid}
-            >
+          {def.params.map((param, index) => (
+            <tr className="line-row" key={param.uid}>
               <td>
                 <input
-                  value={def.head}
-                  onChange={(event) => onUpdateDef(def.uid, { head: event.target.value })}
-                />
-              </td>
-              <td>
-                <input
-                  value={def.branch}
-                  placeholder="（无分支）"
-                  onChange={(event) => onUpdateDef(def.uid, { branch: event.target.value })}
+                  value={param.name}
+                  placeholder="参数名"
+                  title="参数名同时是导出文本里的键，上表后不要再改"
+                  onChange={(event) => onUpdateParam(def.uid, param.uid, { name: event.target.value })}
                 />
               </td>
               <td>
                 <select
-                  value={def.target}
+                  value={param.source}
+                  title="这个参数的值从哪儿来"
                   onChange={(event) =>
-                    onUpdateDef(def.uid, { target: event.target.value as TargetKind })
+                    onUpdateParam(def.uid, param.uid, { source: event.target.value as ParamSource })
                   }
                 >
-                  {TARGET_OPTIONS.map((option) => (
+                  {SOURCE_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
@@ -141,223 +129,248 @@ export function CommandEditor({
               </td>
               <td>
                 <input
-                  value={def.attribute}
-                  placeholder="（无）"
-                  onChange={(event) => onUpdateDef(def.uid, { attribute: event.target.value })}
-                />
-              </td>
-              <td>
-                <input
-                  value={def.operator}
-                  placeholder="（无）"
-                  onChange={(event) => onUpdateDef(def.uid, { operator: event.target.value })}
+                  value={param.options.join(',')}
+                  placeholder={param.source === 'fixed' ? '例如 +,-,=' : '（只有固定选项能填）'}
+                  disabled={param.source !== 'fixed'}
+                  onChange={(event) =>
+                    onUpdateParam(def.uid, param.uid, { options: splitOptions(event.target.value) })
+                  }
                 />
               </td>
               <td>
                 <select
-                  value={def.value}
+                  value={param.required ? 'required' : 'optional'}
+                  title="必填的参数没填，校验会报错"
                   onChange={(event) =>
-                    onUpdateDef(def.uid, { value: event.target.value as ValueKind })
+                    onUpdateParam(def.uid, param.uid, {
+                      required: event.target.value === 'required',
+                    })
                   }
                 >
-                  {VALUE_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
+                  <option value="required">必填</option>
+                  <option value="optional">非必填</option>
                 </select>
               </td>
               <td>
                 <input
-                  value={def.note}
+                  value={param.note}
                   placeholder="给策划看的说明"
-                  onChange={(event) => onUpdateDef(def.uid, { note: event.target.value })}
+                  onChange={(event) => onUpdateParam(def.uid, param.uid, { note: event.target.value })}
                 />
-                {def.value === 'fixed' && (
-                  <input
-                    className="fixed-values"
-                    value={def.fixedValues.join(',')}
-                    placeholder="固定候选值，逗号分隔，如 1,0"
-                    onChange={(event) =>
-                      onUpdateDef(def.uid, {
-                        fixedValues: event.target.value
-                          .split(',')
-                          .map((item) => item.trim())
-                          .filter((item) => item !== ''),
-                      })
-                    }
-                  />
-                )}
               </td>
               <td>
-                <button type="button" onClick={() => onRemoveDef(def.uid)}>
-                  删除
-                </button>
+                <div className="row-actions">
+                  <button
+                    type="button"
+                    className="mini"
+                    title="往上挪一位（填表时控件顺序跟着变）"
+                    disabled={index === 0}
+                    onClick={() => onMoveParam(def.uid, param.uid, -1)}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    className="mini"
+                    title="往下挪一位"
+                    disabled={index === def.params.length - 1}
+                    onClick={() => onMoveParam(def.uid, param.uid, 1)}
+                  >
+                    ↓
+                  </button>
+                  <button
+                    type="button"
+                    className="mini danger"
+                    onClick={() => onRemoveParam(def.uid, param.uid)}
+                  >
+                    删除
+                  </button>
+                </div>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-    );
-  };
+      <button type="button" className="command-add" onClick={() => onAddParam(def.uid)}>
+        ＋ 新增参数
+      </button>
+    </div>
+  );
 
   return (
-    <div className="editor" ref={editorRef}>
-      <div className="editor-head">
-        <h2>条件与指令</h2>
-        <div className="tab-row">
+    <div className="command-body">
+      <aside className="command-side">
+        {SECTIONS.map((item) => (
           <button
+            key={item}
             type="button"
-            className={tab === 'dict' ? 'tab active' : 'tab'}
-            onClick={() => setTab('dict')}
+            className={section === item ? 'command-nav active' : 'command-nav'}
+            onClick={() => setSection(item)}
           >
-            字典（{project.commands.length}）
+            {item}
+            <span className="command-nav-count">
+              {project.commands.filter((def) => def.category === item).length}
+            </span>
           </button>
-          <button
-            type="button"
-            className={tab === 'usage' ? 'tab active' : 'tab'}
-            onClick={() => setTab('usage')}
-          >
-            使用情况（{commands.length}）
-          </button>
-        </div>
-        {tab === 'dict' && (
+        ))}
+      </aside>
+
+      <div className="editor" ref={editorRef}>
+        <div className="editor-head">
+          <h2>条件与指令</h2>
           <div className="tab-row">
-            {SECTIONS.map((category) => (
-              <button key={category} type="button" onClick={() => onAddDef(category)}>
-                ＋ {category}
-              </button>
-            ))}
+            <button
+              type="button"
+              className={tab === 'dict' ? 'tab active' : 'tab'}
+              onClick={() => setTab('dict')}
+            >
+              {section}字典（{defs.length}）
+            </button>
+            <button
+              type="button"
+              className={tab === 'usage' ? 'tab active' : 'tab'}
+              onClick={() => setTab('usage')}
+            >
+              使用情况（{usage.length}）
+            </button>
           </div>
-        )}
-      </div>
-
-      {tab === 'dict' ? (
-        <>
-          <p className="hint" style={{ marginTop: 0, marginBottom: 10 }}>
-            <strong>条件</strong>用在选项的「出现条件」「可用条件」上；
-            <strong>指令</strong>用在对话行的指令栏和选项的「结果」上。这里定义后，填写时就能全用下拉选。
-          </p>
-          {SECTIONS.map((category) => (
-            <Fragment key={category}>
-              <h3 className="section-head">
-                {category}
-                <span>{project.commands.filter((def) => def.category === category).length} 条</span>
-              </h3>
-              {renderDefTable(category)}
-            </Fragment>
-          ))}
-        </>
-      ) : commands.length === 0 ? (
-        <div className="empty-state">
-          还没有用到任何条件或指令。在「剧情」模块的指令栏、或选项的条件栏里填写后会汇总到这里。
+          {tab === 'dict' && (
+            <button type="button" className="primary" onClick={() => onAddDef(section)}>
+              ＋ 新增{section}
+            </button>
+          )}
         </div>
-      ) : (
-        <>
-          <p className="hint" style={{ marginTop: 0, marginBottom: 10 }}>
-            共 {commands.length} 种，点指令原文可以改名，所有使用处一起更新。
-          </p>
-          {(['条件', '指令', '未定义'] as const).map((category) => {
-            const items = usageByCategory[category];
-            if (items.length === 0) return null;
-            return (
-              <Fragment key={category}>
-                <h3 className="section-head">
-                  {category === '未定义' ? '未在字典中定义' : category}
-                  <span>{items.length} 条</span>
-                </h3>
-                <table className="lines">
-                  <thead>
-                    <tr>
-                      <th>原文</th>
-                      <th className="col-mid">主指令.分支</th>
-                      <th className="col-mid">目标对象</th>
-                      <th className="col-narrow">属性</th>
-                      <th className="col-mid">运算符/结果</th>
-                      <th className="col-narrow">使用</th>
-                      <th className="col-mid">出现位置</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((item) => {
-                      const parsed = item.parsed;
-                      return (
-                        <tr className="line-row" key={item.text}>
-                          <td>
-                            {editingText === item.text ? (
-                              <input
-                                autoFocus
-                                value={draft}
-                                onChange={(event) => setDraft(event.target.value)}
-                                onBlur={() => commitRename(item.text)}
-                                onKeyDown={(event) => {
-                                  if (event.key === 'Enter') commitRename(item.text);
-                                  if (event.key === 'Escape') setEditingText(null);
-                                }}
-                              />
-                            ) : (
-                              <span
-                                className="command-text"
-                                title="点击可改名，所有使用处会一起更新"
-                                onClick={() => {
-                                  setEditingText(item.text);
-                                  setDraft(item.text);
-                                }}
-                              >
-                                {item.text}
-                              </span>
-                            )}
-                          </td>
-                          <td className="command-cell">
-                            {parsed === null ? (
-                              <span className="warn-text">无法解析</span>
-                            ) : (
-                              `${parsed.name}.${parsed.branch}`
-                            )}
-                          </td>
-                          <td className="command-cell">{parsed?.target ?? '—'}</td>
-                          <td className="command-cell">{parsed?.attribute ?? ''}</td>
-                          <td className="command-cell">
-                            {parsed === null || parsed.operator === ''
-                              ? ''
-                              : `${parsed.operator}${parsed.value}`}
-                          </td>
-                          <td className="command-cell">{item.count} 次</td>
-                          <td>
-                            <div className="command-locations">
-                              {item.locations.map((loc) => (
-                                <button
-                                  type="button"
-                                  key={`${loc.lineUid}-${loc.lineId}`}
-                                  className="loc-chip"
-                                  title={`跳到 ${loc.groupLabel}`}
-                                  onClick={() => onJumpToLine(loc.lineUid)}
-                                >
-                                  {loc.lineId}
-                                </button>
-                              ))}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </Fragment>
-            );
-          })}
-        </>
-      )}
 
-      <div className="command-note">
-        <strong>格式说明</strong>
-        <code>主指令.分支# 目标对象.目标属性 运算符 目标结果</code>
-        <span>
-          方括号部分可省略，例如 <code>特殊# SP_001</code> 只有前两段。字典里把每一段的来源指定好，写剧情时就能全部用下拉选，不必手打。
-        </span>
+        {tab === 'dict' ? (
+          <>
+            <p className="hint" style={{ marginTop: 0, marginBottom: 10 }}>
+              {section}的写法是「主指令 | 分支 | 参数名:值;…」。这里定好参数后，
+              剧情里填写时先选主指令，有分支再选分支，然后按下面的参数顺序从左到右填。
+              参数名会写进导出文本，<strong>上表之后不要再改名</strong>。
+            </p>
+
+            {defs.length === 0 && (
+              <div className="empty-state">
+                还没有{section}。点右上角「＋ 新增{section}」，先写主指令名，再加参数。
+              </div>
+            )}
+
+            {defs.map((def) => (
+              <div
+                className={`command-def-card${focusUid === def.uid ? ' flash' : ''}`}
+                key={def.uid}
+                data-search-uid={def.uid}
+              >
+                <div className="command-def-head">
+                  <label className="command-def-field">
+                    <span>主指令</span>
+                    <input
+                      value={def.head}
+                      placeholder="例如 剧情"
+                      onChange={(event) => onUpdateDef(def.uid, { head: event.target.value })}
+                    />
+                  </label>
+                  <label className="command-def-field">
+                    <span>分支</span>
+                    <input
+                      value={def.branch}
+                      placeholder="（无分支）"
+                      onChange={(event) => onUpdateDef(def.uid, { branch: event.target.value })}
+                    />
+                  </label>
+                  <label className="command-def-field grow">
+                    <span>指令说明</span>
+                    <input
+                      value={def.note}
+                      placeholder="给策划看的说明"
+                      onChange={(event) => onUpdateDef(def.uid, { note: event.target.value })}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className={expanded === def.uid ? 'tab active' : 'tab'}
+                    onClick={() => setExpanded(expanded === def.uid ? null : def.uid)}
+                  >
+                    参数（{def.params.length}）
+                  </button>
+                  <button
+                    type="button"
+                    className="mini danger"
+                    onClick={() => onRemoveDef(def.uid)}
+                  >
+                    删除
+                  </button>
+                </div>
+                {expanded === def.uid && renderParams(def)}
+              </div>
+            ))}
+          </>
+        ) : usage.length === 0 ? (
+          <div className="empty-state">
+            还没有用到任何{section}。在{
+              section === '条件' ? '选项的出现/可用条件' : '对话行的指令栏'
+            }里填写后会汇总到这里。
+          </div>
+        ) : (
+          <>
+            <p className="hint" style={{ marginTop: 0, marginBottom: 10 }}>
+              共 {usage.length} 种，点「位置」跳到用到它的那一行。
+            </p>
+            <table className="lines">
+              <thead>
+                <tr>
+                  <th>原文</th>
+                  <th style={{ width: 100 }}>主指令</th>
+                  <th style={{ width: 100 }}>分支</th>
+                  <th>参数</th>
+                  <th style={{ width: 60 }}>使用</th>
+                  <th style={{ width: 260 }}>位置</th>
+                </tr>
+              </thead>
+              <tbody>
+                {usage.map((entry) => {
+                  const parsed = entry.broken ? null : parseCommandText(entry.text);
+                  return (
+                    <tr className="line-row" key={entry.text}>
+                      <td className="command-cell">{entry.text}</td>
+                      <td className="command-cell">{parsed?.head ?? '—'}</td>
+                      <td className="command-cell">{parsed?.branch ?? ''}</td>
+                      <td className="command-cell">
+                        {entry.def === undefined ? (
+                          <span className="command-missing">字典里没有这条</span>
+                        ) : (
+                          (parsed?.params ?? [])
+                            .map((param) => `${param.name}:${param.value}`)
+                            .join(';')
+                        )}
+                      </td>
+                      <td className="command-cell">{entry.count}</td>
+                      <td>
+                        <div className="command-locations">
+                          {entry.locations.slice(0, 3).map((location, index) => (
+                            <button
+                              key={`${location.lineUid}-${index}`}
+                              type="button"
+                              className="mini"
+                              title={location.label}
+                              onClick={() => onJumpToLine(location.lineUid)}
+                            >
+                              {location.label}
+                            </button>
+                          ))}
+                          {entry.locations.length > 3 && (
+                            <span className="hint">等 {entry.locations.length} 处</span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </>
+        )}
       </div>
     </div>
   );
 }
-
-export { commandDefLabel, parseCommand };

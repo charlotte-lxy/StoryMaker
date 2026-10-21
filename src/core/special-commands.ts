@@ -1,19 +1,19 @@
 /**
  * 「特殊指令」子表。
  *
- * 剧情里以「特殊#」开头的指令是程序那边一个一个写的 Blueprint 命令，
+ * 主指令是「特殊」的指令是程序那边一个一个写的 Blueprint 命令，
  * 它们得单独进一张 DataTable 才能被游戏认出来。这张子表就是把剧情里**实际用到**的
  * 特殊指令收集起来，一行一条（同名只留一行，按第一次出现的顺序排）：
  *
- *   行名      - 「特殊#」后面的指令名，如 SP_001
+ *   行名      - 参数「特殊指令」的值，如 SP_001
  *   Command类 - 前缀 + `BP_Command_行名.BP_Command_行名_C'`（前缀在导入设置里改）
  *   备注      - 「特殊演出效果」行填的「指令内容」，同名取第一条非空的
  *
- * 收集范围就是对话表「指令」列里的内容：「指令」行自己那条 + 「选项」行名下各选项的结果。
+ * 收集范围就是对话表「指令」列里属于「指令」行的那些。
  */
 
 import { classPath } from './battle';
-import { SPECIAL_COMMAND_HEAD, specialEffectNameOf } from './command-build';
+import { parseCommandText, SPECIAL_COMMAND_HEAD, SPECIAL_COMMAND_PARAM } from './command-build';
 import type { Project } from './types';
 
 export const SPECIAL_COMMAND_SHEET = '特殊指令';
@@ -29,11 +29,12 @@ export function specialCommandClassName(name: string): string {
   return `BP_Command_${name}`;
 }
 
-/** 一条指令里的特殊指令名；不是以「特殊#」开头、或名字是空的，返回 null */
+/** 一条指令里的特殊指令名；主指令不是「特殊」、或名字是空的，返回 null */
 function specialNameOf(command: string): string | null {
-  const text = command.trim();
-  if (!text.startsWith(SPECIAL_COMMAND_HEAD)) return null;
-  const name = specialEffectNameOf(text).trim();
+  const parsed = parseCommandText(command);
+  if (parsed === null || parsed.head !== SPECIAL_COMMAND_HEAD) return null;
+  const named = parsed.params.find((param) => param.name === SPECIAL_COMMAND_PARAM);
+  const name = (named?.value ?? parsed.params[0]?.value ?? '').trim();
   return name === '' ? null : name;
 }
 
@@ -61,12 +62,6 @@ export function buildSpecialCommandRows(project: Project): string[][] {
         // 「跳转到段落」行的指令是按段落现拼的，不算特殊指令
         if (line.kind === '指令' && line.jumpGroupUid === null) {
           collect(line.command, line.specialContent ?? '');
-        }
-        // 「选项」行的指令列汇总的是各选项的结果，这里也按同样的口径收
-        if (line.kind !== '选项') continue;
-        for (const optionUid of line.optionIds) {
-          const option = group.options.find((item) => item.uid === optionUid);
-          for (const result of option?.results ?? []) collect(result, '');
         }
       }
     }

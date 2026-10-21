@@ -8,7 +8,30 @@ import { escapeCsvField, parseCsv, toCsv, withBom, withoutBom } from './csv';
 import { formatArrayLiteral, parseArrayLiteral } from './array-literal';
 import { firstLineRef, makeLineId, makeOptionId, renumberGroup, textIdOf } from './ids';
 import { DIALOGUE_HEADER, buildRows, countLines, exportWorkbook, type ExportRowSets } from './export';
-import type { Group, Line, Project, StoryOption } from './types';
+import type {
+  CommandDef,
+  CommandParamDef,
+  Group,
+  Line,
+  ParamSource,
+  Project,
+  StoryOption,
+} from './types';
+
+/** 造一个参数字典项 */
+function paramDef(name: string, source: ParamSource, options: string[] = []): CommandParamDef {
+  return { uid: `${name}-${source}`, name, source, options, required: true, note: '' };
+}
+
+/** 造一条指令字典项 */
+function commandDef(
+  category: '条件' | '指令',
+  head: string,
+  branch: string,
+  params: CommandParamDef[],
+): CommandDef {
+  return { uid: `${category}-${head}-${branch}`, category, head, branch, params, note: '' };
+}
 
 function makeLine(uid: string, readableId: string, over: Partial<Line> = {}): Line {
   return {
@@ -37,7 +60,6 @@ function makeOption(uid: string, readableId: string, over: Partial<StoryOption> 
     nextId: '',
     appearConditions: [],
     enableConditions: [],
-    results: [],
     ...over,
   };
 }
@@ -194,7 +216,24 @@ describe('导出：跳到首句与跳到段落', () => {
       name: '跳转测试',
       characters: [],
       sounds: [],
-      commands: [],
+      commands: [
+        commandDef('指令', '剧情', '播放对话', [paramDef('对话', 'line')]),
+        commandDef('条件', '背包', '', [
+          paramDef('物品', 'item'),
+          paramDef('运算符', 'fixed', ['>=', '<=', '==', '>', '<']),
+          paramDef('数量', 'number'),
+        ]),
+        commandDef('条件', '任务', '', [
+          paramDef('任务', 'quest'),
+          paramDef('运算符', 'fixed', ['=']),
+          paramDef('结果', 'number'),
+        ]),
+        commandDef('条件', '剧情', '', [
+          paramDef('对话', 'line'),
+          paramDef('运算符', 'fixed', ['=']),
+          paramDef('结果', 'number'),
+        ]),
+      ],
       items: [],
       quests: [],
       images: [],
@@ -234,7 +273,7 @@ describe('导出：跳到首句与跳到段落', () => {
   };
 
   it('选项选了「跳转到首句对话」：导出的下一对话ID 是目标段落当时的第一句', () => {
-    expect(optionRow(makeJumpProject())[5]).toBe('Dia_ch01_002-1');
+    expect(optionRow(makeJumpProject())[4]).toBe('Dia_ch01_002-1');
   });
 
   it('目标段落里插了一行之后，不用改选项，导出的首句跟着变', () => {
@@ -244,31 +283,33 @@ describe('导出：跳到首句与跳到段落', () => {
     group.lines.unshift(makeLine('u6', 'Dia_ch01_002-3', { text: { zh: '新插的第一句', en: '', ja: '' } }));
     renumberGroup(group, 'ch01');
 
-    expect(optionRow(project)[5]).toBe('Dia_ch01_002-1');
+    expect(optionRow(project)[4]).toBe('Dia_ch01_002-1');
     expect(project.chapters[0].groups[1].lines[0].uid).toBe('u6');
   });
 
-  it('「跳转到段落」行导出成「剧情.播放对话# 该段落第一句的对话ID」', () => {
+  it('「跳转到段落」行导出成「剧情|播放对话|对话:该段落第一句的对话ID」', () => {
     const rows = buildRows(makeJumpProject());
     const row = rows.dialogue.slice(1).find((item) => item[0] === 'Dia_ch01_001-3');
     expect(row?.[1]).toBe('指令'); // 文本类型还是「指令」
-    expect(row?.[7]).toBe('剧情.播放对话# Dia_ch01_002-1');
+    expect(row?.[7]).toBe('剧情|播放对话|对话:Dia_ch01_002-1');
   });
 
   it('「跳转到段落」的可用条件写进新增的「可用条件列表」列，其它行留空', () => {
     const project = makeJumpProject();
     project.chapters[0].groups[0].lines[2].jumpConditions = [
-      '背包#Item_Coin>=10',
-      '任务# Task_Test_01=1',
+      '背包||物品:Item_Coin;运算符:>=;数量:10',
+      '任务||任务:Task_Test_01;运算符:=;结果:1',
     ];
     const rows = buildRows(project);
     const header = rows.dialogue[0];
     expect(header[header.length - 1]).toBe('可用条件列表');
 
     const jumpRow = rows.dialogue.slice(1).find((item) => item[0] === 'Dia_ch01_001-3');
-    expect(jumpRow?.[8]).toBe('("背包#Item_Coin>=10","任务# Task_Test_01=1")');
+    expect(jumpRow?.[8]).toBe(
+      '("背包||物品:Item_Coin;运算符:>=;数量:10","任务||任务:Task_Test_01;运算符:=;结果:1")',
+    );
     // 指令内容照旧只有那条跳转指令，条件不混进去
-    expect(jumpRow?.[7]).toBe('剧情.播放对话# Dia_ch01_002-1');
+    expect(jumpRow?.[7]).toBe('剧情|播放对话|对话:Dia_ch01_002-1');
 
     // 其它行（对话 / 选项）这一列是空的
     for (const id of ['Dia_ch01_001-1', 'Dia_ch01_001-2', 'Dia_ch01_002-1']) {
@@ -278,10 +319,10 @@ describe('导出：跳到首句与跳到段落', () => {
 
   it('可用条件里指向对话行的目标同样翻成对话 ID', () => {
     const project = makeJumpProject();
-    project.chapters[0].groups[0].lines[2].jumpConditions = ['剧情# u1 = 1'];
+    project.chapters[0].groups[0].lines[2].jumpConditions = ['剧情||对话:u1;运算符:=;结果:1'];
     const rows = buildRows(project);
     const jumpRow = rows.dialogue.slice(1).find((item) => item[0] === 'Dia_ch01_001-3');
-    expect(jumpRow?.[8]).toBe('("剧情# Dia_ch01_001-1 = 1")');
+    expect(jumpRow?.[8]).toBe('("剧情||对话:Dia_ch01_001-1;运算符:=;结果:1")');
   });
 
   it('还没选段落、或指到的段落不在了：这一格留空，不写半截指令', () => {
@@ -300,7 +341,7 @@ describe('导出：跳到首句与跳到段落', () => {
 });
 
 describe('导出：指令里指向对话行的目标翻译成对话 ID', () => {
-  /** 一条真正的 uid：uid 里带 `-`，解析指令时会踩到运算符 */
+  /** 一条真正的 uid：uid 里带 `-` */
   const LINE_UID = '8f3c1b2a-1234-4abc-9def-0123456789ab';
   /** 段落 001：一条指向对话行的指令 + 一个选项行；段落 002 是被指向的那一句 */
   function makeProject(): Project {
@@ -309,7 +350,24 @@ describe('导出：指令里指向对话行的目标翻译成对话 ID', () => {
       name: '指令目标翻译',
       characters: [],
       sounds: [],
-      commands: [],
+      commands: [
+        commandDef('指令', '剧情', '播放对话', [paramDef('对话', 'line')]),
+        commandDef('指令', '背包', '', [
+          paramDef('物品', 'item'),
+          paramDef('运算符', 'fixed', ['+', '-', '=']),
+          paramDef('数量', 'number'),
+        ]),
+        commandDef('条件', '剧情', '', [
+          paramDef('对话', 'line'),
+          paramDef('运算符', 'fixed', ['=']),
+          paramDef('结果', 'number'),
+        ]),
+        commandDef('条件', '背包', '', [
+          paramDef('物品', 'item'),
+          paramDef('运算符', 'fixed', ['>=', '<=', '==', '>', '<']),
+          paramDef('数量', 'number'),
+        ]),
+      ],
       items: [],
       quests: [],
       images: [],
@@ -332,21 +390,20 @@ describe('导出：指令里指向对话行的目标翻译成对话 ID', () => {
               lines: [
                 makeLine('u1', 'Dia_ch01_001-1', {
                   kind: '指令',
-                  command: `剧情.播放对话# ${LINE_UID}`,
+                  command: `剧情|播放对话|对话:${LINE_UID}`,
                 }),
-                // 手写的指令：里面没有 uid，导出要原样保留（连空格也不动）
+                // 手写进去了一个物品 ID（不是 uid）：导出原样保留
                 makeLine('u2', 'Dia_ch01_001-2', {
                   kind: '指令',
-                  command: '背包# Item_Coin >= 10',
+                  command: '背包||物品:Item_Coin;运算符:=;数量:10',
                 }),
                 makeLine('u3', 'Dia_ch01_001-3', { kind: '选项', optionIds: ['o-a'] }),
               ],
               options: [
                 makeOption('o-a', 'Dia_ch01_001-3A', {
                   nextId: LINE_UID,
-                  appearConditions: [`剧情# ${LINE_UID} = 1`],
-                  enableConditions: [`背包#Item_Coin>=10`],
-                  results: [`剧情.播放对话# ${LINE_UID}`, '任务.接取# Task_Test_01'],
+                  appearConditions: [`剧情||对话:${LINE_UID};运算符:=;结果:1`],
+                  enableConditions: ['背包||物品:Item_Coin;运算符:>=;数量:10'],
                 }),
               ],
             },
@@ -369,42 +426,43 @@ describe('导出：指令里指向对话行的目标翻译成对话 ID', () => {
   const commandCell = (rows: ExportRowSets, id: string): string =>
     rows.dialogue.slice(1).find((row) => row[0] === id)?.[7] ?? '';
 
-  it('「剧情.播放对话# <uid>」导出成对话 ID（uid 里的 - 不会被当成运算符）', () => {
+  it('指向对话行的参数从 uid 翻成对话 ID（uid 里的 - 不会再被误解）', () => {
     expect(commandCell(buildRows(makeProject()), 'Dia_ch01_001-1')).toBe(
-      '剧情.播放对话# Dia_ch01_002-1',
+      '剧情|播放对话|对话:Dia_ch01_002-1',
     );
   });
 
-  it('选项的条件与结果里指向对话行的目标同样翻成对话 ID', () => {
+  it('选项的条件里指向对话行的目标同样翻成对话 ID', () => {
     const row = buildRows(makeProject()).options.slice(1).find((item) => item[0] === 'Dia_ch01_001-3A');
-    expect(row?.[2]).toBe('("剧情# Dia_ch01_002-1 = 1")');
+    expect(row?.[2]).toBe(`("剧情||对话:Dia_ch01_002-1;运算符:=;结果:1")`);
     // 不是对话行的目标不动：物品 ID 原样保留
-    expect(row?.[3]).toBe('("背包#Item_Coin>=10")');
-    expect(row?.[4]).toBe('("剧情.播放对话# Dia_ch01_002-1","任务.接取# Task_Test_01")');
+    expect(row?.[3]).toBe('("背包||物品:Item_Coin;运算符:>=;数量:10")');
   });
 
   it('没有 uid 的手写指令原样输出，一个字符都不改', () => {
-    expect(commandCell(buildRows(makeProject()), 'Dia_ch01_001-2')).toBe('背包# Item_Coin >= 10');
+    expect(commandCell(buildRows(makeProject()), 'Dia_ch01_001-2')).toBe(
+      '背包||物品:Item_Coin;运算符:=;数量:10',
+    );
   });
 
   it('引用已经被删掉时（uid 对不上了）保持原样，不把文本改坏', () => {
     const project = makeProject();
-    project.chapters[0].groups[0].lines[0].command = '剧情.播放对话# 某个不存在的-uid-0000';
+    project.chapters[0].groups[0].lines[0].command = '剧情|播放对话|对话:某个不存在的-uid-0000';
     expect(commandCell(buildRows(project), 'Dia_ch01_001-1')).toBe(
-      '剧情.播放对话# 某个不存在的-uid-0000',
+      '剧情|播放对话|对话:某个不存在的-uid-0000',
     );
   });
 });
 
 describe('导出：特殊演出效果', () => {
-  /** 一条「特殊演出效果」行：指令是现拼的「特殊# 名称」，「指令内容」只给自己看 */
+  /** 一条「特殊演出效果」行：指令是现拼的「特殊||特殊指令:名称」，「指令内容」只给自己看 */
   function makeProject(): Project {
     return {
       version: 1,
       name: '特殊演出效果',
       characters: [],
       sounds: [],
-      commands: [],
+      commands: [commandDef('指令', '特殊', '', [paramDef('特殊指令', 'text')])],
       items: [],
       quests: [],
       images: [],
@@ -439,10 +497,10 @@ describe('导出：特殊演出效果', () => {
     };
   }
 
-  it('文本类型还是「指令」，指令列写「特殊# 指令名称」', () => {
+  it('文本类型还是「指令」，指令列写「特殊||特殊指令:名称」', () => {
     const row = buildRows(makeProject()).dialogue[1];
     expect(row[1]).toBe('指令');
-    expect(row[7]).toBe('特殊# SP_CameraShake');
+    expect(row[7]).toBe('特殊||特殊指令:SP_CameraShake');
   });
 
   it('「指令内容」不进导出：本地化表里没有它', () => {
@@ -466,7 +524,7 @@ describe('导出三张表', () => {
     });
     const commandLine = makeLine('u3', 'Dia_ch01_001-3', {
       kind: '指令',
-      command: '剧情.特殊# SP_ch01_001',
+      command: '特殊||特殊指令:SP_ch01_001',
     });
     const branchA = makeLine('u4', 'Dia_ch01_002-1', {
       text: { zh: '路线A', en: 'Route A', ja: 'ルートA' },
@@ -477,14 +535,12 @@ describe('导出三张表', () => {
     const optA = makeOption('o-a', 'Dia_ch01_001-2A', {
       text: { zh: '这地方到底是哪？', en: 'Where is this?', ja: 'ここはどこ？' },
       nextId: 'u4',
-      // 条件与结果都是文本，只是可选范围不同
-      appearConditions: ['背包#Item_Coin>0'],
-      enableConditions: ['背包#Item_Coin>=10'],
-      results: ['背包#Item_Coin-10'],
+      // 条件与指令格式一样，只是可选范围不同
+      appearConditions: ['背包||物品:Item_Coin;运算符:>;数量:0'],
+      enableConditions: ['背包||物品:Item_Coin;运算符:>=;数量:10'],
     });
     const optB = makeOption('o-b', 'Dia_ch01_001-2B', {
       nextId: 'u5',
-      results: ['任务.接取# Task_Test_01'],
     });
 
     return {
@@ -492,7 +548,14 @@ describe('导出三张表', () => {
       name: '测试项目',
       characters: [],
       sounds: [],
-      commands: [],
+      commands: [
+        commandDef('指令', '特殊', '', [paramDef('特殊指令', 'text')]),
+        commandDef('条件', '背包', '', [
+          paramDef('物品', 'item'),
+          paramDef('运算符', 'fixed', ['>=', '<=', '==', '>', '<']),
+          paramDef('数量', 'number'),
+        ]),
+      ],
       items: [],
       quests: [],
       images: [],
@@ -576,19 +639,19 @@ describe('导出三张表', () => {
     expect(pick(withAlias)[3]).toBe('TXT_CHA_Q版伊芙_DefaultName');
   });
 
-  it('「选项」行填选项列表，指令列汇总名下选项的结果（多条换行隔开）', () => {
+  it('「选项」行只填选项列表；指令列只属于「指令」行（选项的结果已经下线）', () => {
     const row = byId('Dia_ch01_001-2');
     expect(row[2]).toBe('');
     expect(row[5]).toBe(''); // 选项行本身没有文本
     expect(row[6]).toBe('("Dia_ch01_001-2A","Dia_ch01_001-2B")');
-    expect(row[7]).toBe('背包#Item_Coin-10\n任务.接取# Task_Test_01');
+    expect(row[7]).toBe('');
   });
 
   it('「指令」行只填指令列', () => {
     const row = byId('Dia_ch01_001-3');
     expect(row[5]).toBe('');
     expect(row[6]).toBe('');
-    expect(row[7]).toBe('剧情.特殊# SP_ch01_001');
+    expect(row[7]).toBe('特殊||特殊指令:SP_ch01_001');
   });
 
   it('「对话」行写不填强制自动播放时留空', () => {
@@ -617,10 +680,9 @@ describe('导出三张表', () => {
     const optA = rows.options[1];
     expect(optA[0]).toBe('Dia_ch01_001-2A');
     expect(optA[1]).toBe('TXT_Dia_ch01_001-2A');
-    expect(optA[2]).toBe('("背包#Item_Coin>0")');
-    expect(optA[3]).toBe('("背包#Item_Coin>=10")');
-    expect(optA[4]).toBe('("背包#Item_Coin-10")');
-    expect(optA[5]).toBe('Dia_ch01_002-1');
+    expect(optA[2]).toBe('("背包||物品:Item_Coin;运算符:>;数量:0")');
+    expect(optA[3]).toBe('("背包||物品:Item_Coin;运算符:>=;数量:10")');
+    expect(optA[4]).toBe('Dia_ch01_002-1');
   });
 
   it('本地化表覆盖「对话」行与选项，顺序为选项行后紧跟其选项', () => {
@@ -719,10 +781,10 @@ describe('导出三张表', () => {
     expect(dialogue?.getRow(2).getCell(2).value).toBe('对话');
     expect(dialogue?.getRow(2).getCell(6).value).toBe('TXT_Dia_ch01_001-1');
     expect(dialogue?.getRow(3).getCell(2).value).toBe('选项');
-    expect(dialogue?.getRow(4).getCell(8).value).toBe('剧情.特殊# SP_ch01_001');
+    expect(dialogue?.getRow(4).getCell(8).value).toBe('特殊||特殊指令:SP_ch01_001');
 
     const options = workbook.getWorksheet('选项');
-    expect(options?.getRow(2).getCell(3).value).toBe('("背包#Item_Coin>0")');
+    expect(options?.getRow(2).getCell(3).value).toBe('("背包||物品:Item_Coin;运算符:>;数量:0")');
 
     const locale = workbook.getWorksheet('本地化');
     expect(locale?.getRow(2).getCell(2).value).toBe('你好');

@@ -34,7 +34,15 @@ import {
   WEAPON_SHEET,
   buildBattleRows,
 } from './battle-export';
-import { PLAY_DIALOGUE_HEAD } from './command-build';
+import {
+  buildCommandText,
+  buildPlayDialogueCommand,
+  findCommandDef,
+  isReferenceSource,
+  parseCommandText,
+  PLAY_DIALOGUE_BRANCH,
+  PLAY_DIALOGUE_HEAD,
+} from './command-build';
 import { IMPORT_SETTINGS_SHEET, buildImportSettingRows } from './export-settings';
 import { SPECIAL_COMMAND_SHEET, buildSpecialCommandRows } from './special-commands';
 import {
@@ -45,8 +53,8 @@ import {
   textIdOf,
 } from './ids';
 import { collectNameEntries } from './localization';
-import { characterIdOf, collectRefMaps, translateTarget, type UidToId } from './refs';
-import type { Character, Group, Line, Project, StoryOption } from './types';
+import { characterIdOf, collectRefMaps, type UidToId } from './refs';
+import type { Character, CommandDef, Group, Line, Project, StoryOption } from './types';
 
 export const DIALOGUE_SHEET = '对话';
 export const OPTION_SHEET = '选项';
@@ -72,7 +80,6 @@ export const OPTION_HEADER: readonly string[] = [
   '选项文本',
   '出现条件列表',
   '可用条件列表',
-  '结果列表',
   '下一对话ID',
 ];
 
@@ -124,14 +131,14 @@ export function buildRows(project: Project): ExportRowSets {
   for (const chapter of project.chapters) {
     for (const group of chapter.groups) {
       for (const line of group.lines) {
-        pushLine(project, line, group, ref, groupOf, idOf, characterOf, dialogue, locale);
+        pushLine(project, line, ref, groupOf, idOf, characterOf, dialogue, locale);
 
         // 「选项」行的选项紧随该行输出，与现有本地化表的排列习惯一致
         if (line.kind !== '选项') continue;
         for (const optionUid of line.optionIds) {
           const option = group.options.find((o) => o.uid === optionUid);
           if (option === undefined) continue; // 悬空引用交由校验层报告
-          pushOption(option, ref, groupOf, idOf, options, locale);
+          pushOption(option, ref, groupOf, idOf, project.commands, options, locale);
         }
       }
     }
@@ -185,10 +192,34 @@ function displayNameKeyOfLine(
   return index < 0 ? '' : aliasNameKeyOf(character.id.trim(), index);
 }
 
+/**
+ * 把一段指令文本里「指向各张表的参数」从 uid 翻成可读 ID。
+ *
+ * 翻译哪些参数由字典决定（值来源是表引用的才翻），所以不再靠 `#` 后面做字符串手术。
+ */
+function translateCommand(
+  text: string,
+  category: '条件' | '指令',
+  commands: readonly CommandDef[],
+  idOf: Map<string, string>,
+): string {
+  const parsed = parseCommandText(text);
+  if (parsed === null) return text;
+  const def = findCommandDef(commands, category, parsed.head, parsed.branch);
+  if (def === undefined) return text;
+
+  const values: Record<string, string> = {};
+  for (const param of parsed.params) {
+    const paramDef = def.params.find((item) => item.name.trim() === param.name);
+    const reference = paramDef !== undefined && isReferenceSource(paramDef.source);
+    values[param.name] = reference ? (idOf.get(param.value) ?? param.value) : param.value;
+  }
+  return buildCommandText(def, values);
+}
+
 function pushLine(
   project: Project,
   line: Line,
-  group: Group,
   ref: RefFn,
   groupOf: Map<string, Group>,
   idOf: Map<string, string>,
@@ -197,8 +228,8 @@ function pushLine(
   locale: string[][],
 ): void {
   const isDialogue = line.kind === '对话';
-  // 指令 / 条件里指向各张表的目标存的都是 uid，导出前统一翻成可读 ID
-  const translate = (text: string): string => translateTarget(text, idOf);
+  const translate = (text: string, category: '条件' | '指令'): string =>
+    translateCommand(text, category, project.commands, idOf);
 
   dialogue.push([
     line.readableId,
@@ -210,13 +241,14 @@ function pushLine(
     isDialogue && line.autoAdvance ? 'True' : '',
     isDialogue ? textIdOf(line.readableId) : '',
     formatArrayLiteral(line.kind === '选项' ? line.optionIds.map(ref).filter((id) => id !== '') : []),
-    // 指令列是普通文本（跟 文本ID / 角色ID 一个写法），不是数组字面量：
-    // 一行有多条指令时用换行隔开，跟原表「指令（换行间隔）」的写法一致
-    commandsOf(line, group, groupOf).map(translate).join('\n'),
+    // 指令列是普通文本（跟 文本ID / 角色ID 一个写法），不是数组字面量
+    commandsOf(line, project.commands, groupOf)
+      .map((text) => translate(text, '指令'))
+      .join('\n'),
     // 可用条件只有「跳转到段落」行有：全部满足才跳
     formatArrayLiteral(
       line.kind === '指令' && line.jumpGroupUid !== null
-        ? line.jumpConditions.map(translate)
+        ? line.jumpConditions.map((text) => translate(text, '条件'))
         : [],
     ),
   ]);
@@ -231,31 +263,24 @@ function pushLine(
  * 一行要写进「指令」列的内容。
  *
  *   「指令」行     - 就是它自己那一条；「跳转到段落」行则是现拼出来的那一条
- *   「选项」行     - 它名下所有选项的「结果」（已和需求方确认）
- *   「对话」行     - 空
+ *   「选项」/「对话」行 - 空（选项的结果已经下线，选完要执行指令就让选项跳到那个段落）
  */
-function commandsOf(line: Line, group: Group, groupOf: Map<string, Group>): string[] {
-  if (line.kind === '指令') {
-    // 「跳转到段落」：指令内容按所选段落当时的第一句现拼，段落重排后自动跟着走
-    if (line.jumpGroupUid !== null) {
-      const firstId = firstLineIdOfGroup(groupOf, line.jumpGroupUid);
-      return firstId === '' ? [] : [`${PLAY_DIALOGUE_HEAD}# ${firstId}`];
-    }
-    const command = line.command.trim();
-    return command === '' ? [] : [command];
+function commandsOf(
+  line: Line,
+  commands: readonly CommandDef[],
+  groupOf: Map<string, Group>,
+): string[] {
+  if (line.kind !== '指令') return [];
+  // 「跳转到段落」：指令内容按所选段落当时的第一句现拼，段落重排后自动跟着走
+  if (line.jumpGroupUid !== null) {
+    const firstId = firstLineIdOfGroup(groupOf, line.jumpGroupUid);
+    if (firstId === '') return [];
+    const def = findCommandDef(commands, '指令', PLAY_DIALOGUE_HEAD, PLAY_DIALOGUE_BRANCH);
+    const paramName = def?.params[0]?.name ?? '对话';
+    return [buildPlayDialogueCommand(firstId, paramName)];
   }
-  if (line.kind !== '选项') return [];
-
-  const merged: string[] = [];
-  for (const optionUid of line.optionIds) {
-    const option = group.options.find((o) => o.uid === optionUid);
-    if (option === undefined) continue;
-    for (const result of option.results) {
-      const text = result.trim();
-      if (text !== '') merged.push(text);
-    }
-  }
-  return merged;
+  const command = line.command.trim();
+  return command === '' ? [] : [command];
 }
 
 /** 某个段落的第一句对话 ID；段落不存在或还是空段落时返回空串 */
@@ -269,18 +294,18 @@ function pushOption(
   ref: RefFn,
   groupOf: Map<string, Group>,
   idOf: Map<string, string>,
+  commands: readonly CommandDef[],
   options: string[][],
   locale: string[][],
 ): void {
-  const translate = (text: string): string => translateTarget(text, idOf);
+  const translate = (text: string): string => translateCommand(text, '条件', commands, idOf);
 
   options.push([
     option.readableId,
     textIdOf(option.readableId),
-    // 条件、结果都是文本，原样写出；只有指向各表的目标要把 uid 翻成可读 ID
+    // 条件是指令文本，原样写出；指向各表的参数把 uid 翻成可读 ID
     formatArrayLiteral(option.appearConditions.map(translate)),
     formatArrayLiteral(option.enableConditions.map(translate)),
-    formatArrayLiteral(option.results.map(translate)),
     // 「跳转到首句对话」记的是段落，这里现取该段落当时的第一句
     resolveNext(option.nextId, ref, groupOf),
   ]);

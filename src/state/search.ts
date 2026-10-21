@@ -287,7 +287,6 @@ function storyDrafts(project: Project): Draft[] {
               option.text.ja,
               ...option.appearConditions,
               ...option.enableConditions,
-              ...option.results,
             ],
             target: { kind: 'option', uid: option.uid },
           });
@@ -339,8 +338,13 @@ function commandDrafts(project: Project): Draft[] {
       drafts.push({
         submodule: `指令字典 · ${category}`,
         rowNumber,
-        rowLabel: def.branch === '' ? def.head : `${def.head}.${def.branch}`,
-        fields: [def.head, def.branch, def.attribute, def.operator, def.note, ...def.fixedValues],
+        rowLabel: def.branch === '' ? def.head : `${def.head} · ${def.branch}`,
+        fields: [
+          def.head,
+          def.branch,
+          def.note,
+          ...def.params.flatMap((param) => [param.name, param.note, ...param.options]),
+        ],
         target: { kind: 'row', module: 'command', uid: def.uid },
       });
     }

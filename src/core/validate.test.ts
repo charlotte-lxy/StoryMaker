@@ -4,7 +4,42 @@ import { createEmptyBattle } from './battle';
 
 import { firstLineRef } from './ids';
 import { validateLocalization, validateProject } from './validate';
-import type { Group, Line, Project, StoryOption } from './types';
+import type {
+  CommandDef,
+  CommandParamDef,
+  Group,
+  Line,
+  ParamSource,
+  Project,
+  StoryOption,
+} from './types';
+
+function paramDef(name: string, source: ParamSource, over: Partial<CommandParamDef> = {}): CommandParamDef {
+  return { uid: `${name}-${source}`, name, source, options: [], required: true, note: '', ...over };
+}
+
+function commandDef(
+  category: '条件' | '指令',
+  head: string,
+  branch: string,
+  params: CommandParamDef[],
+): CommandDef {
+  return { uid: `${category}-${head}-${branch}`, category, head, branch, params, note: '' };
+}
+
+/** 校验用例默认带这套字典：剧情/演出、剧情/播放对话、特殊 */
+function defaultDefs(): CommandDef[] {
+  return [
+    commandDef('指令', '剧情', '演出', [
+      paramDef('角色', 'character'),
+      paramDef('立绘位移', 'fixed', { options: ['进入', '退出'], required: false }),
+      paramDef('表情', 'expression', { required: false }),
+      paramDef('动作', 'action', { required: false }),
+    ]),
+    commandDef('指令', '剧情', '播放对话', [paramDef('对话', 'line')]),
+    commandDef('指令', '特殊', '', [paramDef('特殊指令', 'text')]),
+  ];
+}
 
 function makeLine(uid: string, readableId: string, over: Partial<Line> = {}): Line {
   return {
@@ -33,7 +68,6 @@ function makeOption(uid: string, readableId: string, over: Partial<StoryOption> 
     nextId: '',
     appearConditions: [],
     enableConditions: [],
-    results: [],
     ...over,
   };
 }
@@ -58,7 +92,7 @@ function makeProject(group: Partial<Group>): Project {
       },
     ],
     sounds: [],
-    commands: [],
+    commands: defaultDefs(),
     items: [],
     quests: [],
     images: [],
@@ -239,14 +273,84 @@ it('指令指向的目标被删掉之后（uid 悬空）会报出来，手写的
     lines: [
       makeLine('u1', 'Dia_ch01_001-1', {
         kind: '指令',
-        command: '剧情.演出# 3f2a1b4c-0000-4000-8000-000000000000.表情=挥手',
+        command: '剧情|演出|角色:3f2a1b4c-0000-4000-8000-000000000000;表情:挥手',
       }),
-      makeLine('u2', 'Dia_ch01_001-2', { kind: '指令', command: '特殊# SP_001' }),
+      makeLine('u2', 'Dia_ch01_001-2', { kind: '指令', command: '特殊||特殊指令:SP_001' }),
     ],
   });
   const report = validateProject(project);
   expect(report.issues.map((i) => i.code)).toEqual(['dangling-command-target']);
   expect(report.issues[0].lineUid).toBe('u1');
+});
+
+it('字典里没有这条指令 / 条件 → 报错并告诉你去建一条', () => {
+  const project = makeProject({
+    lines: [
+      makeLine('u1', 'Dia_ch01_001-1', {
+        kind: '指令',
+        command: '剧情|图片|图片:SCE_1',
+      }),
+    ],
+  });
+  const report = validateProject(project);
+  expect(report.issues.map((i) => i.code)).toEqual(['unknown-command']);
+  expect(report.issues[0].message).toContain('剧情 / 图片');
+});
+
+it('必填参数没填 → 报错；非必填不报', () => {
+  const project = makeProject({
+    lines: [
+      makeLine('u1', 'Dia_ch01_001-1', {
+        kind: '指令',
+        // 角色是必填的，这里没填
+        command: '剧情|演出|表情:挥手',
+      }),
+      makeLine('u2', 'Dia_ch01_001-2', {
+        kind: '指令',
+        // 非必填的立绘位移 / 表情都不填也没事
+        command: '剧情|演出|角色:CHA_伊芙',
+      }),
+    ],
+  });
+  const report = validateProject(project);
+  expect(report.issues.map((i) => i.code)).toEqual(['missing-command-param']);
+  expect(report.issues[0].lineUid).toBe('u1');
+  expect(report.issues[0].message).toContain('角色');
+});
+
+it('格式不对 / 字典里没有的参数也报出来', () => {
+  const broken = makeProject({
+    lines: [makeLine('u1', 'Dia_ch01_001-1', { kind: '指令', command: '剧情.演出# CHA_伊芙.表情=挥手' })],
+  });
+  expect(validateProject(broken).issues.map((i) => i.code)).toEqual(['command-format']);
+
+  const extra = makeProject({
+    lines: [
+      makeLine('u1', 'Dia_ch01_001-1', {
+        kind: '指令',
+        command: '特殊||特殊指令:SP_001;多余的参数:1',
+      }),
+    ],
+  });
+  const report = validateProject(extra);
+  expect(report.issues.map((i) => i.code)).toEqual(['unknown-command-param']);
+  expect(report.issues[0].level).toBe('warning');
+});
+
+it('字典里同一条「类别 + 主指令 + 分支」重复定义 → 报错', () => {
+  const project = makeProject({ lines: [] });
+  project.commands.push(commandDef('指令', '特殊', '', [paramDef('特殊指令', 'text')]));
+  const report = validateProject(project);
+  expect(report.issues.map((i) => i.code)).toEqual(['duplicate-command-def']);
+  expect(report.issues[0].commandDefUid).toBe('指令-特殊-');
+});
+
+it('参数名空着或带分隔符 → 报错', () => {
+  const project = makeProject({ lines: [] });
+  project.commands[0].params.push(paramDef('', 'text'));
+  project.commands[1].params.push(paramDef('a:b', 'text'));
+  const report = validateProject(project);
+  expect(report.issues.map((i) => i.code)).toEqual(['command-param-name', 'command-param-name']);
 });
 
 it('选中的显示名已经不在角色的别名里 → 提醒一句', () => {
@@ -305,7 +409,7 @@ it('「指令」行只要求填了指令，不检查台词与角色', () => {
         kind: '指令',
         characterUid: '',
         text: { zh: '', en: '', ja: '' },
-        command: '剧情.特殊# SP_ch01_001',
+        command: '特殊||特殊指令:SP_ch01_001',
       }),
     ],
   });

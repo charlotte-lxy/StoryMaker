@@ -218,21 +218,6 @@ export function OptionListEditor(props: Props) {
             emptyHint="尚未设置可用条件"
           />
         </div>
-
-        <div className="field field-result">
-          <span>结果（指令）</span>
-          <CommandListInput
-            value={option.results}
-            defs={props.commandDefs}
-            category="指令"
-            targets={props.commandTargets}
-            expressionsOf={(uid) => props.characters.find((c) => c.uid === uid)?.expressions ?? []}
-            actionsOf={(uid) => props.characters.find((c) => c.uid === uid)?.actions ?? []}
-            onChange={(next) => props.onUpdateOption(option.uid, { results: next })}
-            addLabel="＋ 新增结果"
-            emptyHint="选中后执行的指令"
-          />
-        </div>
       </div>
     </div>
     );

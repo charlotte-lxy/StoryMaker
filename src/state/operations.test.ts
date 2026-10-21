@@ -10,7 +10,6 @@ import {
   insertLine,
   moveLines,
   moveLinesTogether,
-  parseCommand,
   removeLines,
   removeUiText,
   renumberOneGroup,
@@ -197,7 +196,6 @@ describe('批量编辑：移动与删除', () => {
       nextId: 'a',
       appearConditions: [],
       enableConditions: [],
-      results: [],
     });
     project.chapters[0].groups.push({
       uid: 'g2',
@@ -505,64 +503,5 @@ describe('跳转目标的两级下拉', () => {
   it('目标已失效时反查为空字符串，交由校验层报告', () => {
     const grouped = collectGroupedLineRefs(makeProject());
     expect(groupUidOfLine(grouped, 'u-missing')).toBe('');
-  });
-});
-
-describe('指令解析（样例里的三种形态）', () => {
-  it('完整形式：指令名.分支# 对象.属性 运算符 结果', () => {
-    expect(parseCommand('剧情.人物# CHA_Q版伊芙.差分 = 挥手')).toEqual({
-      name: '剧情',
-      branch: '人物',
-      target: 'CHA_Q版伊芙',
-      attribute: '差分',
-      operator: '=',
-      value: '挥手',
-    });
-  });
-
-  it('省略属性与结果：只有前三段', () => {
-    expect(parseCommand('剧情.特殊# SP_ch01_001')).toEqual({
-      name: '剧情',
-      branch: '特殊',
-      target: 'SP_ch01_001',
-      attribute: '',
-      operator: '',
-      value: '',
-    });
-  });
-
-  it('有运算符但没有属性', () => {
-    expect(parseCommand('剧情.音效# S_dididi = 1')).toEqual({
-      name: '剧情',
-      branch: '音效',
-      target: 'S_dididi',
-      attribute: '',
-      operator: '=',
-      value: '1',
-    });
-  });
-
-  it('不符合通用格式时返回 null，界面会标黄提示', () => {
-    expect(parseCommand('随便一段文字')).toBeNull();
-    expect(parseCommand('缺少分隔符')).toBeNull();
-  });
-
-  it('主指令没有分支段时也能解析（点号可省略）', () => {
-    expect(parseCommand('背包# Like_西园寺雪+1')).toEqual({
-      name: '背包',
-      branch: '',
-      target: 'Like_西园寺雪',
-      attribute: '',
-      operator: '+',
-      value: '1',
-    });
-    expect(parseCommand('特殊# SP_001')).toEqual({
-      name: '特殊',
-      branch: '',
-      target: 'SP_001',
-      attribute: '',
-      operator: '',
-      value: '',
-    });
   });
 });

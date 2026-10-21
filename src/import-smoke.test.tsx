@@ -48,7 +48,7 @@ it.skipIf(!hasData)('导入数据里的「指令」行能渲染出指令下拉',
   seed();
   await renderApp();
   // 「指令」行一行只放一条指令，字典里能选的就只留下拉
-  expect(screen.getAllByTitle('选择指令').length).toBeGreaterThan(0);
+  expect(screen.getAllByTitle('选择指令（主指令）').length).toBeGreaterThan(0);
   // 老的「＋ 新增指令」按钮已经没有了
   expect(screen.queryByText('＋ 新增指令')).toBeNull();
 });

@@ -52,7 +52,6 @@ function makeProject(): Project {
                 nextId: '',
                 appearConditions: [],
                 enableConditions: [],
-                results: [],
               },
             ],
           },
@@ -355,7 +354,6 @@ describe('diff → apply 往返', () => {
       nextId: '',
       appearConditions: [],
       enableConditions: [],
-      results: [],
     });
     current.items = [];
 

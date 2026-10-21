@@ -5,15 +5,17 @@
  */
 
 import { createEmptyBattle } from '../core/battle';
+import { findCommandDef, parseCommandText } from '../core/command-build';
+import { defaultCommandDefs } from '../core/default-commands';
 import { EXPORT_SUBTABLES } from '../core/export-settings';
 import { makeLineId, makeOptionId, newUid, renumberGroup, groupUidOfFirstLine, type IdChange } from '../core/ids';
-import { collectRefUids } from '../core/refs';
 import { DEFAULT_SPECIAL_COMMAND_CLASS_PREFIX } from '../core/special-commands';
 import {
   DEFAULT_PLAY_POSITION,
   type Chapter,
   type CharacterAlias,
   type CommandDef,
+  type CommandParamDef,
   type ExportSettingRow,
   type Group,
   type LangKey,
@@ -23,69 +25,8 @@ import {
   type LookupRow,
   type Project,
   type StoryOption,
-  type TargetKind,
   type UiTextRow,
-  type ValueKind,
 } from '../core/types';
-
-/**
- * 默认指令字典，整理自 tb-gal.xlsx 的【条件指令汇总】。
- * 「条件」用于选项的出现/可用条件，「指令」用于「指令」行与选项的结果。
- * 地图与 CG 相关的条目没有收录——那部分留给其他项目。
- */
-export function defaultCommandDefs(): CommandDef[] {
-  const def = (
-    category: '条件' | '指令',
-    head: string,
-    branch: string,
-    target: TargetKind,
-    attribute: string,
-    operator: string,
-    value: ValueKind,
-    note: string,
-    fixedValues: string[] = [],
-  ): CommandDef => ({
-    uid: newUid(),
-    category,
-    head,
-    branch,
-    target,
-    attribute,
-    operator,
-    value,
-    fixedValues,
-    note,
-  });
-
-  return [
-    // ---- 条件 ----
-    def('条件', '背包', '', 'item', '', '>=', 'number', '物品数量判断：大于等于'),
-    def('条件', '背包', '', 'item', '', '<=', 'number', '物品数量判断：小于等于'),
-    def('条件', '背包', '', 'item', '', '==', 'number', '物品数量判断：等于'),
-    def('条件', '背包', '', 'item', '', '>', 'number', '物品数量判断：大于'),
-    def('条件', '背包', '', 'item', '', '<', 'number', '物品数量判断：小于'),
-    def('条件', '任务', '', 'quest', '', '=', 'fixed', '任务完成判断：完成', ['1']),
-    def('条件', '任务', '', 'quest', '', '=', 'fixed', '任务完成判断：未完成', ['0']),
-    def('条件', '剧情', '', 'line', '', '=', 'fixed', '对话完成判断：完成', ['1']),
-    def('条件', '剧情', '', 'line', '', '=', 'fixed', '对话完成判断：未完成', ['0']),
-    def('条件', '特殊', '', 'manual', '', '=', 'fixed', '特殊条件，正常表达式判断不了的情况，需和程序提前沟通', ['1']),
-    def('条件', '特殊', '', 'manual', '', '=', 'fixed', '特殊条件（未完成）', ['0']),
-
-    // ---- 指令 ----
-    def('指令', '剧情.演出', '立绘进入', 'character', '进入', '=', 'fixed', '角色需先进入后才能操作表情与动作', ['1']),
-    def('指令', '剧情.演出', '立绘退出', 'character', '退出', '=', 'fixed', '角色下场', ['1']),
-    def('指令', '剧情.演出', '设置表情', 'character', '表情', '=', 'expression', '表情清单在角色表里配置'),
-    def('指令', '剧情.演出', '设置动作', 'character', '动作', '=', 'action', '动作清单在角色表里配置'),
-    def('指令', '剧情.图片', '', 'image', '', '', 'none', '展示图片，图片 ID 来自立绘表'),
-    def('指令', '剧情.图片', '移除图片', 'manual', '', '', 'none', '填「移除」，清掉当前图片'),
-    def('指令', '剧情.播放对话', '', 'line', '', '', 'none', '直接跳去播另一段对话'),
-    def('指令', '背包', '', 'item', '', '+', 'number', '增加物品数量'),
-    def('指令', '背包', '', 'item', '', '-', 'number', '减少物品数量'),
-    def('指令', '背包', '', 'item', '', '=', 'number', '直接设置物品数量'),
-    def('指令', '任务.接取', '', 'quest', '', '', 'none', '接取任务'),
-    def('指令', '特殊', '', 'manual', '', '', 'none', '正常表达式写不出来的指令，需和程序提前沟通'),
-  ];
-}
 
 export function createLine(
   chapterId: string,
@@ -130,7 +71,6 @@ export function createOption(hostLineId: string, index: number): StoryOption {
     nextId: '',
     appearConditions: [],
     enableConditions: [],
-    results: [],
   };
 }
 
@@ -649,13 +589,9 @@ export function addCommandDef(project: Project, category: '条件' | '指令' = 
     draft.commands.push({
       uid: newUid(),
       category,
-      head: '新指令',
+      head: category === '条件' ? '新条件' : '新指令',
       branch: '',
-      target: 'manual',
-      attribute: '',
-      operator: '',
-      value: 'none',
-      fixedValues: [],
+      params: [],
       note: '',
     });
   });
@@ -678,161 +614,145 @@ export function updateCommandDef(
   });
 }
 
-/* ---------- 指令 ---------- */
+/* ---------- 指令的参数字典 ---------- */
 
-/** 指令的通用结构，用于展示，也是后续做成下拉表单的基础 */
-export interface ParsedCommand {
-  /** 指令名，如「剧情」 */
-  name: string;
-  /** 指令分支，如「人物」「特殊」「音效」 */
-  branch: string;
-  /** 目标对象，如角色 ID、特效编号、音效名 */
-  target: string;
-  /** 目标属性，可省略，如「差分」 */
-  attribute: string;
-  /** 指令运算符，可省略，如「=」 */
-  operator: string;
-  /** 目标结果，可省略，如「挥手」 */
-  value: string;
+/** 给某条定义末尾加一个空参数（参数名先给个占位，策划自己改） */
+export function addCommandParam(project: Project, defUid: string): Project {
+  return mutate(project, (draft) => {
+    const def = draft.commands.find((item) => item.uid === defUid);
+    if (def === undefined) return;
+    def.params.push({
+      uid: newUid(),
+      name: `参数${def.params.length + 1}`,
+      source: 'text',
+      options: [],
+      required: true,
+      note: '',
+    });
+  });
 }
 
-/**
- * 解析指令：主指令[.分支]# 目标对象[.目标属性][运算符 目标结果]
- *
- * 方括号部分都可以省略，所以拆解要小心三处歧义：
- *   1. `背包# Like_西园寺雪+1` 的 `+1` 是运算符加数值，不能并进目标
- *   2. `剧情.播放对话# P_Test_001-1` 的 `-1` 是 ID 的一部分，不是减法
- *   3. `剧情.演出# 8f3c1b2a-1234-4def-….表情=挥手` 的 `-` 是 **uid** 的一部分
- *
- * 第三条靠 isUid 判定：界面上从下拉里选的目标写进文本的是 uid，uid 里带 `-`，
- * 只靠正则一定会被当成减号切坏。所以先按已知 uid 把 `#` 后面那一截的目标切出来，
- * 剩下的部分再走下面那两套正则。手敲的 ID / 名字（isUid 不认）照旧走正则。
- */
-export function parseCommand(
-  text: string,
-  isUid: (value: string) => boolean = () => false,
-): ParsedCommand | null {
-  const head = /^\s*([^.#]+)(?:\.([^#]+))?#\s*(.*?)\s*$/.exec(text);
-  if (head === null) return null;
-
-  const name = head[1].trim();
-  const branch = (head[2] ?? '').trim();
-  const rest = head[3];
-
-  const uidTarget = uidTargetOf(rest, isUid);
-  if (uidTarget !== null) {
-    return { name, branch, target: uidTarget, ...tailOf(rest.slice(uidTarget.length)) };
-  }
-
-  const base = { name, branch, attribute: '', operator: '', value: '' };
-
-  // 整体就是一个带尾号的 ID，例如 P_Test_001-1、Task_Test_01
-  const plainId = /^([A-Za-z][A-Za-z0-9_]*-\d+)$/.exec(rest);
-  if (plainId !== null) return { ...base, target: plainId[1] };
-
-  const withValue = /^([^.\s]+?)(?:\.([^\s=+\-]+))?\s*(>=|<=|==|!=|>|<|\+|-|=)\s*(.*?)$/.exec(
-    rest,
-  );
-  if (withValue !== null) {
-    return {
-      name,
-      branch,
-      target: withValue[1],
-      attribute: withValue[2] ?? '',
-      operator: withValue[3],
-      value: withValue[4],
-    };
-  }
-
-  const targetOnly = /^([^.\s]+?)(?:\.([^\s=+\-]+))?$/.exec(rest);
-  if (targetOnly !== null) {
-    return { ...base, target: targetOnly[1], attribute: targetOnly[2] ?? '' };
-  }
-
-  return null;
+export function removeCommandParam(project: Project, defUid: string, paramUid: string): Project {
+  return mutate(project, (draft) => {
+    const def = draft.commands.find((item) => item.uid === defUid);
+    if (def === undefined) return;
+    def.params = def.params.filter((param) => param.uid !== paramUid);
+  });
 }
 
-/** `#` 后面那一截的开头正好是一个已知 uid 时返回它，否则 null */
-function uidTargetOf(rest: string, isUid: (value: string) => boolean): string | null {
-  for (let end = rest.length; end > 0; end -= 1) {
-    const candidate = rest.slice(0, end);
-    if (isUid(candidate)) return candidate;
-  }
-  return null;
+export function updateCommandParam(
+  project: Project,
+  defUid: string,
+  paramUid: string,
+  patch: Partial<CommandParamDef>,
+): Project {
+  return mutate(project, (draft) => {
+    const def = draft.commands.find((item) => item.uid === defUid);
+    const param = def?.params.find((item) => item.uid === paramUid);
+    if (param !== undefined) Object.assign(param, patch);
+  });
 }
 
-/**
- * uid 目标后面剩下的一截，只有「.属性」与「运算符 结果」两种东西，可以都省略。
- * 目标已经在外面切掉了，这里不必再防 uid 里的 `-`。
- */
-function tailOf(tail: string): Pick<ParsedCommand, 'attribute' | 'operator' | 'value'> {
-  const withValue = /^(?:\.([^\s=+\-]+))?\s*(>=|<=|==|!=|>|<|\+|-|=)\s*(.*?)$/.exec(tail);
-  if (withValue !== null) {
-    return { attribute: withValue[1] ?? '', operator: withValue[2], value: withValue[3] };
-  }
-  const attributeOnly = /^\.([^\s=+\-]+)$/.exec(tail);
-  return { attribute: attributeOnly?.[1] ?? '', operator: '', value: '' };
+/** 参数顺序就是填表时控件从左到右的顺序，所以挪位子是常用操作 */
+export function moveCommandParam(
+  project: Project,
+  defUid: string,
+  paramUid: string,
+  delta: number,
+): Project {
+  return mutate(project, (draft) => {
+    const def = draft.commands.find((item) => item.uid === defUid);
+    if (def === undefined) return;
+    const from = def.params.findIndex((param) => param.uid === paramUid);
+    const to = from + delta;
+    if (from < 0 || to < 0 || to >= def.params.length) return;
+    const [moved] = def.params.splice(from, 1);
+    def.params.splice(to, 0, moved);
+  });
 }
+
+/* ---------- 指令的使用情况 ---------- */
 
 export interface CommandLocation {
   groupUid: string;
+  /** 点这条位置时跳过去的那一行 */
   lineUid: string;
-  lineId: string;
-  groupLabel: string;
+  /** 给人看的位置，如「序章 / 开场 · Dia_ch01_001-2 · 选项 A」 */
+  label: string;
 }
 
 export interface CommandUsage {
   text: string;
   count: number;
-  parsed: ParsedCommand | null;
+  /** 字典里那一条；匹配不上时是 undefined */
+  def: CommandDef | undefined;
+  /** 连新格式都解析不出来（老格式没迁移成功、或手改坏了） */
+  broken: boolean;
   locations: CommandLocation[];
 }
 
-/** 汇总剧情中用到的全部指令（只有「指令」行会写指令），按文本去重 */
-export function collectCommands(project: Project): CommandUsage[] {
+/**
+ * 汇总某一类（条件 / 指令）在剧情里用到的次数与位置。
+ *
+ * 指令只出现在「指令」行上；条件出现在选项的出现/可用条件、
+ * 以及「跳转到段落」行的可用条件里。
+ */
+export function collectCommands(project: Project, category: '条件' | '指令'): CommandUsage[] {
   const map = new Map<string, CommandUsage>();
-  // 目标写的是 uid，解析时要把 uid 认出来（uid 里带 `-`，见 parseCommand）
-  const uids = collectRefUids(project);
-  const isUid = (value: string): boolean => uids.has(value);
+
+  const push = (text: string, where: CommandLocation): void => {
+    const trimmed = text.trim();
+    if (trimmed === '') return;
+    let entry = map.get(trimmed);
+    if (entry === undefined) {
+      const parsed = parseCommandText(trimmed);
+      entry = {
+        text: trimmed,
+        count: 0,
+        def:
+          parsed === null
+            ? undefined
+            : findCommandDef(project.commands, category, parsed.head, parsed.branch),
+        broken: parsed === null,
+        locations: [],
+      };
+      map.set(trimmed, entry);
+    }
+    entry.count += 1;
+    entry.locations.push(where);
+  };
 
   for (const chapter of project.chapters) {
     for (const group of chapter.groups) {
       const groupLabel = `${chapter.title || chapter.id} / ${group.title || group.id}`;
       for (const line of group.lines) {
-        if (line.kind !== '指令') continue;
-        const text = line.command.trim();
-        if (text === '') continue;
-
-        let entry = map.get(text);
-        if (entry === undefined) {
-          entry = { text, count: 0, parsed: parseCommand(text, isUid), locations: [] };
-          map.set(text, entry);
+        const base = { groupUid: group.uid, lineUid: line.uid };
+        if (category === '指令') {
+          // 「跳转到段落」行的指令是按段落现拼的，不在字典里，也不进使用情况
+          if (line.kind === '指令' && line.jumpGroupUid === null) {
+            push(line.command, { ...base, label: `${groupLabel} · ${line.readableId}` });
+          }
+          continue;
         }
-        entry.count += 1;
-        entry.locations.push({
-          groupUid: group.uid,
-          lineUid: line.uid,
-          lineId: line.readableId,
-          groupLabel,
-        });
+        if (line.jumpGroupUid !== null) {
+          for (const condition of line.jumpConditions) {
+            push(condition, { ...base, label: `${groupLabel} · ${line.readableId}` });
+          }
+        }
+        if (line.kind !== '选项') continue;
+        for (let index = 0; index < line.optionIds.length; index += 1) {
+          const option = group.options.find((item) => item.uid === line.optionIds[index]);
+          if (option === undefined) continue;
+          const tag = String.fromCharCode(65 + (index % 26));
+          const label = `${groupLabel} · ${option.readableId} · 选项 ${tag}`;
+          for (const condition of option.appearConditions) push(condition, { ...base, label });
+          for (const condition of option.enableConditions) push(condition, { ...base, label });
+        }
       }
     }
   }
 
   return [...map.values()].sort((a, b) => a.text.localeCompare(b.text, 'zh'));
-}
-
-/** 批量改写某条指令：所有出现处一起替换 */
-export function renameCommand(project: Project, from: string, to: string): Project {
-  return mutate(project, (draft) => {
-    for (const chapter of draft.chapters) {
-      for (const group of chapter.groups) {
-        for (const line of group.lines) {
-          if (line.kind === '指令' && line.command.trim() === from) line.command = to;
-        }
-      }
-    }
-  });
 }
 
 /* ---------- 本地化 ---------- */

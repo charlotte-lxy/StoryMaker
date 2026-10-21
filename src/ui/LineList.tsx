@@ -11,6 +11,8 @@ import {
 import {
   buildSpecialCommand,
   specialEffectNameOf,
+  SPECIAL_COMMAND_HEAD,
+  SPECIAL_COMMAND_PARAM,
   type CommandTargets,
 } from '../core/command-build';
 import type { Character, CommandDef, Group, Line, StoryOption } from '../core/types';
@@ -96,6 +98,15 @@ export function LineList(props: Props) {
   const [editingUid, setEditingUid] = useState<string | null>(null);
   const flashCardRef = useRef<HTMLElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+
+  /** 「特殊演出效果」行拼出来的指令，参数名跟着字典走（默认「特殊指令」） */
+  const specialParamName =
+    props.commandDefs.find(
+      (def) =>
+        def.category === '指令' &&
+        def.head.trim() === SPECIAL_COMMAND_HEAD &&
+        def.branch.trim() === '',
+    )?.params[0]?.name ?? SPECIAL_COMMAND_PARAM;
 
   // 从别处跳转过来时，把目标行滚到视野中央
   useEffect(() => {
@@ -476,18 +487,18 @@ export function LineList(props: Props) {
                     </Field>
                   )}
 
-                  {/* 「特殊演出效果」：只有两个输入框，指令就是「特殊# 指令名称」；
+                  {/* 「特殊演出效果」：只有两个输入框，指令拼成「特殊||特殊指令:名称」；
                       「指令内容」只给自己看，不导出也不参与拼装 */}
                   {line.kind === '指令' && line.specialContent !== null && (
                     <>
                       <Field label="特殊指令名称" className="line-field-special-name">
                         <input
-                          value={specialEffectNameOf(line.command)}
+                          value={specialEffectNameOf(line.command, specialParamName)}
                           placeholder="例如 SP_CameraShake"
-                          title="特殊指令名称：导出时拼成「特殊# 指令名称」"
+                          title="特殊指令名称：导出时拼成「特殊||特殊指令:名称」"
                           onChange={(event) =>
                             props.onUpdateLine(line.uid, {
-                              command: buildSpecialCommand(event.target.value),
+                              command: buildSpecialCommand(event.target.value, specialParamName),
                             })
                           }
                         />

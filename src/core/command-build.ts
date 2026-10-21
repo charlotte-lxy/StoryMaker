@@ -1,17 +1,37 @@
 /**
  * 指令的拼装与拆解。
  *
- * 通用格式：主指令[.分支]# 目标对象[.目标属性][运算符 目标结果]
- * 例如：
- *   特殊# SP_001
- *   剧情.图片# SCE_Home_001
- *   剧情.演出# CHA_西园寺雪.表情=悲伤
- *   背包# Item_Coin>=10
+ * 格式（E2）：
+ *
+ *   主指令|分支|参数名:值;参数名:值
+ *
+ * 例：
+ *   剧情|演出|角色:CHA_西园寺雪;表情:悲伤
+ *   背包||物品:Item_Coin;运算符:+;数量:100
+ *   剧情|图片|                       （无参指令：移除图片）
+ *   特殊||特殊指令:SP_001
+ *
+ * 三条规则：
+ *   - 三段永远都在，空分支写成空段、无参数就空到底；
+ *   - 参数名 / 值里不能出现分隔符 `|` `;` `:`，也不能出现 `,` `"` `(` `)`
+ *     （选项的条件列还是 ("a","b") 数组，会把值切坏）；
+ *   - 非必填参数没填时整项省略，不写 `名:`。
+ *
+ * 键值用 `:` 而不是 `=`，是因为「运算符」这个参数的值本身可能就是 `=`。
  */
 
-import type { CommandDef, Project, TargetKind } from '../core/types';
+import type { CommandDef, CommandParamDef, ParamSource, Project } from '../core/types';
 import { collectRefUids } from './refs';
 import type { LookupKind } from '../state/operations';
+
+/** 参数名 / 值里不能出现的字符（分隔符，以及会把数组字面量切坏的字符） */
+export const COMMAND_FORBIDDEN_CHARS = /[|;:,()"]/;
+
+/** 判断一段文字里有没有不能用的字符；有就返回是哪一个，没有返回 null */
+export function forbiddenCharOf(text: string): string | null {
+  const matched = COMMAND_FORBIDDEN_CHARS.exec(text);
+  return matched === null ? null : matched[0];
+}
 
 export interface CommandTargets {
   characters: { id: string; label: string }[];
@@ -20,27 +40,33 @@ export interface CommandTargets {
   images: { id: string; label: string }[];
   sounds: { id: string; label: string }[];
   lines: { id: string; label: string }[];
-  /**
-   * 项目里所有能当引用目标的 uid。
-   *
-   * 下拉里的 `id` 一律是 uid（内部引用只认 uid，改 ID、改名字都不会断），
-   * 这个集合用来把指令文本里的 uid 目标认出来——uid 里带 `-`，
-   * 光靠正则解析会被当成减号（见 parseCommand）。
-   */
+  /** 项目里所有能当引用目标的 uid，校验「引用还在不在」时用 */
   uids: Set<string>;
 }
 
-/**
- * 「跳转到段落」块导出时用的指令头。
- *
- * 与字典里「剧情.播放对话」那条完全一致，只是这条不靠下拉填目标，
- * 而是由所选段落当前的第一句现拼出来（见 core/export.ts）。
- */
-export const PLAY_DIALOGUE_HEAD = '剧情.播放对话';
+/** 「跳转到段落」块导出时用的主指令 / 分支，与默认字典里「剧情 / 播放对话」那条一致 */
+export const PLAY_DIALOGUE_HEAD = '剧情';
+export const PLAY_DIALOGUE_BRANCH = '播放对话';
 
-/** 指令定义里某个目标来源对应哪张数据表 */
-export function targetKindToLookup(kind: TargetKind): LookupKind | null {
-  switch (kind) {
+/** 特殊演出效果块用的主指令；参数名默认「特殊指令」 */
+export const SPECIAL_COMMAND_HEAD = '特殊';
+export const SPECIAL_COMMAND_PARAM = '特殊指令';
+
+/** 参数来源里，哪些是「指向某张表的引用」（存 uid，导出要翻成可读 ID） */
+export function isReferenceSource(source: ParamSource): boolean {
+  return (
+    source === 'character' ||
+    source === 'item' ||
+    source === 'quest' ||
+    source === 'image' ||
+    source === 'sound' ||
+    source === 'line'
+  );
+}
+
+/** 参数来源对应哪张数据表（没有对应表的返回 null） */
+export function sourceToLookup(source: ParamSource): LookupKind | null {
+  switch (source) {
     case 'item':
       return 'items';
     case 'quest':
@@ -81,8 +107,12 @@ export function collectCommandTargets(
   };
 }
 
-export function targetsFor(def: CommandDef, targets: CommandTargets): { id: string; label: string }[] {
-  switch (def.target) {
+/** 某个参数来源的候选行 */
+export function targetsOfSource(
+  targets: CommandTargets,
+  source: ParamSource,
+): { id: string; label: string }[] {
+  switch (source) {
     case 'character':
       return targets.characters;
     case 'item':
@@ -100,88 +130,132 @@ export function targetsFor(def: CommandDef, targets: CommandTargets): { id: stri
   }
 }
 
-/**
- * 拼出一条指令文本。
- *
- * 注意 head 就是完整的指令头（如 `剧情.演出`、`任务.接取`），
- * branch 是给人看的分类名（如「设置表情」），**不参与拼装**。
- * 拼进去会得到 `剧情.演出.设置表情# …` 这种错误结果。
- */
-export function buildCommand(def: CommandDef, target: string, value: string): string {
-  let text = `${def.head}# ${target}`;
-  if (def.attribute !== '') text += `.${def.attribute}`;
-  if (def.operator !== '' && value !== '') text += `${def.operator}${value}`;
-  return text;
+/** 解析出来的指令：主指令 / 分支 / 参数（顺序就是文本里的顺序） */
+export interface ParsedCommandText {
+  head: string;
+  branch: string;
+  params: { name: string; value: string }[];
 }
 
-/** 「特殊演出效果」块的指令头；拼出来的指令形如 `特殊# SP_001` */
-export const SPECIAL_COMMAND_HEAD = '特殊#';
+/** 拆一条指令文本；格式不对返回 null */
+export function parseCommandText(text: string): ParsedCommandText | null {
+  const trimmed = text.trim();
+  if (trimmed === '') return null;
 
-/**
- * 拼一条「特殊演出效果」指令：`特殊# <指令名称>`。
- *
- * 「指令内容」那一栏只是给人看的说明，**不参与拼装**；名称还没填时返回空串，
- * 导出后这一行是空的（由校验条提示）。
- */
-export function buildSpecialCommand(name: string): string {
-  return name.trim() === '' ? '' : `${SPECIAL_COMMAND_HEAD} ${name}`;
+  const segments = trimmed.split('|');
+  if (segments.length < 2 || segments.length > 3) return null;
+
+  const head = segments[0].trim();
+  if (head === '') return null;
+  const branch = (segments[1] ?? '').trim();
+  const rest = (segments[2] ?? '').trim();
+
+  const params: { name: string; value: string }[] = [];
+  if (rest !== '') {
+    for (const part of rest.split(';')) {
+      const at = part.indexOf(':');
+      if (at < 0) return null;
+      const name = part.slice(0, at).trim();
+      if (name === '') return null;
+      params.push({ name, value: part.slice(at + 1).trim() });
+    }
+  }
+
+  return { head, branch, params };
 }
 
-/** 从指令文本里取回「特殊演出效果」的指令名称；不是这个格式时原样返回，好让人看见并改掉 */
-export function specialEffectNameOf(command: string): string {
-  if (!command.startsWith(SPECIAL_COMMAND_HEAD)) return command;
-  return command.slice(SPECIAL_COMMAND_HEAD.length).replace(/^\s+/, '');
+/**
+ * 按「主指令 + 分支」找字典里的那一条。
+ *
+ * 只在同一个 category 里找：条件和指令的文本格式一样，混在一起会选错。
+ */
+export function findCommandDef(
+  defs: readonly CommandDef[],
+  category: '条件' | '指令',
+  head: string,
+  branch: string,
+): CommandDef | undefined {
+  const wantedHead = head.trim();
+  const wantedBranch = branch.trim();
+  return defs.find(
+    (def) =>
+      def.category === category &&
+      def.head.trim() === wantedHead &&
+      def.branch.trim() === wantedBranch,
+  );
+}
+
+/** 一条指令文本对应的字典条目；匹配不上返回 undefined */
+export function matchCommandText(
+  text: string,
+  defs: readonly CommandDef[],
+  category: '条件' | '指令',
+): CommandDef | undefined {
+  const parsed = parseCommandText(text);
+  if (parsed === null) return undefined;
+  return findCommandDef(defs, category, parsed.head, parsed.branch);
 }
 
 /**
- * 指令定义在下拉里的显示名。
+ * 拼一条指令文本。
  *
- * 要短——它是 select 的选项文字，太长会把整个下拉撑宽。
- * 因此只用「分类名（没有分类就用指令头）」再加一个区分用的关键信息：
- * 有属性用属性（表情 / 进入 / 退出），否则用运算符（>= / +）。
- * 完整说明见 commandDefNote，放在 title 上。
+ * values 以参数名为键；值是空串的参数整项省略（必填没填时由校验条报出来）。
  */
+export function buildCommandText(def: CommandDef, values: Record<string, string>): string {
+  const rest = def.params
+    .map((param) => ({ name: param.name.trim(), value: (values[param.name] ?? '').trim() }))
+    .filter((param) => param.name !== '' && param.value !== '')
+    .map((param) => `${param.name}:${param.value}`)
+    .join(';');
+  return `${def.head.trim()}|${def.branch.trim()}|${rest}`;
+}
+
+/** 把解析出来的参数摊成「参数名 → 值」，方便回填控件 */
+export function paramValuesOf(parsed: ParsedCommandText | null): Record<string, string> {
+  const values: Record<string, string> = {};
+  for (const param of parsed?.params ?? []) values[param.name] = param.value;
+  return values;
+}
+
+/** 「跳转到段落」行拼出来的指令：剧情|播放对话|对话:<第一句对话ID> */
+export function buildPlayDialogueCommand(lineId: string, paramName = '对话'): string {
+  const value = lineId.trim();
+  return value === '' ? '' : `${PLAY_DIALOGUE_HEAD}|${PLAY_DIALOGUE_BRANCH}|${paramName}:${value}`;
+}
+
+/** 「特殊演出效果」块拼出来的指令：特殊||特殊指令:<名称> */
+export function buildSpecialCommand(name: string, paramName = SPECIAL_COMMAND_PARAM): string {
+  const value = name.trim();
+  return value === '' ? '' : `${SPECIAL_COMMAND_HEAD}||${paramName}:${value}`;
+}
+
+/**
+ * 从「特殊演出效果」行的指令文本里取回指令名称。
+ *
+ * 主指令不是「特殊」时原样返回，好让人看见并改掉。
+ */
+export function specialEffectNameOf(command: string, paramName = SPECIAL_COMMAND_PARAM): string {
+  const parsed = parseCommandText(command);
+  if (parsed === null || parsed.head !== SPECIAL_COMMAND_HEAD) return command;
+  const named = parsed.params.find((param) => param.name === paramName);
+  return named?.value ?? '';
+}
+
+/** 字典条目在下拉里的显示名：主指令，有分支时带上分支 */
 export function commandDefLabel(def: CommandDef): string {
-  const name = def.branch !== '' ? def.branch : def.head;
-  const detail = def.attribute !== '' ? def.attribute : def.operator;
-  return detail === '' ? name : `${name} · ${detail}`;
+  const head = def.head.trim();
+  const branch = def.branch.trim();
+  return branch === '' ? head : `${head} · ${branch}`;
 }
 
 /** 完整说明，鼠标悬停时显示 */
 export function commandDefNote(def: CommandDef): string {
-  const head = def.head;
-  return def.note === '' ? head : `${head}　—　${def.note}`;
+  const name = commandDefLabel(def);
+  return def.note === '' ? name : `${name}　—　${def.note}`;
 }
 
-/**
- * 把一条指令文本对应回字典里的定义。
- *
- * 拼回可读的指令头：`剧情.演出` 在 parseCommand 里会被拆成 name=剧情、branch=演出，
- * 而字典里 head 存的是完整的 `剧情.演出`，所以这里要合起来比。
- *
- * 另外必须连运算符一起比：`背包` 在字典里有两条——条件用 >=，指令用 +，
- * 只看指令头区分不开。
- */
-export function matchCommandDef(
-  parsed: { name: string; branch: string; operator: string; attribute: string; target?: string },
-  defs: CommandDef[],
-  targets?: CommandTargets,
-): CommandDef | undefined {
-  const head = parsed.branch === '' ? parsed.name : `${parsed.name}.${parsed.branch}`;
-  const matches = defs.filter((def) => {
-    if (def.head !== head) return false;
-    if (parsed.operator !== '' && def.operator !== parsed.operator) return false;
-    // 同一指令头下还有「表情 / 动作 / 进入」这种按属性区分的条目
-    if (parsed.attribute !== '' && def.attribute !== parsed.attribute) return false;
-    return true;
-  });
-
-  if (matches.length <= 1 || targets === undefined) return matches[0];
-
-  // 同一指令头也可能对应不同的目标来源（「剧情.图片」既能填图片 ID、也能填「移除」），
-  // 这时看目标落在哪一条的候选项里；都不在就退回手工填写的那种。
-  const target = parsed.target ?? '';
-  const hit = matches.find((def) => targetsFor(def, targets).some((item) => item.id === target));
-  if (hit !== undefined) return hit;
-  return matches.find((def) => def.target === 'manual' || def.target === 'none') ?? matches[0];
+/** 参数控件旁边的标题：参数名 + 说明 */
+export function paramTitle(param: CommandParamDef): string {
+  const note = param.note.trim();
+  return note === '' ? param.name : `${param.name}　—　${note}`;
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { buildSpecialCommandRows, specialCommandClassName } from './special-commands';
 import { createEmptyProject } from '../state/operations';
-import type { Line, Project, StoryOption } from './types';
+import type { Line, Project } from './types';
 
 function makeLine(over: Partial<Line> = {}): Line {
   return {
@@ -23,32 +23,24 @@ function makeLine(over: Partial<Line> = {}): Line {
   };
 }
 
-function makeOption(over: Partial<StoryOption> = {}): StoryOption {
-  return {
-    uid: 'o1',
-    readableId: 'Dia_ch01_001-1A',
-    text: { zh: '', en: '', ja: '' },
-    nextId: '',
-    appearConditions: [],
-    enableConditions: [],
-    results: [],
-    ...over,
-  };
-}
-
 /** 段落 001：两条特殊指令（其中一条是「特殊演出效果」行）+ 一条普通指令 */
 function makeProject(): Project {
   const project = createEmptyProject();
   const group = project.chapters[0].groups[0];
   group.lines = [
-    makeLine({ uid: 'a1', command: '特殊# SP_001' }),
+    makeLine({ uid: 'a1', command: '特殊||特殊指令:SP_001' }),
+    makeLine({ uid: 'a2', command: '剧情|演出|角色:CHA_伊芙;表情:开心' }),
     makeLine({
-      uid: 'a2',
-      command: '剧情.演出# CHA_伊芙.表情=开心',
+      uid: 'a3',
+      command: '特殊||特殊指令:SP_CameraShake',
+      specialContent: '屏幕震一下',
     }),
-    makeLine({ uid: 'a3', command: '特殊# SP_CameraShake', specialContent: '屏幕震一下' }),
     // 同名再来一次：行只留一条，备注取第一条非空的
-    makeLine({ uid: 'a4', command: '特殊# SP_001', specialContent: '第二次写的内容' }),
+    makeLine({
+      uid: 'a4',
+      command: '特殊||特殊指令:SP_001',
+      specialContent: '第二次写的内容',
+    }),
   ];
   return project;
 }
@@ -62,7 +54,7 @@ describe('「特殊指令」子表', () => {
     expect(buildSpecialCommandRows(createEmptyProject())).toHaveLength(1);
   });
 
-  it('只收「特殊#」开头的指令，一行一条、按第一次出现的顺序', () => {
+  it('只收主指令是「特殊」的指令，一行一条、按第一次出现的顺序', () => {
     const rows = buildSpecialCommandRows(makeProject());
     expect(rows.slice(1).map((row) => row[0])).toEqual(['SP_001', 'SP_CameraShake']);
   });
@@ -88,7 +80,7 @@ describe('「特殊指令」子表', () => {
 
   it('普通「指令」行里手写的特殊指令也收，没有指令内容就留空备注', () => {
     const project = createEmptyProject();
-    project.chapters[0].groups[0].lines = [makeLine({ command: '特殊# SP_Only' })];
+    project.chapters[0].groups[0].lines = [makeLine({ command: '特殊||特殊指令:SP_Only' })];
     expect(buildSpecialCommandRows(project)[1]).toEqual([
       'SP_Only',
       "/Script/Engine.BlueprintGeneratedClass'/Game/GameContent/BP/ComponentBase/Command/SpeciesCommand/BP_Command_SP_Only.BP_Command_SP_Only_C'",
@@ -96,29 +88,25 @@ describe('「特殊指令」子表', () => {
     ]);
   });
 
-  it('选项的结果里出现的特殊指令同样收进来', () => {
+  it('参数名不叫「特殊指令」时退回取第一个参数', () => {
     const project = createEmptyProject();
-    const group = project.chapters[0].groups[0];
-    group.lines = [makeLine({ kind: '选项', optionIds: ['o1'] })];
-    group.options = [makeOption({ results: ['特殊# SP_FromOption', '背包# Item_Coin+1'] })];
-
-    const rows = buildSpecialCommandRows(project);
-    expect(rows.slice(1).map((row) => row[0])).toEqual(['SP_FromOption']);
+    project.chapters[0].groups[0].lines = [makeLine({ command: '特殊||编号:SP_FromParam' })];
+    expect(buildSpecialCommandRows(project)[1][0]).toBe('SP_FromParam');
   });
 
   it('「跳转到段落」行不算：它的指令是按段落现拼的', () => {
     const project = createEmptyProject();
     project.chapters[0].groups[0].lines = [
-      makeLine({ kind: '指令', jumpGroupUid: 'g1', command: '特殊# SP_不该收' }),
+      makeLine({ kind: '指令', jumpGroupUid: 'g1', command: '特殊||特殊指令:SP_不该收' }),
     ];
     expect(buildSpecialCommandRows(project)).toHaveLength(1);
   });
 
-  it('指令名是空的、或只有「特殊#」时不凑一行', () => {
+  it('指令名是空的、或只有主指令时不凑一行', () => {
     const project = createEmptyProject();
     project.chapters[0].groups[0].lines = [
-      makeLine({ command: '特殊#' }),
-      makeLine({ command: '特殊#   ' }),
+      makeLine({ command: '特殊||' }),
+      makeLine({ command: '特殊||特殊指令:  ' }),
     ];
     expect(buildSpecialCommandRows(project)).toHaveLength(1);
   });

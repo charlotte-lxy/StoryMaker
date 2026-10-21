@@ -10,7 +10,7 @@
  * 所以它们只用到 uid → 行 的查找，不在这张 ID 表里。
  */
 
-import type { BattleData, GasAttribute, GasEvent, GasSkill, Project, TargetKind } from './types';
+import type { BattleData, GasAttribute, GasEvent, GasSkill, Project } from './types';
 
 /** uid → 导出用的可读 ID */
 export type UidToId = Map<string, string>;
@@ -23,26 +23,6 @@ export interface RefMaps {
 }
 
 type LookupKind = 'items' | 'quests' | 'images' | 'sounds';
-
-/** 指令的目标来源对应哪张表；没有对应表（手工填写 / 无目标）时返回 null */
-export function lookupKindOfTarget(kind: TargetKind): LookupKind | 'characters' | 'lines' | null {
-  switch (kind) {
-    case 'character':
-      return 'characters';
-    case 'item':
-      return 'items';
-    case 'quest':
-      return 'quests';
-    case 'image':
-      return 'images';
-    case 'sound':
-      return 'sounds';
-    case 'line':
-      return 'lines';
-    default:
-      return null;
-  }
-}
 
 /**
  * 收集各表的 uid 与可读 ID 的双向对照。
@@ -98,49 +78,6 @@ export function looksLikeUid(value: string): boolean {
     for (const row of project[kind]) uids.add(row.uid);
   }
   return uids;
-}
-
-/**
- * 把指令 / 条件文本里 `#` 后面那一截的目标换成对照表里的另一个写法。
- *
- * 界面上选目标时写进文本的是 **uid**，导出给 Unreal 的必须是可读 ID，
- * 反过来读老文件时要把 ID 换成 uid，两个方向共用这一个函数。
- *
- * 不能靠解析指令来取目标：uid 里带 `-`，解析器会把第一个 `-` 当成运算符
- * （`8f3c1b2a-1234-…` 会被拆成 目标=8f3c1b2a + 运算符=-）。所以只认 `#`
- * 后面那一截，并从长到短找一个"正好是表中的键"的前缀——目标后面可能紧跟
- * `.属性` 或 `=结果`，这样两步都不会切错。
- */
-export function translateTarget(text: string, map: UidToId | IdToUid): string {
-  const hash = text.indexOf('#');
-  if (hash < 0) return text;
-
-  let start = hash + 1;
-  while (start < text.length && /\s/.test(text[start])) start += 1;
-
-  for (let end = text.length; end > start; end -= 1) {
-    const replacement = map.get(text.slice(start, end));
-    if (replacement === undefined) continue;
-    return text.slice(0, start) + replacement + text.slice(end);
-  }
-  return text;
-}
-
-/**
- * 从指令 / 条件文本里取出 `#` 后面开头的那个 uid；没有就返回空串。
- *
- * 给校验层查「引用还写着，但那一行已经被删掉了」用：只认长得就是 uid 的目标，
- * 老数据里按 ID / 名字写的目标不在此列（那种情况跟改之前一样不报）。
- */
-export function leadingUid(text: string): string {
-  const hash = text.indexOf('#');
-  if (hash < 0) return '';
-  const rest = text.slice(hash + 1).replace(/^\s+/, '');
-  const matched =
-    /^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|uid-[A-Za-z0-9]+-[A-Za-z0-9]+)/.exec(
-      rest,
-    );
-  return matched?.[1] ?? '';
 }
 
 /* ---------- 按 uid 找行 ---------- */

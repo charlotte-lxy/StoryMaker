@@ -1,25 +1,31 @@
 import { useState } from 'react';
 
 import {
-  buildCommand,
-  commandDefLabel,
+  buildCommandText,
   commandDefNote,
-  matchCommandDef,
-  targetsFor,
+  findCommandDef,
+  isReferenceSource,
+  paramTitle,
+  paramValuesOf,
+  parseCommandText,
+  targetsOfSource,
   type CommandTargets,
 } from '../core/command-build';
-import type { CommandDef } from '../core/types';
-import { parseCommand } from '../state/operations';
+import type { CommandDef, CommandParamDef } from '../core/types';
 
 /**
  * 指令 / 条件的条目式填写。
  *
- * 条目式列表（选项的条件与结果）：最上面一行是可编辑的文本框——既能直接手写，
- * 也会被下面的下拉选择覆盖；下面一排下拉从指令字典取值，逐级联动。
- * 「指令」行的单条填写（inline）只在字典里匹配不上时摆一个输入框，其余只留下拉。
+ * 一条指令 = 主指令 + 分支 + 参数列表，界面上逐级来：
+ *   1. 先只摆「主指令」下拉；
+ *   2. 该主指令在字典里有分支时，再摆「分支」下拉；
+ *   3. 选中后按参数列表的顺序，从左到右摆每个参数的控件。
+ *
+ * 拼出来的文本就是导出用的那一条（`主指令|分支|参数名:值;参数名:值`），
+ * 存在 Line.command / 选项的条件数组里，文本本身是唯一事实。
  *
  * category 用来把范围限定在字典的某一部分：选项的出现/可用条件只能选「条件」，
- * 对话行的指令栏和选项的结果只能选「指令」。两边的格式一样，混在一起会选错。
+ * 对话行的指令栏只能选「指令」。两边的格式一样，混在一起会选错。
  */
 interface Props {
   value: string[];
@@ -28,39 +34,126 @@ interface Props {
   /** 限定只能选哪一类 */
   category: '条件' | '指令';
   targets: CommandTargets;
-  /** 取某个角色的表情或动作清单（传的是角色的 uid） */
+  /** 取某个角色（角色 uid）的表情或动作清单 */
   expressionsOf: (characterUid: string) => string[];
   actionsOf: (characterUid: string) => string[];
   onChange: (next: string[]) => void;
   addLabel?: string;
   emptyHint?: string;
-  /** 单条填写：预览与下拉横向排成一行（「指令」行用这个） */
-  inline?: boolean;
   showAdd?: boolean;
   showRemove?: boolean;
 }
 
-interface Draft {
-  defUid: string;
-  target: string;
-  value: string;
+/** 主指令下拉里的一项（同名只列一次） */
+function headOptions(defs: readonly CommandDef[]): string[] {
+  const heads: string[] = [];
+  for (const def of defs) {
+    const head = def.head.trim();
+    if (head !== '' && !heads.includes(head)) heads.push(head);
+  }
+  return heads;
 }
 
-/**
- * 从已经写好的指令文本反推下拉框的选择。
- *
- * 切换模块时组件会被卸载重建，光靠本地 state 记住「选过什么」是不够的：
- * 回来之后下拉就变回「选择指令…」了。指令文本本身才是唯一事实，
- * 所以这里把它解析回下拉的选项。
- *
- * 目标那一格存的是 uid，uid 里带 `-`，解析时要先把 uid 认出来（见 parseCommand）。
- */
-function draftFromText(text: string, available: CommandDef[], targets: CommandTargets): Draft {
-  const parsed = parseCommand(text, (value) => targets.uids.has(value));
-  if (parsed === null) return { defUid: '', target: '', value: '' };
+/** 单个参数控件：值来源决定它是下拉还是输入框 */
+function ParamControl({
+  param,
+  value,
+  characterUid,
+  targets,
+  expressionsOf,
+  actionsOf,
+  onChange,
+}: {
+  param: CommandParamDef;
+  value: string;
+  /** 同一条指令里「角色表」那个参数当前选的角色 */
+  characterUid: string;
+  targets: CommandTargets;
+  expressionsOf: (characterUid: string) => string[];
+  actionsOf: (characterUid: string) => string[];
+  onChange: (next: string) => void;
+}) {
+  const title = paramTitle(param);
+  const placeholder = param.required ? null : <option value="">（不填）</option>;
 
-  const def = matchCommandDef(parsed, available, targets);
-  return { defUid: def === undefined ? '' : def.uid, target: parsed.target, value: parsed.value };
+  if (param.source === 'fixed') {
+    return (
+      <select
+        className="command-param-input"
+        value={value}
+        title={title}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        {placeholder}
+        {param.options.length === 0 && <option value="">（选项集为空）</option>}
+        {param.options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+        {value !== '' && !param.options.includes(value) && (
+          <option value={value}>{value}（不在选项集里）</option>
+        )}
+      </select>
+    );
+  }
+
+  if (isReferenceSource(param.source)) {
+    const rows = targetsOfSource(targets, param.source);
+    const known = rows.some((row) => row.id === value);
+    return (
+      <select
+        className="command-param-input"
+        value={value}
+        title={title}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        {placeholder}
+        {rows.length === 0 && <option value="">（对应表里还没有数据）</option>}
+        {rows.map((row) => (
+          <option key={row.id} value={row.id}>
+            {row.label}
+          </option>
+        ))}
+        {value !== '' && !known && <option value={value}>{value}（不在对应表里）</option>}
+      </select>
+    );
+  }
+
+  if (param.source === 'expression' || param.source === 'action') {
+    const rows =
+      param.source === 'expression' ? expressionsOf(characterUid) : actionsOf(characterUid);
+    return (
+      <select
+        className="command-param-input"
+        value={value}
+        title={title}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        {placeholder}
+        {characterUid === '' && <option value="">（先选角色）</option>}
+        {characterUid !== '' && rows.length === 0 && <option value="">（这个角色还没配）</option>}
+        {rows.map((row) => (
+          <option key={row} value={row}>
+            {row}
+          </option>
+        ))}
+        {value !== '' && !rows.includes(value) && (
+          <option value={value}>{value}（不在清单里）</option>
+        )}
+      </select>
+    );
+  }
+
+  return (
+    <input
+      className="command-param-input"
+      value={value}
+      title={title}
+      placeholder={param.source === 'number' ? '数字' : param.name}
+      onChange={(event) => onChange(event.target.value)}
+    />
+  );
 }
 
 export function CommandListInput({
@@ -73,12 +166,13 @@ export function CommandListInput({
   onChange,
   addLabel = '＋ 新增',
   emptyHint = '尚未填写',
-  inline = false,
   showAdd = true,
   showRemove = true,
 }: Props) {
   const available = defs.filter((def) => def.category === category);
-  const [drafts, setDrafts] = useState<Record<number, Draft>>({});
+  const heads = headOptions(available);
+  /** 选了主指令、但还没选分支时的中间状态（这时候文本里什么都存不下） */
+  const [draftHeads, setDraftHeads] = useState<Record<number, string>>({});
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
 
@@ -104,39 +198,56 @@ export function CommandListInput({
   const append = (): void => onChange([...value, '']);
 
   return (
-    <div className={`command-list${inline ? ' inline' : ''}`}>
+    <div className="command-list">
       {value.map((text, index) => {
-        const draft = drafts[index] ?? draftFromText(text, available, targets);
-        const def = available.find((item) => item.uid === draft.defUid);
-        const candidates = def === undefined ? [] : targetsFor(def, targets);
-        const missingTarget =
-          def !== undefined &&
-          draft.target !== '' &&
-          !candidates.some((item) => item.id === draft.target);
+        const parsed = parseCommandText(text);
+        const def =
+          parsed === null
+            ? undefined
+            : findCommandDef(available, category, parsed.head, parsed.branch);
+        const head = parsed?.head ?? draftHeads[index] ?? '';
+        const defsOfHead = available.filter((item) => item.head.trim() === head);
+        const hasBranch = defsOfHead.some((item) => item.branch.trim() !== '');
+        const values = paramValuesOf(parsed);
+        /** 表情 / 动作 这类参数要先知道同一条指令里选的是哪个角色 */
+        const characterParam = def?.params.find((param) => param.source === 'character');
+        const characterUid = characterParam === undefined ? '' : (values[characterParam.name] ?? '');
+        const raw = text.trim();
+        const unmatched = raw !== '' && def === undefined;
 
-        // 结果候选：表情/动作依赖所选角色
-        const valueOptions = ((): string[] => {
-          if (def === undefined) return [];
-          if (def.value === 'expression') return expressionsOf(draft.target);
-          if (def.value === 'action') return actionsOf(draft.target);
-          if (def.value === 'fixed') return def.fixedValues;
-          return [];
-        })();
+        const setHead = (nextHead: string): void => {
+          const list = available.filter((item) => item.head.trim() === nextHead);
+          if (nextHead === '' || list.length === 0) {
+            updateAt(index, '');
+            setDraftHeads((prev) => ({ ...prev, [index]: '' }));
+            return;
+          }
+          if (list.length === 1) {
+            updateAt(index, buildCommandText(list[0], {}));
+            setDraftHeads((prev) => ({ ...prev, [index]: '' }));
+            return;
+          }
+          // 有分支：先把主指令记在本地，等分支选完再拼文本
+          setDraftHeads((prev) => ({ ...prev, [index]: nextHead }));
+          updateAt(index, '');
+        };
 
-        /**
-         * 摆不摆「文本输入框」。
-         *
-         * 条目式列表（选项的条件与结果）一直摆：那里一条一条都是手写的。
-         * 「指令」行只在下拉匹配不上时摆一个——匹配得上就只留下拉，同一件事不显示两遍；
-         * 空行也不摆（新建的指令行只有下拉，跟改之前一样干净）。
-         */
-        const showRawText = !inline || (text.trim() !== '' && def === undefined);
+        const setBranch = (nextBranch: string): void => {
+          const picked = defsOfHead.find((item) => item.branch.trim() === nextBranch);
+          if (picked === undefined) return;
+          updateAt(index, buildCommandText(picked, {}));
+          setDraftHeads((prev) => ({ ...prev, [index]: '' }));
+        };
+
+        const setParam = (param: CommandParamDef, nextValue: string): void => {
+          if (def === undefined) return;
+          updateAt(index, buildCommandText(def, { ...values, [param.name]: nextValue }));
+        };
 
         return (
           <div
             className={[
               'command-item',
-              inline ? 'inline' : '',
               dragIndex === index ? 'dragging' : '',
               dragIndex !== null && overIndex === index && dragIndex !== index
                 ? 'drop-target'
@@ -157,167 +268,87 @@ export function CommandListInput({
               setOverIndex(null);
             }}
           >
-            {/* 「指令」行（inline）平时不摆指令预览框：指令只由下面的下拉拼。
-                只有字典里匹配不上的（手写的演出指令、老数据，如「剧情.音效# S_1」）
-                才留一个输入框，否则那一行的内容在下拉里选不中、看不见。 */}
-            {showRawText && (
-              <div className="command-item-head">
-                {!inline && (
-                  <span
-                    className="drag-handle command-drag"
-                    title="按住上下拖动可调整顺序"
-                    draggable
-                    onDragStart={(event) => {
-                      setDragIndex(index);
-                      event.dataTransfer.effectAllowed = 'move';
-                    }}
-                    onDragEnd={() => {
-                      setDragIndex(null);
-                      setOverIndex(null);
-                    }}
-                  />
-                )}
-                {inline ? (
-                  <input
-                    className="command-text-inline"
-                    value={text}
-                    placeholder={emptyHint}
-                    onChange={(event) => updateAt(index, event.target.value)}
-                  />
-                ) : (
-                  /* 条目式列表：既能手写，也会被下面的下拉覆盖。
-                     宽度由不可见文本副本撑开。 */
-                  <span className="command-field">
-                    <span className="command-probe" aria-hidden="true">
-                      {text === '' ? emptyHint : text}
-                    </span>
-                    <input
-                      className="command-text-input"
-                      value={text}
-                      placeholder={emptyHint}
-                      onChange={(event) => updateAt(index, event.target.value)}
-                    />
-                  </span>
-                )}
-                {showRemove && (
-                  <button type="button" title="删除这一条" onClick={() => removeAt(index)}>
-                    ×
-                  </button>
-                )}
-              </div>
+            {showRemove && (
+              <span
+                className="drag-handle command-drag"
+                title="按住上下拖动可调整顺序"
+                draggable
+                onDragStart={(event) => {
+                  setDragIndex(index);
+                  event.dataTransfer.effectAllowed = 'move';
+                }}
+                onDragEnd={() => {
+                  setDragIndex(null);
+                  setOverIndex(null);
+                }}
+              />
             )}
 
-            <div className="command-pickers">
+            <select
+              className="command-head"
+              value={head}
+              title={`选择${category}（主指令）`}
+              onChange={(event) => setHead(event.target.value)}
+            >
+              <option value="">选择{category}…</option>
+              {heads.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+              {unmatched && <option value="">（字典里没有这条）</option>}
+            </select>
+
+            {hasBranch && (
               <select
-                value={draft.defUid}
-                title={`选择${category}`}
-                onChange={(event) => {
-                  const defUid = event.target.value;
-                  const picked = available.find((item) => item.uid === defUid);
-                  const firstTarget =
-                    picked === undefined ? '' : (targetsFor(picked, targets)[0]?.id ?? '');
-                  const firstValue =
-                    picked === undefined
-                      ? ''
-                      : picked.value === 'expression'
-                        ? (expressionsOf(firstTarget)[0] ?? '')
-                        : picked.value === 'action'
-                          ? (actionsOf(firstTarget)[0] ?? '')
-                          : picked.value === 'fixed'
-                            ? (picked.fixedValues[0] ?? '')
-                            : '';
-                  setDrafts((prev) => ({
-                    ...prev,
-                    [index]: { defUid, target: firstTarget, value: firstValue },
-                  }));
-                  if (picked !== undefined) {
-                    updateAt(index, buildCommand(picked, firstTarget, firstValue));
-                  }
-                }}
+                className="command-branch"
+                value={def?.branch ?? ''}
+                title="分支"
+                onChange={(event) => setBranch(event.target.value)}
               >
-                <option value="">选择{category}…</option>
-                {available.map((item) => (
-                  <option key={item.uid} value={item.uid} title={commandDefNote(item)}>
-                    {commandDefLabel(item)}
+                <option value="">选择分支…</option>
+                {defsOfHead.map((item) => (
+                  <option key={item.uid} value={item.branch.trim()} title={commandDefNote(item)}>
+                    {item.branch.trim() === '' ? '（无分支）' : item.branch.trim()}
                   </option>
                 ))}
               </select>
+            )}
 
-              {def !== undefined && def.target !== 'none' && def.target !== 'manual' && (
-                <select
-                  value={draft.target}
-                  title="目标对象"
-                  onChange={(event) => {
-                    const target = event.target.value;
-                    const nextValue =
-                      def.value === 'expression'
-                        ? (expressionsOf(target)[0] ?? '')
-                        : def.value === 'action'
-                          ? (actionsOf(target)[0] ?? '')
-                          : draft.value;
-                    setDrafts((prev) => ({ ...prev, [index]: { ...draft, target, value: nextValue } }));
-                    updateAt(index, buildCommand(def, target, nextValue));
-                  }}
-                >
-                  {candidates.length === 0 && <option value="">（对应表里还没有数据）</option>}
-                  {candidates.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.label}
-                    </option>
-                  ))}
-                  {/* 手写或从老数据迁移过来的目标可能不在候选表里，也要显示出来 */}
-                  {missingTarget && (
-                    <option value={draft.target}>{draft.target}（不在候选里）</option>
-                  )}
-                </select>
-              )}
-
-              {(def?.target === 'manual' || def?.target === 'none') && (
-                <input
-                  value={draft.target}
-                  placeholder={def?.target === 'none' ? '（无需目标）' : '手工填写目标'}
-                  onChange={(event) => {
-                    const target = event.target.value;
-                    setDrafts((prev) => ({ ...prev, [index]: { ...draft, target } }));
-                    updateAt(index, buildCommand(def, target, draft.value));
-                  }}
+            {def?.params.map((param) => (
+              <span className="command-param" key={param.uid}>
+                <span className="command-param-name" title={paramTitle(param)}>
+                  {param.name}
+                </span>
+                <ParamControl
+                  param={param}
+                  value={values[param.name] ?? ''}
+                  characterUid={characterUid}
+                  targets={targets}
+                  expressionsOf={expressionsOf}
+                  actionsOf={actionsOf}
+                  onChange={(next) => setParam(param, next)}
                 />
-              )}
+              </span>
+            ))}
 
-              {def !== undefined &&
-                def.value !== 'none' &&
-                (valueOptions.length > 0 ? (
-                  <select
-                    value={draft.value}
-                    title="目标结果"
-                    onChange={(event) => {
-                      const nextValue = event.target.value;
-                      setDrafts((prev) => ({ ...prev, [index]: { ...draft, value: nextValue } }));
-                      updateAt(index, buildCommand(def, draft.target, nextValue));
-                    }}
-                  >
-                    <option value="">选择结果…</option>
-                    {valueOptions.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                    {draft.value !== '' && !valueOptions.includes(draft.value) && (
-                      <option value={draft.value}>{draft.value}（不在候选里）</option>
-                    )}
-                  </select>
-                ) : (
-                  <input
-                    value={draft.value}
-                    placeholder={def.value === 'number' ? '数量' : '结果'}
-                    onChange={(event) => {
-                      const nextValue = event.target.value;
-                      setDrafts((prev) => ({ ...prev, [index]: { ...draft, value: nextValue } }));
-                      updateAt(index, buildCommand(def, draft.target, nextValue));
-                    }}
-                  />
-                ))}
-            </div>
+            {unmatched && (
+              <code className="command-raw" title="字典里没有这条指令，导出时原样写出">
+                {raw}
+              </code>
+            )}
+
+            {raw === '' && (
+              <span className="command-empty-hint" aria-hidden="true">
+                {emptyHint}
+              </span>
+            )}
+
+            {showRemove && (
+              <button type="button" title="删除这一条" onClick={() => removeAt(index)}>
+                ×
+              </button>
+            )}
           </div>
         );
       })}
@@ -338,11 +369,10 @@ export function CommandListInput({
 /**
  * 单条指令的填写（「指令」行用它：一行只放一条指令）。
  *
- * 复用条目式的下拉，排成横向一行，也没有增删按钮——增删由「指令」行自己的删除按钮负责。
- * 文本输入框只在下拉匹配不上时出现（见 CommandListInput 里的 showRawText）。
+ * 复用条目式的逐级下拉，只是没有增删按钮——增删由「指令」行自己的删除按钮负责。
  */
 export function CommandInput(
-  props: Omit<Props, 'value' | 'onChange' | 'addLabel' | 'emptyHint'> & {
+  props: Omit<Props, 'value' | 'onChange' | 'addLabel' | 'emptyHint' | 'showAdd' | 'showRemove'> & {
     value: string;
     onChange: (next: string) => void;
   },
@@ -353,8 +383,7 @@ export function CommandInput(
       {...rest}
       value={value === '' ? [''] : [value]}
       onChange={(next) => onChange(next[0] ?? '')}
-      emptyHint="点这里手写指令，或用右侧下拉选择"
-      inline
+      emptyHint="还没选指令"
       showAdd={false}
       showRemove={false}
     />

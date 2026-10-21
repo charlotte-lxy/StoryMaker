@@ -649,29 +649,49 @@ describe('脚本块与三种类型的行', () => {
     expect(rows(container).kinds).toEqual(['对话', '指令']);
   });
 
-  it('「指令」行只放一条指令，只有下拉、没有手写预览框', async () => {
+  it('「指令」行只放一条指令：先只摆主指令下拉，选完才出分支与参数', async () => {
     await renderApp();
     dropBlock('指令');
 
-    expect(screen.getByTitle('选择指令')).toBeTruthy();
-    // 新建的空指令行只摆下拉，不再摆一个能手写的指令预览框
-    expect(screen.queryByPlaceholderText('点这里手写指令，或用右侧下拉选择')).toBeNull();
-    // 一行只有一条指令，没有"再加一条"的按钮
+    // 一行只有一条指令，没有"再加一条"的按钮，也没有手写原文的输入框
+    expect(screen.getByTitle('选择指令（主指令）')).toBeTruthy();
     expect(screen.queryByText('＋ 新增指令')).toBeNull();
+    // 还没选主指令时，只有一个「选择指令…」的占位项
+    const select = screen.getByTitle('选择指令（主指令）') as HTMLSelectElement;
+    expect(select.value).toBe('');
+    expect([...select.options].map((option) => option.value)).toContain('剧情');
   });
 
-  it('字典里匹配不上的指令（手写的演出指令）仍然摆一个输入框，看得见也改得动', async () => {
+  it('老格式的指令打开就迁成新写法，下拉里能正常显示', async () => {
     const project = createEmptyProject();
     project.chapters[0].groups[0].lines = [
       { ...dialogueLine('a1', 'Dia_ch01_001-1', ''), kind: '指令', command: '剧情.音效# S_1' },
     ];
     seedProjectFile(JSON.stringify(project));
 
-    await renderApp();
+    const { container } = await renderApp();
 
-    // 字典里没有「剧情.音效」这条，下拉选不中，所以要靠输入框把原文显示出来
-    const input = screen.getByPlaceholderText('点这里手写指令，或用右侧下拉选择') as HTMLInputElement;
-    expect(input.value).toBe('剧情.音效# S_1');
+    // 主指令 / 分支 / 参数都按新写法显示出来
+    expect((screen.getByTitle('选择指令（主指令）') as HTMLSelectElement).value).toBe('剧情');
+    expect((screen.getByTitle('分支') as HTMLSelectElement).value).toBe('音效');
+    const label = [...container.querySelectorAll('.command-param-name')].find(
+      (el) => el.textContent === '音效',
+    );
+    const input = label?.parentElement?.querySelector('select') as HTMLSelectElement;
+    expect(input.value).toBe('S_1');
+  });
+
+  it('字典里没有这条指令时，把原文亮出来，不藏起来', async () => {
+    const project = createEmptyProject();
+    // 已经是新写法，但字典里删掉了「剧情 / 拍摄」这一条
+    project.chapters[0].groups[0].lines = [
+      { ...dialogueLine('a1', 'Dia_ch01_001-1', ''), kind: '指令', command: '剧情|拍摄|参数1:CAM_1' },
+    ];
+    seedProjectFile(JSON.stringify(project));
+
+    const { container } = await renderApp();
+
+    expect(container.querySelector('.command-raw')?.textContent).toBe('剧情|拍摄|参数1:CAM_1');
   });
 
   it('行可以删除', async () => {
@@ -704,14 +724,15 @@ describe('脚本块与三种类型的行', () => {
     });
   });
 
-  it('「选项」行的字段顺序：选项文本 → 跳转目标 → 出现条件 → 可用条件 → 结果', async () => {
+  it('「选项」行的字段顺序：选项文本 → 跳转目标 → 出现条件 → 可用条件', async () => {
     const { container } = await renderApp();
     dropBlock('选项');
 
     const labels = [...container.querySelectorAll('.option-item .field > span')].map(
       (el) => el.textContent,
     );
-    expect(labels).toEqual(['选项文本（中文）', '跳转目标', '出现条件', '可用条件', '结果（指令）']);
+    // 选项的「结果」已经下线：选完要执行指令就让选项跳到那个段落
+    expect(labels).toEqual(['选项文本（中文）', '跳转目标', '出现条件', '可用条件']);
   });
 
   it('拖到两行之间的分界线上也能插入（不必躲开那条线）', async () => {
@@ -772,32 +793,43 @@ describe('脚本块与三种类型的行', () => {
     expect(card.className).not.toContain('editing');
   });
 
-  it('指令预览框宽度固定，切模块回来后下拉框仍然显示选好的项', async () => {
-    await renderApp();
+  it('切模块回来之后，主指令 / 分支 / 参数仍然显示选好的项', async () => {
+    const { container } = await renderApp();
 
-    // 先加个角色，下拉里才有目标可选
+    // 先加个角色，参数里才有角色可选
     fireEvent.click(within(rail()).getByText('角色'));
     fireEvent.click(screen.getByText(/新增角色/));
     fireEvent.click(within(rail()).getByText('剧情'));
 
     dropBlock('指令');
-    const defSelect = screen.getByTitle('选择指令') as HTMLSelectElement;
-    const picked = defSelect.options[1].value;
-    fireEvent.change(defSelect, { target: { value: picked } });
+    // 第一步：只选主指令
+    const headSelect = screen.getByTitle('选择指令（主指令）') as HTMLSelectElement;
+    fireEvent.change(headSelect, { target: { value: '剧情' } });
+    // 该主指令有分支 → 出现分支下拉
+    const branchSelect = screen.getByTitle('分支') as HTMLSelectElement;
+    fireEvent.change(branchSelect, { target: { value: '演出' } });
 
-    const targetSelect = screen.getByTitle('目标对象') as HTMLSelectElement;
-    // 目标存的是角色 uid，下拉里显示的是角色 ID
-    const pickedTarget = targetSelect.value;
-    expect(pickedTarget).not.toBe('');
-    expect(targetSelect.selectedOptions[0].textContent).toContain('CHA_角色1');
+    /** 按参数名找到那一格控件（标题里带说明，这里只认名字） */
+    const paramControl = (name: string): HTMLSelectElement => {
+      const label = [...container.querySelectorAll('.command-param-name')].find(
+        (el) => el.textContent === name,
+      );
+      return label?.parentElement?.querySelector('select') as HTMLSelectElement;
+    };
 
-    // 切走再回来：下拉框要按预览框里的指令重新解析出来
+    // 参数按字典顺序出来：角色（必填）
+    const roleSelect = paramControl('角色');
+    const pickedRole = roleSelect.value;
+    expect(pickedRole).not.toBe('');
+    expect(roleSelect.selectedOptions[0].textContent).toContain('CHA_角色1');
+
+    // 切走再回来：按指令文本重新解析出来
     fireEvent.click(within(rail()).getByText('角色'));
     fireEvent.click(within(rail()).getByText('剧情'));
 
-    expect((screen.getByTitle('选择指令') as HTMLSelectElement).value).toBe(picked);
-    // uid 里带 `-`，解析时不能被当成减号切坏
-    expect((screen.getByTitle('目标对象') as HTMLSelectElement).value).toBe(pickedTarget);
+    expect((screen.getByTitle('选择指令（主指令）') as HTMLSelectElement).value).toBe('剧情');
+    expect((screen.getByTitle('分支') as HTMLSelectElement).value).toBe('演出');
+    expect(paramControl('角色').value).toBe(pickedRole);
   });
 });
 
@@ -1430,11 +1462,14 @@ describe('「跳转到段落」脚本块', () => {
     expect(names).toContain('可用条件');
 
     fireEvent.click(screen.getByText('＋ 新增条件'));
-    const input = screen.getByPlaceholderText('尚未设置可用条件') as HTMLInputElement;
-    fireEvent.change(input, { target: { value: '背包#Item_Coin>=10' } });
-    expect((screen.getByPlaceholderText('尚未设置可用条件') as HTMLInputElement).value).toBe(
-      '背包#Item_Coin>=10',
+    // 条件也是一样的逐级下拉：先选主指令，再按参数填
+    const headSelect = screen.getByTitle('选择条件（主指令）') as HTMLSelectElement;
+    fireEvent.change(headSelect, { target: { value: '任务' } });
+    // 任务条件没有分支，直接出参数：任务（必填）
+    const paramLabels = [...container.querySelectorAll('.command-param-name')].map(
+      (el) => el.textContent,
     );
+    expect(paramLabels).toEqual(['任务', '运算符', '结果']);
   });
 
   it('流程图里也连一条线，点它会跳到那一条对话条目', async () => {
@@ -1493,10 +1528,10 @@ describe('「特殊演出效果」脚本块', () => {
     expect(container.querySelector('.type-card-指令')).toBeTruthy();
     expect(fieldNames(container)).toEqual(['脚本类型', '特殊指令名称', '指令内容', '操作']);
     // 普通「指令」行那一排字典下拉不出现
-    expect(screen.queryByTitle('选择指令')).toBeNull();
+    expect(screen.queryByTitle('选择指令（主指令）')).toBeNull();
   });
 
-  it('「特殊指令名称」拼成「特殊# 名称」，「指令内容」存下来但不进指令', async () => {
+  it('「特殊指令名称」拼成「特殊||特殊指令:名称」，「指令内容」存下来但不进指令', async () => {
     await renderApp();
     fireEvent.click(screen.getByTitle(TITLE));
 
@@ -1512,7 +1547,7 @@ describe('「特殊演出效果」脚本块', () => {
     const lines = saved.chapters[0].groups[0].lines;
     const line = lines[lines.length - 1];
     expect(line.kind).toBe('指令');
-    expect(line.command).toBe('特殊# SP_CameraShake');
+    expect(line.command).toBe('特殊||特殊指令:SP_CameraShake');
     expect(line.specialContent).toBe('屏幕震一下');
   });
 });
@@ -1865,9 +1900,10 @@ describe('全局搜索', () => {
     expect(hit.querySelector('.search-hit-where')?.textContent).toBe('指令字典 · 条件 · 第 1 行 · 背包');
     fireEvent.click(hit);
 
-    expect(document.querySelector('.tab.active')?.textContent).toContain('字典');
-    const row = document.querySelector('tr.line-row.flash') as HTMLElement;
-    expect(row?.dataset.searchUid).toBeTruthy();
+    // 切回「条件」页的字典页签，并高亮那一条定义
+    expect(document.querySelector('.tab.active')?.textContent).toContain('条件字典');
+    const card = document.querySelector('.command-def-card.flash') as HTMLElement;
+    expect(card?.dataset.searchUid).toBeTruthy();
   });
 });
 
@@ -1985,7 +2021,7 @@ describe('导出模块', () => {
       {
         ...dialogueLine('a1', 'Dia_ch01_001-1', ''),
         kind: '指令',
-        command: '特殊# SP_001',
+        command: '特殊||特殊指令:SP_001',
         specialContent: '屏幕震一下',
       },
     ];

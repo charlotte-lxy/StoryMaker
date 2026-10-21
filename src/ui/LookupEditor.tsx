@@ -5,22 +5,22 @@ import { useScrollMemory } from './view-memory';
 const TITLES: Record<LookupKind, { title: string; hint: string; placeholder: string }> = {
   items: {
     title: '物品表',
-    hint: '物品 ID 供指令「背包# 物品ID±数量」与条件「背包# 物品ID >= 数量」的下拉使用。',
+    hint: '物品 ID 供指令「背包||物品:…;运算符:+;数量:」与条件「背包||物品:…;运算符:>=」的下拉使用。',
     placeholder: '例如：金币',
   },
   quests: {
     title: '任务表',
-    hint: '任务 ID 供指令「任务.接取# 任务ID」与条件「任务# 任务ID=1」的下拉使用。',
+    hint: '任务 ID 供指令「任务|接取|任务:…」与条件「任务||任务:…;运算符:=;结果:1」的下拉使用。',
     placeholder: '例如：凑齐医药费',
   },
   images: {
     title: '立绘 / 图片表',
-    hint: '图片 ID 供指令「剧情.图片# 图片ID」的下拉使用。',
+    hint: '图片 ID 供指令「剧情|图片|图片:…」的下拉使用。',
     placeholder: '例如：夜晚的城市',
   },
   sounds: {
     title: '音效表',
-    hint: '音效 ID 供指令「剧情.音效# 音效ID」的下拉使用。',
+    hint: '音效 ID 供指令「剧情|音效|音效:…」的下拉使用。',
     placeholder: '例如：按键提示音',
   },
 };

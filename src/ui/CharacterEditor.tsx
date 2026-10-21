@@ -66,7 +66,7 @@ export function CharacterEditor({
       <div className="editor-head">
         <h2>角色表</h2>
         <span className="hint">
-          角色 ID 以 CHA_ 开头。表情差分供指令「剧情.演出# 角色.表情=」的下拉使用。
+          角色 ID 以 CHA_ 开头。表情差分供指令「剧情|演出|…;表情:」的下拉使用。
         </span>
         <button type="button" className="primary" onClick={onAdd}>
           ＋ 新增角色

@@ -32,7 +32,6 @@ function makeOption(uid: string, readableId: string, over: Partial<StoryOption> 
     nextId: '',
     appearConditions: [],
     enableConditions: [],
-    results: [],
     ...over,
   };
 }
