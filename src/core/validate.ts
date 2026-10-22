@@ -42,6 +42,8 @@ export interface Issue {
   battleUid?: string;
   /** 字典问题专用：切到「条件与指令」模块并高亮这条定义 */
   commandDefUid?: string;
+  /** 立绘问题专用：切到「立绘」页并高亮这张图片（没有具体行时留空） */
+  imageUid?: string;
 }
 
 export type IssueCode =
@@ -70,6 +72,10 @@ export type IssueCode =
   | 'missing-translation'
   | 'empty-ui-key'
   | 'duplicate-ui-key'
+  /* 立绘 */
+  | 'image-category-missing'
+  | 'empty-image-category'
+  | 'duplicate-image-category'
   /* 战斗模块（GAS） */
   | 'battle-duplicate-name'
   | 'battle-empty-name'
@@ -578,6 +584,66 @@ export function validateProject(project: Project): ValidationReport {
       }
       names.add(name);
     }
+  }
+
+  // 立绘：每张图都得选一个分类，否则导出「图片」列没有路径可拼
+  const categoryByUid = new Map(project.imageCategories.map((row) => [row.uid, row]));
+  for (const row of project.images) {
+    const uid = row.categoryUid ?? '';
+    if (categoryByUid.has(uid)) continue;
+    issues.push({
+      level: 'warning',
+      code: 'image-category-missing',
+      targetId: row.id.trim() === '' ? '(空)' : row.id,
+      where: '立绘',
+      message:
+        uid === ''
+          ? '这张图片没选分类，导出「图片」列会是空的'
+          : '这张图片选的分类已经被删了，导出「图片」列会是空的',
+      lineUid: '',
+      groupUid: '',
+      imageUid: row.uid,
+    });
+  }
+
+  // 分类名不能空、也不能重名：导出的「图片分类」列要靠它区分
+  const categoryNameCounts = new Map<string, number>();
+  for (const row of project.imageCategories) {
+    const name = row.name.trim();
+    if (name !== '') categoryNameCounts.set(name, (categoryNameCounts.get(name) ?? 0) + 1);
+  }
+
+  const reportedCategory = new Set<string>();
+  for (const row of project.imageCategories) {
+    const name = row.name.trim();
+    const firstImage = project.images.find((image) => image.categoryUid === row.uid)?.uid ?? '';
+
+    if (name === '') {
+      issues.push({
+        level: 'error',
+        code: 'empty-image-category',
+        targetId: '(空)',
+        where: '立绘 · 图片分类',
+        message: '有一个图片分类没有名字，导出「图片分类」列会是空的',
+        lineUid: '',
+        groupUid: '',
+        imageUid: firstImage,
+      });
+      continue;
+    }
+
+    if ((categoryNameCounts.get(name) ?? 0) < 2 || reportedCategory.has(name)) continue;
+    reportedCategory.add(name);
+    issues.push({
+      level: 'error',
+      code: 'duplicate-image-category',
+      targetId: name,
+      where: '立绘 · 图片分类',
+      message: `图片分类「${name}」出现了 ${categoryNameCounts.get(name)} 次，导出时分不清是哪一类`,
+      lineUid: '',
+      groupUid: '',
+      imageUid: firstImage,
+    });
   }
 
   return {

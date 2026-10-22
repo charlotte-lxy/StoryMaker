@@ -24,6 +24,7 @@ export const EXPORT_SUBTABLES = [
   '本地化',
   '角色',
   '特殊指令',
+  '图片',
   'GASGameplayTags',
   'GAS属性',
   'GAS效果',

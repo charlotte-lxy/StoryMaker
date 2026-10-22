@@ -19,6 +19,7 @@ function makeProject(): Project {
     items: [],
     quests: [],
     images: [],
+    imageCategories: [],
     sounds: [],
     commands: [],
     chapters: [{ uid: 'ch1', id: 'ch01', title: '第一章', groups: [] }],

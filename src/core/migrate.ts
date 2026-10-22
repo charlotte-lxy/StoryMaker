@@ -133,6 +133,16 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
   }
   if (!Array.isArray(project.variables)) project.variables = [];
 
+  // 图片分类是后加的表：老项目没有就补空表；已有的行补齐字段
+  const rawImageCategories: unknown = project.imageCategories;
+  project.imageCategories = (Array.isArray(rawImageCategories) ? rawImageCategories : [])
+    .filter(isRecord)
+    .map((row) => ({
+      uid: asUid(row.uid),
+      name: asString(row.name),
+      path: asString(row.path),
+    }));
+
   // UI 本地化：老项目里没有这栏，给个空表；已有的行也补齐字段，
   // 免得手改过的 JSON 让界面读到 undefined 的文本对象。
   const rawUiTexts: unknown = project.uiTexts;

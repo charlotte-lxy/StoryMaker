@@ -12,6 +12,7 @@ function makeProject(name = '测试项目'): Project {
     items: [],
     quests: [],
     images: [],
+    imageCategories: [],
     sounds: [],
     commands: [],
     chapters: [

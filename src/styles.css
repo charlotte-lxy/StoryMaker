@@ -1589,6 +1589,33 @@ div.line-row.selected > .line-card {
   margin-left: auto;
 }
 
+/* 立绘页顶部那张「图片分类」小表：比主表矮一档，和下面的图片表分开 */
+.image-categories {
+  margin-bottom: 18px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.lookup-subhead {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.lookup-subhead h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.lookup-subhead .hint {
+  flex: 1 1 320px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
 /* 标题栏最右侧的批量编辑开关；开着的时候按钮本身也变色 */
 button.mini.batch-toggle {
   margin-left: auto;

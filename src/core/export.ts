@@ -44,6 +44,7 @@ import {
   PLAY_DIALOGUE_HEAD,
 } from './command-build';
 import { IMPORT_SETTINGS_SHEET, buildImportSettingRows } from './export-settings';
+import { IMAGE_SHEET, buildImageRows } from './image-export';
 import { SPECIAL_COMMAND_SHEET, buildSpecialCommandRows } from './special-commands';
 import {
   aliasNameKeyOf,
@@ -389,6 +390,7 @@ export function buildAllSheets(project: Project): ExportedSheet[] {
     { name: LOCALE_SHEET, rows: story.locale },
     { name: STORY_CHARACTER_SHEET, rows: story.characters },
     { name: SPECIAL_COMMAND_SHEET, rows: buildSpecialCommandRows(project) },
+    { name: IMAGE_SHEET, rows: buildImageRows(project) },
     // 战斗模块（GAS）七张表
     { name: GAMEPLAY_TAGS_SHEET, rows: battle.gameplayTags },
     { name: ATTRIBUTE_SHEET, rows: battle.attributes },

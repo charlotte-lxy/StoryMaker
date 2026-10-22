@@ -61,7 +61,7 @@ describe('Unreal 导入设置', () => {
     expect(rows[3][2]).toBe('TB_BSGame_本地化-UI.csv');
   });
 
-  it('导入设置排在所有子表最后，一共 13 张', () => {
+  it('导入设置排在所有子表最后，一共 14 张', () => {
     const sheets = buildAllSheets(makeProject());
 
     expect(sheets.map((sheet) => sheet.name)).toEqual([
@@ -70,6 +70,7 @@ describe('Unreal 导入设置', () => {
       '本地化',
       '角色',
       '特殊指令',
+      '图片',
       'GASGameplayTags',
       'GAS属性',
       'GAS效果',

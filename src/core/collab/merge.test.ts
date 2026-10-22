@@ -30,6 +30,7 @@ function makeProject(): Project {
     items: [{ uid: 'i1', id: 'Item_Coin', name: '金币' }],
     quests: [],
     images: [],
+    imageCategories: [],
     sounds: [],
     commands: [],
     chapters: [

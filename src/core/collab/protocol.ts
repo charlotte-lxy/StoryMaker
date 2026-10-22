@@ -87,6 +87,7 @@ export const COLLECTIONS: readonly string[] = [
   'items',
   'quests',
   'images',
+  'imageCategories',
   'sounds',
   'commands',
   'chapters',

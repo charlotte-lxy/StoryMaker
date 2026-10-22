@@ -2096,6 +2096,7 @@ describe('导出模块', () => {
       '本地化',
       '角色',
       '特殊指令',
+      '图片',
       'GASGameplayTags',
       'GAS属性',
       'GAS效果',
@@ -2122,6 +2123,7 @@ describe('导出模块', () => {
       '本地化',
       '角色',
       '特殊指令',
+      '图片',
       'GASGameplayTags',
       'GAS属性',
       'GAS效果',
@@ -2195,6 +2197,86 @@ describe('导出模块', () => {
     expect(firstRow()[1]).toBe(
       "/Script/Engine.BlueprintGeneratedClass'/Game/BP/Cmd/BP_Command_SP_001.BP_Command_SP_001_C'",
     );
+  });
+});
+
+describe('立绘：图片分类与「图片」子表', () => {
+  const openImages = async (): Promise<HTMLElement> => {
+    const { container } = await renderApp();
+    fireEvent.click(within(rail()).getByText('立绘'));
+    return container;
+  };
+
+  it('图片分类表在图片表上方，新增分类会自动填好默认存储路径', async () => {
+    const container = await openImages();
+
+    // 两张表上下排：分类表在前
+    const categories = container.querySelector('.image-categories') as HTMLElement;
+    expect(categories).toBeTruthy();
+    expect(categories.querySelector('h3')?.textContent).toBe('图片分类');
+    expect(screen.getByText(/还没有图片分类/)).toBeTruthy();
+
+    fireEvent.click(screen.getByText('＋ 新增分类'));
+
+    const nameInput = screen.getByPlaceholderText('例如：对话背景') as HTMLInputElement;
+    const pathInput = screen.getByPlaceholderText('/Game/GameContent/Asset/Image/分类名') as HTMLInputElement;
+    expect(nameInput.value).toBe('新分类');
+    expect(pathInput.value).toBe('/Game/GameContent/Asset/Image/新分类');
+
+    // 改分类名：没动过的默认路径跟着改
+    fireEvent.change(nameInput, { target: { value: '对话背景' } });
+    expect(pathInput.value).toBe('/Game/GameContent/Asset/Image/对话背景');
+  });
+
+  it('图片行有「图片分类」下拉，能选分类表中的一项', async () => {
+    const container = await openImages();
+
+    // 先建一个分类，再加一张图
+    fireEvent.click(screen.getByText('＋ 新增分类'));
+    fireEvent.change(screen.getByPlaceholderText('例如：对话背景'), {
+      target: { value: '对话背景' },
+    });
+    fireEvent.click(screen.getByText('＋ 新增一行'));
+
+    const imageTable = [...container.querySelectorAll('table')].pop() as HTMLElement;
+    const select = imageTable.querySelector('select') as HTMLSelectElement;
+    expect([...select.options].map((option) => option.textContent)).toEqual(['（未选分类）', '对话背景']);
+    // 新加的图默认选第一个分类
+    expect(select.selectedOptions[0].textContent).toBe('对话背景');
+  });
+
+  it('导出预览的「图片」子表按分类路径拼出资源路径', async () => {
+    const project = createEmptyProject();
+    project.imageCategories = [
+      { uid: 'cat-bg', name: '对话背景', path: '/Game/GameContent/Asset/Image/StoryBackground' },
+    ];
+    project.images = [
+      { uid: 'img-1', id: 'SCE_Black', name: '无背景-黑', categoryUid: 'cat-bg' },
+    ];
+    seedProjectFile(JSON.stringify(project));
+
+    await renderApp();
+    fireEvent.click(within(rail()).getByText('导出'));
+    fireEvent.click(screen.getByText('导出预览'));
+
+    const tab = [...document.querySelectorAll('.sheet-tab')].find((item) =>
+      item.textContent?.startsWith('图片'),
+    ) as HTMLElement;
+    fireEvent.click(tab);
+
+    expect([...document.querySelectorAll('.preview-table thead th')].map((th) => th.textContent)).toEqual([
+      '（行名）',
+      '图片分类',
+      '备注',
+      '图片',
+    ]);
+    expect([...document.querySelectorAll('.preview-table tbody tr.line-row td')].map((td) => td.textContent)).
+      toEqual([
+        'SCE_Black',
+        '对话背景',
+        '无背景-黑',
+        "/Script/Engine.Texture2D'/Game/GameContent/Asset/Image/StoryBackground/SCE_Black.SCE_Black'",
+      ]);
   });
 });
 

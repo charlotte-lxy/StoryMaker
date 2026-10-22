@@ -181,8 +181,29 @@ export interface LookupRow {
   uid: string;
   /** 导出时写进指令的 ID，如 Item_Coin、Task_Test_01、SCE_Home_001、S_dididi */
   id: string;
-  /** 说明文字，只在界面下拉里显示 */
+  /** 说明文字，只在界面下拉里显示（立绘表里这一格同时是「备注」列） */
   name: string;
+  /**
+   * 图片分类（只有立绘表用，存 ImageCategoryRow 的 uid）。
+   *
+   * 存 uid 而不是分类名：分类改名之后这一行仍然指着它。
+   * 其它几张表不用这个字段（空串 / 不写）。
+   */
+  categoryUid?: string;
+}
+
+/**
+ * 立绘 / 图片分类。
+ *
+ * 图片导出时按分类拼资源路径：`<存储路径>/<图片ID>.<图片ID>`，外面再包一层
+ * `/Script/Engine.Texture2D'…'`。图片行存的是这里的 uid，所以改分类名不会把引用写坏。
+ */
+export interface ImageCategoryRow {
+  uid: string;
+  /** 分类名，如「对话背景」；导出到「图片分类」列 */
+  name: string;
+  /** 这一类图片在 Unreal 里的文件夹，如 /Game/GameContent/Asset/Image/StoryBackground */
+  path: string;
 }
 
 /**
@@ -431,6 +452,8 @@ export interface Project {
   quests: LookupRow[];
   images: LookupRow[];
   sounds: LookupRow[];
+  /** 立绘的图片分类（图片行用 categoryUid 指着这里的某一条） */
+  imageCategories: ImageCategoryRow[];
   /** 指令字典 */
   commands: CommandDef[];
   chapters: Chapter[];

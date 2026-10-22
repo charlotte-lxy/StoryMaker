@@ -113,6 +113,7 @@ function makeProject(): Project {
     items: [],
     quests: [],
     images: [],
+    imageCategories: [],
     sounds: [],
     commands: [],
     chapters: [],

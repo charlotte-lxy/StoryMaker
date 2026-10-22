@@ -6,6 +6,8 @@ import type { Line, Project } from '../core/types';
 import {
   addCommandDef,
   addCommandModule,
+  addImageCategory,
+  addLookupRow,
   addUiText,
   collectGroupedLineRefs,
   commandModulesOf,
@@ -15,6 +17,7 @@ import {
   moveLinesTogether,
   mutate,
   removeCommandModule,
+  removeImageCategory,
   removeLines,
   removeUiText,
   renameCommandBranch,
@@ -23,6 +26,7 @@ import {
   renumberOneGroup,
   reorderCommandParam,
   reorderLine,
+  updateImageCategory,
   updateTextByUid,
   updateUiText,
 } from './operations';
@@ -56,6 +60,7 @@ function makeProject(): Project {
     items: [],
     quests: [],
     images: [],
+    imageCategories: [],
     variables: [],
     uiTexts: [],
     battle: createEmptyBattle(),
@@ -732,5 +737,66 @@ describe('延时脚本块', () => {
     });
     expect(line.command).toBe('其他|延时|');
     expect(next.chapters[0].groups[0].lines[1].command).toBe('其他|延时|时长:0.5');
+  });
+});
+
+describe('图片分类', () => {
+  const names = (project: Project): string[] =>
+    project.imageCategories.map((row) => row.name);
+
+  it('新增分类：名字不重、存储路径默认是根目录 + 分类名', () => {
+    const project = addImageCategory(addImageCategory(makeProject()));
+    expect(names(project)).toEqual(['新分类', '新分类2']);
+    expect(project.imageCategories[0].path).toBe('/Game/GameContent/Asset/Image/新分类');
+    expect(project.imageCategories[1].path).toBe('/Game/GameContent/Asset/Image/新分类2');
+    // 每条分类都有自己的 uid
+    expect(project.imageCategories[0].uid).not.toBe(project.imageCategories[1].uid);
+  });
+
+  it('改分类名：图片行存的是 uid，改名之后引用不断', () => {
+    const project = makeProject();
+    project.imageCategories = [{ uid: 'cat-1', name: '新分类', path: '' }];
+    project.images = [{ uid: 'img-1', id: 'SCE_1', name: '', categoryUid: 'cat-1' }];
+
+    const next = updateImageCategory(project, 'cat-1', { name: '对话背景' });
+    expect(next.imageCategories[0].name).toBe('对话背景');
+    expect(next.images[0].categoryUid).toBe('cat-1');
+  });
+
+  it('存储路径还是默认值（根目录 + 老名字）时跟着分类名一起改，改过就不动', () => {
+    const project = makeProject();
+    project.imageCategories = [
+      { uid: 'cat-1', name: '新分类', path: '/Game/GameContent/Asset/Image/新分类' },
+      { uid: 'cat-2', name: 'CG', path: '/Game/Custom/CG' },
+    ];
+
+    const followed = updateImageCategory(project, 'cat-1', { name: '对话背景' });
+    expect(followed.imageCategories[0].path).toBe('/Game/GameContent/Asset/Image/对话背景');
+
+    const kept = updateImageCategory(followed, 'cat-2', { name: '过场' });
+    expect(kept.imageCategories[1].path).toBe('/Game/Custom/CG');
+  });
+
+  it('删除分类：只删这一条，图片行留着 uid（交给校验条提醒）', () => {
+    const project = makeProject();
+    project.imageCategories = [
+      { uid: 'cat-1', name: '对话背景', path: '/Game/A' },
+      { uid: 'cat-2', name: 'CG', path: '/Game/B' },
+    ];
+    project.images = [{ uid: 'img-1', id: 'SCE_1', name: '', categoryUid: 'cat-1' }];
+
+    const next = removeImageCategory(project, 'cat-2');
+    expect(names(next)).toEqual(['对话背景']);
+    expect(next.images[0].categoryUid).toBe('cat-1');
+  });
+
+  it('新增图片默认选第一个分类；没有分类时留空', () => {
+    const project = makeProject();
+    project.imageCategories = [{ uid: 'cat-1', name: '对话背景', path: '/Game/A' }];
+    const withCategory = addLookupRow(project, 'images');
+    expect(withCategory.images[0]).toMatchObject({ id: 'SCE_1', categoryUid: 'cat-1' });
+
+    const without = addLookupRow(makeProject(), 'images');
+    expect(without.images[0].categoryUid).toBe('');
   });
 });

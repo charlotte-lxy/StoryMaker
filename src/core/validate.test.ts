@@ -96,6 +96,7 @@ function makeProject(group: Partial<Group>): Project {
     items: [],
     quests: [],
     images: [],
+    imageCategories: [],
     variables: [],
     uiTexts: [],
     battle: createEmptyBattle(),
@@ -508,5 +509,46 @@ describe('本地化校验', () => {
     // 点一条要跳到角色表那一行（本地化模块会切到「角色名本地化」页）
     expect(report.issues.map((i) => i.localeUid)).toEqual(['ch1', 'al1']);
     expect(report.issues[0].where).toContain('角色名本地化');
+  });
+});
+
+describe('立绘与图片分类', () => {
+  it('图片没选分类 / 选的分类被删了，各报一条提醒，点它跳到立绘页', () => {
+    const project = makeProject({ lines: [], options: [] });
+    project.imageCategories = [{ uid: 'cat-1', name: '对话背景', path: '/Game/A' }];
+    project.images = [
+      { uid: 'img-1', id: 'SCE_1', name: '', categoryUid: 'cat-1' },
+      { uid: 'img-2', id: 'SCE_2', name: '' },
+      { uid: 'img-3', id: 'SCE_3', name: '', categoryUid: 'cat-gone' },
+    ];
+
+    const report = validateProject(project);
+
+    expect(report.errors).toBe(0);
+    expect(report.issues.map((i) => [i.code, i.targetId])).toEqual([
+      ['image-category-missing', 'SCE_2'],
+      ['image-category-missing', 'SCE_3'],
+    ]);
+    expect(report.issues.map((i) => i.imageUid)).toEqual(['img-2', 'img-3']);
+    expect(report.issues[1].message).toContain('已经被删了');
+  });
+
+  it('分类没名字、或重名都算错，点它跳到立绘页', () => {
+    const project = makeProject({ lines: [], options: [] });
+    project.imageCategories = [
+      { uid: 'cat-1', name: '对话背景', path: '/Game/A' },
+      { uid: 'cat-2', name: '对话背景', path: '/Game/B' },
+      { uid: 'cat-3', name: '  ', path: '/Game/C' },
+    ];
+    project.images = [{ uid: 'img-1', id: 'SCE_1', name: '', categoryUid: 'cat-1' }];
+
+    const report = validateProject(project);
+
+    expect(report.errors).toBe(2);
+    expect(report.issues.map((i) => [i.code, i.targetId])).toEqual([
+      ['duplicate-image-category', '对话背景'],
+      ['empty-image-category', '(空)'],
+    ]);
+    expect(report.issues[0].imageUid).toBe('img-1');
   });
 });

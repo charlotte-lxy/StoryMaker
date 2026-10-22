@@ -17,6 +17,7 @@ import type {
   Character,
   CommandDef,
   CommandParamDef,
+  ImageCategoryRow,
   LangKey,
   Line,
   LookupRow,
@@ -42,6 +43,7 @@ import {
   addCommandModule,
   addCommandParam,
   addGroup,
+  addImageCategory,
   addLookupRow,
   addOption,
   addUiText,
@@ -59,6 +61,7 @@ import {
   removeCommandModule,
   removeCommandParam,
   removeGroup,
+  removeImageCategory,
   removeLine,
   removeLines,
   removeLookupRow,
@@ -76,6 +79,7 @@ import {
   updateCharacterAlias,
   updateCommandDef,
   updateCommandParam,
+  updateImageCategory,
   updateLookupRow,
   updateNameText,
   updateTextByUid,
@@ -628,6 +632,12 @@ export default function App() {
     if (issue.commandDefUid !== undefined && issue.commandDefUid !== '') {
       setModule('command');
       setFocusRowUid(issue.commandDefUid);
+      return;
+    }
+    // 立绘的问题（没选分类、分类重名）：切到「立绘」页，有具体图片就高亮它
+    if (issue.imageUid !== undefined) {
+      setModule('images');
+      setFocusRowUid(issue.imageUid === '' ? null : issue.imageUid);
       return;
     }
     if (issue.lineUid !== '') {
@@ -1221,6 +1231,11 @@ export default function App() {
                   onAdd={handleLookup.add}
                   onRemove={handleLookup.remove}
                   onUpdate={handleLookup.update}
+                  onAddCategory={() => setProject((prev) => addImageCategory(prev))}
+                  onRemoveCategory={(uid) => setProject((prev) => removeImageCategory(prev, uid))}
+                  onUpdateCategory={(uid, patch: Partial<ImageCategoryRow>) =>
+                    setProject((prev) => updateImageCategory(prev, uid, patch))
+                  }
                 />
               )}
 

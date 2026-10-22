@@ -100,6 +100,7 @@ function makeProject(): Project {
     items: [{ uid: 'it1', id: 'Item_Coin', name: '金币' }],
     quests: [],
     images: [],
+    imageCategories: [],
     sounds: [],
     commands: [
       {
@@ -257,6 +258,7 @@ describe('读老项目时把引用换成 uid', () => {
       items: [{ uid: 'it1', id: 'Item_Coin', name: '金币' }],
       quests: [],
       images: [],
+      imageCategories: [],
       sounds: [],
       commands: [oldPerformanceDef],
       variables: [],
@@ -334,6 +336,7 @@ describe('读老项目时把引用换成 uid', () => {
       items: [],
       quests: [],
       images: [],
+      imageCategories: [],
       sounds: [],
       commands: [],
       variables: [],
