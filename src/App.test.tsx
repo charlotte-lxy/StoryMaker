@@ -2051,7 +2051,7 @@ describe('导出模块', () => {
     fireEvent.click(within(rail()).getByText('导出'));
   }
 
-  it('侧边栏两个子页面 + 底部工具按钮列表，导出 Excel 从顶部挪到了这里', async () => {
+  it('侧边栏：子表垂直排在工具列表上方，工具里有「Unreal导入设置」和「导出 Excel」', async () => {
     const { container } = await renderApp();
 
     // 顶部工具条上不再有导出按钮
@@ -2062,14 +2062,39 @@ describe('导出模块', () => {
 
     fireEvent.click(within(rail()).getByText('导出'));
 
-    expect([...document.querySelectorAll('.export-nav')].map((nav) => nav.textContent)).toEqual([
-      'Unreal导入设置',
-      '导出预览',
+    // 子表按钮一条条竖着排，全部子表都在里面
+    expect(
+      [...document.querySelectorAll('.export-nav')].map((nav) =>
+        nav.textContent?.replace(/\d+$/, ''),
+      ),
+    ).toEqual([
+      '对话',
+      '选项',
+      '本地化',
+      '角色',
+      '特殊指令',
+      '图片',
+      '音频',
+      'GASGameplayTags',
+      'GAS属性',
+      'GAS效果',
+      'GAS技能',
+      'GAS事件',
+      'GAS角色',
+      'GAS武器',
+      '导入设置',
     ]);
-    expect(document.querySelector('.export-tools-head')?.textContent).toBe('工具');
+
+    // 工具列表在子表列表下面：「Unreal导入设置」在「导出 Excel」上方
     expect([...document.querySelectorAll('.export-tool')].map((button) => button.textContent)).toEqual([
+      'Unreal导入设置',
       '导出 Excel',
     ]);
+    const sheetList = document.querySelector('.export-sheets') as HTMLElement;
+    const tools = document.querySelector('.export-tools') as HTMLElement;
+    expect(sheetList.compareDocumentPosition(tools) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    // 默认打开设置页
     expect(screen.getByText('Unreal 导入设置')).toBeTruthy();
   });
 
@@ -2111,11 +2136,11 @@ describe('导出模块', () => {
     expect(subTable.value).toBe('GAS技能');
   });
 
-  it('导出预览：一排子表按钮，点哪个看哪个', async () => {
+  it('导出预览：点左边的子表就显示那一张', async () => {
     await openExport();
-    fireEvent.click(screen.getByText('导出预览'));
+    fireEvent.click(document.querySelectorAll('.export-nav')[0] as HTMLElement);
 
-    const tabs = [...document.querySelectorAll('.sheet-tab')].map((tab) =>
+    const tabs = [...document.querySelectorAll('.export-nav')].map((tab) =>
       tab.textContent?.replace(/\d+$/, ''),
     );
     expect(tabs).toEqual([
@@ -2172,8 +2197,7 @@ describe('导出模块', () => {
 
     /** 预览页上点某张子表 */
     const openSheet = (name: string): void => {
-      fireEvent.click(screen.getByText('导出预览'));
-      const tab = [...document.querySelectorAll('.sheet-tab')].find((item) =>
+      const tab = [...document.querySelectorAll('.export-nav')].find((item) =>
         item.textContent?.startsWith(name),
       ) as HTMLElement;
       fireEvent.click(tab);
@@ -2259,9 +2283,8 @@ describe('立绘：图片分类与「图片」子表', () => {
 
     await renderApp();
     fireEvent.click(within(rail()).getByText('导出'));
-    fireEvent.click(screen.getByText('导出预览'));
 
-    const tab = [...document.querySelectorAll('.sheet-tab')].find((item) =>
+    const tab = [...document.querySelectorAll('.export-nav')].find((item) =>
       item.textContent?.startsWith('图片'),
     ) as HTMLElement;
     fireEvent.click(tab);
@@ -2333,9 +2356,8 @@ describe('音效：音效类型与「音频」子表', () => {
 
     await renderApp();
     fireEvent.click(within(rail()).getByText('导出'));
-    fireEvent.click(screen.getByText('导出预览'));
 
-    const tab = [...document.querySelectorAll('.sheet-tab')].find((item) =>
+    const tab = [...document.querySelectorAll('.export-nav')].find((item) =>
       item.textContent?.startsWith('音频'),
     ) as HTMLElement;
     fireEvent.click(tab);

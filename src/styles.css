@@ -2490,7 +2490,26 @@ select.missing {
   overflow-y: auto;
 }
 
+/* 子表列表：垂直排列，长了就在这一栏里滚，不再横着溢出一排按钮 */
+.export-sheets {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow-y: auto;
+}
+
+/* 子表按钮右边的小行数 */
+.export-nav .count {
+  font-size: 11px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
 .export-nav {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2520,6 +2539,7 @@ select.missing {
 
 /* 工具按钮列表：贴在这一栏最下面，新增的按钮加在「导出 Excel」上面，从下往上长 */
 .export-tools {
+  flex-shrink: 0;
   margin-top: auto;
   display: flex;
   flex-direction: column;
@@ -2528,7 +2548,7 @@ select.missing {
   border-top: 1px solid var(--border);
 }
 
-.export-tools-head {
+.export-group-head {
   color: var(--text-dim);
   font-size: 11px;
   font-weight: 700;
@@ -2539,53 +2559,21 @@ select.missing {
   width: 100%;
 }
 
-.export-main {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-/* 导出预览：标题栏里的一排子表按钮，靠 flex-basis 换到标题下面一行
-   （不设下边距，间距由标题栏自己的 padding 给） */
-.sheet-tabs {
-  flex-basis: 100%;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.sheet-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 10px;
-  border-radius: 7px;
-  border-color: var(--border);
-  background: var(--control-bg);
-  color: var(--text-dim);
-  font-size: 12px;
-}
-
-.sheet-tab:hover:not(.active) {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.sheet-tab.active,
-.sheet-tab.active:hover {
+/* 工具列表里正在看设置页时，那一项跟子表选中一样亮起来 */
+.export-tool.active,
+.export-tool.active:hover {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--on-accent);
   font-weight: 600;
 }
 
-.sheet-tab .count {
-  font-size: 11px;
-  font-weight: 400;
-  font-variant-numeric: tabular-nums;
-  opacity: 0.75;
+.export-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 table.lines.preview-table {

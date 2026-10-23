@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 
 import { buildAllSheets } from '../../core/export';
 import type { Project } from '../../core/types';
@@ -6,19 +6,21 @@ import { useScrollMemory } from '../view-memory';
 
 interface Props {
   project: Project;
+  /** 当前选中的子表名（左侧栏点的） */
+  name: string;
 }
 
 /**
  * 导出预览。
  *
- * 上面一排按钮是导出的全部子表，点哪个看哪个；下面的表格就是那张子表会写进 xlsx 的内容。
+ * 子表按钮在左边的侧栏里（垂直排列，点哪个看哪个）；
+ * 这里只画选中的那张子表会写进 xlsx 的内容。
  * 内容和顺序都直接取自 buildAllSheets（导出的同一处逻辑），所以预览不会和导出对不上。
  */
-export function ExportPreviewPage({ project }: Props) {
+export function ExportPreviewPage({ project, name }: Props) {
   const editorRef = useScrollMemory('export:preview');
   const sheets = useMemo(() => buildAllSheets(project), [project]);
-  const [picked, setPicked] = useState(sheets[0]?.name ?? '');
-  const current = sheets.find((sheet) => sheet.name === picked) ?? sheets[0];
+  const current = sheets.find((sheet) => sheet.name === name) ?? sheets[0];
 
   if (current === undefined) return <div className="empty-state">没有可导出的子表。</div>;
 
@@ -28,23 +30,10 @@ export function ExportPreviewPage({ project }: Props) {
   return (
     <div className="editor" ref={editorRef}>
       <div className="editor-head">
-        <h2>导出预览</h2>
-        <span className="hint">这里看到的就是导出到 xlsx 里的内容（表头 + 数据行），点下面的按钮换子表。</span>
-
-        {/* 子表按钮放在标题栏里面（换到标题下面那行），这样它跟着标题栏一起冻结 */}
-        <div className="sheet-tabs">
-          {sheets.map((sheet) => (
-            <button
-              key={sheet.name}
-              type="button"
-              className={sheet.name === current.name ? 'sheet-tab active' : 'sheet-tab'}
-              onClick={() => setPicked(sheet.name)}
-            >
-              {sheet.name}
-              <span className="count">{sheet.rows.length - 1}</span>
-            </button>
-          ))}
-        </div>
+        <h2>{current.name}</h2>
+        <span className="hint">
+          这里看到的就是导出到 xlsx 里的内容（表头 + 数据行），点左边的子表换一张。
+        </span>
       </div>
 
       <div className="battle-table-wrap">
