@@ -53,6 +53,7 @@ function makeProject(chapters: Chapter[]): Project {
     quests: [],
     images: [],
     imageCategories: [],
+    soundCategories: [],
     sounds: [],
     commands: [],
     variables: [],

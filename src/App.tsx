@@ -17,7 +17,6 @@ import type {
   Character,
   CommandDef,
   CommandParamDef,
-  ImageCategoryRow,
   LangKey,
   Line,
   LookupRow,
@@ -43,7 +42,7 @@ import {
   addCommandModule,
   addCommandParam,
   addGroup,
-  addImageCategory,
+  addAssetCategory,
   addLookupRow,
   addOption,
   addUiText,
@@ -61,7 +60,7 @@ import {
   removeCommandModule,
   removeCommandParam,
   removeGroup,
-  removeImageCategory,
+  removeAssetCategory,
   removeLine,
   removeLines,
   removeLookupRow,
@@ -79,7 +78,7 @@ import {
   updateCharacterAlias,
   updateCommandDef,
   updateCommandParam,
-  updateImageCategory,
+  updateAssetCategory,
   updateLookupRow,
   updateNameText,
   updateTextByUid,
@@ -634,10 +633,10 @@ export default function App() {
       setFocusRowUid(issue.commandDefUid);
       return;
     }
-    // 立绘的问题（没选分类、分类重名）：切到「立绘」页，有具体图片就高亮它
-    if (issue.imageUid !== undefined) {
-      setModule('images');
-      setFocusRowUid(issue.imageUid === '' ? null : issue.imageUid);
+    // 资源表的问题（立绘没选分类、音效类型重名）：切到对应模块，有具体行就高亮它
+    if (issue.assetModule !== undefined) {
+      setModule(issue.assetModule);
+      setFocusRowUid(issue.assetUid === '' || issue.assetUid === undefined ? null : issue.assetUid);
       return;
     }
     if (issue.lineUid !== '') {
@@ -1231,10 +1230,12 @@ export default function App() {
                   onAdd={handleLookup.add}
                   onRemove={handleLookup.remove}
                   onUpdate={handleLookup.update}
-                  onAddCategory={() => setProject((prev) => addImageCategory(prev))}
-                  onRemoveCategory={(uid) => setProject((prev) => removeImageCategory(prev, uid))}
-                  onUpdateCategory={(uid, patch: Partial<ImageCategoryRow>) =>
-                    setProject((prev) => updateImageCategory(prev, uid, patch))
+                  onAddCategory={(kind) => setProject((prev) => addAssetCategory(prev, kind))}
+                  onRemoveCategory={(kind, uid) =>
+                    setProject((prev) => removeAssetCategory(prev, kind, uid))
+                  }
+                  onUpdateCategory={(kind, uid, patch) =>
+                    setProject((prev) => updateAssetCategory(prev, kind, uid, patch))
                   }
                 />
               )}

@@ -2097,6 +2097,7 @@ describe('导出模块', () => {
       '角色',
       '特殊指令',
       '图片',
+      '音频',
       'GASGameplayTags',
       'GAS属性',
       'GAS效果',
@@ -2124,6 +2125,7 @@ describe('导出模块', () => {
       '角色',
       '特殊指令',
       '图片',
+      '音频',
       'GASGameplayTags',
       'GAS属性',
       'GAS效果',
@@ -2219,7 +2221,7 @@ describe('立绘：图片分类与「图片」子表', () => {
     fireEvent.click(screen.getByText('＋ 新增分类'));
 
     const nameInput = screen.getByPlaceholderText('例如：对话背景') as HTMLInputElement;
-    const pathInput = screen.getByPlaceholderText('/Game/GameContent/Asset/Image/分类名') as HTMLInputElement;
+    const pathInput = screen.getByPlaceholderText('/Game/GameContent/Asset/…/分类名') as HTMLInputElement;
     expect(nameInput.value).toBe('新分类');
     expect(pathInput.value).toBe('/Game/GameContent/Asset/Image/新分类');
 
@@ -2240,7 +2242,7 @@ describe('立绘：图片分类与「图片」子表', () => {
 
     const imageTable = [...container.querySelectorAll('table')].pop() as HTMLElement;
     const select = imageTable.querySelector('select') as HTMLSelectElement;
-    expect([...select.options].map((option) => option.textContent)).toEqual(['（未选分类）', '对话背景']);
+    expect([...select.options].map((option) => option.textContent)).toEqual(['（未选图片分类）', '对话背景']);
     // 新加的图默认选第一个分类
     expect(select.selectedOptions[0].textContent).toBe('对话背景');
   });
@@ -2276,6 +2278,80 @@ describe('立绘：图片分类与「图片」子表', () => {
         '对话背景',
         '无背景-黑',
         "/Script/Engine.Texture2D'/Game/GameContent/Asset/Image/StoryBackground/SCE_Black.SCE_Black'",
+      ]);
+  });
+});
+
+describe('音效：音效类型与「音频」子表', () => {
+  const openSounds = async (): Promise<HTMLElement> => {
+    const { container } = await renderApp();
+    fireEvent.click(within(rail()).getByText('音效'));
+    return container;
+  };
+
+  it('音效类型表在音效表上方，新增类型默认填好 /Game/GameContent/Asset/Sound/类型名', async () => {
+    const container = await openSounds();
+
+    const categories = container.querySelector('.image-categories') as HTMLElement;
+    expect(categories.querySelector('h3')?.textContent).toBe('音效类型');
+    expect(screen.getByText(/还没有音效类型/)).toBeTruthy();
+
+    fireEvent.click(screen.getByText('＋ 新增分类'));
+
+    const nameInput = screen.getByPlaceholderText('例如：对话背景') as HTMLInputElement;
+    const pathInput = screen.getByPlaceholderText('/Game/GameContent/Asset/…/分类名') as HTMLInputElement;
+    expect(pathInput.value).toBe('/Game/GameContent/Asset/Sound/新分类');
+
+    fireEvent.change(nameInput, { target: { value: '背景音乐' } });
+    expect(pathInput.value).toBe('/Game/GameContent/Asset/Sound/背景音乐');
+  });
+
+  it('音效行有「音效类型」下拉，能选类型表中的一项', async () => {
+    const container = await openSounds();
+
+    fireEvent.click(screen.getByText('＋ 新增分类'));
+    fireEvent.change(screen.getByPlaceholderText('例如：对话背景'), {
+      target: { value: '背景音乐' },
+    });
+    fireEvent.click(screen.getByText('＋ 新增一行'));
+
+    const soundTable = [...container.querySelectorAll('table')].pop() as HTMLElement;
+    const select = soundTable.querySelector('select') as HTMLSelectElement;
+    expect([...select.options].map((option) => option.textContent)).toEqual(['（未选音效类型）', '背景音乐']);
+    expect(select.selectedOptions[0].textContent).toBe('背景音乐');
+  });
+
+  it('导出预览的「音频」子表：音频路径 + 音效类型 + 备注', async () => {
+    const project = createEmptyProject();
+    project.soundCategories = [
+      { uid: 'snd-bgm', name: '背景音乐', path: '/Game/GameContent/Asset/Sound/BackgroundMusic' },
+    ];
+    project.sounds = [
+      { uid: 'snd-1', id: 'S_dididi', name: '滴滴滴效果音', categoryUid: 'snd-bgm' },
+    ];
+    seedProjectFile(JSON.stringify(project));
+
+    await renderApp();
+    fireEvent.click(within(rail()).getByText('导出'));
+    fireEvent.click(screen.getByText('导出预览'));
+
+    const tab = [...document.querySelectorAll('.sheet-tab')].find((item) =>
+      item.textContent?.startsWith('音频'),
+    ) as HTMLElement;
+    fireEvent.click(tab);
+
+    expect([...document.querySelectorAll('.preview-table thead th')].map((th) => th.textContent)).toEqual([
+      '（行名）',
+      '音频',
+      '音效类型',
+      '备注',
+    ]);
+    expect([...document.querySelectorAll('.preview-table tbody tr.line-row td')].map((td) => td.textContent)).
+      toEqual([
+        'S_dididi',
+        "/Script/Engine.SoundWave'/Game/GameContent/Asset/Sound/BackgroundMusic/S_dididi.S_dididi'",
+        '背景音乐',
+        '滴滴滴效果音',
       ]);
   });
 });

@@ -12,19 +12,20 @@ import {
   parseCommandText,
 } from '../core/command-build';
 import { defaultImageCategoryPath } from '../core/image-export';
+import { defaultSoundCategoryPath } from '../core/sound-export';
 import { defaultCommandDefs } from '../core/default-commands';
 import { EXPORT_SUBTABLES } from '../core/export-settings';
 import { makeLineId, makeOptionId, newUid, renumberGroup, groupUidOfFirstLine, type IdChange } from '../core/ids';
 import { DEFAULT_SPECIAL_COMMAND_CLASS_PREFIX } from '../core/special-commands';
 import {
   DEFAULT_PLAY_POSITION,
+  type AssetCategoryRow,
   type Chapter,
   type CharacterAlias,
   type CommandDef,
   type CommandParamDef,
   type ExportSettingRow,
   type Group,
-  type ImageCategoryRow,
   type LangKey,
   type Line,
   type LineKind,
@@ -94,6 +95,7 @@ export function createEmptyProject(name = '未命名项目', theme: ThemeName | 
     quests: [],
     images: [],
     imageCategories: [],
+    soundCategories: [],
     sounds: [],
     commands: defaultCommandDefs(),
     variables: [],
@@ -577,8 +579,9 @@ export function addLookupRow(project: Project, kind: LookupKind): Project {
     let n = rows.length + 1;
     while (taken.has(`${prefix}${n}`)) n += 1;
     const row: LookupRow = { uid: newUid(), id: `${prefix}${n}`, name: '' };
-    // 立绘：默认选第一个分类，省得刚加一行就报「没选分类」
+    // 立绘 / 音效：默认选第一个分类，省得刚加一行就报「没选分类」
     if (kind === 'images') row.categoryUid = draft.imageCategories[0]?.uid ?? '';
+    if (kind === 'sounds') row.categoryUid = draft.soundCategories[0]?.uid ?? '';
     rows.push(row);
   });
 }
@@ -601,44 +604,54 @@ export function updateLookupRow(
   });
 }
 
-/* ---------- 图片分类 ---------- */
+/* ---------- 资源分类（图片分类 / 音效类型） ---------- */
 
-/** 新增一个图片分类；名字与默认路径都先给个能改的占位 */
-export function addImageCategory(project: Project): Project {
+/** 带「分类名 + 存储路径」的资源表：立绘的图片分类、音效的音效类型 */
+export type CategoryKind = 'imageCategories' | 'soundCategories';
+
+const CATEGORY_DEFAULT_PATH: Record<CategoryKind, (name: string) => string> = {
+  imageCategories: defaultImageCategoryPath,
+  soundCategories: defaultSoundCategoryPath,
+};
+
+/** 新增一个分类；名字与默认路径都先给个能改的占位 */
+export function addAssetCategory(project: Project, kind: CategoryKind): Project {
   return mutate(project, (draft) => {
-    const taken = new Set(draft.imageCategories.map((row) => row.name.trim()));
-    let n = draft.imageCategories.length + 1;
+    const rows = draft[kind];
+    const taken = new Set(rows.map((row) => row.name.trim()));
+    let n = rows.length + 1;
     while (taken.has(`新分类${n === 1 ? '' : n}`)) n += 1;
     const name = `新分类${n === 1 ? '' : n}`;
-    draft.imageCategories.push({ uid: newUid(), name, path: defaultImageCategoryPath(name) });
+    rows.push({ uid: newUid(), name, path: CATEGORY_DEFAULT_PATH[kind](name) });
   });
 }
 
-export function removeImageCategory(project: Project, uid: string): Project {
+export function removeAssetCategory(project: Project, kind: CategoryKind, uid: string): Project {
   return mutate(project, (draft) => {
-    draft.imageCategories = draft.imageCategories.filter((row) => row.uid !== uid);
+    draft[kind] = draft[kind].filter((row) => row.uid !== uid);
   });
 }
 
 /**
- * 改图片分类。
+ * 改分类名 / 存储路径。
  *
- * 分类名可以随便改（图片行存的是 uid，引用不会断）；
+ * 分类名可以随便改（资源行存的是 uid，引用不会断）；
  * 存储路径还是默认值（根目录 + 老分类名）时跟着分类名一起改，改过就不动它了。
  */
-export function updateImageCategory(
+export function updateAssetCategory(
   project: Project,
+  kind: CategoryKind,
   uid: string,
-  patch: Partial<ImageCategoryRow>,
+  patch: Partial<AssetCategoryRow>,
 ): Project {
   return mutate(project, (draft) => {
-    const row = draft.imageCategories.find((item) => item.uid === uid);
+    const row = draft[kind].find((item) => item.uid === uid);
     if (row === undefined) return;
-    const oldName = row.name;
-    const stillDefault = row.path === defaultImageCategoryPath(oldName);
+    const defaultPath = CATEGORY_DEFAULT_PATH[kind];
+    const stillDefault = row.path === defaultPath(row.name);
     Object.assign(row, patch);
     if (patch.name !== undefined && stillDefault) {
-      row.path = defaultImageCategoryPath(row.name);
+      row.path = defaultPath(row.name);
     }
   });
 }

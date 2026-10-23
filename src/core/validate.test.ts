@@ -97,6 +97,7 @@ function makeProject(group: Partial<Group>): Project {
     quests: [],
     images: [],
     imageCategories: [],
+    soundCategories: [],
     variables: [],
     uiTexts: [],
     battle: createEmptyBattle(),
@@ -529,7 +530,7 @@ describe('立绘与图片分类', () => {
       ['image-category-missing', 'SCE_2'],
       ['image-category-missing', 'SCE_3'],
     ]);
-    expect(report.issues.map((i) => i.imageUid)).toEqual(['img-2', 'img-3']);
+    expect(report.issues.map((i) => i.assetUid)).toEqual(['img-2', 'img-3']);
     expect(report.issues[1].message).toContain('已经被删了');
   });
 
@@ -549,6 +550,6 @@ describe('立绘与图片分类', () => {
       ['duplicate-image-category', '对话背景'],
       ['empty-image-category', '(空)'],
     ]);
-    expect(report.issues[0].imageUid).toBe('img-1');
+    expect(report.issues[0].assetUid).toBe('img-1');
   });
 });

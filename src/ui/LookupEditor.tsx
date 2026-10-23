@@ -1,8 +1,16 @@
-import type { ImageCategoryRow, LookupRow, Project } from '../core/types';
-import type { LookupKind } from '../state/operations';
+import type { AssetCategoryRow, LookupRow, Project } from '../core/types';
+import type { CategoryKind, LookupKind } from '../state/operations';
 import { useScrollMemory } from './view-memory';
 
-const TITLES: Record<LookupKind, { title: string; hint: string; placeholder: string }> = {
+interface LookupMeta {
+  title: string;
+  hint: string;
+  placeholder: string;
+  /** 这一页顶部有没有分类表（立绘的图片分类 / 音效的音效类型） */
+  category?: { kind: CategoryKind; title: string; column: string; hint: string };
+}
+
+const TITLES: Record<LookupKind, LookupMeta> = {
   items: {
     title: '物品表',
     hint: '物品 ID 供指令「背包||物品:…;运算符:+;数量:」与条件「背包||物品:…;运算符:>=」的下拉使用。',
@@ -17,11 +25,27 @@ const TITLES: Record<LookupKind, { title: string; hint: string; placeholder: str
     title: '立绘 / 图片表',
     hint: '图片 ID 供指令「剧情|图片|图片:…」的下拉使用；每张图选一个分类，导出「图片」子表时按分类的存储路径拼资源路径。',
     placeholder: '例如：夜晚的城市',
+    category: {
+      kind: 'imageCategories',
+      title: '图片分类',
+      column: '图片分类',
+      hint:
+        '每张图属于一个分类；导出「图片」子表时拼成「存储路径/图片ID.图片ID」。' +
+        '新分类默认放在 /Game/GameContent/Asset/Image/分类名 下，路径可以自己改。',
+    },
   },
   sounds: {
     title: '音效表',
-    hint: '音效 ID 供指令「剧情|音效|音效:…」的下拉使用。',
+    hint: '音效 ID 供指令「剧情|音效|音效:…」的下拉使用；每条音效选一个类型，导出「音频」子表时按类型的存储路径拼资源路径。',
     placeholder: '例如：按键提示音',
+    category: {
+      kind: 'soundCategories',
+      title: '音效类型',
+      column: '音效类型',
+      hint:
+        '每条音效属于一个类型；导出「音频」子表时拼成「存储路径/音效ID.音效ID」。' +
+        '新类型默认放在 /Game/GameContent/Asset/Sound/类型名 下，路径可以自己改。',
+    },
   },
 };
 
@@ -31,39 +55,42 @@ interface Props {
   onAdd: (kind: LookupKind) => void;
   onRemove: (kind: LookupKind, uid: string) => void;
   onUpdate: (kind: LookupKind, uid: string, patch: Partial<LookupRow>) => void;
-  /** 图片分类（只有立绘页用） */
-  onAddCategory: () => void;
-  onRemoveCategory: (uid: string) => void;
-  onUpdateCategory: (uid: string, patch: Partial<ImageCategoryRow>) => void;
+  /** 分类表（只有立绘 / 音效页有） */
+  onAddCategory: (kind: CategoryKind) => void;
+  onRemoveCategory: (kind: CategoryKind, uid: string) => void;
+  onUpdateCategory: (kind: CategoryKind, uid: string, patch: Partial<AssetCategoryRow>) => void;
   /** 全局搜索跳过来的那一行：交给上层滚过去，这里只负责高亮它 */
   focusUid?: string | null;
 }
 
 /**
- * 立绘页顶部的图片分类表。
+ * 立绘 / 音效页顶部的分类表。
  *
- * 分类存成独立一行（带 uid），图片行只记 uid，所以分类改名不会把图片写坏；
- * 导出「图片」子表时用分类名与存储路径拼资源路径。
+ * 分类存成独立一行（带 uid），资源行只记 uid，所以分类改名不会把资源写坏；
+ * 导出「图片」「音频」子表时用分类名与存储路径拼资源路径。
  */
-function ImageCategoryTable({
+function AssetCategoryTable({
+  title,
+  hint,
+  column,
   rows,
   onAdd,
   onRemove,
   onUpdate,
 }: {
-  rows: ImageCategoryRow[];
+  title: string;
+  hint: string;
+  column: string;
+  rows: AssetCategoryRow[];
   onAdd: () => void;
   onRemove: (uid: string) => void;
-  onUpdate: (uid: string, patch: Partial<ImageCategoryRow>) => void;
+  onUpdate: (uid: string, patch: Partial<AssetCategoryRow>) => void;
 }) {
   return (
     <section className="image-categories">
       <div className="lookup-subhead">
-        <h3>图片分类</h3>
-        <span className="hint">
-          每张图属于一个分类；导出「图片」子表时拼成「存储路径/图片ID.图片ID」。
-          新分类默认放在 /Game/GameContent/Asset/Image/分类名 下，路径可以自己改。
-        </span>
+        <h3>{title}</h3>
+        <span className="hint">{hint}</span>
         <button type="button" className="primary" onClick={onAdd}>
           ＋ 新增分类
         </button>
@@ -71,7 +98,7 @@ function ImageCategoryTable({
 
       {rows.length === 0 ? (
         <div className="empty-state">
-          还没有图片分类。先建一个（比如「对话背景」），下面的图片才能选它。
+          还没有{title}。先建一个，下面的{column === '图片分类' ? '图片' : '音效'}才能选它。
         </div>
       ) : (
         <table className="lines">
@@ -95,7 +122,7 @@ function ImageCategoryTable({
                 <td>
                   <input
                     value={row.path}
-                    placeholder="/Game/GameContent/Asset/Image/分类名"
+                    placeholder="/Game/GameContent/Asset/…/分类名"
                     onChange={(event) => onUpdate(row.uid, { path: event.target.value })}
                   />
                 </td>
@@ -127,8 +154,9 @@ export function LookupEditor({
   const editorRef = useScrollMemory(`lookup:${kind}`);
   const rows = project[kind];
   const meta = TITLES[kind];
-  const isImages = kind === 'images';
-  const categories = project.imageCategories;
+  const categoryMeta = meta.category;
+  const categories: AssetCategoryRow[] =
+    categoryMeta === undefined ? [] : project[categoryMeta.kind];
   const categoryByUid = new Map(categories.map((row) => [row.uid, row]));
 
   const idCounts = new Map<string, number>();
@@ -136,12 +164,15 @@ export function LookupEditor({
 
   return (
     <div className="editor" ref={editorRef}>
-      {isImages && (
-        <ImageCategoryTable
+      {categoryMeta !== undefined && (
+        <AssetCategoryTable
+          title={categoryMeta.title}
+          hint={categoryMeta.hint}
+          column={categoryMeta.column}
           rows={categories}
-          onAdd={onAddCategory}
-          onRemove={onRemoveCategory}
-          onUpdate={onUpdateCategory}
+          onAdd={() => onAddCategory(categoryMeta.kind)}
+          onRemove={(uid) => onRemoveCategory(categoryMeta.kind, uid)}
+          onUpdate={(uid, patch) => onUpdateCategory(categoryMeta.kind, uid, patch)}
         />
       )}
 
@@ -161,8 +192,8 @@ export function LookupEditor({
         <table className="lines">
           <thead>
             <tr>
-              <th style={{ width: isImages ? '26%' : '36%' }}>ID</th>
-              {isImages && <th style={{ width: 170 }}>图片分类</th>}
+              <th style={{ width: categoryMeta === undefined ? '36%' : '26%' }}>ID</th>
+              {categoryMeta !== undefined && <th style={{ width: 170 }}>{categoryMeta.column}</th>}
               <th>说明</th>
               <th style={{ width: 86 }}>操作</th>
             </tr>
@@ -184,16 +215,16 @@ export function LookupEditor({
                     />
                     {(idCounts.get(row.id) ?? 0) > 1 && <div className="field-error">ID 重复</div>}
                   </td>
-                  {isImages && (
+                  {categoryMeta !== undefined && (
                     <td>
                       <select
                         value={categoryUid}
-                        title="这张图属于哪个分类（导出「图片」列按分类的存储路径拼）"
+                        title={`这一行属于哪个${categoryMeta.column}（导出的资源路径按它拼）`}
                         onChange={(event) =>
                           onUpdate(kind, row.uid, { categoryUid: event.target.value })
                         }
                       >
-                        <option value="">（未选分类）</option>
+                        <option value="">（未选{categoryMeta.column}）</option>
                         {categories.map((item) => (
                           <option key={item.uid} value={item.uid}>
                             {item.name.trim() === '' ? '（未命名分类）' : item.name}

@@ -101,6 +101,7 @@ function makeProject(): Project {
     quests: [],
     images: [],
     imageCategories: [],
+    soundCategories: [],
     sounds: [],
     commands: [
       {
@@ -259,6 +260,7 @@ describe('读老项目时把引用换成 uid', () => {
       quests: [],
       images: [],
       imageCategories: [],
+      soundCategories: [],
       sounds: [],
       commands: [oldPerformanceDef],
       variables: [],
@@ -337,6 +339,7 @@ describe('读老项目时把引用换成 uid', () => {
       quests: [],
       images: [],
       imageCategories: [],
+      soundCategories: [],
       sounds: [],
       commands: [],
       variables: [],

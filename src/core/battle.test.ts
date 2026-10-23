@@ -114,6 +114,7 @@ function makeProject(): Project {
     quests: [],
     images: [],
     imageCategories: [],
+    soundCategories: [],
     sounds: [],
     commands: [],
     chapters: [],

@@ -13,6 +13,7 @@ function makeProject(name = '测试项目'): Project {
     quests: [],
     images: [],
     imageCategories: [],
+    soundCategories: [],
     sounds: [],
     commands: [],
     chapters: [

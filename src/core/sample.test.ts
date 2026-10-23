@@ -118,6 +118,7 @@ function buildSample(): Sample {
     quests: [],
     images: [],
     imageCategories: [],
+    soundCategories: [],
     variables: [],
     chapters: [
       {
