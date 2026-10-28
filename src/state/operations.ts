@@ -15,7 +15,15 @@ import { defaultImageCategoryPath } from '../core/image-export';
 import { defaultSoundCategoryPath } from '../core/sound-export';
 import { defaultCommandDefs } from '../core/default-commands';
 import { EXPORT_SUBTABLES } from '../core/export-settings';
-import { makeLineId, makeOptionId, newUid, renumberGroup, groupUidOfFirstLine, type IdChange } from '../core/ids';
+import {
+  CONTINUE_TARGET,
+  groupUidOfFirstLine,
+  makeLineId,
+  makeOptionId,
+  newUid,
+  renumberGroup,
+  type IdChange,
+} from '../core/ids';
 import { DEFAULT_SPECIAL_COMMAND_CLASS_PREFIX } from '../core/special-commands';
 import {
   DEFAULT_PLAY_POSITION,
@@ -80,7 +88,8 @@ export function createOption(hostLineId: string, index: number): StoryOption {
     uid: newUid(),
     readableId: makeOptionId(hostLineId, index),
     text: { zh: '', en: '', ja: '' },
-    nextId: '',
+    // 默认「继续对话」：选完接着往下播，导出时现算成「选项所在行 ID 尾号 +1」
+    nextId: CONTINUE_TARGET,
     appearConditions: [],
     enableConditions: [],
   };

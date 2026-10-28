@@ -157,14 +157,14 @@ describe('界面冒烟测试', () => {
     expect(container.querySelector('.line-card .line-seq')).toBeNull();
   });
 
-  it('新增选项后，跳转目标默认是「对话结束」（即导出留空）', async () => {
+  it('新增选项后，跳转目标默认是「继续对话」（导出时自动写下一句）', async () => {
     await renderApp();
     // 选项列表现在挂在「选项」行上，行里默认就带一个选项
     dropBlock('选项');
     const groupSelect = screen.getByTitle('第一级：目标段落') as HTMLSelectElement;
-    expect(groupSelect.value).toBe('');
-    expect(screen.getByText('（对话结束）')).toBeTruthy();
-    // 第二级在对话结束时禁用
+    expect(groupSelect.value).toBe('@continue');
+    expect(screen.getByText('（继续对话）')).toBeTruthy();
+    // 继续对话 / 对话结束时，第二级都禁用
     expect((screen.getByTitle(LINE_SELECT_TITLE) as HTMLSelectElement).disabled).toBe(true);
   });
 
@@ -173,12 +173,15 @@ describe('界面冒烟测试', () => {
     dropBlock('选项');
 
     const groupSelect = screen.getByTitle('第一级：目标段落') as HTMLSelectElement;
-    fireEvent.change(groupSelect, { target: { value: groupSelect.options[1].value } });
+    const groupOption = [...groupSelect.options].find(
+      (option) => option.value !== '' && option.value !== '@continue',
+    ) as HTMLOptionElement;
+    fireEvent.change(groupSelect, { target: { value: groupOption.value } });
 
     const lineSelect = screen.getByTitle(LINE_SELECT_TITLE) as HTMLSelectElement;
     expect(lineSelect.disabled).toBe(false);
     // 选完段落默认落在「（跳转到首句对话）」上：记的是段落，不钉死具体某一句
-    expect(lineSelect.value).toBe(`@first:${groupSelect.options[1].value}`);
+    expect(lineSelect.value).toBe(`@first:${groupOption.value}`);
     expect(lineSelect.selectedOptions[0].textContent).toBe('（跳转到首句对话）');
 
     fireEvent.change(groupSelect, { target: { value: '' } });
@@ -1106,6 +1109,7 @@ describe('章节流程图与分栏', () => {
 
     const groupSelect = screen.getByTitle('第一级：目标段落') as HTMLSelectElement;
     expect([...groupSelect.options].map((option) => option.textContent)).toEqual([
+      '（继续对话）',
       '（对话结束）',
       '序章 / 开场',
     ]);

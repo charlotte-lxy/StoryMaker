@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 
 import type { CommandTargets } from '../core/command-build';
-import { firstLineRef, groupUidOfFirstLine, lineSequenceOf } from '../core/ids';
+import { firstLineRef, groupUidOfFirstLine, isContinueTarget, lineSequenceOf, CONTINUE_TARGET } from '../core/ids';
 import type { Character, CommandDef, Group, Line, StoryOption } from '../core/types';
 import { groupUidOfLine, type GroupLineRefs } from '../state/operations';
 import { CommandListInput } from './CommandListInput';
@@ -41,7 +41,7 @@ function lineOptionLabel(line: { readableId: string; preview: string }): string 
 
 /**
  * 跳转目标的两级下拉：先选段落，再选该段落里的对话 ID。
- * 第一级选「（对话结束）」时第二级禁用，导出留空。
+ * 第一级选「（继续对话）」或「（对话结束）」时第二级禁用。
  *
  * 第二级的第一项是「（跳转到首句对话）」：它记的是"哪个段落"而不是具体某一句，
  * 段落里插行、拖过顺序之后，导出时取的都是那个段落当时的第一句。
@@ -57,8 +57,10 @@ function JumpTargetSelects({
   onChange: (next: string) => void;
   onJump: (lineUid: string) => void;
 }) {
-  const groupUid = groupUidOfLine(groupedLines, value);
-  const dangling = value !== '' && groupUid === '';
+  /** 选的是「继续对话」：不指向具体行，导出时按所在行的 ID 尾号 +1 */
+  const isContinue = isContinueTarget(value);
+  const groupUid = isContinue ? '' : groupUidOfLine(groupedLines, value);
+  const dangling = !isContinue && value !== '' && groupUid === '';
   const current = groupedLines.find((item) => item.groupUid === groupUid);
   /** 现在选的是"该段落的第一句"这种引用 */
   const isFirstLine = groupUidOfFirstLine(value) !== null;
@@ -73,10 +75,14 @@ function JumpTargetSelects({
   return (
     <div className="jump-selects">
       <select
-        value={dangling ? '__dangling__' : groupUid}
+        value={isContinue ? CONTINUE_TARGET : dangling ? '__dangling__' : groupUid}
         title="第一级：目标段落"
         onChange={(event) => {
           const next = event.target.value;
+          if (next === CONTINUE_TARGET) {
+            onChange(CONTINUE_TARGET);
+            return;
+          }
           if (next === JUMP_END) {
             onChange(JUMP_END);
             return;
@@ -87,6 +93,7 @@ function JumpTargetSelects({
           onChange(firstLineRef(next));
         }}
       >
+        <option value={CONTINUE_TARGET}>（继续对话）</option>
         <option value={JUMP_END}>（对话结束）</option>
         {dangling && <option value="__dangling__">（目标已失效）</option>}
         {groupedLines.map((item) => (

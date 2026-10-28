@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createEmptyBattle } from './battle';
 
-import { firstLineRef } from './ids';
+import { CONTINUE_TARGET, firstLineRef } from './ids';
 import { validateLocalization, validateProject } from './validate';
 import type {
   CommandDef,
@@ -157,6 +157,30 @@ it('选项指到某个段落的「首句」时，段落还在就不算悬空', (
     options: [makeOption('o-a', 'Dia_ch01_001-1A', { nextId: firstLineRef('g1') })],
   });
   expect(validateProject(project)).toMatchObject({ errors: 0, warnings: 0, issues: [] });
+});
+
+it('「继续对话」后面还有下一句：不报任何问题', () => {
+  const project = makeProject({
+    lines: [
+      makeLine('u1', 'Dia_ch01_001-1', { kind: '选项', optionIds: ['o-a'] }),
+      makeLine('u2', 'Dia_ch01_001-2'),
+    ],
+    options: [makeOption('o-a', 'Dia_ch01_001-1A', { nextId: CONTINUE_TARGET })],
+  });
+  expect(validateProject(project)).toMatchObject({ errors: 0, warnings: 0, issues: [] });
+});
+
+it('「继续对话」正好在段落最后一行：提醒导出的目标 ID 不存在', () => {
+  const project = makeProject({
+    lines: [makeLine('u1', 'Dia_ch01_001-7', { kind: '选项', optionIds: ['o-a'] })],
+    options: [makeOption('o-a', 'Dia_ch01_001-7A', { nextId: CONTINUE_TARGET })],
+  });
+  const report = validateProject(project);
+  expect(report.errors).toBe(0);
+  expect(report.issues.map((i) => i.code)).toEqual(['continue-no-next']);
+  expect(report.issues[0].message).toContain('Dia_ch01_001-8');
+  // 点它跳到挂着这个选项的那一行
+  expect(report.issues[0].lineUid).toBe('u1');
 });
 
 it('选项指的段落被删掉了：报必须修复', () => {

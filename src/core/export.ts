@@ -52,6 +52,8 @@ import {
   characterNameKeyOf,
   firstLineIdOf,
   groupUidOfFirstLine,
+  isContinueTarget,
+  nextReadableId,
   textIdOf,
 } from './ids';
 import { collectNameEntries } from './localization';
@@ -140,7 +142,7 @@ export function buildRows(project: Project): ExportRowSets {
         for (const optionUid of line.optionIds) {
           const option = group.options.find((o) => o.uid === optionUid);
           if (option === undefined) continue; // 悬空引用交由校验层报告
-          pushOption(option, ref, groupOf, idOf, project.commands, options, locale);
+          pushOption(option, line.readableId, ref, groupOf, idOf, project.commands, options, locale);
         }
       }
     }
@@ -293,6 +295,8 @@ function firstLineIdOfGroup(groupOf: Map<string, Group>, groupUid: string): stri
 
 function pushOption(
   option: StoryOption,
+  /** 挂着这个选项的那一行的可读 ID：选「继续对话」时按它算下一句 */
+  ownerLineId: string,
   ref: RefFn,
   groupOf: Map<string, Group>,
   idOf: Map<string, string>,
@@ -308,8 +312,11 @@ function pushOption(
     // 条件是指令文本，原样写出；指向各表的参数把 uid 翻成可读 ID
     formatArrayLiteral(option.appearConditions.map(translate)),
     formatArrayLiteral(option.enableConditions.map(translate)),
+    // 「继续对话」现算成「选项所在那一行的 ID 尾号 +1」；
     // 「跳转到首句对话」记的是段落，这里现取该段落当时的第一句
-    resolveNext(option.nextId, ref, groupOf),
+    isContinueTarget(option.nextId)
+      ? nextReadableId(ownerLineId)
+      : resolveNext(option.nextId, ref, groupOf),
   ]);
 
   locale.push([textIdOf(option.readableId), option.text.zh, option.text.en, option.text.ja]);

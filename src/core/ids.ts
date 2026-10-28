@@ -104,6 +104,29 @@ export function groupUidOfFirstLine(value: string): string | null {
   return value.startsWith(FIRST_LINE_PREFIX) ? value.slice(FIRST_LINE_PREFIX.length) : null;
 }
 
+/**
+ * 选项「继续对话」的占位值。
+ *
+ * 它不指向具体某一行，意思是"接着往下播"：导出时现算成「选项所在那一行的 ID 尾号 +1」，
+ * 这样段落里插行、拖顺序、删行之后不用手动改跳转。
+ */
+export const CONTINUE_TARGET = '@continue';
+
+export function isContinueTarget(value: string): boolean {
+  return value === CONTINUE_TARGET;
+}
+
+/**
+ * 可读 ID 的尾号 +1：`Dia_ch01_001-2` → `Dia_ch01_001-3`。
+ *
+ * 没有尾号（或空串）时返回空串，由调用方当成"算不出来"处理。
+ */
+export function nextReadableId(readableId: string): string {
+  const matched = /^(.*?)(\d+)$/.exec(readableId.trim());
+  if (matched === null) return '';
+  return `${matched[1]}${Number(matched[2]) + 1}`;
+}
+
 /** 段落的"第一句"是哪一行；空段落返回空串 */
 export function firstLineIdOf(group: Group): string {
   return group.lines[0]?.readableId ?? '';

@@ -6,7 +6,15 @@ import { createEmptyBattle } from './battle';
 import { buildSpecialCommand } from './command-build';
 import { escapeCsvField, parseCsv, toCsv, withBom, withoutBom } from './csv';
 import { formatArrayLiteral, parseArrayLiteral } from './array-literal';
-import { firstLineRef, makeLineId, makeOptionId, renumberGroup, textIdOf } from './ids';
+import {
+  CONTINUE_TARGET,
+  firstLineRef,
+  makeLineId,
+  makeOptionId,
+  nextReadableId,
+  renumberGroup,
+  textIdOf,
+} from './ids';
 import { DIALOGUE_HEADER, buildRows, countLines, exportWorkbook, type ExportRowSets } from './export';
 import type {
   CommandDef,
@@ -276,6 +284,41 @@ describe('导出：跳到首句与跳到段落', () => {
 
   it('选项选了「跳转到首句对话」：导出的下一对话ID 是目标段落当时的第一句', () => {
     expect(optionRow(makeJumpProject())[4]).toBe('Dia_ch01_002-1');
+  });
+
+  it('选项选了「继续对话」：下一对话ID 是选项所在那一行的 ID 尾号 +1', () => {
+    const project = makeJumpProject();
+    project.chapters[0].groups[0].options[0].nextId = CONTINUE_TARGET;
+
+    // 选项所在行是 Dia_ch01_001-2 → 下一句 Dia_ch01_001-3
+    expect(optionRow(project)[4]).toBe('Dia_ch01_001-3');
+  });
+
+  it('「继续对话」不跟具体某一句绑死：段落里插行重排之后跟着新的尾号走', () => {
+    const project = makeJumpProject();
+    const group = project.chapters[0].groups[0];
+    group.options[0].nextId = CONTINUE_TARGET;
+    group.lines.unshift(makeLine('u0', 'Dia_ch01_001-9', { text: { zh: '插在最前面', en: '', ja: '' } }));
+    renumberGroup(group, 'ch01');
+
+    // 选项行现在是 Dia_ch01_001-3 → 下一句 Dia_ch01_001-4
+    const rows = buildRows(project).options.slice(1);
+    expect(rows).toHaveLength(1);
+    expect(rows[0][4]).toBe('Dia_ch01_001-4');
+  });
+
+  it('选项选「对话结束」（空串）：下一对话ID 留空', () => {
+    const project = makeJumpProject();
+    project.chapters[0].groups[0].options[0].nextId = '';
+    expect(optionRow(project)[4]).toBe('');
+  });
+
+  it('可读 ID 尾号 +1：Dia_ch01_001-2 → Dia_ch01_001-3，尾号不是数字就留空', () => {
+    expect(nextReadableId('Dia_ch01_001-2')).toBe('Dia_ch01_001-3');
+    expect(nextReadableId('Dia_ch01_001-9')).toBe('Dia_ch01_001-10');
+    // 选项 ID 的尾巴是字母，算不出来
+    expect(nextReadableId('Dia_ch01_001-2A')).toBe('');
+    expect(nextReadableId('')).toBe('');
   });
 
   it('目标段落里插了一行之后，不用改选项，导出的首句跟着变', () => {

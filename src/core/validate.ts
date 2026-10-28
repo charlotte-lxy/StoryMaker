@@ -13,7 +13,7 @@ import {
   isReferenceSource,
   parseCommandText,
 } from './command-build';
-import { groupUidOfFirstLine, textIdOf } from './ids';
+import { groupUidOfFirstLine, isContinueTarget, nextReadableId, textIdOf } from './ids';
 import { collectNameEntries } from './localization';
 import { collectRefUids, looksLikeUid } from './refs';
 import type { Group, LocalizedText, Project } from './types';
@@ -55,6 +55,7 @@ export type IssueCode =
   | 'jump-no-target'
   | 'jump-dangling'
   | 'jump-empty-group'
+  | 'continue-no-next'
   | 'dangling-option'
   | 'orphan-option'
   | 'empty-text'
@@ -455,9 +456,26 @@ export function validateProject(project: Project): ValidationReport {
           });
         }
 
-        const firstLineGroupUid = groupUidOfFirstLine(option.nextId);
-        if (firstLineGroupUid !== null) {
+        if (isContinueTarget(option.nextId)) {
+          // 「继续对话」导出成「选项所在那一行 ID 尾号 +1」：后面得有下一句，
+          // 不然导出的目标是个不存在的 ID
+          const ownerLine = group.lines.find((item) => item.uid === lineUid);
+          const at = ownerLine === undefined ? -1 : group.lines.indexOf(ownerLine);
+          const ownerLineId = ownerLine?.readableId ?? option.readableId;
+          if (at < 0 || group.lines[at + 1] === undefined) {
+            issues.push({
+              level: 'warning',
+              code: 'continue-no-next',
+              targetId: option.readableId,
+              where,
+              message: `这个选项选了「继续对话」，但后面没有下一句了，导出时下一对话ID 会写成「${nextReadableId(ownerLineId)}」（这一句不存在）`,
+              lineUid,
+              groupUid: group.uid,
+            });
+          }
+        } else if (groupUidOfFirstLine(option.nextId) !== null) {
           // 「跳转到首句对话」记的是段落：看段落还在不在、里面有没有对话
+          const firstLineGroupUid = groupUidOfFirstLine(option.nextId) ?? '';
           const targetGroup = groupByUid.get(firstLineGroupUid);
           const targetChapter = groupChapter.get(firstLineGroupUid);
           if (targetGroup === undefined) {
