@@ -4,29 +4,39 @@ import { createEmptyBattle } from '../core/battle';
 
 import type { Line, Project } from '../core/types';
 import {
+  addAssetCategory,
+  addCharacter,
   addCommandDef,
   addCommandModule,
-  addAssetCategory,
+  addExpression,
   addLookupRow,
+  addPlayPosition,
   addUiText,
   collectGroupedLineRefs,
   commandModulesOf,
+  createEmptyProject,
   groupUidOfLine,
   insertLine,
   moveLines,
   moveLinesTogether,
   mutate,
-  removeCommandModule,
   removeAssetCategory,
+  removeCommandModule,
+  removeExpression,
   removeLines,
+  removePlayPosition,
   removeUiText,
   renameCommandBranch,
   renameCommandModule,
   renameCommandParam,
   renumberOneGroup,
+  reorderCharacter,
   reorderCommandParam,
   reorderLine,
+  reorderLookupRow,
   updateAssetCategory,
+  updateExpression,
+  updatePlayPosition,
   updateTextByUid,
   updateUiText,
 } from './operations';
@@ -53,6 +63,8 @@ function makeLine(uid: string, readableId: string, zh: string): Line {
 function makeProject(): Project {
   return {
     version: 1,
+    playPositions: [],
+    expressions: [],
     name: 'p',
     characters: [],
     sounds: [],
@@ -815,5 +827,164 @@ describe('资源分类（图片分类 / 音效类型）', () => {
     const empty = addLookupRow(addLookupRow(makeProject(), 'images'), 'sounds');
     expect(empty.images[0].categoryUid).toBe('');
     expect(empty.sounds[0].categoryUid).toBe('');
+  });
+});
+
+describe('播放位置配置', () => {
+  it('新增位置：名字不重，角色默认用第一个位置', () => {
+    const project = addPlayPosition(addPlayPosition(makeProject()));
+    expect(project.playPositions.map((row) => row.name)).toEqual(['新位置', '新位置2']);
+
+    const withCharacter = addCharacter(project);
+    expect(withCharacter.characters[0].playPosition).toBe(project.playPositions[0].uid);
+  });
+
+  it('改位置名：角色存的是 uid，引用不断', () => {
+    const project = makeProject();
+    project.playPositions = [{ uid: 'pos-1', name: '剧情对话框' }];
+    project.characters = [
+      {
+        uid: 'ch1',
+        id: 'CHA_1',
+        name: '一',
+        nameEn: '',
+        nameJa: '',
+        playPosition: 'pos-1',
+        aliases: [],
+        expressions: [],
+        actions: [],
+      },
+    ];
+
+    const next = updatePlayPosition(project, 'pos-1', { name: '旁白框' });
+    expect(next.playPositions[0].name).toBe('旁白框');
+    expect(next.characters[0].playPosition).toBe('pos-1');
+  });
+
+  it('删位置：用着它的角色挪到剩下的第一个位置', () => {
+    const project = makeProject();
+    project.playPositions = [
+      { uid: 'pos-1', name: '剧情对话框' },
+      { uid: 'pos-2', name: '战斗对话框' },
+    ];
+    project.characters = [
+      {
+        uid: 'ch1',
+        id: 'CHA_1',
+        name: '一',
+        nameEn: '',
+        nameJa: '',
+        playPosition: 'pos-2',
+        aliases: [],
+        expressions: [],
+        actions: [],
+      },
+    ];
+
+    const next = removePlayPosition(project, 'pos-2');
+    expect(next.playPositions.map((row) => row.uid)).toEqual(['pos-1']);
+    expect(next.characters[0].playPosition).toBe('pos-1');
+  });
+});
+
+describe('表情差分配置', () => {
+  /** 一个角色 + 一条用了「表情:微笑」的指令 */
+  function makeExpressionProject(): Project {
+    // 用带默认字典的项目：改表情名要能把指令里「表情:」参数一起改掉
+    const project = createEmptyProject();
+    project.expressions = [
+      { uid: 'ex-1', name: '微笑', id: 'smile' },
+      { uid: 'ex-2', name: '生气', id: 'angry' },
+    ];
+    project.characters = [
+      {
+        uid: 'ch1',
+        id: 'CHA_伊芙',
+        name: '伊芙',
+        nameEn: '',
+        nameJa: '',
+        playPosition: project.playPositions[0]?.uid ?? '',
+        aliases: [],
+        expressions: ['微笑', '生气'],
+        actions: [],
+      },
+    ];
+    project.chapters[0].groups[0].lines = [
+      {
+        ...makeLine('a', 'Dia_ch01_001-1', ''),
+        kind: '指令',
+        command: '剧情|演出|角色:ch1;表情:微笑',
+      },
+    ];
+    return project;
+  }
+
+  it('新增表情：名字不重，图片标识先等于名字', () => {
+    const project = addExpression(addExpression(makeExpressionProject()));
+    expect(project.expressions.map((row) => [row.name, row.id])).toEqual([
+      ['微笑', 'smile'],
+      ['生气', 'angry'],
+      ['新表情', '新表情'],
+      ['新表情2', '新表情2'],
+    ]);
+  });
+
+  it('改表情名：角色勾选与指令里的「表情:旧名」一起换', () => {
+    const project = updateExpression(makeExpressionProject(), 'ex-1', { name: '笑' });
+    expect(project.expressions[0].name).toBe('笑');
+    expect(project.characters[0].expressions).toEqual(['笑', '生气']);
+    expect(project.chapters[0].groups[0].lines[0].command).toBe('剧情|演出|角色:ch1;表情:笑');
+  });
+
+  it('改图片标识：只影响图片 ID，指令文本不动', () => {
+    const project = updateExpression(makeExpressionProject(), 'ex-1', { id: 'smile_v2' });
+    expect(project.expressions[0]).toMatchObject({ name: '微笑', id: 'smile_v2' });
+    expect(project.chapters[0].groups[0].lines[0].command).toBe('剧情|演出|角色:ch1;表情:微笑');
+  });
+
+  it('删表情：角色勾选跟着删，指令文本留着', () => {
+    const project = removeExpression(makeExpressionProject(), 'ex-1');
+    expect(project.expressions.map((row) => row.name)).toEqual(['生气']);
+    expect(project.characters[0].expressions).toEqual(['生气']);
+    expect(project.chapters[0].groups[0].lines[0].command).toBe('剧情|演出|角色:ch1;表情:微笑');
+  });
+});
+
+describe('拖拽排序', () => {
+  it('角色表 / 数据表按 from→to 换位置', () => {
+    const project = makeProject();
+    project.characters = ['甲', '乙', '丙'].map((name, index) => ({
+      uid: `ch${index}`,
+      id: `CHA_${index}`,
+      name,
+      nameEn: '',
+      nameJa: '',
+      playPosition: '',
+      aliases: [],
+      expressions: [],
+      actions: [],
+    }));
+    project.sounds = [
+      { uid: 's1', id: 'S_1', name: '' },
+      { uid: 's2', id: 'S_2', name: '' },
+      { uid: 's3', id: 'S_3', name: '' },
+    ];
+
+    expect(reorderCharacter(project, 2, 0).characters.map((row) => row.name)).toEqual([
+      '丙',
+      '甲',
+      '乙',
+    ]);
+    expect(reorderLookupRow(project, 'sounds', 0, 2).sounds.map((row) => row.id)).toEqual([
+      'S_2',
+      'S_3',
+      'S_1',
+    ]);
+    // 越界不动
+    expect(reorderCharacter(project, 0, 9).characters.map((row) => row.name)).toEqual([
+      '甲',
+      '乙',
+      '丙',
+    ]);
   });
 });

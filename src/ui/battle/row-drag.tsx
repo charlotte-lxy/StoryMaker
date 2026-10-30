@@ -7,8 +7,11 @@ import { useState, type DragEvent } from 'react';
  * 整行可拖会跟"在输入框里拖选文字"打架。
  */
 export interface RowDrag {
-  /** 挂到 <tr> 上 */
-  rowProps: (index: number) => {
+  /** 挂到 <tr> 上；extraClass 用来叠上如 flash 之类的一次性样式 */
+  rowProps: (
+    index: number,
+    extraClass?: string,
+  ) => {
     className: string;
     onDragOver: (event: DragEvent<HTMLTableRowElement>) => void;
     onDrop: (event: DragEvent<HTMLTableRowElement>) => void;
@@ -33,9 +36,10 @@ export function useRowDrag(onReorder: (from: number, to: number) => void): RowDr
   };
 
   return {
-    rowProps: (index) => ({
+    rowProps: (index, extraClass = '') => ({
       className: [
         'line-row',
+        extraClass,
         dragIndex === index ? 'dragging' : '',
         dragIndex !== null && overIndex === index && dragIndex !== index ? 'drop-target' : '',
       ]

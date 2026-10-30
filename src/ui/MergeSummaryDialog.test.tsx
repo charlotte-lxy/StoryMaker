@@ -14,6 +14,8 @@ afterEach(() => {
 function makeProject(): Project {
   return {
     version: 1,
+    playPositions: [],
+    expressions: [],
     name: '测试项目',
     characters: [{ uid: 'c1', id: 'CHA_甲', name: '甲', playPosition: '剧情对话框', nameEn: '', nameJa: '', aliases: [], expressions: [], actions: [] }],
     items: [],

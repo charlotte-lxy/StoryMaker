@@ -75,6 +75,8 @@ function makeOption(uid: string, readableId: string, over: Partial<StoryOption> 
 function makeProject(group: Partial<Group>): Project {
   return {
     version: 1,
+    playPositions: [],
+    expressions: [],
     name: 'p',
     // 默认那一行对话引用的是这个角色（老数据里按角色 ID 写也算认得出来）；
     // 角色名的译文先给全：本地化校验的用例各自管自己那几条，别每次多出一条角色名

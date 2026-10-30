@@ -12,6 +12,8 @@
  * 所以分类改名不会把图片行写坏。
  */
 
+import { texturePath } from './asset-path';
+import { collectExpressionImages } from './expression-images';
 import type { Project } from './types';
 
 export const IMAGE_SHEET = '图片';
@@ -33,28 +35,33 @@ export function defaultImageCategoryPath(name: string): string {
  * 分类路径或图片 ID 缺一个就返回空串（导出「图片」列留空，由校验条提醒）。
  */
 export function imageAssetPath(categoryPath: string, imageId: string): string {
-  const folder = categoryPath.trim().replace(/\/+$/, '');
-  const id = imageId.trim();
-  if (folder === '' || id === '') return '';
-  return `/Script/Engine.Texture2D'${folder}/${id}.${id}'`;
+  return texturePath(categoryPath, imageId);
 }
 
 /** 生成「图片」子表的行（表头 + 数据行） */
 export function buildImageRows(project: Project): string[][] {
   const categories = new Map(project.imageCategories.map((row) => [row.uid, row]));
 
-  return [
-    [...IMAGE_HEADER],
-    ...project.images
-      .filter((row) => row.id.trim() !== '')
-      .map((row) => {
-        const category = categories.get(row.categoryUid ?? '');
-        return [
-          row.id.trim(),
-          category?.name ?? '',
-          row.name,
-          imageAssetPath(category?.path ?? '', row.id),
-        ];
-      }),
-  ];
+  const rows: string[][] = [[...IMAGE_HEADER]];
+
+  for (const row of project.images) {
+    if (row.id.trim() === '') continue;
+    const category = categories.get(row.categoryUid ?? '');
+    rows.push([
+      row.id.trim(),
+      category?.name ?? '',
+      row.name,
+      imageAssetPath(category?.path ?? '', row.id),
+    ]);
+  }
+
+  // 角色模块里勾的表情差分也各是一条图片：自动收集，接在手填的图片后面；
+  // 手填那边已经有同名 ID 的，以手填那行为准（不重复导出）
+  const taken = new Set(project.images.map((row) => row.id.trim()));
+  for (const image of collectExpressionImages(project)) {
+    if (taken.has(image.id)) continue;
+    rows.push([image.id, image.categoryName, image.note, image.path]);
+  }
+
+  return rows;
 }

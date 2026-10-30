@@ -7,6 +7,8 @@ import { resolveConflicts, resolveFirstContact } from './resolve';
 function makeProject(name = '测试项目'): Project {
   return {
     version: 1,
+    playPositions: [],
+    expressions: [],
     name,
     characters: [{ uid: 'c1', id: 'CHA_甲', name: '甲', playPosition: '剧情对话框', nameEn: '', nameJa: '', aliases: [], expressions: [], actions: [] }],
     items: [],

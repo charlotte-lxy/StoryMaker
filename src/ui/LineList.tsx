@@ -22,7 +22,7 @@ import {
   SPECIAL_COMMAND_PARAM,
   type CommandTargets,
 } from '../core/command-build';
-import type { Character, CommandDef, Group, Line, StoryOption } from '../core/types';
+import type { Character, CommandDef, Group, Line, PlayPositionRow, StoryOption } from '../core/types';
 import type { GroupLineRefs } from '../state/operations';
 import { lineSequenceOf } from '../core/ids';
 import { looksLikeUid } from '../core/refs';
@@ -42,6 +42,8 @@ interface Props {
   /** 本章的段落：供「跳转到段落」行选目标 */
   groupChoices: GroupChoice[];
   characters: Character[];
+  /** 播放位置配置：角色身上存的是 uid，这里翻回名字显示 */
+  playPositions: PlayPositionRow[];
   /** 指令字典与各数据表整理出的下拉候选 */
   commandDefs: CommandDef[];
   commandTargets: CommandTargets;
@@ -229,7 +231,11 @@ export function LineList(props: Props) {
         const hasNote = line.note.trim() !== '';
         const character = props.characters.find((item) => item.uid === line.characterUid);
         /** 这一行选的角色的播放位置；没选角色、或引用已经失效时为空 */
-        const playPosition = character?.playPosition ?? '';
+        const playPosition =
+          character === undefined
+            ? ''
+            : (props.playPositions.find((row) => row.uid === character.playPosition)?.name ??
+              character.playPosition);
         /** 选中的别名已经不在这个角色的别名里（角色表里删了 / 老数据没收进来） */
         const danglingAlias =
           line.displayAliasUid.trim() !== '' &&

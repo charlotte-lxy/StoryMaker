@@ -108,6 +108,8 @@ function makeProject(): Project {
 
   return {
     version: 1,
+    playPositions: [],
+    expressions: [],
     name: '战斗测试',
     characters: [],
     items: [],

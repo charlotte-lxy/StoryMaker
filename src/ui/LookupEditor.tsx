@@ -1,5 +1,7 @@
 import type { AssetCategoryRow, LookupRow, Project } from '../core/types';
+import { collectExpressionImages } from '../core/expression-images';
 import type { CategoryKind, LookupKind } from '../state/operations';
+import { OrderCell, useRowDrag } from './battle/row-drag';
 import { useScrollMemory } from './view-memory';
 
 interface LookupMeta {
@@ -55,6 +57,8 @@ interface Props {
   onAdd: (kind: LookupKind) => void;
   onRemove: (kind: LookupKind, uid: string) => void;
   onUpdate: (kind: LookupKind, uid: string, patch: Partial<LookupRow>) => void;
+  /** 表格行拖拽排序 */
+  onReorder: (kind: LookupKind, from: number, to: number) => void;
   /** 分类表（只有立绘 / 音效页有） */
   onAddCategory: (kind: CategoryKind) => void;
   onRemoveCategory: (kind: CategoryKind, uid: string) => void;
@@ -140,12 +144,65 @@ function AssetCategoryTable({
   );
 }
 
+/**
+ * 表情图片列表（只在立绘页出现）。
+ *
+ * 角色模块里勾了哪些表情，这里就自动有一条图片：ID = PIC_<角色ID>-<表情标识>，
+ * 分类固定是「角色立绘」，路径是「分类路径/<角色ID>/<图片ID>」。
+ * 这张表不存盘，供核对与导出用。
+ */
+function ExpressionImageTable({ project }: { project: Project }) {
+  const images = collectExpressionImages(project);
+
+  return (
+    <section className="image-categories expression-images">
+      <div className="lookup-subhead">
+        <h3>表情图片（自动收集）</h3>
+        <span className="hint">
+          角色模块里勾了表情，这里就自动有一条：ID = PIC_角色ID-表情标识，分类「角色立绘」，
+          路径「分类路径/角色ID/图片ID」。导出「图片」子表时会自动接在下面。
+        </span>
+      </div>
+
+      {images.length === 0 ? (
+        <div className="empty-state">
+          还没有表情图片。去角色模块给角色勾几个表情差分，这里就会自动出现。
+        </div>
+      ) : (
+        <table className="lines">
+          <thead>
+            <tr>
+              <th style={{ width: '30%' }}>图片 ID</th>
+              <th style={{ width: 120 }}>角色</th>
+              <th style={{ width: 100 }}>表情</th>
+              <th style={{ width: 120 }}>图片分类</th>
+              <th>图片路径</th>
+            </tr>
+          </thead>
+          <tbody>
+            {images.map((image) => (
+              <tr className="line-row" key={image.id}>
+                <td className="command-cell">{image.id}</td>
+                <td className="command-cell">{image.characterName}</td>
+                <td className="command-cell">{image.expression}</td>
+                <td className="command-cell">{image.categoryName}</td>
+                <td className="command-cell">{image.path}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
+
 export function LookupEditor({
   project,
   kind,
   onAdd,
   onRemove,
   onUpdate,
+  onReorder,
   onAddCategory,
   onRemoveCategory,
   onUpdateCategory,
@@ -158,6 +215,7 @@ export function LookupEditor({
   const categories: AssetCategoryRow[] =
     categoryMeta === undefined ? [] : project[categoryMeta.kind];
   const categoryByUid = new Map(categories.map((row) => [row.uid, row]));
+  const drag = useRowDrag((from, to) => onReorder(kind, from, to));
 
   const idCounts = new Map<string, number>();
   for (const row of rows) idCounts.set(row.id, (idCounts.get(row.id) ?? 0) + 1);
@@ -192,22 +250,24 @@ export function LookupEditor({
         <table className="lines">
           <thead>
             <tr>
-              <th style={{ width: categoryMeta === undefined ? '36%' : '26%' }}>ID</th>
+              <th className="cell-order" title="按住把手上下拖动可调整顺序" />
+              <th style={{ width: categoryMeta === undefined ? '34%' : '24%' }}>ID</th>
               {categoryMeta !== undefined && <th style={{ width: 170 }}>{categoryMeta.column}</th>}
               <th>说明</th>
               <th style={{ width: 86 }}>操作</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => {
+            {rows.map((row, index) => {
               const categoryUid = row.categoryUid ?? '';
               const category = categoryByUid.get(categoryUid);
               return (
                 <tr
                   key={row.uid}
-                  className={`line-row${focusUid === row.uid ? ' flash' : ''}`}
+                  {...drag.rowProps(index, focusUid === row.uid ? 'flash' : '')}
                   data-search-uid={row.uid}
                 >
+                  <OrderCell index={index} drag={drag} />
                   <td>
                     <input
                       value={row.id}
@@ -254,6 +314,8 @@ export function LookupEditor({
           </tbody>
         </table>
       )}
+
+      {kind === 'images' && <ExpressionImageTable project={project} />}
     </div>
   );
 }

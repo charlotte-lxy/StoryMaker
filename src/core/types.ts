@@ -126,14 +126,32 @@ export interface VariableDecl {
 /**
  * 角色对话的「播放位置」：这一句台词在哪儿显示。
  *
- * 存的就是中文选项名——导出时直接写进单元格，Unreal 那边认这三个串。
+ * 位置可以在角色页顶部那张小表里增删改；角色行存的是它的 uid，
+ * 所以改位置名不会把角色写坏。导出时把 uid 翻回名字写进「角色」子表。
  */
-export const PLAY_POSITIONS = ['剧情对话框', '战斗对话框', '屏幕中间'] as const;
+export interface PlayPositionRow {
+  uid: string;
+  /** 位置名，如「剧情对话框」 */
+  name: string;
+}
 
-export type PlayPosition = (typeof PLAY_POSITIONS)[number];
+/** 新建项目时预置的三个播放位置（和以前写死的三个一样，Unreal 那边认这几个串） */
+export const DEFAULT_PLAY_POSITION_NAMES = ['剧情对话框', '战斗对话框', '屏幕中间'] as const;
 
-/** 新建角色时的默认播放位置 */
-export const DEFAULT_PLAY_POSITION: PlayPosition = '剧情对话框';
+/**
+ * 表情差分配置（全局一张表）。
+ *
+ * 角色行里勾选自己有哪些表情差分（存表情名）；
+ * `id` 是图片 ID 里「-」后面那一段：图片 ID = `PIC_<角色ID>-<id>`，
+ * 所以「微笑」的 id 默认也叫「微笑」，想用英文（smile）就在这里改。
+ */
+export interface ExpressionRow {
+  uid: string;
+  /** 表情名，如「微笑」；角色行与指令「剧情|演出|…;表情:」里写的就是它 */
+  name: string;
+  /** 图片 ID 里那一段标识；空着就用表情名 */
+  id: string;
+}
 
 /**
  * 角色的一个别名（「显示名称」里除默认名称之外的那些写法）。
@@ -160,13 +178,13 @@ export interface Character {
   nameEn: string;
   /** 默认名称的日文 */
   nameJa: string;
-  /** 播放位置：剧情对话框 / 战斗对话框 / 屏幕中间 */
-  playPosition: PlayPosition;
+  /** 播放位置：存 PlayPositionRow 的 uid（改位置名不会断），导出时翻回名字 */
+  playPosition: string;
   /** 别名列表：同一角色的其他显示名（如「unknown」「HUD」） */
   aliases: CharacterAlias[];
   /**
-   * 该角色的表情差分清单，供指令「剧情|演出|…;表情:」这个参数的下拉使用。
-   * 不同角色的差分可以不同，所以挂在角色上而不是做成全局清单。
+   * 该角色有哪些表情差分（存表达式名，如「微笑」），从全局表情表里勾选。
+   * 供指令「剧情|演出|…;表情:」这个参数的下拉使用，也用来收集立绘里的表情图片。
    */
   expressions: string[];
   /** 该角色的动作清单，供指令「剧情|演出|…;动作:」这个参数的下拉使用 */
@@ -205,6 +223,12 @@ export interface AssetCategoryRow {
   name: string;
   /** 这一类资源在 Unreal 里的文件夹，如 /Game/GameContent/Asset/Image/StoryBackground */
   path: string;
+  /**
+   * 系统保留的分类：现在只有表情图片用的「角色立绘」。
+   *
+   * 名字和路径都能改，靠这个标记认出来——改完名表情图片仍然挂在它下面。
+   */
+  system?: 'expressionImages';
 }
 
 /**
@@ -448,6 +472,10 @@ export interface Project {
   version: 1;
   name: string;
   characters: Character[];
+  /** 播放位置配置（角色行用 uid 指着这里的某一条） */
+  playPositions: PlayPositionRow[];
+  /** 表情差分配置（全局一张表；角色行勾选自己有哪些） */
+  expressions: ExpressionRow[];
   /** 数据表：物品、任务、立绘、音效 */
   items: LookupRow[];
   quests: LookupRow[];

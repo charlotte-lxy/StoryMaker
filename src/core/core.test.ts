@@ -221,6 +221,8 @@ describe('导出：跳到首句与跳到段落', () => {
 
     return {
       version: 1,
+      playPositions: [],
+      expressions: [],
       name: '跳转测试',
       characters: [],
       sounds: [],
@@ -392,6 +394,8 @@ describe('导出：指令里指向对话行的目标翻译成对话 ID', () => {
   function makeProject(): Project {
     return {
       version: 1,
+      playPositions: [],
+      expressions: [],
       name: '指令目标翻译',
       characters: [],
       sounds: [],
@@ -506,6 +510,8 @@ describe('导出：特殊演出效果', () => {
   function makeProject(): Project {
     return {
       version: 1,
+      playPositions: [],
+      expressions: [],
       name: '特殊演出效果',
       characters: [],
       sounds: [],
@@ -594,6 +600,8 @@ describe('导出三张表', () => {
 
     return {
       version: 1,
+      playPositions: [],
+      expressions: [],
       name: '测试项目',
       characters: [],
       sounds: [],

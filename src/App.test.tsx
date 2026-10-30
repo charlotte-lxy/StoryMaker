@@ -230,22 +230,26 @@ describe('界面冒烟测试', () => {
     fireEvent.click(screen.getByText(/新增角色/));
 
     const position = screen.getByTitle(/播放位置/) as HTMLSelectElement;
-    expect([...position.options].map((option) => option.value)).toEqual([
+    // 下拉里存的是播放位置的 uid，显示的是位置名
+    expect([...position.options].map((option) => option.textContent)).toEqual([
       '剧情对话框',
       '战斗对话框',
       '屏幕中间',
     ]);
-    expect(position.value).toBe('剧情对话框');
+    expect(position.selectedOptions[0].textContent).toBe('剧情对话框');
 
-    fireEvent.change(position, { target: { value: '屏幕中间' } });
-    expect(position.value).toBe('屏幕中间');
+    const screenMiddle = [...position.options].find((option) => option.textContent === '屏幕中间');
+    fireEvent.change(position, { target: { value: screenMiddle?.value } });
+    expect(position.selectedOptions[0].textContent).toBe('屏幕中间');
   });
 
   it('对话列表里选好角色后，角色旁边标出这个角色的播放位置', async () => {
     await renderApp();
     fireEvent.click(within(rail()).getByText('角色'));
     fireEvent.click(screen.getByText(/新增角色/));
-    fireEvent.change(screen.getByTitle(/播放位置/), { target: { value: '战斗对话框' } });
+    const position = screen.getByTitle(/播放位置/) as HTMLSelectElement;
+    const battle = [...position.options].find((option) => option.textContent === '战斗对话框');
+    fireEvent.change(position, { target: { value: battle?.value } });
 
     fireEvent.click(within(rail()).getByText('剧情'));
     const characterSelect = screen.getByTitle('角色：导出时写入「角色ID」列') as HTMLSelectElement;
@@ -2237,42 +2241,51 @@ describe('立绘：图片分类与「图片」子表', () => {
     return container;
   };
 
-  it('图片分类表在图片表上方，新增分类会自动填好默认存储路径', async () => {
+  it('图片分类表在图片表上方；新项目自带「角色立绘」，新增分类会填好默认路径', async () => {
     const container = await openImages();
 
     // 两张表上下排：分类表在前
     const categories = container.querySelector('.image-categories') as HTMLElement;
     expect(categories).toBeTruthy();
     expect(categories.querySelector('h3')?.textContent).toBe('图片分类');
-    expect(screen.getByText(/还没有图片分类/)).toBeTruthy();
+    const categoryRows = () => [...categories.querySelectorAll('tbody tr')];
+    const inputsOf = (index: number) => [...categoryRows()[index].querySelectorAll('input')] as HTMLInputElement[];
+
+    // 感情图片要用它：新项目已经建好了这个分类
+    expect(inputsOf(0)[0].value).toBe('角色立绘');
+    expect(inputsOf(0)[1].value).toBe('/Game/GameContent/Asset/Image/CharacterIllusion');
 
     fireEvent.click(screen.getByText('＋ 新增分类'));
-
-    const nameInput = screen.getByPlaceholderText('例如：对话背景') as HTMLInputElement;
-    const pathInput = screen.getByPlaceholderText('/Game/GameContent/Asset/…/分类名') as HTMLInputElement;
-    expect(nameInput.value).toBe('新分类');
-    expect(pathInput.value).toBe('/Game/GameContent/Asset/Image/新分类');
+    const added = inputsOf(1);
+    // 已有一条分类，新增的叫「新分类2」
+    expect(added[0].value).toBe('新分类2');
+    expect(added[1].value).toBe('/Game/GameContent/Asset/Image/新分类2');
 
     // 改分类名：没动过的默认路径跟着改
-    fireEvent.change(nameInput, { target: { value: '对话背景' } });
-    expect(pathInput.value).toBe('/Game/GameContent/Asset/Image/对话背景');
+    fireEvent.change(added[0], { target: { value: '对话背景' } });
+    expect(added[1].value).toBe('/Game/GameContent/Asset/Image/对话背景');
   });
 
   it('图片行有「图片分类」下拉，能选分类表中的一项', async () => {
     const container = await openImages();
 
-    // 先建一个分类，再加一张图
+    // 再建一个分类，然后加一张图
     fireEvent.click(screen.getByText('＋ 新增分类'));
-    fireEvent.change(screen.getByPlaceholderText('例如：对话背景'), {
-      target: { value: '对话背景' },
-    });
+    const categories = container.querySelector('.image-categories') as HTMLElement;
+    const rows = [...categories.querySelectorAll('tbody tr')];
+    const nameInput = rows[rows.length - 1].querySelectorAll('input')[0] as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: '对话背景' } });
     fireEvent.click(screen.getByText('＋ 新增一行'));
 
     const imageTable = [...container.querySelectorAll('table')].pop() as HTMLElement;
     const select = imageTable.querySelector('select') as HTMLSelectElement;
-    expect([...select.options].map((option) => option.textContent)).toEqual(['（未选图片分类）', '对话背景']);
+    expect([...select.options].map((option) => option.textContent)).toEqual([
+      '（未选图片分类）',
+      '角色立绘',
+      '对话背景',
+    ]);
     // 新加的图默认选第一个分类
-    expect(select.selectedOptions[0].textContent).toBe('对话背景');
+    expect(select.selectedOptions[0].textContent).toBe('角色立绘');
   });
 
   it('导出预览的「图片」子表按分类路径拼出资源路径', async () => {
@@ -2526,5 +2539,110 @@ describe('右上角的校验结果', () => {
     fireEvent.click(badge());
     fireEvent.click([...document.querySelectorAll('.check-row')][2]); // 本地化
     expect(screen.getByText('剧情本地化')).toBeTruthy();
+  });
+});
+
+
+describe('角色页的配置区与表情图片', () => {
+  const openCharacters = async (): Promise<HTMLElement> => {
+    const { container } = await renderApp();
+    fireEvent.click(within(rail()).getByText('角色'));
+    return container;
+  };
+
+  it('播放位置配置表在角色表上方，能新增 / 改名，角色行下拉跟着变', async () => {
+    const container = await openCharacters();
+
+    const config = container.querySelector('.char-config') as HTMLElement;
+    expect(config).toBeTruthy();
+    const panels = [...config.querySelectorAll('.config-panel')] as HTMLElement[];
+    expect(panels.map((panel) => panel.querySelector('h3')?.textContent)).toEqual([
+      '播放位置',
+      '表情差分',
+    ]);
+
+    // 新项目预置了三个位置
+    const nameInputs = () => [...panels[0].querySelectorAll('tbody tr input')] as HTMLInputElement[];
+    expect(nameInputs().map((input) => input.value)).toEqual(['剧情对话框', '战斗对话框', '屏幕中间']);
+
+    fireEvent.click(within(panels[0]).getByText('＋ 新增位置'));
+    expect(nameInputs().map((input) => input.value)).toContain('新位置');
+
+    // 改个名字，角色行的下拉里就能看到新名字
+    const rows = [...panels[0].querySelectorAll('tbody tr')];
+    fireEvent.change(rows[0].querySelector('input') as HTMLInputElement, {
+      target: { value: '旁白框' },
+    });
+    fireEvent.click(screen.getByText(/新增角色/));
+    const positionSelect = screen.getByTitle(/播放位置/) as HTMLSelectElement;
+    expect([...positionSelect.options].map((option) => option.textContent)).toContain('旁白框');
+    expect(positionSelect.selectedOptions[0].textContent).toBe('旁白框');
+  });
+
+  it('表情表新增表情后，角色行能加它，立绘页自动收出 PIC_ 图片', async () => {
+    const container = await openCharacters();
+
+    const config = container.querySelector('.char-config') as HTMLElement;
+    const expressionPanel = ([...config.querySelectorAll('.config-panel')] as HTMLElement[])[1];
+    fireEvent.click(within(expressionPanel).getByText('＋ 新增表情'));
+    const rows = [...expressionPanel.querySelectorAll('tbody tr')];
+    const [nameInput, idInput] = [...rows[0].querySelectorAll('input')] as HTMLInputElement[];
+    fireEvent.change(nameInput, { target: { value: '微笑' } });
+    fireEvent.change(idInput, { target: { value: 'smile' } });
+
+    // 加个角色并勾上「微笑」
+    fireEvent.click(screen.getByText(/新增角色/));
+    const expressionSelect = screen.getByTitle(
+      '从表情差分配置表里选一个加到这个角色上',
+    ) as HTMLSelectElement;
+    expect([...expressionSelect.options].some((option) => option.value === '微笑')).toBe(true);
+    fireEvent.change(expressionSelect, { target: { value: '微笑' } });
+
+    // 立绘页：表情图片自动出来
+    fireEvent.click(within(rail()).getByText('立绘'));
+    const section = container.querySelector('.expression-images') as HTMLElement;
+    expect(section.querySelector('h3')?.textContent).toBe('表情图片（自动收集）');
+    const rowsText = [...section.querySelectorAll('tbody tr')].map((row) => row.textContent ?? '');
+    // 角色刚建时自带「默认」这些表情，这里找手动加的「微笑」那一条
+    const smileRow = rowsText.find((text) => text.includes('PIC_CHA_角色1-smile'));
+    expect(smileRow).toBeTruthy();
+    expect(smileRow).toContain('微笑');
+    expect(smileRow).toContain(
+      "/Script/Engine.Texture2D'/Game/GameContent/Asset/Image/CharacterIllusion/CHA_角色1/PIC_CHA_角色1-smile.PIC_CHA_角色1-smile'",
+    );
+  });
+
+  it('角色表、立绘表都能拖拽排序', async () => {
+    const container = await openCharacters();
+    fireEvent.click(screen.getByText(/新增角色/));
+    fireEvent.click(screen.getByText(/新增角色/));
+
+    const idInputs = () => screen.getAllByPlaceholderText('CHA_') as HTMLInputElement[];
+    fireEvent.change(idInputs()[0], { target: { value: 'CHA_A' } });
+    fireEvent.change(idInputs()[1], { target: { value: 'CHA_B' } });
+
+    const handles = [...container.querySelectorAll('.drag-handle')];
+    const firstRow = handles[0].closest('tr') as HTMLElement;
+    const secondRow = handles[1].closest('tr') as HTMLElement;
+    fireEvent.dragStart(handles[0], { dataTransfer: rowTransfer() });
+    fireEvent.dragOver(secondRow, { dataTransfer: rowTransfer() });
+    fireEvent.drop(secondRow, { dataTransfer: rowTransfer() });
+    expect(firstRow.className).not.toContain('dragging');
+    expect(idInputs().map((input) => input.value)).toEqual(['CHA_B', 'CHA_A']);
+
+    // 立绘表同样能拖
+    fireEvent.click(within(rail()).getByText('立绘'));
+    fireEvent.click(screen.getByText('＋ 新增一行'));
+    fireEvent.click(screen.getByText('＋ 新增一行'));
+    const imageIds = () => screen.getAllByDisplayValue(/^SCE_/) as HTMLInputElement[];
+    fireEvent.change(imageIds()[0], { target: { value: 'SCE_A' } });
+    fireEvent.change(imageIds()[1], { target: { value: 'SCE_B' } });
+
+    const imageHandles = [...container.querySelectorAll('.drag-handle')];
+    const imageSecond = imageHandles[1].closest('tr') as HTMLElement;
+    fireEvent.dragStart(imageHandles[0], { dataTransfer: rowTransfer() });
+    fireEvent.dragOver(imageSecond, { dataTransfer: rowTransfer() });
+    fireEvent.drop(imageSecond, { dataTransfer: rowTransfer() });
+    expect(imageIds().map((input) => input.value)).toEqual(['SCE_B', 'SCE_A']);
   });
 });

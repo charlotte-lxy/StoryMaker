@@ -11,6 +11,7 @@ import {
   formatCommandText,
   parseCommandText,
 } from '../core/command-build';
+import { EXPRESSION_IMAGE_CATEGORY, EXPRESSION_IMAGE_ROOT } from '../core/expression-images';
 import { defaultImageCategoryPath } from '../core/image-export';
 import { defaultSoundCategoryPath } from '../core/sound-export';
 import { defaultCommandDefs } from '../core/default-commands';
@@ -26,19 +27,21 @@ import {
 } from '../core/ids';
 import { DEFAULT_SPECIAL_COMMAND_CLASS_PREFIX } from '../core/special-commands';
 import {
-  DEFAULT_PLAY_POSITION,
+  DEFAULT_PLAY_POSITION_NAMES,
   type AssetCategoryRow,
   type Chapter,
   type CharacterAlias,
   type CommandDef,
   type CommandParamDef,
   type ExportSettingRow,
+  type ExpressionRow,
   type Group,
   type LangKey,
   type Line,
   type LineKind,
   type LocalizedText,
   type LookupRow,
+  type PlayPositionRow,
   type Project,
   type StoryOption,
   type ThemeName,
@@ -100,10 +103,18 @@ export function createEmptyProject(name = '未命名项目', theme: ThemeName | 
     version: 1,
     name,
     characters: [],
+    playPositions: DEFAULT_PLAY_POSITION_NAMES.map((position) => ({
+      uid: newUid(),
+      name: position,
+    })),
+    expressions: [],
     items: [],
     quests: [],
     images: [],
-    imageCategories: [],
+    // 「角色立绘」是表情图片要用的分类，先建好（名字与路径都能改）
+    imageCategories: [
+      { uid: newUid(), name: EXPRESSION_IMAGE_CATEGORY, path: EXPRESSION_IMAGE_ROOT },
+    ],
     soundCategories: [],
     sounds: [],
     commands: defaultCommandDefs(),
@@ -514,12 +525,15 @@ export function addCharacter(project: Project): Project {
       name: `角色${n}`,
       nameEn: '',
       nameJa: '',
-      playPosition: DEFAULT_PLAY_POSITION,
+      // 播放位置存 uid：默认用配置表里的第一个
+      playPosition: draft.playPositions[0]?.uid ?? '',
       aliases: [],
       // 建角色时给一份常用默认表情，可自行增删
       expressions: ['默认', '开心', '生气', '悲伤', '害羞'],
       actions: ['默认'],
     });
+    // 新角色用到的表情名补进全局表情表，立绘那边才能收集到图片
+    for (const name of ['默认', '开心', '生气', '悲伤', '害羞']) ensureExpression(draft, name);
   });
 }
 
@@ -527,6 +541,152 @@ export function removeCharacter(project: Project, characterUid: string): Project
   return mutate(project, (draft) => {
     draft.characters = draft.characters.filter((c) => c.uid !== characterUid);
   });
+}
+
+/** 角色表拖拽排序 */
+export function reorderCharacter(project: Project, from: number, to: number): Project {
+  return mutate(project, (draft) => {
+    moveItem(draft.characters, from, to);
+  });
+}
+
+/** 把一个数组里 from 那一项挪到 to（各处的拖拽排序共用；越界不动） */
+function moveItem<T>(list: T[], from: number, to: number): void {
+  if (from === to) return;
+  if (from < 0 || to < 0 || from >= list.length || to >= list.length) return;
+  const [moved] = list.splice(from, 1);
+  list.splice(to, 0, moved);
+}
+
+/** 全局表情表里没有这个名字就补一条（标识先等于名字） */
+function ensureExpression(project: Project, name: string): void {
+  const value = name.trim();
+  if (value === '' || project.expressions.some((row) => row.name.trim() === value)) return;
+  project.expressions.push({ uid: newUid(), name: value, id: value });
+}
+
+/* ---------- 播放位置配置 ---------- */
+
+export function addPlayPosition(project: Project): Project {
+  return mutate(project, (draft) => {
+    const taken = new Set(draft.playPositions.map((row) => row.name.trim()));
+    let n = 1;
+    while (taken.has(`新位置${n === 1 ? '' : n}`)) n += 1;
+    const name = `新位置${n === 1 ? '' : n}`;
+    draft.playPositions.push({ uid: newUid(), name });
+  });
+}
+
+export function updatePlayPosition(
+  project: Project,
+  uid: string,
+  patch: Partial<PlayPositionRow>,
+): Project {
+  return mutate(project, (draft) => {
+    const row = draft.playPositions.find((item) => item.uid === uid);
+    if (row !== undefined) Object.assign(row, patch);
+  });
+}
+
+/**
+ * 删一个播放位置。
+ *
+ * 角色存的是 uid，所以用着它的角色要挪到剩下的第一个位置，
+ * 不然导出的「播放位置」列会空着。
+ */
+export function removePlayPosition(project: Project, uid: string): Project {
+  return mutate(project, (draft) => {
+    draft.playPositions = draft.playPositions.filter((row) => row.uid !== uid);
+    const fallback = draft.playPositions[0]?.uid ?? '';
+    for (const character of draft.characters) {
+      if (character.playPosition === uid) character.playPosition = fallback;
+    }
+  });
+}
+
+/* ---------- 表情差分配置（全局） ---------- */
+
+export function addExpression(project: Project): Project {
+  return mutate(project, (draft) => {
+    const taken = new Set(draft.expressions.map((row) => row.name.trim()));
+    let n = 1;
+    while (taken.has(`新表情${n === 1 ? '' : n}`)) n += 1;
+    const name = `新表情${n === 1 ? '' : n}`;
+    draft.expressions.push({ uid: newUid(), name, id: name });
+  });
+}
+
+/**
+ * 改表情差分。
+ *
+ * 改表情名时，角色行里勾的、指令里「…;表情:旧名」写着的都一起换掉，
+ * 不然指令会静默失效；改标识（图片 ID 里那一段）只影响立绘那边的图片 ID。
+ */
+export function updateExpression(
+  project: Project,
+  uid: string,
+  patch: Partial<ExpressionRow>,
+): Project {
+  return mutate(project, (draft) => {
+    const row = draft.expressions.find((item) => item.uid === uid);
+    if (row === undefined) return;
+    const oldName = row.name.trim();
+    Object.assign(row, patch);
+    const newName = row.name.trim();
+    if (patch.name === undefined || oldName === newName) return;
+
+    for (const character of draft.characters) {
+      character.expressions = character.expressions.map((name) =>
+        name.trim() === oldName ? newName : name,
+      );
+    }
+    renameExpressionInCommands(draft, oldName, newName);
+  });
+}
+
+/** 删表情：角色行里勾的那个也一起删掉（指令里已经写下的值留着，由策划自己看） */
+export function removeExpression(project: Project, uid: string): Project {
+  return mutate(project, (draft) => {
+    const row = draft.expressions.find((item) => item.uid === uid);
+    if (row === undefined) return;
+    const name = row.name.trim();
+    draft.expressions = draft.expressions.filter((item) => item.uid !== uid);
+    for (const character of draft.characters) {
+      character.expressions = character.expressions.filter((item) => item.trim() !== name);
+    }
+  });
+}
+
+/** 把指令 / 条件里「表情」参数的值从旧表情名换成新表情名 */
+function renameExpressionInCommands(project: Project, oldName: string, newName: string): void {
+  const rewrite = (category: '条件' | '指令') => (text: string): string | null => {
+    const parsed = parseCommandText(text);
+    if (parsed === null) return null;
+    const def = findCommandDef(project.commands, category, parsed.head, parsed.branch);
+    if (def === undefined) return null;
+
+    const expressionParams = new Set(
+      def.params.filter((param) => param.source === 'expression').map((param) => param.name.trim()),
+    );
+    if (expressionParams.size === 0) return null;
+    const hit = parsed.params.some(
+      (param) => expressionParams.has(param.name) && param.value.trim() === oldName,
+    );
+    if (!hit) return null;
+
+    return formatCommandText(
+      parsed.head,
+      parsed.branch,
+      parsed.params.map((param) =>
+        expressionParams.has(param.name) && param.value.trim() === oldName
+          ? { name: param.name, value: newName }
+          : param,
+      ),
+    );
+  };
+
+  mapCommandTexts(project, '指令', rewrite('指令'));
+  mapCommandTexts(project, '条件', rewrite('条件'));
 }
 
 /* ---------- 角色的别名（「显示名称」里除默认名称之外的写法） ---------- */
@@ -610,6 +770,17 @@ export function updateLookupRow(
   return mutate(project, (draft) => {
     const row = draft[kind].find((item) => item.uid === uid);
     if (row !== undefined) Object.assign(row, patch);
+  });
+}
+
+export function reorderLookupRow(
+  project: Project,
+  kind: LookupKind,
+  from: number,
+  to: number,
+): Project {
+  return mutate(project, (draft) => {
+    moveItem(draft[kind], from, to);
   });
 }
 

@@ -23,16 +23,21 @@ import {
   parseCommandText,
 } from './command-build';
 import { defaultCommandDefs } from './default-commands';
+import {
+  EXPRESSION_IMAGE_CATEGORY,
+  EXPRESSION_IMAGE_ROOT,
+} from './expression-images';
 import { firstLineRef, groupUidOfFirstLine, makeLineId, newUid, renumberGroup, type IdChange } from './ids';
 import { collectRefMaps, collectRefUids } from './refs';
 import { DEFAULT_SPECIAL_COMMAND_CLASS_PREFIX } from './special-commands';
 import {
-  DEFAULT_PLAY_POSITION,
+  DEFAULT_PLAY_POSITION_NAMES,
   type BattleData,
   type Chapter,
   type Character,
   type CommandDef,
   type CommandParamDef,
+  type ExpressionRow,
   type GasModifier,
   type GasPair,
   type Group,
@@ -40,6 +45,7 @@ import {
   type LineKind,
   type LocalizedText,
   type ParamSource,
+  type PlayPositionRow,
   type Project,
   type StoryOption,
 } from './types';
@@ -142,8 +148,17 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
         uid: asUid(row.uid),
         name: asString(row.name),
         path: asString(row.path),
+        // 系统保留的分类（表情图片用的「角色立绘」）——名字可以改，靠这个标记认
+        ...(row.system === 'expressionImages'
+          ? { system: 'expressionImages' as const }
+          : {}),
       }));
   }
+
+  // 播放位置 / 表情差分也是后加的：老项目里角色存的是位置名，换成 uid 在角色收窄之后做
+  project.playPositions = readPlayPositions(project);
+  project.expressions = readExpressions(project);
+  ensureExpressionImageCategory(project);
 
   // UI 本地化：老项目里没有这栏，给个空表；已有的行也补齐字段，
   // 免得手改过的 JSON 让界面读到 undefined 的文本对象。
@@ -204,11 +219,8 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
       // 默认名称的译文：老版本存在 nameTexts 里，现在挂在角色上
       nameEn: asString(row.nameEn) || (legacy?.en ?? ''),
       nameJa: asString(row.nameJa) || (legacy?.ja ?? ''),
-      // 播放位置是后加的字段：老项目里没有，给默认值（空串也给默认）
-      playPosition:
-        asString(row.playPosition) === ''
-          ? DEFAULT_PLAY_POSITION
-          : (asString(row.playPosition) as Character['playPosition']),
+      // 播放位置：老项目里存的是位置名，下面 remapCharacterPlayPositions 统一换成 uid
+      playPosition: asString(row.playPosition),
       aliases: (Array.isArray(row.aliases) ? row.aliases : [])
         .filter(isRecord)
         .map((item) => ({
@@ -225,6 +237,9 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
         : [],
     };
   });
+
+  // 角色收窄之后再换播放位置：老数据里存的是位置名，换成对应位置的 uid
+  remapCharacterPlayPositions(project);
 
   const changes: IdChange[] = [];
   for (const chapter of project.chapters as (Chapter & { groups?: Group[] })[]) {
@@ -833,6 +848,98 @@ function ensureDefaultDef(project: Project, head: string, branch: string): void 
     (item) => item.category === '指令' && item.head === head && item.branch === branch,
   );
   if (def !== undefined) project.commands.push(def);
+}
+
+/* ---------- 播放位置 / 表情差分 ---------- */
+
+/** 播放位置表：老项目没有就预置三个默认位置 */
+function readPlayPositions(project: Project): PlayPositionRow[] {
+  const raw: unknown = project.playPositions;
+  const rows = (Array.isArray(raw) ? raw : [])
+    .filter(isRecord)
+    .map((row) => ({ uid: asUid(row.uid), name: asString(row.name).trim() }))
+    .filter((row) => row.name !== '');
+  if (rows.length > 0) return rows;
+  return DEFAULT_PLAY_POSITION_NAMES.map((name) => ({ uid: newUid(), name }));
+}
+
+/**
+ * 表情差分配置：老项目里表情是挂在角色身上的一串名字，
+ * 这里把它们收进全局表情表（图片 ID 标识先等于表情名）。
+ */
+function readExpressions(project: Project): ExpressionRow[] {
+  const raw: unknown = project.expressions;
+  const rows = (Array.isArray(raw) ? raw : [])
+    .filter(isRecord)
+    .map((row) => ({
+      uid: asUid(row.uid),
+      name: asString(row.name).trim(),
+      id: asString(row.id).trim(),
+    }))
+    .filter((row) => row.name !== '');
+
+  const names = new Set(rows.map((row) => row.name));
+  for (const character of project.characters) {
+    if (!Array.isArray(character.expressions)) {
+      character.expressions = [];
+      continue;
+    }
+    character.expressions = character.expressions
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter((item) => item !== '');
+    for (const name of character.expressions) {
+      if (names.has(name)) continue;
+      names.add(name);
+      rows.push({ uid: newUid(), name, id: name });
+    }
+  }
+  return rows;
+}
+
+/** 角色的播放位置：老数据里存的是位置名，换成对应位置的 uid */
+function remapCharacterPlayPositions(project: Project): void {
+  const positions = project.playPositions;
+  const byUid = new Set(positions.map((row) => row.uid));
+  const byName = new Map(positions.map((row) => [row.name, row]));
+
+  for (const character of project.characters) {
+    const value = asString(character.playPosition).trim();
+    // 空串、或者已经是 uid：空串指到第一个位置（和新建角色一样）
+    if (value === '') {
+      character.playPosition = positions[0]?.uid ?? '';
+      continue;
+    }
+    if (byUid.has(value)) continue;
+    const matched = byName.get(value);
+    if (matched !== undefined) {
+      character.playPosition = matched.uid;
+      continue;
+    }
+    // 手改过的、或以前自己起的位置名：补一条再指过去
+    const row: PlayPositionRow = { uid: newUid(), name: value };
+    positions.push(row);
+    byUid.add(row.uid);
+    byName.set(row.name, row);
+    character.playPosition = row.uid;
+  }
+}
+
+/** 表情图片要用「角色立绘」这个分类，缺了补上（已经有了就不动，名字/路径可以自己改） */
+function ensureExpressionImageCategory(project: Project): void {
+  const existing = project.imageCategories.find(
+    (row) => row.system === 'expressionImages' || row.name.trim() === EXPRESSION_IMAGE_CATEGORY,
+  );
+  if (existing !== undefined) {
+    existing.system = 'expressionImages';
+    return;
+  }
+  project.imageCategories.push({
+    uid: newUid(),
+    name: EXPRESSION_IMAGE_CATEGORY,
+    path: EXPRESSION_IMAGE_ROOT,
+    system: 'expressionImages',
+  });
 }
 
 /* ---------- 指令文本：老格式 → E2 ---------- */

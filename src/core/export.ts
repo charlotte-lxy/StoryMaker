@@ -148,13 +148,17 @@ export function buildRows(project: Project): ExportRowSets {
     }
   }
 
+  // 播放位置在角色身上存的是 uid，导出时翻回位置名；
+  // 手改过的文件里可能本来就是名字，找不到时原样写出去
+  const positionNames = new Map(project.playPositions.map((row) => [row.uid, row.name]));
+
   for (const character of project.characters) {
     // 角色 ID 是这张表的行名，也是本地化 key 的一段；没填的行导出也没法命名，跳过
     const id = character.id.trim();
     if (id === '') continue;
     characters.push([
       id,
-      character.playPosition,
+      positionNames.get(character.playPosition) ?? character.playPosition,
       // 显示名跟对话文本一样进本地化表，这一格写默认名称的 key（别名不导出）
       characterNameKeyOf(id),
       formatArrayLiteral(character.expressions),

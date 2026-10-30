@@ -579,3 +579,118 @@ describe('选项结果搬成新段落', () => {
     expect(result!.project.chapters[0].groups[0].options[0].nextId).toMatch(/^@first:/);
   });
 });
+
+describe('播放位置 / 表情差分 / 图片分类', () => {
+  it('老项目没有播放位置表：预置三个默认位置，角色的位置名换成 uid', () => {
+    const result = normalizeProject({
+      version: 1,
+      name: '老项目',
+      characters: [
+        {
+          uid: 'ch1',
+          id: 'CHA_伊芙',
+          name: '伊芙',
+          playPosition: '战斗对话框',
+          aliases: [],
+          expressions: [],
+          actions: [],
+        },
+      ],
+      chapters: [{ uid: 'c1', id: 'ch01', title: '序章', groups: [] }],
+    });
+
+    const project = result!.project;
+    expect(project.playPositions.map((row) => row.name)).toEqual([
+      '剧情对话框',
+      '战斗对话框',
+      '屏幕中间',
+    ]);
+    const battle = project.playPositions.find((row) => row.name === '战斗对话框');
+    expect(project.characters[0].playPosition).toBe(battle?.uid);
+  });
+
+  it('角色上自己起的位置名（不在默认三个里）也补一条位置', () => {
+    const result = normalizeProject({
+      version: 1,
+      name: '老项目',
+      characters: [
+        {
+          uid: 'ch1',
+          id: 'CHA_1',
+          name: '一',
+          playPosition: '旁白框',
+          aliases: [],
+          expressions: [],
+          actions: [],
+        },
+      ],
+      chapters: [{ uid: 'c1', id: 'ch01', title: '序章', groups: [] }],
+    });
+
+    const project = result!.project;
+    expect(project.playPositions.map((row) => row.name)).toContain('旁白框');
+    const row = project.playPositions.find((item) => item.name === '旁白框');
+    expect(project.characters[0].playPosition).toBe(row?.uid);
+  });
+
+  it('角色身上的表情名收进全局表情表（标识先等于名字），一条不重复', () => {
+    const result = normalizeProject({
+      version: 1,
+      name: '老项目',
+      characters: [
+        {
+          uid: 'ch1',
+          id: 'CHA_1',
+          name: '一',
+          playPosition: '',
+          aliases: [],
+          expressions: ['微笑', '生气', '微笑'],
+          actions: [],
+        },
+        {
+          uid: 'ch2',
+          id: 'CHA_2',
+          name: '二',
+          playPosition: '',
+          aliases: [],
+          expressions: ['生气', '害羞'],
+          actions: [],
+        },
+      ],
+      chapters: [{ uid: 'c1', id: 'ch01', title: '序章', groups: [] }],
+    });
+
+    const project = result!.project;
+    expect(project.expressions.map((row) => [row.name, row.id])).toEqual([
+      ['微笑', '微笑'],
+      ['生气', '生气'],
+      ['害羞', '害羞'],
+    ]);
+  });
+
+  it('自动补「角色立绘」分类（表情图片要用），已有同名分类就不重复加', () => {
+    const fresh = normalizeProject({
+      version: 1,
+      name: '老项目',
+      characters: [],
+      chapters: [{ uid: 'c1', id: 'ch01', title: '序章', groups: [] }],
+    });
+    const category = fresh!.project.imageCategories.find(
+      (row) => row.name === '角色立绘',
+    );
+    expect(category?.path).toBe('/Game/GameContent/Asset/Image/CharacterIllusion');
+    expect(category?.system).toBe('expressionImages');
+
+    const existing = normalizeProject({
+      version: 1,
+      name: '有分类的项目',
+      imageCategories: [{ uid: 'cat-1', name: '角色立绘', path: '/Game/Custom/Chars' }],
+      characters: [],
+      chapters: [{ uid: 'c1', id: 'ch01', title: '序章', groups: [] }],
+    });
+    const rows = existing!.project.imageCategories.filter((row) => row.name === '角色立绘');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].path).toBe('/Game/Custom/Chars');
+    expect(rows[0].system).toBe('expressionImages');
+  });
+});

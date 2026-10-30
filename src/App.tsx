@@ -17,9 +17,11 @@ import type {
   Character,
   CommandDef,
   CommandParamDef,
+  ExpressionRow,
   LangKey,
   Line,
   LookupRow,
+  PlayPositionRow,
   Project,
   StoryOption,
   UiTextRow,
@@ -38,6 +40,8 @@ import {
   addChapter,
   addCharacter,
   addCharacterAlias,
+  addExpression,
+  addPlayPosition,
   addCommandDef,
   addCommandModule,
   addCommandParam,
@@ -56,6 +60,8 @@ import {
   removeChapter,
   removeCharacter,
   removeCharacterAlias,
+  removeExpression,
+  removePlayPosition,
   removeCommandDef,
   removeCommandModule,
   removeCommandParam,
@@ -72,11 +78,15 @@ import {
   renameCommandParam,
   renameGroup,
   renumberOneGroup,
+  reorderCharacter,
   reorderCommandParam,
   reorderLine,
+  reorderLookupRow,
   setGroupNote,
   updateCharacterAlias,
   updateCommandDef,
+  updateExpression,
+  updatePlayPosition,
   updateCommandParam,
   updateAssetCategory,
   updateLookupRow,
@@ -1193,6 +1203,17 @@ export default function App() {
                   onUpdateAlias={(aliasUid, patch) =>
                     setProject((prev) => updateCharacterAlias(prev, aliasUid, patch))
                   }
+                  onAddPosition={() => setProject((prev) => addPlayPosition(prev))}
+                  onRemovePosition={(uid) => setProject((prev) => removePlayPosition(prev, uid))}
+                  onUpdatePosition={(uid, patch: Partial<PlayPositionRow>) =>
+                    setProject((prev) => updatePlayPosition(prev, uid, patch))
+                  }
+                  onAddExpression={() => setProject((prev) => addExpression(prev))}
+                  onRemoveExpression={(uid) => setProject((prev) => removeExpression(prev, uid))}
+                  onUpdateExpression={(uid, patch: Partial<ExpressionRow>) =>
+                    setProject((prev) => updateExpression(prev, uid, patch))
+                  }
+                  onReorder={(from, to) => setProject((prev) => reorderCharacter(prev, from, to))}
                 />
               )}
 
@@ -1230,6 +1251,9 @@ export default function App() {
                   onAdd={handleLookup.add}
                   onRemove={handleLookup.remove}
                   onUpdate={handleLookup.update}
+                  onReorder={(kind, from, to) =>
+                    setProject((prev) => reorderLookupRow(prev, kind, from, to))
+                  }
                   onAddCategory={(kind) => setProject((prev) => addAssetCategory(prev, kind))}
                   onRemoveCategory={(kind, uid) =>
                     setProject((prev) => removeAssetCategory(prev, kind, uid))
@@ -1379,6 +1403,7 @@ export default function App() {
                                   groupedLines={chapterGroups}
                                   groupChoices={chapterGroupChoices}
                                   characters={project.characters}
+                                  playPositions={project.playPositions}
                                   commandDefs={project.commands}
                                   commandTargets={commandTargets}
                                   flashLineUid={flashLineUid}

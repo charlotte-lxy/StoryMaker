@@ -47,6 +47,8 @@ function makeChapter(uid: string, id: string, title: string, groups: Group[]): C
 function makeProject(chapters: Chapter[]): Project {
   return {
     version: 1,
+    playPositions: [],
+    expressions: [],
     name: '流程测试',
     characters: [],
     items: [],
