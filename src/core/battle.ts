@@ -26,7 +26,7 @@ export const DEFAULT_SKILL_CLASS_PREFIX =
 export const DEFAULT_EFFECT_CLASS_PREFIX =
   "/Script/Engine.BlueprintGeneratedClass'/Game/GameContent/BP/GAS/GE/BSGE/";
 
-/** 空项目里战斗模块的样子：两张前缀表 + 六张空表 */
+/** 空项目里战斗模块的样子：两张前缀表 + 六张空表（武器页还有攻击模式 / 插槽两张配置表） */
 export function createEmptyBattle(): BattleData {
   return {
     skillClassPrefix: DEFAULT_SKILL_CLASS_PREFIX,
@@ -37,6 +37,8 @@ export function createEmptyBattle(): BattleData {
     events: [],
     characters: [],
     weapons: [],
+    attackModes: [],
+    slots: [],
   };
 }
 

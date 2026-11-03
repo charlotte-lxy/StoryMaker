@@ -9,6 +9,7 @@ import type {
   GasCharacter,
   GasEffect,
   GasModifier,
+  GasOptionRow,
   GasPair,
   GasSkill,
   GasWeapon,
@@ -81,6 +82,8 @@ export function addBattleRow(project: Project, key: BattleRowKey): Project {
         attackSpeed: '1',
         modifiers: [],
         skillUids: [],
+        attackModeUids: [],
+        slotUids: [],
       };
       draft.battle.weapons.push(row);
       return;
@@ -280,13 +283,58 @@ export function updatePair(
   });
 }
 
+/* ---------- 攻击模式 / 插槽配置（武器页顶部的两张小表） ---------- */
+
+/** 武器页顶部的两张配置表：显示名称 + 导出名称 */
+export type WeaponOptionKey = 'attackModes' | 'slots';
+
+const OPTION_LABEL: Record<WeaponOptionKey, string> = {
+  attackModes: '新攻击模式',
+  slots: '新插槽',
+};
+
+export function addWeaponOption(project: Project, key: WeaponOptionKey): Project {
+  return mutate(project, (draft) => {
+    const list = draft.battle[key];
+    const taken = new Set(list.map((row) => row.name.trim()));
+    let n = 1;
+    while (taken.has(`${OPTION_LABEL[key]}${n === 1 ? '' : n}`)) n += 1;
+    const name = `${OPTION_LABEL[key]}${n === 1 ? '' : n}`;
+    // 导出名称默认跟显示名称一样，策划可以改成 TXT_… / 插槽名
+    list.push({ uid: newUid(), name, exportName: name });
+  });
+}
+
+export function updateWeaponOption(
+  project: Project,
+  key: WeaponOptionKey,
+  uid: string,
+  patch: Partial<GasOptionRow>,
+): Project {
+  return mutate(project, (draft) => {
+    const row = draft.battle[key].find((item) => item.uid === uid);
+    if (row !== undefined) Object.assign(row, patch);
+  });
+}
+
+/** 删一条配置：武器的多选列表里也把它摘掉，免得留下悬空引用 */
+export function removeWeaponOption(project: Project, key: WeaponOptionKey, uid: string): Project {
+  return mutate(project, (draft) => {
+    draft.battle[key] = draft.battle[key].filter((row) => row.uid !== uid);
+    const field = key === 'attackModes' ? 'attackModeUids' : 'slotUids';
+    for (const weapon of draft.battle.weapons) {
+      weapon[field] = weapon[field].filter((item) => item !== uid);
+    }
+  });
+}
+
 /* ---------- 多选列表（锁定 GA / 监听事件 / 技能列表） ---------- */
 
 export function updateBattleList(
   project: Project,
   key: 'skills' | 'characters' | 'weapons',
   uid: string,
-  field: 'lockSkillUids' | 'listenEventUids' | 'skillUids',
+  field: 'lockSkillUids' | 'listenEventUids' | 'skillUids' | 'attackModeUids' | 'slotUids',
   values: string[],
 ): Project {
   return mutate(project, (draft) => {

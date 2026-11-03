@@ -103,6 +103,8 @@ function makeProject(): Project {
       attackSpeed: '1',
       modifiers: [modifier({ duration: '固定', attributeUid: 'a2', operator: '+', value: '40' })],
       skillUids: ['s1'],
+      attackModeUids: [],
+      slotUids: [],
     },
   ];
 
@@ -274,7 +276,40 @@ describe('战斗模块的导出', () => {
       '1',
       '("固定#移动速度+40")',
       '("GAS.技能.回血")',
+      // 没勾攻击模式 / 插槽时两列留空
+      '',
+      '',
     ]);
+  });
+
+  it('支持攻击模式列表写成 (A,B,C)、支持插槽列表写成 ("a","b")，都用导出名称', () => {
+    const project = makeProject();
+    project.battle.attackModes = [
+      { uid: 'am1', name: '手动攻击', exportName: 'TXT_AttackMode_手动攻击' },
+      { uid: 'am2', name: '自动攻击', exportName: 'TXT_AttackMode_自动攻击' },
+      { uid: 'am3', name: '点防御', exportName: 'TXT_AttackMode_点防御' },
+    ];
+    project.battle.slots = [
+      { uid: 'sl1', name: '槽一', exportName: '111' },
+      { uid: 'sl2', name: '槽二', exportName: '222' },
+    ];
+    project.battle.weapons[0].attackModeUids = ['am1', 'am2', 'am3'];
+    project.battle.weapons[0].slotUids = ['sl1', 'sl2'];
+
+    const row = buildBattleRows(project).weapons[1];
+    expect(row[7]).toBe('(TXT_AttackMode_手动攻击,TXT_AttackMode_自动攻击,TXT_AttackMode_点防御)');
+    expect(row[8]).toBe('("111","222")');
+  });
+
+  it('导出名称为空的那一条不写进去', () => {
+    const project = makeProject();
+    project.battle.attackModes = [
+      { uid: 'am1', name: '手动攻击', exportName: '  ' },
+      { uid: 'am2', name: '自动攻击', exportName: 'TXT_AttackMode_自动攻击' },
+    ];
+    project.battle.weapons[0].attackModeUids = ['am1', 'am2'];
+
+    expect(buildBattleRows(project).weapons[1][7]).toBe('(TXT_AttackMode_自动攻击)');
   });
 
   it('名字空着的行不进表', () => {

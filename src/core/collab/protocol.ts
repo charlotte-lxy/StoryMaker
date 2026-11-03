@@ -107,6 +107,8 @@ export const COLLECTIONS: readonly string[] = [
   'battle/characters/*/attributes',
   'battle/weapons',
   'battle/weapons/*/modifiers',
+  'battle/attackModes',
+  'battle/slots',
 ];
 
 /**

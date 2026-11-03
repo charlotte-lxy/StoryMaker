@@ -370,6 +370,24 @@ export interface GasWeapon {
   modifiers: GasModifier[];
   /** 技能列表：技能表那一行的 uid */
   skillUids: string[];
+  /** 支持攻击模式：攻击模式配置表那一行的 uid（改名字不会断） */
+  attackModeUids: string[];
+  /** 支持插槽：插槽配置表那一行的 uid */
+  slotUids: string[];
+}
+
+/**
+ * 武器用的「攻击模式 / 插槽」配置行。
+ *
+ * 界面下拉里显示 `name`，导出表里写 `exportName`（可以不一样：
+ * 攻击模式的导出名是本地化 key，比如 TXT_AttackMode_手动攻击；插槽就是它自己的名字）。
+ */
+export interface GasOptionRow {
+  uid: string;
+  /** 显示名称：写剧情时下拉里看到的 */
+  name: string;
+  /** 导出名称：写进导出表的那一串 */
+  exportName: string;
 }
 
 /**
@@ -389,6 +407,10 @@ export interface BattleData {
   events: GasEvent[];
   characters: GasCharacter[];
   weapons: GasWeapon[];
+  /** 武器的攻击模式配置（显示名称 + 导出名称） */
+  attackModes: GasOptionRow[];
+  /** 武器的插槽配置（显示名称 + 导出名称） */
+  slots: GasOptionRow[];
 }
 
 /**

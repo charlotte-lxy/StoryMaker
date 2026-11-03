@@ -2646,3 +2646,101 @@ describe('角色页的配置区与表情图片', () => {
     expect(imageIds().map((input) => input.value)).toEqual(['SCE_B', 'SCE_A']);
   });
 });
+
+
+describe('武器页：攻击模式与插槽', () => {
+  const openWeapons = async (): Promise<HTMLElement> => {
+    const { container } = await renderApp();
+    fireEvent.click(within(rail()).getByText('战斗'));
+    fireEvent.click(screen.getByText('武器'));
+    return container;
+  };
+
+  it('武器表上方是两张配置表（攻击模式 / 插槽），都能新增与改名', async () => {
+    const container = await openWeapons();
+
+    const config = container.querySelector('.char-config') as HTMLElement;
+    const panels = [...config.querySelectorAll('.config-panel')] as HTMLElement[];
+    expect(panels.map((panel) => panel.querySelector('h3')?.textContent)).toEqual([
+      '攻击模式',
+      '插槽',
+    ]);
+
+    fireEvent.click(within(panels[0]).getByText('＋ 新增攻击模式'));
+    const inputs = () => [...panels[0].querySelectorAll('tbody tr input')] as HTMLInputElement[];
+    expect(inputs().map((input) => input.value)).toEqual(['新攻击模式', '新攻击模式']);
+
+    // 显示名称与导出名称各改各的
+    fireEvent.change(inputs()[0], { target: { value: '手动攻击' } });
+    fireEvent.change(inputs()[1], { target: { value: 'TXT_AttackMode_手动攻击' } });
+    expect(inputs().map((input) => input.value)).toEqual(['手动攻击', 'TXT_AttackMode_手动攻击']);
+
+    fireEvent.click(within(panels[1]).getByText('＋ 新增插槽'));
+    const slotInputs = [...panels[1].querySelectorAll('tbody tr input')] as HTMLInputElement[];
+    expect(slotInputs.map((input) => input.value)).toEqual(['新插槽', '新插槽']);
+  });
+
+  it('武器行能多选攻击模式与插槽，下拉里显示的是显示名称', async () => {
+    const container = await openWeapons();
+    const config = container.querySelector('.char-config') as HTMLElement;
+    const panels = [...config.querySelectorAll('.config-panel')] as HTMLElement[];
+    fireEvent.click(within(panels[0]).getByText('＋ 新增攻击模式'));
+    const nameInput = panels[0].querySelector('tbody tr input') as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: '手动攻击' } });
+    fireEvent.click(within(panels[1]).getByText('＋ 新增插槽'));
+    const slotInput = panels[1].querySelector('tbody tr input') as HTMLInputElement;
+    fireEvent.change(slotInput, { target: { value: '主武器槽' } });
+
+    fireEvent.click(screen.getByText('＋ 新增武器'));
+
+    const toggles = screen.getAllByTitle(/勾选这把武器/);
+    expect(toggles).toHaveLength(3); // 技能 / 攻击模式 / 插槽
+    fireEvent.click(toggles[1]);
+    fireEvent.click(screen.getByText('手动攻击'));
+    fireEvent.click(toggles[2]);
+    fireEvent.click(screen.getByText('主武器槽'));
+
+    expect(toggles[1].textContent).toContain('手动攻击');
+    expect(toggles[2].textContent).toContain('主武器槽');
+  });
+
+  it('导出预览的 GAS武器 表多了两列，格式照着样例来', async () => {
+    const project = createEmptyProject();
+    project.battle.attackModes = [
+      { uid: 'am1', name: '手动攻击', exportName: 'TXT_AttackMode_手动攻击' },
+    ];
+    project.battle.slots = [{ uid: 'sl1', name: '主武器槽', exportName: '111' }];
+    project.battle.weapons = [
+      {
+        uid: 'w1',
+        id: 'WEA_测试-手枪',
+        name: '测试-手枪',
+        description: '',
+        magazine: '10',
+        attackSpeed: '1.000000',
+        modifiers: [],
+        skillUids: [],
+        attackModeUids: ['am1'],
+        slotUids: ['sl1'],
+      },
+    ];
+    seedProjectFile(JSON.stringify(project));
+
+    await renderApp();
+    fireEvent.click(within(rail()).getByText('导出'));
+    const tab = [...document.querySelectorAll('.export-nav')].find((item) =>
+      item.textContent?.startsWith('GAS武器'),
+    ) as HTMLElement;
+    fireEvent.click(tab);
+
+    const headers = [...document.querySelectorAll('.preview-table thead th')].map(
+      (th) => th.textContent,
+    );
+    expect(headers.slice(-2)).toEqual(['支持攻击模式列表', '支持插槽列表']);
+
+    const cells = [...document.querySelectorAll('.preview-table tbody tr.line-row td')].map(
+      (td) => td.textContent,
+    );
+    expect(cells.slice(-2)).toEqual(['(TXT_AttackMode_手动攻击)', '("111")']);
+  });
+});

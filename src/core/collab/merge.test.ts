@@ -73,6 +73,8 @@ function makeProject(): Project {
       events: [],
       characters: [],
       weapons: [],
+      attackModes: [],
+      slots: [],
     },
     specialCommandClassPrefix: '',
     exportSettings: [],

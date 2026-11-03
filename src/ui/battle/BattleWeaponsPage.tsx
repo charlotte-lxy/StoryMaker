@@ -1,13 +1,17 @@
-import type { Project } from '../../core/types';
+import type { GasOptionRow, Project } from '../../core/types';
 import {
   addBattleRow,
   addModifier,
+  addWeaponOption,
   removeBattleRow,
   removeModifier,
+  removeWeaponOption,
   reorderBattleRow,
   updateBattleList,
   updateBattleRow,
   updateModifier,
+  updateWeaponOption,
+  type WeaponOptionKey,
 } from '../../state/battle-operations';
 import { MultiSelect } from '../MultiSelect';
 import { ModifierList } from './ModifierList';
@@ -19,7 +23,13 @@ interface Props {
   onChange: (next: Project) => void;
 }
 
-/** 武器表：修改器列表的做法和效果表一样，技能列表和角色预设一样 */
+/**
+ * 武器页。
+ *
+ * 顶上两张配置小表：攻击模式 / 插槽（都带「显示名称 + 导出名称」，各条用 uid 绑定，
+ * 改名字只会改显示，导出跟着导出名称走）。下面才是武器表：
+ * 修改器列表的做法和效果表一样，技能列表 / 支持攻击模式 / 支持插槽都是多选。
+ */
 export function BattleWeaponsPage({ project, onChange }: Props) {
   const editorRef = useScrollMemory('battle:weapons');
   const rows = project.battle.weapons;
@@ -29,6 +39,10 @@ export function BattleWeaponsPage({ project, onChange }: Props) {
   const skillOptions = project.battle.skills
     .map((row) => ({ value: row.uid, label: row.name.trim() }))
     .filter((item) => item.label !== '');
+  const optionOf = (list: GasOptionRow[]) =>
+    list.map((row) => ({ value: row.uid, label: row.name.trim() })).filter((item) => item.label !== '');
+  const attackModeOptions = optionOf(project.battle.attackModes);
+  const slotOptions = optionOf(project.battle.slots);
   const drag = useRowDrag((from, to) => onChange(reorderBattleRow(project, 'weapons', from, to)));
 
   const counts = new Map<string, number>();
@@ -37,8 +51,89 @@ export function BattleWeaponsPage({ project, onChange }: Props) {
     counts.set(id, (counts.get(id) ?? 0) + 1);
   }
 
+  const optionTable = (key: WeaponOptionKey, title: string, hint: string) => {
+    const list = project.battle[key];
+    return (
+      <section className="config-panel">
+        <div className="lookup-subhead">
+          <h3>{title}</h3>
+          <span className="hint">{hint}</span>
+          <button
+            type="button"
+            className="primary"
+            onClick={() => onChange(addWeaponOption(project, key))}
+          >
+            ＋ 新增{key === 'attackModes' ? '攻击模式' : '插槽'}
+          </button>
+        </div>
+
+        {list.length === 0 ? (
+          <div className="empty-state">
+            还没有{key === 'attackModes' ? '攻击模式' : '插槽'}。先加一条，武器表里就能勾选它。
+          </div>
+        ) : (
+          <table className="lines">
+            <thead>
+              <tr>
+                <th>显示名称</th>
+                <th>导出名称</th>
+                <th style={{ width: 74 }}>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((row) => (
+                <tr className="line-row" key={row.uid}>
+                  <td>
+                    <input
+                      value={row.name}
+                      placeholder="界面下拉里显示的名字"
+                      onChange={(event) =>
+                        onChange(updateWeaponOption(project, key, row.uid, { name: event.target.value }))
+                      }
+                    />
+                  </td>
+                  <td>
+                    <input
+                      value={row.exportName}
+                      placeholder={key === 'attackModes' ? 'TXT_AttackMode_…' : '导出表里写的名字'}
+                      title="导出表里写这一串；留空的话这一条不会导出"
+                      onChange={(event) =>
+                        onChange(
+                          updateWeaponOption(project, key, row.uid, { exportName: event.target.value }),
+                        )
+                      }
+                    />
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className="mini danger"
+                      title="删掉这一条；武器里勾过它的也会一起去掉"
+                      onClick={() => onChange(removeWeaponOption(project, key, row.uid))}
+                    >
+                      删除
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+    );
+  };
+
   return (
     <div className="editor" ref={editorRef}>
+      <div className="char-config">
+        {optionTable(
+          'attackModes',
+          '攻击模式',
+          '武器能用的攻击方式；显示名称给下拉用，导出名称写进「支持攻击模式列表」',
+        )}
+        {optionTable('slots', '插槽', '武器支持的插槽；显示名称给下拉用，导出名称写进「支持插槽列表」')}
+      </div>
+
       <div className="editor-head">
         <h2>武器表</h2>
         <span className="hint">
@@ -66,6 +161,8 @@ export function BattleWeaponsPage({ project, onChange }: Props) {
                 <th style={{ width: 84 }}>攻击速度</th>
                 <th style={{ width: 340 }}>修改器列表</th>
                 <th style={{ width: 230 }}>技能列表</th>
+                <th style={{ width: 200 }}>支持攻击模式</th>
+                <th style={{ width: 180 }}>支持插槽</th>
                 <th style={{ width: 74 }}>操作</th>
               </tr>
             </thead>
@@ -138,6 +235,28 @@ export function BattleWeaponsPage({ project, onChange }: Props) {
                       placeholder="未选技能"
                       title="勾选这把武器带的技能"
                       onChange={(next) => onChange(updateBattleList(project, 'weapons', row.uid, 'skillUids', next))}
+                    />
+                  </td>
+                  <td>
+                    <MultiSelect
+                      values={row.attackModeUids}
+                      options={attackModeOptions}
+                      placeholder="未选攻击模式"
+                      title="勾选这把武器支持的攻击模式（显示名称，导出用导出名称）"
+                      onChange={(next) =>
+                        onChange(updateBattleList(project, 'weapons', row.uid, 'attackModeUids', next))
+                      }
+                    />
+                  </td>
+                  <td>
+                    <MultiSelect
+                      values={row.slotUids}
+                      options={slotOptions}
+                      placeholder="未选插槽"
+                      title="勾选这把武器支持的插槽（显示名称，导出用导出名称）"
+                      onChange={(next) =>
+                        onChange(updateBattleList(project, 'weapons', row.uid, 'slotUids', next))
+                      }
                     />
                   </td>
                   <td>

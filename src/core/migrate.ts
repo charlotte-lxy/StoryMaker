@@ -421,6 +421,19 @@ function normalizeBattle(input: unknown): BattleData {
       attackSpeed: text(row, 'attackSpeed'),
       modifiers: modifiers(row.modifiers),
       skillUids: refs(row, 'skillUids', 'skills'),
+      attackModeUids: names(row.attackModeUids),
+      slotUids: names(row.slotUids),
+    })),
+    // 攻击模式 / 插槽配置表是后加的：老项目没有就空表
+    attackModes: rows('attackModes').map((row) => ({
+      uid: asUid(row.uid),
+      name: text(row, 'name'),
+      exportName: text(row, 'exportName'),
+    })),
+    slots: rows('slots').map((row) => ({
+      uid: asUid(row.uid),
+      name: text(row, 'name'),
+      exportName: text(row, 'exportName'),
     })),
   };
 }

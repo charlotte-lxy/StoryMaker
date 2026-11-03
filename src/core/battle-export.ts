@@ -21,7 +21,7 @@ import {
   tagStructLiteral,
 } from './battle';
 import { attributeNameOf, eventNameOf, skillNameOf } from './refs';
-import type { BattleData, GasModifier, GasPair, Project } from './types';
+import type { BattleData, GasModifier, GasOptionRow, GasPair, Project } from './types';
 
 export const GAMEPLAY_TAGS_SHEET = 'GASGameplayTags';
 export const ATTRIBUTE_SHEET = 'GAS属性';
@@ -65,6 +65,8 @@ export const WEAPON_HEADER: readonly string[] = [
   '攻击速度',
   '修改器列表',
   '技能列表',
+  '支持攻击模式列表',
+  '支持插槽列表',
 ];
 
 export interface BattleSheetRows {
@@ -83,6 +85,36 @@ const boolText = (value: boolean): string => (value ? 'True' : 'False');
 /** 角色 / 武器的技能列表存的是技能表的 uid，导出成技能 Tag */
 const skillTags = (battle: BattleData, uids: readonly string[]): string[] =>
   uids.map((uid) => skillTag(skillNameOf(battle, uid))).filter((tag) => tag !== '');
+
+/**
+ * 武器用的攻击模式 / 插槽：存的是配置表那一行的 uid，导出写它的**导出名称**。
+ *
+ * 没填导出名的跳过（由校验条提醒），不往表里写半截东西。
+ */
+const optionNames = (rows: readonly GasOptionRow[], uids: readonly string[]): string[] =>
+  uids
+    .map((uid) => rows.find((row) => row.uid === uid)?.exportName.trim() ?? '')
+    .filter((name) => name !== '');
+
+/**
+ * 攻击模式列表按样例写成 `(A,B,C)`：名字不加引号（样例里是 TXT_AttackMode_* 这种 key）。
+ *
+ * 名字里带逗号 / 括号 / 引号会把这个格式写坏，所以顺手换成全角，
+ * 免得 Unreal 导入时解析出半截。
+ */
+const NAME_LIST_ESCAPE: Record<string, string> = {
+  ',': '，',
+  '(': '（',
+  ')': '）',
+  '"': '＂',
+};
+
+function formatNameList(names: readonly string[]): string {
+  const safe = names.map((name) =>
+    [...name].map((char) => NAME_LIST_ESCAPE[char] ?? char).join(''),
+  );
+  return safe.length === 0 ? '' : `(${safe.join(',')})`;
+}
 
 /** 监听事件列表同理，导出成事件 Tag */
 const eventTags = (battle: BattleData, uids: readonly string[]): string[] =>
@@ -178,6 +210,9 @@ export function buildBattleRows(project: Project): BattleSheetRows {
           row.attackSpeed,
           formatArrayLiteral(modifierTextsOf(battle, row.modifiers)),
           formatArrayLiteral(skillTags(battle, row.skillUids)),
+          // 攻击模式按样例不加引号；插槽是普通字符串数组（带引号）
+          formatNameList(optionNames(battle.attackModes, row.attackModeUids)),
+          formatArrayLiteral(optionNames(battle.slots, row.slotUids)),
         ]),
     ],
   };

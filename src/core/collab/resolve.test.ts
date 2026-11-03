@@ -32,6 +32,8 @@ function makeProject(name = '测试项目'): Project {
       events: [],
       characters: [],
       weapons: [],
+      attackModes: [],
+      slots: [],
     },
     specialCommandClassPrefix: '',
     exportSettings: [],
