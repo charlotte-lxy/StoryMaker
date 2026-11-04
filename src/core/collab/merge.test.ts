@@ -67,6 +67,7 @@ function makeProject(): Project {
     battle: {
       skillClassPrefix: '',
       effectClassPrefix: '',
+      weaponClassPrefix: '',
       attributes: [],
       effects: [],
       skills: [],

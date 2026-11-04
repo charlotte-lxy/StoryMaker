@@ -25,12 +25,28 @@ export const DEFAULT_SKILL_CLASS_PREFIX =
   "/Script/Engine.BlueprintGeneratedClass'/Game/GameContent/BP/GAS/GA/BSGA/";
 export const DEFAULT_EFFECT_CLASS_PREFIX =
   "/Script/Engine.BlueprintGeneratedClass'/Game/GameContent/BP/GAS/GE/BSGE/";
+/** 武器类的前缀：GAS武器 的「武器类」列由它 + BP_Weapon_<武器ID去WEA_> 拼成 */
+export const DEFAULT_WEAPON_CLASS_PREFIX =
+  "/Script/Engine.BlueprintGeneratedClass'/Game/GameContent/BP/Weapon/WeaponActors/";
 
-/** 空项目里战斗模块的样子：两张前缀表 + 六张空表（武器页还有攻击模式 / 插槽两张配置表） */
+/**
+ * 武器类名按武器 ID 推出来：`WEA_Test_Sniper` → `BP_Weapon_Test_Sniper`。
+ *
+ * 武器表界面上不填这一列，导出时现算（和样例 CSV 一致）。
+ */
+export function weaponClassName(weaponId: string): string {
+  const id = weaponId.trim();
+  if (id === '') return '';
+  const base = id.startsWith('WEA_') ? id.slice('WEA_'.length) : id;
+  return base === '' ? '' : `BP_Weapon_${base}`;
+}
+
+/** 空项目里战斗模块的样子：三张前缀表 + 六张空表（武器页还有攻击模式 / 插槽两张配置表） */
 export function createEmptyBattle(): BattleData {
   return {
     skillClassPrefix: DEFAULT_SKILL_CLASS_PREFIX,
     effectClassPrefix: DEFAULT_EFFECT_CLASS_PREFIX,
+    weaponClassPrefix: DEFAULT_WEAPON_CLASS_PREFIX,
     attributes: [],
     effects: [],
     skills: [],

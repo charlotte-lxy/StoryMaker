@@ -2112,6 +2112,18 @@ describe('导出模块', () => {
     await waitFor(() => expect(host.bridge.exportFile).toHaveBeenCalled());
   });
 
+  it('导入设置里能改「武器类」前缀，示例路径跟着变', async () => {
+    await openExport();
+
+    const input = screen.getByDisplayValue(
+      "/Script/Engine.BlueprintGeneratedClass'/Game/GameContent/BP/Weapon/WeaponActors/",
+    );
+    expect(screen.getByText(/BP_Weapon_Test_Sniper\.BP_Weapon_Test_Sniper_C/)).toBeTruthy();
+
+    fireEvent.change(input, { target: { value: '/Game/BP/Weapon/' } });
+    expect(screen.getByText(/\/Game\/BP\/Weapon\/BP_Weapon_Test_Sniper/)).toBeTruthy();
+  });
+
   it('导入设置能新增一行：三列都在，子表下拉列出所有参与导出的子表', async () => {
     await openExport();
     fireEvent.click(screen.getByText('＋ 新增数据表'));
@@ -2223,7 +2235,7 @@ describe('导出模块', () => {
 
     // 前缀在「Unreal 导入设置」里改，类名跟着变
     fireEvent.click(screen.getByText('Unreal导入设置'));
-    fireEvent.change(screen.getByDisplayValue(/^\/Script\/Engine\.BlueprintGeneratedClass/), {
+    fireEvent.change(screen.getAllByDisplayValue(/^\/Script\/Engine\.BlueprintGeneratedClass/)[0], {
       target: { value: "/Script/Engine.BlueprintGeneratedClass'/Game/BP/Cmd/" },
     });
 
@@ -2794,19 +2806,21 @@ describe('武器页：攻击模式与插槽', () => {
     const headers = [...document.querySelectorAll('.preview-table thead th')].map(
       (th) => th.textContent,
     );
-    expect(headers.slice(-3)).toEqual([
+    expect(headers.slice(-4)).toEqual([
       '支持攻击模式列表',
       '支持插槽列表',
       '武器图标',
+      '武器类',
     ]);
 
     const cells = [...document.querySelectorAll('.preview-table tbody tr.line-row td')].map(
       (td) => td.textContent,
     );
-    expect(cells.slice(-3)).toEqual([
+    expect(cells.slice(-4)).toEqual([
       '(TXT_AttackMode_手动攻击)',
       '("111")',
       'PIC_WEA_测试-手枪',
+      "/Script/Engine.BlueprintGeneratedClass'/Game/GameContent/BP/Weapon/WeaponActors/BP_Weapon_测试-手枪.BP_Weapon_测试-手枪_C'",
     ]);
   });
 });

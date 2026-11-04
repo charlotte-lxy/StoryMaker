@@ -12,6 +12,7 @@ import {
   modifierTexts,
   skillTag,
   tagStructLiteral,
+  weaponClassName,
 } from './battle';
 import {
   ATTRIBUTE_HEADER,
@@ -266,7 +267,7 @@ describe('战斗模块的导出', () => {
     ]);
   });
 
-  it('武器表：行名是武器 ID，修改器与技能列表都成数组，末尾带武器图标', () => {
+  it('武器表：行名是武器 ID，修改器与技能列表都成数组，末尾带武器图标与武器类', () => {
     expect(rows.weapons[0]).toEqual([...WEAPON_HEADER]);
     expect(rows.weapons[1]).toEqual([
       'WEA_测试-手枪',
@@ -281,7 +282,27 @@ describe('战斗模块的导出', () => {
       '',
       // 武器图标按武器 ID 现算：PIC_<武器ID>
       'PIC_WEA_测试-手枪',
+      // 武器类 = 前缀 + BP_Weapon_<武器ID去WEA_>
+      "/Script/Engine.BlueprintGeneratedClass'/Game/GameContent/BP/Weapon/WeaponActors/BP_Weapon_测试-手枪.BP_Weapon_测试-手枪_C'",
     ]);
+  });
+
+  it('武器类名按武器 ID 推：WEA_ 换成 BP_Weapon_；前缀改了就跟着变', () => {
+    expect(weaponClassName('WEA_Test_Sniper')).toBe('BP_Weapon_Test_Sniper');
+    expect(weaponClassName('WEA_')).toBe('');
+    expect(weaponClassName('')).toBe('');
+
+    const project = makeProject();
+    project.battle.weaponClassPrefix = "/Game/BP/Weapon/";
+    expect(buildBattleRows(project).weapons[1][10]).toBe(
+      "/Game/BP/Weapon/BP_Weapon_测试-手枪.BP_Weapon_测试-手枪_C'",
+    );
+  });
+
+  it('前缀为空时武器类这一列写 None（和样例一致）', () => {
+    const project = makeProject();
+    project.battle.weaponClassPrefix = '';
+    expect(buildBattleRows(project).weapons[1][10]).toBe('None');
   });
 
   it('支持攻击模式列表写成 (A,B,C)、支持插槽列表写成 ("a","b")，都用导出名称', () => {

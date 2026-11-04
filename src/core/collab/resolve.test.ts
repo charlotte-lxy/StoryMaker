@@ -26,6 +26,7 @@ function makeProject(name = '测试项目'): Project {
     battle: {
       skillClassPrefix: '',
       effectClassPrefix: '',
+      weaponClassPrefix: '',
       attributes: [],
       effects: [],
       skills: [],

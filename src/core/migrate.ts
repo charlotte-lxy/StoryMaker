@@ -14,7 +14,11 @@
  * 方便策划交给本地化同事同步 TXT_ 开头的 key。
  */
 
-import { DEFAULT_EFFECT_CLASS_PREFIX, DEFAULT_SKILL_CLASS_PREFIX } from './battle';
+import {
+  DEFAULT_EFFECT_CLASS_PREFIX,
+  DEFAULT_SKILL_CLASS_PREFIX,
+  DEFAULT_WEAPON_CLASS_PREFIX,
+} from './battle';
 import {
   buildCommandText,
   findCommandDef,
@@ -371,6 +375,7 @@ function normalizeBattle(input: unknown): BattleData {
   return {
     skillClassPrefix: asString(raw.skillClassPrefix) || DEFAULT_SKILL_CLASS_PREFIX,
     effectClassPrefix: asString(raw.effectClassPrefix) || DEFAULT_EFFECT_CLASS_PREFIX,
+    weaponClassPrefix: asString(raw.weaponClassPrefix) || DEFAULT_WEAPON_CLASS_PREFIX,
     attributes: rows('attributes').map((row) => ({
       uid: asUid(row.uid),
       name: text(row, 'name'),

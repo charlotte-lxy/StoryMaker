@@ -267,7 +267,7 @@ Vite + React 19 + TypeScript，导出用 ExcelJS。三种产物共用同一套�
   没选类型（或类型被删了）的「音频」「音效类型」两列留空，由校验条提醒。
   图片分类与音效类型是同一套「资源分类」结构（`AssetCategoryRow`），界面共用一张小表。
 - 战斗 GAS武器 表：行名（武器 ID）/ 武器名 / 武器描述 / 弹匣容量 / 攻击速度 / 修改器列表 /
-  **技能列表 / 支持攻击模式列表 / 支持插槽列表 / 武器图标**。
+  **技能列表 / 支持攻击模式列表 / 支持插槽列表 / 武器图标 / 武器类**。
   攻击模式 / 插槽两列的数据来自武器页顶部那两张配置表（`battle.attackModes` / `battle.slots`，
   每行是「显示名称 + 导出名称」，武器里存 uid）：
   支持攻击模式列表写成 `(TXT_AttackMode_手动攻击,TXT_AttackMode_自动攻击)`——**不加引号**，
@@ -275,6 +275,13 @@ Vite + React 19 + TypeScript，导出用 ExcelJS。三种产物共用同一套�
   导出名称为空的那一条不写；两列都空时单元格留空。
   「武器图标」列按武器 ID 现算成 `PIC_<武器ID>`（武器表界面上不显示这一列，
   只在导出与立绘模块的「武器图标」页里出现）。
+  「武器类」列同样是现算的：`weaponClassName()` 把武器 ID 的 `WEA_` 换成 `BP_Weapon_`
+  （`WEA_Test_Sniper` → `BP_Weapon_Test_Sniper`），再补成
+  `/Script/Engine.BlueprintGeneratedClass'<前缀><类名>.<类名>_C'`；
+  前缀存在 `battle.weaponClassPrefix`（默认
+  `/Script/Engine.BlueprintGeneratedClass'/Game/GameContent/BP/Weapon/WeaponActors/`，
+  在「Unreal导入设置」里改）。前缀被清空或类名算不出来时这一格写 `None`
+  （样例里没有武器类的行就是 `None`）。
 - 其余多值列写成 Unreal 数组字面量 `("a","b")`，空列表写空单元格（不是 `()`）
   （对话表的「指令」列除外，见上）
 

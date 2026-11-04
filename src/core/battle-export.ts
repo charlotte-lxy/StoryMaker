@@ -19,6 +19,7 @@ import {
   modifierTexts,
   skillTag,
   tagStructLiteral,
+  weaponClassName,
 } from './battle';
 import { attributeNameOf, eventNameOf, skillNameOf } from './refs';
 import { weaponIconId } from './weapon-icons';
@@ -69,6 +70,7 @@ export const WEAPON_HEADER: readonly string[] = [
   '支持攻击模式列表',
   '支持插槽列表',
   '武器图标',
+  '武器类',
 ];
 
 export interface BattleSheetRows {
@@ -125,6 +127,17 @@ const eventTags = (battle: BattleData, uids: readonly string[]): string[] =>
 /** 修改器列表：属性那一格是属性表的 uid，先取回属性名再合成文本 */
 const modifierTextsOf = (battle: BattleData, modifiers: readonly GasModifier[]): string[] =>
   modifierTexts(modifiers, (uid) => attributeNameOf(battle, uid));
+
+/**
+ * 武器类：前缀 + `BP_Weapon_<武器ID去WEA_>`。
+ *
+ * 拼不出来（ID 空、或者前缀被清空）时写 `None`——样例里没有武器类的行就是 None。
+ */
+const weaponClassOf = (battle: BattleData, weaponId: string): string => {
+  const prefix = battle.weaponClassPrefix.trim();
+  const name = weaponClassName(weaponId);
+  return prefix === '' || name === '' ? 'None' : classPath(prefix, name);
+};
 
 /** 角色属性列表的 key 是属性表的 uid，导出成属性 Tag */
 const attributePairs = (battle: BattleData, pairs: readonly GasPair[]): GasPair[] =>
@@ -217,6 +230,8 @@ export function buildBattleRows(project: Project): BattleSheetRows {
           formatArrayLiteral(optionNames(battle.slots, row.slotUids)),
           // 武器图标：按武器 ID 现算成 PIC_<武器ID>（立绘模块的「武器图标」页也是这一条）
           weaponIconId(row.id),
+          // 武器类：前缀 + BP_Weapon_<武器ID去WEA_>；拼不出来时按样例写 None
+          weaponClassOf(battle, row.id),
         ]),
     ],
   };

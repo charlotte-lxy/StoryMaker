@@ -403,6 +403,8 @@ export interface BattleData {
   skillClassPrefix: string;
   /** 效果类名的路径前缀，导出 GE类 用 */
   effectClassPrefix: string;
+  /** 武器类名的路径前缀，导出 GAS武器 的「武器类」用 */
+  weaponClassPrefix: string;
   attributes: GasAttribute[];
   effects: GasEffect[];
   skills: GasSkill[];

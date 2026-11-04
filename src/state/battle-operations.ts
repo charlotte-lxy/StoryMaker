@@ -181,7 +181,7 @@ export function reorderBattleRow(
 /** 类名路径前缀：技能用 GA 的，效果用 GE 的 */
 export function updateClassPrefix(
   project: Project,
-  key: 'skillClassPrefix' | 'effectClassPrefix',
+  key: 'skillClassPrefix' | 'effectClassPrefix' | 'weaponClassPrefix',
   value: string,
 ): Project {
   return mutate(project, (draft) => {

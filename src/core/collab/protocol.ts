@@ -122,6 +122,7 @@ export const WHOLE_FIELDS: readonly string[] = [
   'variables',
   'battle.skillClassPrefix',
   'battle.effectClassPrefix',
+  'battle.weaponClassPrefix',
   'specialCommandClassPrefix',
   'ui.theme',
 ];

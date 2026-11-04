@@ -67,7 +67,8 @@ pnpm dev          # 开发服务器 http://localhost:5180
   → GASGameplayTags（四张表里的条目自动收集，Tag 由名字合成）
   → GAS属性 / GAS效果 / GAS技能 / GAS事件 / GAS角色 / GAS武器
   （武器页顶部的攻击模式 / 插槽配置表各带「显示名称 + 导出名称」，
-    GAS武器 最后两列按导出名称写成 `(A,B)` 与 `("a","b")`）
+    GAS武器 末尾依次是攻击模式 `(A,B)`、插槽 `("a","b")`、武器图标 `PIC_武器ID`、
+    武器类 `前缀 + BP_Weapon_<武器ID去WEA_>`（拼不出来写 None））
 
 导出 / Unreal导入设置（一行一张 DataTable：表名 + 文件夹 + 子表）
   → 导入设置（数据表引用、csv 文件名两列算出来）

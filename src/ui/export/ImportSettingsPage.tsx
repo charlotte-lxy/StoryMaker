@@ -1,7 +1,8 @@
 import type { Project } from '../../core/types';
-import { classPath } from '../../core/battle';
+import { classPath, weaponClassName } from '../../core/battle';
 import { EXPORT_SUBTABLES, csvFileName, dataTableRef } from '../../core/export-settings';
 import { specialCommandClassName } from '../../core/special-commands';
+import { updateClassPrefix } from '../../state/battle-operations';
 import {
   addExportSetting,
   removeExportSetting,
@@ -59,6 +60,22 @@ export function ImportSettingsPage({ project, onChange }: Props) {
           <span className="hint">
             Command类 ={' '}
             {classPath(project.specialCommandClassPrefix, specialCommandClassName('SP_001')) ||
+              '（前缀为空）'}
+          </span>
+        </label>
+
+        {/* 武器类由「前缀 + BP_Weapon_<武器ID去WEA_>」现拼，武器表里不填 */}
+        <label className="battle-prefix-field">
+          <span className="line-field-name">武器表的 武器类 前缀</span>
+          <input
+            value={project.battle.weaponClassPrefix}
+            onChange={(event) =>
+              onChange(updateClassPrefix(project, 'weaponClassPrefix', event.target.value))
+            }
+          />
+          <span className="hint">
+            武器类 ={' '}
+            {classPath(project.battle.weaponClassPrefix, weaponClassName('WEA_Test_Sniper')) ||
               '（前缀为空）'}
           </span>
         </label>
