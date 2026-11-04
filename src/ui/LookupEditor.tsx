@@ -1,5 +1,6 @@
 import type { AssetCategoryRow, LookupRow, Project } from '../core/types';
 import { collectExpressionImages } from '../core/expression-images';
+import { collectWeaponIcons } from '../core/weapon-icons';
 import type { CategoryKind, LookupKind } from '../state/operations';
 import { OrderCell, useRowDrag } from './battle/row-drag';
 import { useScrollMemory } from './view-memory';
@@ -8,7 +9,7 @@ interface LookupMeta {
   title: string;
   hint: string;
   placeholder: string;
-  /** 这一页顶部有没有分类表（立绘的图片分类 / 音效的音效类型） */
+  /** 这一页顶部有没有分类表（音效的音效类型） */
   category?: { kind: CategoryKind; title: string; column: string; hint: string };
 }
 
@@ -24,17 +25,9 @@ const TITLES: Record<LookupKind, LookupMeta> = {
     placeholder: '例如：凑齐医药费',
   },
   images: {
-    title: '立绘 / 图片表',
+    title: '自定义图片',
     hint: '图片 ID 供指令「剧情|图片|图片:…」的下拉使用；每张图选一个分类，导出「图片」子表时按分类的存储路径拼资源路径。',
     placeholder: '例如：夜晚的城市',
-    category: {
-      kind: 'imageCategories',
-      title: '图片分类',
-      column: '图片分类',
-      hint:
-        '每张图属于一个分类；导出「图片」子表时拼成「存储路径/图片ID.图片ID」。' +
-        '新分类默认放在 /Game/GameContent/Asset/Image/分类名 下，路径可以自己改。',
-    },
   },
   sounds: {
     title: '音效表',
@@ -51,32 +44,15 @@ const TITLES: Record<LookupKind, LookupMeta> = {
   },
 };
 
-interface Props {
-  project: Project;
-  kind: LookupKind;
-  onAdd: (kind: LookupKind) => void;
-  onRemove: (kind: LookupKind, uid: string) => void;
-  onUpdate: (kind: LookupKind, uid: string, patch: Partial<LookupRow>) => void;
-  /** 表格行拖拽排序 */
-  onReorder: (kind: LookupKind, from: number, to: number) => void;
-  /** 分类表（只有立绘 / 音效页有） */
-  onAddCategory: (kind: CategoryKind) => void;
-  onRemoveCategory: (kind: CategoryKind, uid: string) => void;
-  onUpdateCategory: (kind: CategoryKind, uid: string, patch: Partial<AssetCategoryRow>) => void;
-  /** 全局搜索跳过来的那一行：交给上层滚过去，这里只负责高亮它 */
-  focusUid?: string | null;
-}
-
 /**
- * 立绘 / 音效页顶部的分类表。
+ * 分类表（立绘的图片分类 / 音效的音效类型）。
  *
  * 分类存成独立一行（带 uid），资源行只记 uid，所以分类改名不会把资源写坏；
  * 导出「图片」「音频」子表时用分类名与存储路径拼资源路径。
  */
-function AssetCategoryTable({
+export function AssetCategoryTable({
   title,
   hint,
-  column,
   rows,
   onAdd,
   onRemove,
@@ -84,7 +60,6 @@ function AssetCategoryTable({
 }: {
   title: string;
   hint: string;
-  column: string;
   rows: AssetCategoryRow[];
   onAdd: () => void;
   onRemove: (uid: string) => void;
@@ -101,9 +76,7 @@ function AssetCategoryTable({
       </div>
 
       {rows.length === 0 ? (
-        <div className="empty-state">
-          还没有{title}。先建一个，下面的{column === '图片分类' ? '图片' : '音效'}才能选它。
-        </div>
+        <div className="empty-state">还没有{title}。先建一个，数据表里才能选它。</div>
       ) : (
         <table className="lines">
           <thead>
@@ -126,7 +99,7 @@ function AssetCategoryTable({
                 <td>
                   <input
                     value={row.path}
-                    placeholder="/Game/GameContent/Asset/…/分类名"
+                    placeholder="/Game/GameContent/Asset/…"
                     onChange={(event) => onUpdate(row.uid, { path: event.target.value })}
                   />
                 </td>
@@ -144,23 +117,125 @@ function AssetCategoryTable({
   );
 }
 
+/** 数据表的行（物品 / 任务 / 图片 / 音效共用；有分类的那两张表多一列下拉） */
+export function LookupRowsTable({
+  kind,
+  project,
+  rows,
+  column,
+  categoryKind,
+  onUpdate,
+  onRemove,
+  onReorder,
+  focusUid = null,
+}: {
+  kind: LookupKind;
+  project: Project;
+  rows: LookupRow[];
+  /** 有分类时这一列的标题（图片分类 / 音效类型） */
+  column?: string;
+  categoryKind?: CategoryKind;
+  onUpdate: (kind: LookupKind, uid: string, patch: Partial<LookupRow>) => void;
+  onRemove: (kind: LookupKind, uid: string) => void;
+  onReorder: (kind: LookupKind, from: number, to: number) => void;
+  focusUid?: string | null;
+}) {
+  const meta = TITLES[kind];
+  const categories: AssetCategoryRow[] =
+    categoryKind === undefined ? [] : project[categoryKind];
+  const categoryByUid = new Map(categories.map((row) => [row.uid, row]));
+  const drag = useRowDrag((from, to) => onReorder(kind, from, to));
+
+  const idCounts = new Map<string, number>();
+  for (const row of rows) idCounts.set(row.id, (idCounts.get(row.id) ?? 0) + 1);
+
+  return (
+    <table className="lines">
+      <thead>
+        <tr>
+          <th className="cell-order" title="按住把手上下拖动可调整顺序" />
+          <th style={{ width: column === undefined ? '34%' : '24%' }}>ID</th>
+          {column !== undefined && <th style={{ width: 170 }}>{column}</th>}
+          <th>说明</th>
+          <th style={{ width: 86 }}>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row, index) => {
+          const categoryUid = row.categoryUid ?? '';
+          const category = categoryByUid.get(categoryUid);
+          return (
+            <tr
+              key={row.uid}
+              {...drag.rowProps(index, focusUid === row.uid ? 'flash' : '')}
+              data-search-uid={row.uid}
+            >
+              <OrderCell index={index} drag={drag} />
+              <td>
+                <input
+                  value={row.id}
+                  onChange={(event) => onUpdate(kind, row.uid, { id: event.target.value })}
+                />
+                {(idCounts.get(row.id) ?? 0) > 1 && <div className="field-error">ID 重复</div>}
+              </td>
+              {column !== undefined && (
+                <td>
+                  <select
+                    value={categoryUid}
+                    title={`这一行属于哪个${column}（导出的资源路径按它拼）`}
+                    onChange={(event) =>
+                      onUpdate(kind, row.uid, { categoryUid: event.target.value })
+                    }
+                  >
+                    <option value="">（未选{column}）</option>
+                    {categories.map((item) => (
+                      <option key={item.uid} value={item.uid}>
+                        {item.name.trim() === '' ? '（未命名分类）' : item.name}
+                      </option>
+                    ))}
+                    {categoryUid !== '' && category === undefined && (
+                      <option value={categoryUid}>（分类已删除）</option>
+                    )}
+                  </select>
+                </td>
+              )}
+              <td>
+                <input
+                  value={row.name}
+                  placeholder={meta.placeholder}
+                  onChange={(event) => onUpdate(kind, row.uid, { name: event.target.value })}
+                />
+              </td>
+              <td>
+                <button type="button" onClick={() => onRemove(kind, row.uid)}>
+                  删除
+                </button>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
 /**
- * 表情图片列表（只在立绘页出现）。
+ * 表情图片列表（立绘页的「表情立绘」）。
  *
  * 角色模块里勾了哪些表情，这里就自动有一条图片：ID = PIC_<角色ID>-<表情标识>，
  * 分类固定是「角色立绘」，路径是「分类路径/<角色ID>/<图片ID>」。
  * 这张表不存盘，供核对与导出用。
  */
-function ExpressionImageTable({ project }: { project: Project }) {
+export function ExpressionImageTable({ project }: { project: Project }) {
   const images = collectExpressionImages(project);
 
   return (
-    <section className="image-categories expression-images">
+    <section className="expression-images">
       <div className="lookup-subhead">
-        <h3>表情图片（自动收集）</h3>
+        <h3>表情立绘（自动收集）</h3>
         <span className="hint">
           角色模块里勾了表情，这里就自动有一条：ID = PIC_角色ID-表情标识，分类「角色立绘」，
-          路径「分类路径/角色ID/图片ID」。导出「图片」子表时会自动接在下面。
+          路径「分类路径/角色ID/图片ID」。导出「图片」子表时自动接在自定义图片后面。
         </span>
       </div>
 
@@ -196,6 +271,70 @@ function ExpressionImageTable({ project }: { project: Project }) {
   );
 }
 
+/**
+ * 武器图标列表（立绘页的「武器图标」）。
+ *
+ * 每把武器自动一条：ID = PIC_<武器ID>，分类「武器图标」，路径「分类路径/图片ID」。
+ */
+export function WeaponIconTable({ project }: { project: Project }) {
+  const icons = collectWeaponIcons(project);
+
+  return (
+    <section className="expression-images">
+      <div className="lookup-subhead">
+        <h3>武器图标（自动收集）</h3>
+        <span className="hint">
+          战斗模块里每把武器自动一条：ID = PIC_武器ID，分类「武器图标」，
+          路径「分类路径/图片ID」。导出「图片」子表时自动接在后面。
+        </span>
+      </div>
+
+      {icons.length === 0 ? (
+        <div className="empty-state">
+          还没有武器图标。去战斗模块的武器表加武器，这里就会自动出现。
+        </div>
+      ) : (
+        <table className="lines">
+          <thead>
+            <tr>
+              <th style={{ width: '34%' }}>图片 ID</th>
+              <th style={{ width: 180 }}>武器</th>
+              <th style={{ width: 120 }}>图片分类</th>
+              <th>图片路径</th>
+            </tr>
+          </thead>
+          <tbody>
+            {icons.map((icon) => (
+              <tr className="line-row" key={icon.id}>
+                <td className="command-cell">{icon.id}</td>
+                <td className="command-cell">{icon.weaponName}</td>
+                <td className="command-cell">{icon.categoryName}</td>
+                <td className="command-cell">{icon.path}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
+
+interface Props {
+  project: Project;
+  kind: LookupKind;
+  onAdd: (kind: LookupKind) => void;
+  onRemove: (kind: LookupKind, uid: string) => void;
+  onUpdate: (kind: LookupKind, uid: string, patch: Partial<LookupRow>) => void;
+  /** 表格行拖拽排序 */
+  onReorder: (kind: LookupKind, from: number, to: number) => void;
+  /** 分类表（只有音效页有；立绘页拆成子模块了，见 ImagesEditor） */
+  onAddCategory: (kind: CategoryKind) => void;
+  onRemoveCategory: (kind: CategoryKind, uid: string) => void;
+  onUpdateCategory: (kind: CategoryKind, uid: string, patch: Partial<AssetCategoryRow>) => void;
+  /** 全局搜索跳过来的那一行：交给上层滚过去，这里只负责高亮它 */
+  focusUid?: string | null;
+}
+
 export function LookupEditor({
   project,
   kind,
@@ -212,13 +351,6 @@ export function LookupEditor({
   const rows = project[kind];
   const meta = TITLES[kind];
   const categoryMeta = meta.category;
-  const categories: AssetCategoryRow[] =
-    categoryMeta === undefined ? [] : project[categoryMeta.kind];
-  const categoryByUid = new Map(categories.map((row) => [row.uid, row]));
-  const drag = useRowDrag((from, to) => onReorder(kind, from, to));
-
-  const idCounts = new Map<string, number>();
-  for (const row of rows) idCounts.set(row.id, (idCounts.get(row.id) ?? 0) + 1);
 
   return (
     <div className="editor" ref={editorRef}>
@@ -226,8 +358,7 @@ export function LookupEditor({
         <AssetCategoryTable
           title={categoryMeta.title}
           hint={categoryMeta.hint}
-          column={categoryMeta.column}
-          rows={categories}
+          rows={project[categoryMeta.kind]}
           onAdd={() => onAddCategory(categoryMeta.kind)}
           onRemove={(uid) => onRemoveCategory(categoryMeta.kind, uid)}
           onUpdate={(uid, patch) => onUpdateCategory(categoryMeta.kind, uid, patch)}
@@ -247,75 +378,18 @@ export function LookupEditor({
           还没有数据。先在这里建好，写剧情时指令和条件的下拉框才有内容可选。
         </div>
       ) : (
-        <table className="lines">
-          <thead>
-            <tr>
-              <th className="cell-order" title="按住把手上下拖动可调整顺序" />
-              <th style={{ width: categoryMeta === undefined ? '34%' : '24%' }}>ID</th>
-              {categoryMeta !== undefined && <th style={{ width: 170 }}>{categoryMeta.column}</th>}
-              <th>说明</th>
-              <th style={{ width: 86 }}>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, index) => {
-              const categoryUid = row.categoryUid ?? '';
-              const category = categoryByUid.get(categoryUid);
-              return (
-                <tr
-                  key={row.uid}
-                  {...drag.rowProps(index, focusUid === row.uid ? 'flash' : '')}
-                  data-search-uid={row.uid}
-                >
-                  <OrderCell index={index} drag={drag} />
-                  <td>
-                    <input
-                      value={row.id}
-                      onChange={(event) => onUpdate(kind, row.uid, { id: event.target.value })}
-                    />
-                    {(idCounts.get(row.id) ?? 0) > 1 && <div className="field-error">ID 重复</div>}
-                  </td>
-                  {categoryMeta !== undefined && (
-                    <td>
-                      <select
-                        value={categoryUid}
-                        title={`这一行属于哪个${categoryMeta.column}（导出的资源路径按它拼）`}
-                        onChange={(event) =>
-                          onUpdate(kind, row.uid, { categoryUid: event.target.value })
-                        }
-                      >
-                        <option value="">（未选{categoryMeta.column}）</option>
-                        {categories.map((item) => (
-                          <option key={item.uid} value={item.uid}>
-                            {item.name.trim() === '' ? '（未命名分类）' : item.name}
-                          </option>
-                        ))}
-                        {categoryUid !== '' && category === undefined && (
-                          <option value={categoryUid}>（分类已删除）</option>
-                        )}
-                      </select>
-                    </td>
-                  )}
-                  <td>
-                    <input
-                      value={row.name}
-                      placeholder={meta.placeholder}
-                      onChange={(event) => onUpdate(kind, row.uid, { name: event.target.value })}
-                    />
-                  </td>
-                  <td>
-                    <button type="button" onClick={() => onRemove(kind, row.uid)}>
-                      删除
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <LookupRowsTable
+          kind={kind}
+          project={project}
+          rows={rows}
+          column={categoryMeta?.column}
+          categoryKind={categoryMeta?.kind}
+          onUpdate={onUpdate}
+          onRemove={onRemove}
+          onReorder={onReorder}
+          focusUid={focusUid}
+        />
       )}
-
-      {kind === 'images' && <ExpressionImageTable project={project} />}
     </div>
   );
 }

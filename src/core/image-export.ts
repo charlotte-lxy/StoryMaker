@@ -14,6 +14,7 @@
 
 import { texturePath } from './asset-path';
 import { collectExpressionImages } from './expression-images';
+import { collectWeaponIcons } from './weapon-icons';
 import type { Project } from './types';
 
 export const IMAGE_SHEET = '图片';
@@ -60,7 +61,15 @@ export function buildImageRows(project: Project): string[][] {
   const taken = new Set(project.images.map((row) => row.id.trim()));
   for (const image of collectExpressionImages(project)) {
     if (taken.has(image.id)) continue;
+    taken.add(image.id);
     rows.push([image.id, image.categoryName, image.note, image.path]);
+  }
+
+  // 武器图标同理：每把武器一条 PIC_<武器ID>
+  for (const icon of collectWeaponIcons(project)) {
+    if (taken.has(icon.id)) continue;
+    taken.add(icon.id);
+    rows.push([icon.id, icon.categoryName, icon.note, icon.path]);
   }
 
   return rows;

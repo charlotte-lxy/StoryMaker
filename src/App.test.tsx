@@ -2241,10 +2241,26 @@ describe('立绘：图片分类与「图片」子表', () => {
     return container;
   };
 
-  it('图片分类表在图片表上方；新项目自带「角色立绘」，新增分类会填好默认路径', async () => {
+  /** 侧栏切到哪一个子模块（按钮里还带着条数，所以用 startsWith） */
+  const goPage = (name: string): void => {
+    const nav = [...document.querySelectorAll('.battle-nav')].find((item) =>
+      item.textContent?.startsWith(name),
+    ) as HTMLElement;
+    fireEvent.click(nav);
+  };
+
+  it('侧栏分四个子模块；「图片分类」里新项目自带「角色立绘」，新增分类会填好默认路径', async () => {
     const container = await openImages();
 
-    // 两张表上下排：分类表在前
+    // 四个子模块竖着排
+    expect([...container.querySelectorAll('.battle-nav')].map((nav) => nav.textContent?.replace(/\d+$/, ''))).toEqual([
+      '图片分类',
+      '自定义图片',
+      '表情立绘',
+      '武器图标',
+    ]);
+
+    goPage('图片分类');
     const categories = container.querySelector('.image-categories') as HTMLElement;
     expect(categories).toBeTruthy();
     expect(categories.querySelector('h3')?.textContent).toBe('图片分类');
@@ -2254,12 +2270,15 @@ describe('立绘：图片分类与「图片」子表', () => {
     // 感情图片要用它：新项目已经建好了这个分类
     expect(inputsOf(0)[0].value).toBe('角色立绘');
     expect(inputsOf(0)[1].value).toBe('/Game/GameContent/Asset/Image/CharacterIllusion');
+    // 武器图标这个分类也是预置的
+    expect(inputsOf(1)[0].value).toBe('武器图标');
+    expect(inputsOf(1)[1].value).toBe('/Game/GameContent/Asset/Image/WeaponIcon');
 
     fireEvent.click(screen.getByText('＋ 新增分类'));
-    const added = inputsOf(1);
-    // 已有一条分类，新增的叫「新分类2」
-    expect(added[0].value).toBe('新分类2');
-    expect(added[1].value).toBe('/Game/GameContent/Asset/Image/新分类2');
+    const added = inputsOf(2);
+    // 两条预置分类之后，新增的叫「新分类」
+    expect(added[0].value).toBe('新分类');
+    expect(added[1].value).toBe('/Game/GameContent/Asset/Image/新分类');
 
     // 改分类名：没动过的默认路径跟着改
     fireEvent.change(added[0], { target: { value: '对话背景' } });
@@ -2270,11 +2289,13 @@ describe('立绘：图片分类与「图片」子表', () => {
     const container = await openImages();
 
     // 再建一个分类，然后加一张图
+    goPage('图片分类');
     fireEvent.click(screen.getByText('＋ 新增分类'));
     const categories = container.querySelector('.image-categories') as HTMLElement;
     const rows = [...categories.querySelectorAll('tbody tr')];
     const nameInput = rows[rows.length - 1].querySelectorAll('input')[0] as HTMLInputElement;
     fireEvent.change(nameInput, { target: { value: '对话背景' } });
+    goPage('自定义图片');
     fireEvent.click(screen.getByText('＋ 新增一行'));
 
     const imageTable = [...container.querySelectorAll('table')].pop() as HTMLElement;
@@ -2282,10 +2303,43 @@ describe('立绘：图片分类与「图片」子表', () => {
     expect([...select.options].map((option) => option.textContent)).toEqual([
       '（未选图片分类）',
       '角色立绘',
+      '武器图标',
       '对话背景',
     ]);
     // 新加的图默认选第一个分类
     expect(select.selectedOptions[0].textContent).toBe('角色立绘');
+  });
+
+  it('「武器图标」页：每把武器自动一条 PIC_武器ID，路径挂在「武器图标」分类下', async () => {
+    const project = createEmptyProject();
+    project.battle.weapons = [
+      {
+        uid: 'w1',
+        id: 'WEA_测试-手枪',
+        name: '测试-手枪',
+        description: '',
+        magazine: '10',
+        attackSpeed: '1',
+        modifiers: [],
+        skillUids: [],
+        attackModeUids: [],
+        slotUids: [],
+      },
+    ];
+    seedProjectFile(JSON.stringify(project));
+
+    const container = await openImages();
+    goPage('武器图标');
+
+    const section = container.querySelector('.expression-images') as HTMLElement;
+    expect(section.querySelector('h3')?.textContent).toBe('武器图标（自动收集）');
+    const row = [...section.querySelectorAll('tbody tr')][0];
+    expect(row.textContent).toContain('PIC_WEA_测试-手枪');
+    expect(row.textContent).toContain('测试-手枪');
+    expect(row.textContent).toContain('武器图标');
+    expect(row.textContent).toContain(
+      "/Script/Engine.Texture2D'/Game/GameContent/Asset/Image/WeaponIcon/PIC_WEA_测试-手枪.PIC_WEA_测试-手枪'",
+    );
   });
 
   it('导出预览的「图片」子表按分类路径拼出资源路径', async () => {
@@ -2339,7 +2393,7 @@ describe('音效：音效类型与「音频」子表', () => {
     fireEvent.click(screen.getByText('＋ 新增分类'));
 
     const nameInput = screen.getByPlaceholderText('例如：对话背景') as HTMLInputElement;
-    const pathInput = screen.getByPlaceholderText('/Game/GameContent/Asset/…/分类名') as HTMLInputElement;
+    const pathInput = screen.getByPlaceholderText('/Game/GameContent/Asset/…') as HTMLInputElement;
     expect(pathInput.value).toBe('/Game/GameContent/Asset/Sound/新分类');
 
     fireEvent.change(nameInput, { target: { value: '背景音乐' } });
@@ -2598,10 +2652,14 @@ describe('角色页的配置区与表情图片', () => {
     expect([...expressionSelect.options].some((option) => option.value === '微笑')).toBe(true);
     fireEvent.change(expressionSelect, { target: { value: '微笑' } });
 
-    // 立绘页：表情图片自动出来
+    // 立绘页的「表情立绘」：表情图片自动出来
     fireEvent.click(within(rail()).getByText('立绘'));
+    const expressionNav = [...document.querySelectorAll('.battle-nav')].find((item) =>
+      item.textContent?.startsWith('表情立绘'),
+    ) as HTMLElement;
+    fireEvent.click(expressionNav);
     const section = container.querySelector('.expression-images') as HTMLElement;
-    expect(section.querySelector('h3')?.textContent).toBe('表情图片（自动收集）');
+    expect(section.querySelector('h3')?.textContent).toBe('表情立绘（自动收集）');
     const rowsText = [...section.querySelectorAll('tbody tr')].map((row) => row.textContent ?? '');
     // 角色刚建时自带「默认」这些表情，这里找手动加的「微笑」那一条
     const smileRow = rowsText.find((text) => text.includes('PIC_CHA_角色1-smile'));
@@ -2736,11 +2794,19 @@ describe('武器页：攻击模式与插槽', () => {
     const headers = [...document.querySelectorAll('.preview-table thead th')].map(
       (th) => th.textContent,
     );
-    expect(headers.slice(-2)).toEqual(['支持攻击模式列表', '支持插槽列表']);
+    expect(headers.slice(-3)).toEqual([
+      '支持攻击模式列表',
+      '支持插槽列表',
+      '武器图标',
+    ]);
 
     const cells = [...document.querySelectorAll('.preview-table tbody tr.line-row td')].map(
       (td) => td.textContent,
     );
-    expect(cells.slice(-2)).toEqual(['(TXT_AttackMode_手动攻击)', '("111")']);
+    expect(cells.slice(-3)).toEqual([
+      '(TXT_AttackMode_手动攻击)',
+      '("111")',
+      'PIC_WEA_测试-手枪',
+    ]);
   });
 });

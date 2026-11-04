@@ -12,6 +12,7 @@ import {
   parseCommandText,
 } from '../core/command-build';
 import { EXPRESSION_IMAGE_CATEGORY, EXPRESSION_IMAGE_ROOT } from '../core/expression-images';
+import { WEAPON_ICON_CATEGORY, WEAPON_ICON_ROOT } from '../core/weapon-icons';
 import { defaultImageCategoryPath } from '../core/image-export';
 import { defaultSoundCategoryPath } from '../core/sound-export';
 import { defaultCommandDefs } from '../core/default-commands';
@@ -111,9 +112,20 @@ export function createEmptyProject(name = '未命名项目', theme: ThemeName | 
     items: [],
     quests: [],
     images: [],
-    // 「角色立绘」是表情图片要用的分类，先建好（名字与路径都能改）
+    // 表情图片 / 武器图标各占一个保留分类，先建好（名字与路径都能改）
     imageCategories: [
-      { uid: newUid(), name: EXPRESSION_IMAGE_CATEGORY, path: EXPRESSION_IMAGE_ROOT },
+      {
+        uid: newUid(),
+        name: EXPRESSION_IMAGE_CATEGORY,
+        path: EXPRESSION_IMAGE_ROOT,
+        system: 'expressionImages',
+      },
+      {
+        uid: newUid(),
+        name: WEAPON_ICON_CATEGORY,
+        path: WEAPON_ICON_ROOT,
+        system: 'weaponIcons',
+      },
     ],
     soundCategories: [],
     sounds: [],
@@ -799,7 +811,7 @@ export function addAssetCategory(project: Project, kind: CategoryKind): Project 
   return mutate(project, (draft) => {
     const rows = draft[kind];
     const taken = new Set(rows.map((row) => row.name.trim()));
-    let n = rows.length + 1;
+    let n = 1;
     while (taken.has(`新分类${n === 1 ? '' : n}`)) n += 1;
     const name = `新分类${n === 1 ? '' : n}`;
     rows.push({ uid: newUid(), name, path: CATEGORY_DEFAULT_PATH[kind](name) });

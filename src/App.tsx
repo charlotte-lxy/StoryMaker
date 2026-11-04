@@ -120,6 +120,7 @@ import { GlobalSearch } from './ui/GlobalSearch';
 import { IssuePanel } from './ui/IssuePanel';
 import { LineList } from './ui/LineList';
 import { LocalizationEditor } from './ui/LocalizationEditor';
+import { ImagesEditor } from './ui/ImagesEditor';
 import { LookupEditor } from './ui/LookupEditor';
 import { MoveLinesDialog } from './ui/MoveLinesDialog';
 import { MergeSummaryDialog } from './ui/MergeSummaryDialog';
@@ -1240,10 +1241,7 @@ export default function App() {
                 />
               )}
 
-              {(module === 'items' ||
-                module === 'quests' ||
-                module === 'images' ||
-                module === 'sounds') && (
+              {(module === 'items' || module === 'quests' || module === 'sounds') && (
                 <LookupEditor
                   project={project}
                   kind={module}
@@ -1251,6 +1249,27 @@ export default function App() {
                   onAdd={handleLookup.add}
                   onRemove={handleLookup.remove}
                   onUpdate={handleLookup.update}
+                  onReorder={(kind, from, to) =>
+                    setProject((prev) => reorderLookupRow(prev, kind, from, to))
+                  }
+                  onAddCategory={(kind) => setProject((prev) => addAssetCategory(prev, kind))}
+                  onRemoveCategory={(kind, uid) =>
+                    setProject((prev) => removeAssetCategory(prev, kind, uid))
+                  }
+                  onUpdateCategory={(kind, uid, patch) =>
+                    setProject((prev) => updateAssetCategory(prev, kind, uid, patch))
+                  }
+                />
+              )}
+
+              {/* 立绘模块拆成四个子模块：图片分类 / 自定义图片 / 表情立绘 / 武器图标 */}
+              {module === 'images' && (
+                <ImagesEditor
+                  project={project}
+                  focusUid={focusRowUid}
+                  onAdd={() => handleLookup.add('images')}
+                  onRemove={(kind, uid) => handleLookup.remove(kind, uid)}
+                  onUpdate={(kind, uid, patch) => handleLookup.update(kind, uid, patch)}
                   onReorder={(kind, from, to) =>
                     setProject((prev) => reorderLookupRow(prev, kind, from, to))
                   }

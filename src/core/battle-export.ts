@@ -21,6 +21,7 @@ import {
   tagStructLiteral,
 } from './battle';
 import { attributeNameOf, eventNameOf, skillNameOf } from './refs';
+import { weaponIconId } from './weapon-icons';
 import type { BattleData, GasModifier, GasOptionRow, GasPair, Project } from './types';
 
 export const GAMEPLAY_TAGS_SHEET = 'GASGameplayTags';
@@ -67,6 +68,7 @@ export const WEAPON_HEADER: readonly string[] = [
   '技能列表',
   '支持攻击模式列表',
   '支持插槽列表',
+  '武器图标',
 ];
 
 export interface BattleSheetRows {
@@ -213,6 +215,8 @@ export function buildBattleRows(project: Project): BattleSheetRows {
           // 攻击模式按样例不加引号；插槽是普通字符串数组（带引号）
           formatNameList(optionNames(battle.attackModes, row.attackModeUids)),
           formatArrayLiteral(optionNames(battle.slots, row.slotUids)),
+          // 武器图标：按武器 ID 现算成 PIC_<武器ID>（立绘模块的「武器图标」页也是这一条）
+          weaponIconId(row.id),
         ]),
     ],
   };

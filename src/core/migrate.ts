@@ -27,6 +27,7 @@ import {
   EXPRESSION_IMAGE_CATEGORY,
   EXPRESSION_IMAGE_ROOT,
 } from './expression-images';
+import { WEAPON_ICON_CATEGORY, WEAPON_ICON_ROOT } from './weapon-icons';
 import { firstLineRef, groupUidOfFirstLine, makeLineId, newUid, renumberGroup, type IdChange } from './ids';
 import { collectRefMaps, collectRefUids } from './refs';
 import { DEFAULT_SPECIAL_COMMAND_CLASS_PREFIX } from './special-commands';
@@ -149,8 +150,8 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
         name: asString(row.name),
         path: asString(row.path),
         // 系统保留的分类（表情图片用的「角色立绘」）——名字可以改，靠这个标记认
-        ...(row.system === 'expressionImages'
-          ? { system: 'expressionImages' as const }
+        ...(row.system === 'expressionImages' || row.system === 'weaponIcons'
+          ? { system: row.system }
           : {}),
       }));
   }
@@ -159,6 +160,7 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
   project.playPositions = readPlayPositions(project);
   project.expressions = readExpressions(project);
   ensureExpressionImageCategory(project);
+  ensureWeaponIconCategory(project);
 
   // UI 本地化：老项目里没有这栏，给个空表；已有的行也补齐字段，
   // 免得手改过的 JSON 让界面读到 undefined 的文本对象。
@@ -936,6 +938,23 @@ function remapCharacterPlayPositions(project: Project): void {
     byName.set(row.name, row);
     character.playPosition = row.uid;
   }
+}
+
+/** 武器图标要用「武器图标」这个分类，缺了补上（已经有了就不动，名字/路径可以自己改） */
+function ensureWeaponIconCategory(project: Project): void {
+  const existing = project.imageCategories.find(
+    (row) => row.system === 'weaponIcons' || row.name.trim() === WEAPON_ICON_CATEGORY,
+  );
+  if (existing !== undefined) {
+    existing.system = 'weaponIcons';
+    return;
+  }
+  project.imageCategories.push({
+    uid: newUid(),
+    name: WEAPON_ICON_CATEGORY,
+    path: WEAPON_ICON_ROOT,
+    system: 'weaponIcons',
+  });
 }
 
 /** 表情图片要用「角色立绘」这个分类，缺了补上（已经有了就不动，名字/路径可以自己改） */

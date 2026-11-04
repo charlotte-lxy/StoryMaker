@@ -224,11 +224,13 @@ export interface AssetCategoryRow {
   /** 这一类资源在 Unreal 里的文件夹，如 /Game/GameContent/Asset/Image/StoryBackground */
   path: string;
   /**
-   * 系统保留的分类：现在只有表情图片用的「角色立绘」。
+   * 系统保留的分类：
+   *   expressionImages - 表情图片用的「角色立绘」
+   *   weaponIcons      - 武器图标用的「武器图标」
    *
-   * 名字和路径都能改，靠这个标记认出来——改完名表情图片仍然挂在它下面。
+   * 名字和路径都能改，靠这个标记认出来——改完名图片仍然挂在它下面。
    */
-  system?: 'expressionImages';
+  system?: 'expressionImages' | 'weaponIcons';
 }
 
 /**
