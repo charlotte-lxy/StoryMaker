@@ -80,8 +80,7 @@ export function addBattleRow(project: Project, key: BattleRowKey): Project {
         description: '',
         magazine: '-1',
         attackSpeed: '1',
-        modifiers: [],
-        skillUids: [],
+        energyCost: '0',
         attackModeUids: [],
         slotUids: [],
       };
@@ -189,15 +188,15 @@ export function updateClassPrefix(
   });
 }
 
-/* ---------- 修改器列表（效果 / 武器） ---------- */
+/* ---------- 修改器列表（只有效果表有；武器表改成「能量消耗」之后不再用修改器） ---------- */
 
-function modifierOwners(draft: Project, key: 'effects' | 'weapons'): (GasEffect | GasWeapon)[] {
-  return key === 'effects' ? draft.battle.effects : draft.battle.weapons;
+function modifierOwners(draft: Project): GasEffect[] {
+  return draft.battle.effects;
 }
 
-export function addModifier(project: Project, key: 'effects' | 'weapons', uid: string): Project {
+export function addModifier(project: Project, uid: string): Project {
   return mutate(project, (draft) => {
-    const owner = modifierOwners(draft, key).find((row) => row.uid === uid);
+    const owner = modifierOwners(draft).find((row) => row.uid === uid);
     if (owner === undefined) return;
     // 默认选属性表第一条：修改器里存的是那一行的 uid
     owner.modifiers.push(createModifier(draft.battle.attributes[0]?.uid ?? ''));
@@ -206,12 +205,11 @@ export function addModifier(project: Project, key: 'effects' | 'weapons', uid: s
 
 export function removeModifier(
   project: Project,
-  key: 'effects' | 'weapons',
   uid: string,
   modifierUid: string,
 ): Project {
   return mutate(project, (draft) => {
-    const owner = modifierOwners(draft, key).find((row) => row.uid === uid);
+    const owner = modifierOwners(draft).find((row) => row.uid === uid);
     if (owner === undefined) return;
     owner.modifiers = owner.modifiers.filter((row) => row.uid !== modifierUid);
   });
@@ -219,13 +217,12 @@ export function removeModifier(
 
 export function updateModifier(
   project: Project,
-  key: 'effects' | 'weapons',
   uid: string,
   modifierUid: string,
   patch: Partial<GasModifier>,
 ): Project {
   return mutate(project, (draft) => {
-    const owner = modifierOwners(draft, key).find((row) => row.uid === uid);
+    const owner = modifierOwners(draft).find((row) => row.uid === uid);
     const row = owner?.modifiers.find((item) => item.uid === modifierUid);
     if (row !== undefined) Object.assign(row, patch);
   });

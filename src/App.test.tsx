@@ -2332,8 +2332,7 @@ describe('立绘：图片分类与「图片」子表', () => {
         description: '',
         magazine: '10',
         attackSpeed: '1',
-        modifiers: [],
-        skillUids: [],
+        energyCost: '0',
         attackModeUids: [],
         slotUids: [],
       },
@@ -2764,14 +2763,14 @@ describe('武器页：攻击模式与插槽', () => {
     fireEvent.click(screen.getByText('＋ 新增武器'));
 
     const toggles = screen.getAllByTitle(/勾选这把武器/);
-    expect(toggles).toHaveLength(3); // 技能 / 攻击模式 / 插槽
-    fireEvent.click(toggles[1]);
+    expect(toggles).toHaveLength(2); // 攻击模式 / 插槽
+    fireEvent.click(toggles[0]);
     fireEvent.click(screen.getByText('手动攻击'));
-    fireEvent.click(toggles[2]);
+    fireEvent.click(toggles[1]);
     fireEvent.click(screen.getByText('主武器槽'));
 
-    expect(toggles[1].textContent).toContain('手动攻击');
-    expect(toggles[2].textContent).toContain('主武器槽');
+    expect(toggles[0].textContent).toContain('手动攻击');
+    expect(toggles[1].textContent).toContain('主武器槽');
   });
 
   it('导出预览的 GAS武器 表多了两列，格式照着样例来', async () => {
@@ -2788,8 +2787,7 @@ describe('武器页：攻击模式与插槽', () => {
         description: '',
         magazine: '10',
         attackSpeed: '1.000000',
-        modifiers: [],
-        skillUids: [],
+        energyCost: '0',
         attackModeUids: ['am1'],
         slotUids: ['sl1'],
       },
@@ -2806,7 +2804,14 @@ describe('武器页：攻击模式与插槽', () => {
     const headers = [...document.querySelectorAll('.preview-table thead th')].map(
       (th) => th.textContent,
     );
-    expect(headers.slice(-4)).toEqual([
+    // 技能列表 / 修改器列表已经删掉，换成能量消耗
+    expect(headers).toEqual([
+      '（行名）',
+      '武器名',
+      '武器描述',
+      '弹匣容量',
+      '攻击速度',
+      '能量消耗',
       '支持攻击模式列表',
       '支持插槽列表',
       '武器图标',
@@ -2816,7 +2821,13 @@ describe('武器页：攻击模式与插槽', () => {
     const cells = [...document.querySelectorAll('.preview-table tbody tr.line-row td')].map(
       (td) => td.textContent,
     );
-    expect(cells.slice(-4)).toEqual([
+    expect(cells).toEqual([
+      'WEA_测试-手枪',
+      '测试-手枪',
+      '',
+      '10',
+      '1.000000',
+      '0',
       '(TXT_AttackMode_手动攻击)',
       '("111")',
       'PIC_WEA_测试-手枪',

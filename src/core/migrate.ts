@@ -426,8 +426,8 @@ function normalizeBattle(input: unknown): BattleData {
       description: text(row, 'description'),
       magazine: text(row, 'magazine'),
       attackSpeed: text(row, 'attackSpeed'),
-      modifiers: modifiers(row.modifiers),
-      skillUids: refs(row, 'skillUids', 'skills'),
+      // 武器表改成「能量消耗」之后，老数据里的修改器 / 技能列表不再读
+      energyCost: text(row, 'energyCost'),
       attackModeUids: names(row.attackModeUids),
       slotUids: names(row.slotUids),
     })),
@@ -537,12 +537,7 @@ function migrateRefs(project: Project): void {
     }
     character.skillUids = character.skillUids.map((ref) => toRowUid(ref, skillUids, skillByName));
   }
-  for (const weapon of battle.weapons) {
-    for (const modifier of weapon.modifiers) {
-      modifier.attributeUid = toRowUid(modifier.attributeUid, attributeUids, attributeByName);
-    }
-    weapon.skillUids = weapon.skillUids.map((ref) => toRowUid(ref, skillUids, skillByName));
-  }
+
 }
 
 function migrateGroup(group: Group, chapterId: string, changes: IdChange[]): void {  let migrated = false;

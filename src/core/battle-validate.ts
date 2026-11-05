@@ -308,8 +308,7 @@ export function validateBattle(project: Project): ValidationReport {
     }
     checkNumber(issues, row.magazine, '弹匣容量', '武器', target, 'weapons', row.uid);
     checkNumber(issues, row.attackSpeed, '攻击速度', '武器', target, 'weapons', row.uid);
-    checkModifiers(issues, row.modifiers, battle, '武器', target, 'weapons', row.uid);
-    checkRefs(issues, row.skillUids, (ref) => resolveSkill(battle, ref), skillLabel, '技能列表', '技能', '武器', target, 'weapons', row.uid);
+    checkNumber(issues, row.energyCost, '能量消耗', '武器', target, 'weapons', row.uid);
   }
 
   return {

@@ -102,8 +102,7 @@ function makeProject(): Project {
       description: '测试用直线远程武器',
       magazine: '10',
       attackSpeed: '1',
-      modifiers: [modifier({ duration: '固定', attributeUid: 'a2', operator: '+', value: '40' })],
-      skillUids: ['s1'],
+      energyCost: '5',
       attackModeUids: [],
       slotUids: [],
     },
@@ -267,7 +266,7 @@ describe('战斗模块的导出', () => {
     ]);
   });
 
-  it('武器表：行名是武器 ID，修改器与技能列表都成数组，末尾带武器图标与武器类', () => {
+  it('武器表：行名是武器 ID，弹匣 / 攻速 / 能量消耗都是数值列，末尾带武器图标与武器类', () => {
     expect(rows.weapons[0]).toEqual([...WEAPON_HEADER]);
     expect(rows.weapons[1]).toEqual([
       'WEA_测试-手枪',
@@ -275,8 +274,7 @@ describe('战斗模块的导出', () => {
       '测试用直线远程武器',
       '10',
       '1',
-      '("固定#移动速度+40")',
-      '("GAS.技能.回血")',
+      '5',
       // 没勾攻击模式 / 插槽时两列留空
       '',
       '',
@@ -294,7 +292,7 @@ describe('战斗模块的导出', () => {
 
     const project = makeProject();
     project.battle.weaponClassPrefix = "/Game/BP/Weapon/";
-    expect(buildBattleRows(project).weapons[1][10]).toBe(
+    expect(buildBattleRows(project).weapons[1][9]).toBe(
       "/Game/BP/Weapon/BP_Weapon_测试-手枪.BP_Weapon_测试-手枪_C'",
     );
   });
@@ -302,7 +300,7 @@ describe('战斗模块的导出', () => {
   it('前缀为空时武器类这一列写 None（和样例一致）', () => {
     const project = makeProject();
     project.battle.weaponClassPrefix = '';
-    expect(buildBattleRows(project).weapons[1][10]).toBe('None');
+    expect(buildBattleRows(project).weapons[1][9]).toBe('None');
   });
 
   it('支持攻击模式列表写成 (A,B,C)、支持插槽列表写成 ("a","b")，都用导出名称', () => {
@@ -320,8 +318,8 @@ describe('战斗模块的导出', () => {
     project.battle.weapons[0].slotUids = ['sl1', 'sl2'];
 
     const row = buildBattleRows(project).weapons[1];
-    expect(row[7]).toBe('(TXT_AttackMode_手动攻击,TXT_AttackMode_自动攻击,TXT_AttackMode_点防御)');
-    expect(row[8]).toBe('("111","222")');
+    expect(row[6]).toBe('(TXT_AttackMode_手动攻击,TXT_AttackMode_自动攻击,TXT_AttackMode_点防御)');
+    expect(row[7]).toBe('("111","222")');
   });
 
   it('导出名称为空的那一条不写进去', () => {
@@ -332,7 +330,7 @@ describe('战斗模块的导出', () => {
     ];
     project.battle.weapons[0].attackModeUids = ['am1', 'am2'];
 
-    expect(buildBattleRows(project).weapons[1][7]).toBe('(TXT_AttackMode_自动攻击)');
+    expect(buildBattleRows(project).weapons[1][6]).toBe('(TXT_AttackMode_自动攻击)');
   });
 
   it('名字空着的行不进表', () => {
@@ -389,7 +387,7 @@ describe('战斗模块的校验', () => {
 
   it('引用行被删掉之后（uid 悬空）也说得出是哪一栏坏了', () => {
     const project = makeProject();
-    project.battle.weapons[0].skillUids = ['8f3c1b2a-1234-4def-9abc-0123456789ab'];
+    project.battle.characters[0].skillUids = ['8f3c1b2a-1234-4def-9abc-0123456789ab'];
 
     const report = validateBattle(project);
 

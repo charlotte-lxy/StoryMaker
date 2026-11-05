@@ -1,20 +1,16 @@
 import type { GasOptionRow, Project } from '../../core/types';
 import {
   addBattleRow,
-  addModifier,
   addWeaponOption,
   removeBattleRow,
-  removeModifier,
   removeWeaponOption,
   reorderBattleRow,
   updateBattleList,
   updateBattleRow,
-  updateModifier,
   updateWeaponOption,
   type WeaponOptionKey,
 } from '../../state/battle-operations';
 import { MultiSelect } from '../MultiSelect';
-import { ModifierList } from './ModifierList';
 import { OrderCell, useRowDrag } from './row-drag';
 import { useScrollMemory } from '../view-memory';
 
@@ -28,17 +24,11 @@ interface Props {
  *
  * 顶上两张配置小表：攻击模式 / 插槽（都带「显示名称 + 导出名称」，各条用 uid 绑定，
  * 改名字只会改显示，导出跟着导出名称走）。下面才是武器表：
- * 修改器列表的做法和效果表一样，技能列表 / 支持攻击模式 / 支持插槽都是多选。
+ * 弹匣容量 / 攻击速度 / 能量消耗都是手填数值，支持攻击模式与支持插槽是多选。
  */
 export function BattleWeaponsPage({ project, onChange }: Props) {
   const editorRef = useScrollMemory('battle:weapons');
   const rows = project.battle.weapons;
-  const attributes = project.battle.attributes
-    .map((row) => ({ value: row.uid, label: row.name.trim() }))
-    .filter((item) => item.label !== '');
-  const skillOptions = project.battle.skills
-    .map((row) => ({ value: row.uid, label: row.name.trim() }))
-    .filter((item) => item.label !== '');
   const optionOf = (list: GasOptionRow[]) =>
     list.map((row) => ({ value: row.uid, label: row.name.trim() })).filter((item) => item.label !== '');
   const attackModeOptions = optionOf(project.battle.attackModes);
@@ -159,8 +149,7 @@ export function BattleWeaponsPage({ project, onChange }: Props) {
                 <th style={{ width: 200 }}>武器描述</th>
                 <th style={{ width: 84 }}>弹匣容量</th>
                 <th style={{ width: 84 }}>攻击速度</th>
-                <th style={{ width: 340 }}>修改器列表</th>
-                <th style={{ width: 230 }}>技能列表</th>
+                <th style={{ width: 84 }}>能量消耗</th>
                 <th style={{ width: 200 }}>支持攻击模式</th>
                 <th style={{ width: 180 }}>支持插槽</th>
                 <th style={{ width: 74 }}>操作</th>
@@ -218,23 +207,13 @@ export function BattleWeaponsPage({ project, onChange }: Props) {
                     />
                   </td>
                   <td>
-                    <ModifierList
-                      modifiers={row.modifiers}
-                      attributes={attributes}
-                      onAdd={() => onChange(addModifier(project, 'weapons', row.uid))}
-                      onRemove={(modifierUid) => onChange(removeModifier(project, 'weapons', row.uid, modifierUid))}
-                      onUpdate={(modifierUid, patch) =>
-                        onChange(updateModifier(project, 'weapons', row.uid, modifierUid, patch))
+                    <input
+                      value={row.energyCost}
+                      placeholder="0"
+                      title="开一枪要消耗多少能量"
+                      onChange={(event) =>
+                        onChange(updateBattleRow(project, 'weapons', row.uid, { energyCost: event.target.value }))
                       }
-                    />
-                  </td>
-                  <td>
-                    <MultiSelect
-                      values={row.skillUids}
-                      options={skillOptions}
-                      placeholder="未选技能"
-                      title="勾选这把武器带的技能"
-                      onChange={(next) => onChange(updateBattleList(project, 'weapons', row.uid, 'skillUids', next))}
                     />
                   </td>
                   <td>

@@ -446,8 +446,7 @@ function battleDrafts(project: Project): Draft[] {
         row.description,
         row.magazine,
         row.attackSpeed,
-        ...modifierFields(battle, row.modifiers),
-        ...refFields(row.skillUids, (ref) => skillNameOf(battle, ref)),
+        row.energyCost,
       ],
       target: { kind: 'battle', page: 'weapons', uid: row.uid },
     });

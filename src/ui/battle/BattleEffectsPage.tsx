@@ -213,10 +213,10 @@ export function BattleEffectsPage({ project, onChange }: Props) {
                     <ModifierList
                       modifiers={row.modifiers}
                       attributes={attributes}
-                      onAdd={() => onChange(addModifier(project, 'effects', row.uid))}
-                      onRemove={(modifierUid) => onChange(removeModifier(project, 'effects', row.uid, modifierUid))}
+                      onAdd={() => onChange(addModifier(project, row.uid))}
+                      onRemove={(modifierUid) => onChange(removeModifier(project, row.uid, modifierUid))}
                       onUpdate={(modifierUid, patch) =>
-                        onChange(updateModifier(project, 'effects', row.uid, modifierUid, patch))
+                        onChange(updateModifier(project, row.uid, modifierUid, patch))
                       }
                     />
                   </td>
