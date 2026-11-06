@@ -93,7 +93,6 @@ describe('武器图标', () => {
         aliases: [],
         expressions: ['微笑'],
         actions: [],
-        weapons: [],
       },
     ];
     project.expressions = [{ uid: 'ex1', name: '微笑', id: '微笑' }];

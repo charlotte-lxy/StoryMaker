@@ -14,6 +14,7 @@ import type {
   GasSkill,
   GasWeapon,
   LangKey,
+  WeaponLoadout,
   Project,
 } from '../core/types';
 import { WEAPON_GROUP_EXPORT_PREFIX } from '../core/battle';
@@ -49,6 +50,60 @@ const NEW_ROW_LABEL: Record<Exclude<BattleRowKey, 'characters' | 'weapons'>, str
   events: '新事件',
 };
 
+/* ---------- 角色预设带的武器（每把一条，四个 uid） ---------- */
+/**
+ * 角色预设身上新增一把武器。
+ *
+ * 默认填第一把武器 / 第一把插槽 / 第一个攻击模式，分组默认「火力」——
+ * 所以加完只有武器需要挑（如果表里还没建，留空等策划去建）。
+ */
+export function addCharacterWeapon(project: Project, characterUid: string): Project {
+  return mutate(project, (draft) => {
+    const character = draft.battle.characters.find((row) => row.uid === characterUid);
+    if (character === undefined) return;
+    const battle = draft.battle;
+    const group =
+      battle.weaponGroups.find((row) => row.name.trim() === '火力') ?? battle.weaponGroups[0];
+    character.weapons.push({
+      uid: newUid(),
+      weaponUid: battle.weapons[0]?.uid ?? '',
+      groupUid: group?.uid ?? '',
+      slotUid: battle.slots[0]?.uid ?? '',
+      attackModeUid: battle.attackModes[0]?.uid ?? '',
+    });
+  });
+}
+
+export function removeCharacterWeapon(
+  project: Project,
+  characterUid: string,
+  weaponEntryUid: string,
+): Project {
+  return mutate(project, (draft) => {
+    const character = draft.battle.characters.find((row) => row.uid === characterUid);
+    if (character === undefined) return;
+    character.weapons = character.weapons.filter((row) => row.uid !== weaponEntryUid);
+  });
+}
+
+/** 改角色预设身上的一把武器（条目 uid 全局唯一，按它找就行） */
+export function updateCharacterWeapon(
+  project: Project,
+  weaponEntryUid: string,
+  patch: Partial<WeaponLoadout>,
+): Project {
+  return mutate(project, (draft) => {
+    for (const character of draft.battle.characters) {
+      const row = character.weapons.find((item) => item.uid === weaponEntryUid);
+      if (row !== undefined) {
+        Object.assign(row, patch);
+        return;
+      }
+    }
+  });
+}
+
+
 const ID_PREFIX: Record<'characters' | 'weapons', string> = {
   characters: 'CHA_',
   weapons: 'WEA_',
@@ -66,6 +121,7 @@ export function addBattleRow(project: Project, key: BattleRowKey): Project {
         name: '',
         attributes: [],
         skillUids: [],
+        weapons: [],
       };
       draft.battle.characters.push(row);
       return;
@@ -339,7 +395,7 @@ export function removeWeaponOption(project: Project, key: WeaponOptionKey, uid: 
 
     const characterField =
       key === 'weaponGroups' ? 'groupUid' : key === 'slots' ? 'slotUid' : 'attackModeUid';
-    for (const character of draft.characters) {
+    for (const character of draft.battle.characters) {
       for (const row of character.weapons) {
         if (row[characterField] === uid) row[characterField] = '';
       }

@@ -63,8 +63,8 @@ export function createEmptyBattle(): BattleData {
     skills: [],
     events: [],
     characters: [],
-    weapons: [],
     // 分组默认就有这三条（导出名称是固定的本地化 key），新项目打开就能直接用
+    weapons: [],
     weaponGroups: DEFAULT_WEAPON_GROUPS.map((row) => ({
       uid: newUid(),
       name: row.name,

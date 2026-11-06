@@ -27,7 +27,6 @@ function makeProject(): Project {
       aliases: [],
       expressions: ['微笑', '生气'],
       actions: [],
-      weapons: [],
     },
   ];
   return project;

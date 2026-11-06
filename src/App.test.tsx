@@ -497,10 +497,7 @@ describe('界面冒烟测试', () => {
           playPosition: '战斗对话框',
           aliases: [{ uid: 'al1', text: 'Q版伊芙', en: '', ja: '' }],
           expressions: ['微笑'],
-          actions: [],
-
-          weapons: [],
-        },
+          actions: [],        },
       ];
       project.chapters[0].groups[0].lines[0].characterUid = 'ch1';
       project.chapters[0].groups[0].lines[0].displayAliasUid = 'al1';
@@ -2670,86 +2667,6 @@ describe('角色页的配置区与表情图片', () => {
     expect(positionSelect.selectedOptions[0].textContent).toBe('旁白框');
   });
 
-  it('角色行的「武器」列：一把武器四个下拉，默认火力分组，导出成一段字符串', async () => {
-    const project = createEmptyProject();
-    project.battle.weapons = [
-      {
-        uid: 'w1',
-        id: 'WEA_测试-手枪',
-        name: '测试-手枪',
-        description: '',
-        magazine: '10',
-        attackSpeed: '1',
-        energyCost: '0',
-        attackModeUids: [],
-        slotUids: [],
-      },
-      {
-        uid: 'w2',
-        id: 'WEA_测试-刀',
-        name: '测试-刀',
-        description: '',
-        magazine: '-1',
-        attackSpeed: '1',
-        energyCost: '0',
-        attackModeUids: [],
-        slotUids: [],
-      },
-    ];
-    project.battle.slots = [
-      { uid: 'sl1', name: '右手', exportName: 'TXT_WeaponTeamSlot_右手', nameEn: '', nameJa: '' },
-    ];
-    project.battle.attackModes = [
-      { uid: 'am1', name: '手动攻击', exportName: 'TXT_AttackMode_手动攻击', nameEn: '', nameJa: '' },
-    ];
-    project.characters = [
-      {
-        uid: 'ch1',
-        id: 'CHA_伊芙',
-        name: '伊芙',
-        nameEn: '',
-        nameJa: '',
-        playPosition: project.playPositions[0]?.uid ?? '',
-        aliases: [],
-        expressions: [],
-        actions: [],
-        weapons: [],
-      },
-    ];
-    seedProjectFile(JSON.stringify(project));
-
-    const container = await openCharacters();
-
-    // 加一把：下拉里显示武器名，分组默认火力
-    fireEvent.click(screen.getByText('＋ 添加武器'));
-    const row = container.querySelector('.char-weapon-row') as HTMLElement;
-    const selects = [...row.querySelectorAll('select')] as HTMLSelectElement[];
-    expect(selects).toHaveLength(4);
-    expect(selects[0].selectedOptions[0].textContent).toBe('测试-手枪');
-    expect(selects[1].selectedOptions[0].textContent).toBe('火力');
-    expect(selects[2].selectedOptions[0].textContent).toBe('右手');
-    expect(selects[3].selectedOptions[0].textContent).toBe('手动攻击');
-    // 下拉里是名字，不是 ID
-    expect([...selects[0].options].map((option) => option.textContent)).toContain('测试-刀');
-
-    // 换成刀
-    fireEvent.change(selects[0], { target: { value: 'w2' } });
-
-    // 导出预览：角色表最后一列是「武器」，每把一个字符串
-    fireEvent.click(within(rail()).getByText('导出'));
-    const tab = [...document.querySelectorAll('.export-nav')].find((item) =>
-      item.textContent?.startsWith('角色'),
-    ) as HTMLElement;
-    fireEvent.click(tab);
-
-    const headers = [...document.querySelectorAll('.preview-table thead th')].map((th) => th.textContent);
-    expect(headers).toEqual(['（行名）', '播放位置', '显示名称', '表情差分列表', '武器']);
-    const cells = [...document.querySelectorAll('.preview-table tbody tr.line-row td')].map(
-      (td) => td.textContent,
-    );
-    expect(cells[4]).toBe('("WEA_测试-刀|TXT_WeaponTeam_火力|TXT_WeaponTeamSlot_右手|TXT_AttackMode_手动攻击")');
-  });
-
   it('表情表新增表情后，角色行能加它，立绘页自动收出 PIC_ 图片', async () => {
     const container = await openCharacters();
 
@@ -2821,6 +2738,86 @@ describe('角色页的配置区与表情图片', () => {
     expect(imageIds().map((input) => input.value)).toEqual(['SCE_B', 'SCE_A']);
   });
 });
+
+
+  it('角色预设的「武器」列：一把武器四个下拉，默认火力分组，导出成一段字符串', async () => {
+    const project = createEmptyProject();
+    project.battle.weapons = [
+      {
+        uid: 'w1',
+        id: 'WEA_测试-手枪',
+        name: '测试-手枪',
+        description: '',
+        magazine: '10',
+        attackSpeed: '1',
+        energyCost: '0',
+        attackModeUids: [],
+        slotUids: [],
+      },
+      {
+        uid: 'w2',
+        id: 'WEA_测试-刀',
+        name: '测试-刀',
+        description: '',
+        magazine: '-1',
+        attackSpeed: '1',
+        energyCost: '0',
+        attackModeUids: [],
+        slotUids: [],
+      },
+    ];
+    project.battle.slots = [
+      { uid: 'sl1', name: '右手', exportName: 'TXT_WeaponTeamSlot_右手', nameEn: '', nameJa: '' },
+    ];
+    project.battle.attackModes = [
+      { uid: 'am1', name: '手动攻击', exportName: 'TXT_AttackMode_手动攻击', nameEn: '', nameJa: '' },
+    ];
+    project.battle.characters = [
+      {
+        uid: 'ch1',
+        id: 'CHA_伊芙',
+        name: '伊芙',
+        attributes: [],
+        skillUids: [],
+        weapons: [],
+      },
+    ];
+    seedProjectFile(JSON.stringify(project));
+
+    await renderApp();
+    fireEvent.click(within(rail()).getByText('战斗'));
+    fireEvent.click(screen.getByText('角色预设'));
+    const container = document.body;
+
+    // 加一把：下拉里显示武器名，分组默认火力
+    fireEvent.click(screen.getByText('＋ 添加武器'));
+    const row = container.querySelector('.weapon-loadout-row') as HTMLElement;
+    const selects = [...row.querySelectorAll('select')] as HTMLSelectElement[];
+    expect(selects).toHaveLength(4);
+    expect(selects[0].selectedOptions[0].textContent).toBe('测试-手枪');
+    expect(selects[1].selectedOptions[0].textContent).toBe('火力');
+    expect(selects[2].selectedOptions[0].textContent).toBe('右手');
+    expect(selects[3].selectedOptions[0].textContent).toBe('手动攻击');
+    // 下拉里是名字，不是 ID
+    expect([...selects[0].options].map((option) => option.textContent)).toContain('测试-刀');
+
+    // 换成刀
+    fireEvent.change(selects[0], { target: { value: 'w2' } });
+
+    // 导出预览：角色表最后一列是「武器」，每把一个字符串
+    fireEvent.click(within(rail()).getByText('导出'));
+    const tab = [...document.querySelectorAll('.export-nav')].find((item) =>
+      item.textContent?.startsWith('GAS角色'),
+    ) as HTMLElement;
+    fireEvent.click(tab);
+
+    const headers = [...document.querySelectorAll('.preview-table thead th')].map((th) => th.textContent);
+    expect(headers).toEqual(['（行名）', '角色名', '属性列表', '技能列表', '武器']);
+    const cells = [...document.querySelectorAll('.preview-table tbody tr.line-row td')].map(
+      (td) => td.textContent,
+    );
+    expect(cells[4]).toBe('("WEA_测试-刀|TXT_WeaponTeam_火力|TXT_WeaponTeamSlot_右手|TXT_AttackMode_手动攻击")');
+  });
 
 
 describe('武器页：攻击模式与插槽', () => {

@@ -85,6 +85,7 @@ function makeBattle(): BattleData {
       // 属性列表的 key 是属性 uid
       attributes: [{ uid: 'p1', key: 'a1', value: '100' }],
       skillUids: ['s1'],
+      weapons: [],
     },
   ];
   return battle;
@@ -97,7 +98,7 @@ function makeProject(): Project {
     expressions: [],
     name: '引用测试',
     characters: [
-      { uid: 'ch1', id: 'CHA_伊芙', name: '伊芙', playPosition: '剧情对话框', nameEn: '', nameJa: '', aliases: [], expressions: ['微笑'], actions: ['挥手'], weapons: [] },
+      { uid: 'ch1', id: 'CHA_伊芙', name: '伊芙', playPosition: '剧情对话框', nameEn: '', nameJa: '', aliases: [], expressions: ['微笑'], actions: ['挥手'] },
     ],
     items: [{ uid: 'it1', id: 'Item_Coin', name: '金币' }],
     quests: [],
@@ -284,7 +285,6 @@ describe('读老项目时把引用换成 uid', () => {
           { uid: 's2', name: '加速', lockSkills: ['回血'], listenEvents: ['受击'] },
         ],
         characters: [{ uid: 'bc1', id: 'CHA_主角', attributes: [{ uid: 'p1', key: '生命值', value: '100' }] }],
-        weapons: [],
       },
       chapters: [
         {

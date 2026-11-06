@@ -677,7 +677,6 @@ describe('导出三张表', () => {
         aliases: [{ uid: 'al1', text: 'Q版伊芙', en: '', ja: '' }],
         expressions: [],
         actions: [],
-        weapons: [],
       },
     ];
     withAlias.chapters[0].groups[0].lines[0].characterUid = 'ch1';
@@ -800,78 +799,22 @@ describe('导出三张表', () => {
         aliases: [{ uid: 'al1', text: 'unknown', en: '', ja: '' }],
         expressions: ['默认', '开心'],
         actions: ['默认'],
-        weapons: [],
       },
     ];
 
     const tables = buildRows(withCharacters);
-    expect(tables.characters[0]).toEqual([
-      '',
-      '播放位置',
-      '显示名称',
-      '表情差分列表',
-      '武器',
-    ]);
+    expect(tables.characters[0]).toEqual(['', '播放位置', '显示名称', '表情差分列表']);
     expect(tables.characters[1]).toEqual([
       'CHA_Q版伊芙',
       '战斗对话框',
       'TXT_CHA_Q版伊芙_DefaultName',
       '("默认","开心")',
-      '',
     ]);
     // 默认名称的中文进本地化表，这一格只放 key；别名不进这张子表
     expect(tables.characters.flat()).not.toContain('Q版伊芙');
     expect(tables.characters.flat().some((cell) => cell.includes('OtherName'))).toBe(false);
     expect(tables.locale).toContainEqual(['TXT_CHA_Q版伊芙_DefaultName', 'Q版伊芙', '', '']);
     expect(tables.locale).toContainEqual(['TXT_CHA_Q版伊芙_OtherName-1', 'unknown', '', '']);
-  });
-
-  it('角色子表的「武器」列：每把武器一个「武器ID|分组导出名称|插槽导出名称|攻击模式导出名称」', () => {
-    const project = makeProject();
-    const battle = project.battle;
-    // 分组默认三条（火力 / 光束 / 点防），这里再加一个插槽与一个攻击模式
-    battle.weapons = [
-      {
-        uid: 'w1',
-        id: 'WEA_测试-手枪',
-        name: '测试-手枪',
-        description: '',
-        magazine: '10',
-        attackSpeed: '1',
-        energyCost: '0',
-        attackModeUids: [],
-        slotUids: [],
-      },
-    ];
-    battle.slots = [{ uid: 'sl1', name: '右手', exportName: 'TXT_WeaponTeamSlot_右手', nameEn: '', nameJa: '' }];
-    battle.attackModes = [
-      { uid: 'am1', name: '手动攻击', exportName: 'TXT_AttackMode_手动攻击', nameEn: '', nameJa: '' },
-    ];
-    const fire = battle.weaponGroups.find((row) => row.name === '火力')!;
-    const beam = battle.weaponGroups.find((row) => row.name === '光束')!;
-
-    project.characters = [
-      {
-        uid: 'ch1',
-        id: 'CHA_伊芙',
-        name: '伊芙',
-        nameEn: '',
-        nameJa: '',
-        playPosition: '',
-        aliases: [],
-        expressions: [],
-        actions: [],
-        weapons: [
-          { uid: 'cw1', weaponUid: 'w1', groupUid: fire.uid, slotUid: 'sl1', attackModeUid: 'am1' },
-          // 第二把没选武器：拼不出武器 ID，跳过
-          { uid: 'cw2', weaponUid: '', groupUid: beam.uid, slotUid: '', attackModeUid: '' },
-        ],
-      },
-    ];
-
-    expect(buildRows(project).characters[1][4]).toBe(
-      '("WEA_测试-手枪|TXT_WeaponTeam_火力|TXT_WeaponTeamSlot_右手|TXT_AttackMode_手动攻击")',
-    );
   });
 
   it('武器配置的导出名称也进本地化表，中文就是它们的显示名称', () => {

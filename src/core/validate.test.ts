@@ -91,7 +91,6 @@ function makeProject(group: Partial<Group>): Project {
         aliases: [],
         expressions: [],
         actions: [],
-        weapons: [],
       },
     ],
     sounds: [],

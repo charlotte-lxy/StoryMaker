@@ -41,7 +41,6 @@ import {
   addChapter,
   addCharacter,
   addCharacterAlias,
-  addCharacterWeapon,
   addExpression,
   addPlayPosition,
   addCommandDef,
@@ -62,7 +61,6 @@ import {
   removeChapter,
   removeCharacter,
   removeCharacterAlias,
-  removeCharacterWeapon,
   removeExpression,
   removePlayPosition,
   removeCommandDef,
@@ -87,7 +85,6 @@ import {
   reorderLookupRow,
   setGroupNote,
   updateCharacterAlias,
-  updateCharacterWeapon,
   updateCommandDef,
   updateExpression,
   updatePlayPosition,
@@ -1217,15 +1214,6 @@ export default function App() {
                   onRemoveExpression={(uid) => setProject((prev) => removeExpression(prev, uid))}
                   onUpdateExpression={(uid, patch: Partial<ExpressionRow>) =>
                     setProject((prev) => updateExpression(prev, uid, patch))
-                  }
-                  onAddWeapon={(characterUid) =>
-                    setProject((prev) => addCharacterWeapon(prev, characterUid))
-                  }
-                  onRemoveWeapon={(characterUid, weaponEntryUid) =>
-                    setProject((prev) => removeCharacterWeapon(prev, characterUid, weaponEntryUid))
-                  }
-                  onUpdateWeapon={(weaponEntryUid, patch) =>
-                    setProject((prev) => updateCharacterWeapon(prev, weaponEntryUid, patch))
                   }
                   onReorder={(from, to) => setProject((prev) => reorderCharacter(prev, from, to))}
                 />

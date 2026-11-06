@@ -54,6 +54,7 @@ import {
   type PlayPositionRow,
   type Project,
   type StoryOption,
+  type WeaponLoadout,
 } from './types';
 
 export interface NormalizeResult {
@@ -242,16 +243,6 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
       actions: Array.isArray(row.actions)
         ? row.actions.filter((item): item is string => typeof item === 'string')
         : [],
-      // 角色带的武器：每把存四个 uid（武器 / 分组 / 插槽 / 攻击模式）
-      weapons: (Array.isArray(row.weapons) ? row.weapons : [])
-        .filter(isRecord)
-        .map((item) => ({
-          uid: asUid(item.uid),
-          weaponUid: asString(item.weaponUid),
-          groupUid: asString(item.groupUid),
-          slotUid: asString(item.slotUid),
-          attackModeUid: asString(item.attackModeUid),
-        })),
     };
   });
 
@@ -383,6 +374,16 @@ function normalizeBattle(input: unknown): BattleData {
   const text = (row: Record<string, unknown>, key: string): string => asString(row[key]);
   const flag = (row: Record<string, unknown>, key: string): boolean => row[key] === true;
 
+  /** 角色预设带的武器：每把四个 uid（武器 / 分组 / 插槽 / 攻击模式） */
+  const weaponLoadoutOf = (value: unknown): WeaponLoadout[] =>
+    (Array.isArray(value) ? value : []).filter(isRecord).map((row) => ({
+      uid: asUid(row.uid),
+      weaponUid: asString(row.weaponUid),
+      groupUid: asString(row.groupUid),
+      slotUid: asString(row.slotUid),
+      attackModeUid: asString(row.attackModeUid),
+    }));
+
   return {
     skillClassPrefix: asString(raw.skillClassPrefix) || DEFAULT_SKILL_CLASS_PREFIX,
     effectClassPrefix: asString(raw.effectClassPrefix) || DEFAULT_EFFECT_CLASS_PREFIX,
@@ -429,6 +430,8 @@ function normalizeBattle(input: unknown): BattleData {
       name: text(row, 'name'),
       attributes: pairs(row.attributes),
       skillUids: refs(row, 'skillUids', 'skills'),
+      // 角色预设带的武器：每把存四个 uid（武器 / 分组 / 插槽 / 攻击模式）
+      weapons: weaponLoadoutOf(row.weapons),
     })),
     weapons: rows('weapons').map((row) => ({
       uid: asUid(row.uid),

@@ -3,7 +3,6 @@ import { useState } from 'react';
 import type {
   Character,
   CharacterAlias,
-  CharacterWeapon,
   ExpressionRow,
   PlayPositionRow,
   Project,
@@ -28,10 +27,6 @@ interface Props {
   onAddExpression: () => void;
   onRemoveExpression: (uid: string) => void;
   onUpdateExpression: (uid: string, patch: Partial<ExpressionRow>) => void;
-  /** 角色身上的武器：加一把、删一把、改四个下拉 */
-  onAddWeapon: (characterUid: string) => void;
-  onRemoveWeapon: (characterUid: string, weaponEntryUid: string) => void;
-  onUpdateWeapon: (weaponEntryUid: string, patch: Partial<CharacterWeapon>) => void;
   /** 角色表拖拽排序 */
   onReorder: (from: number, to: number) => void;
   /** 全局搜索跳过来的那一行：交给上层滚过去，这里只负责高亮它 */
@@ -60,9 +55,6 @@ export function CharacterEditor({
   onAddExpression,
   onRemoveExpression,
   onUpdateExpression,
-  onAddWeapon,
-  onRemoveWeapon,
-  onUpdateWeapon,
   onReorder,
   focusUid = null,
 }: Props) {
@@ -85,19 +77,6 @@ export function CharacterEditor({
 
   const positionNames = new Map(project.playPositions.map((row) => [row.uid, row.name]));
   const expressionNames = project.expressions.map((row) => row.name.trim());
-
-  /** 武器那一列的四份下拉候选：都取战斗模块里的表，显示名称、存 uid */
-  const battle = project.battle;
-  const weaponOptions = battle.weapons.map((row) => ({
-    value: row.uid,
-    label: row.name.trim() === '' ? row.id.trim() : row.name.trim(),
-  }));
-  const groupOptions = battle.weaponGroups.map((row) => ({ value: row.uid, label: row.name.trim() }));
-  const slotOptions = battle.slots.map((row) => ({ value: row.uid, label: row.name.trim() }));
-  const attackModeOptions = battle.attackModes.map((row) => ({
-    value: row.uid,
-    label: row.name.trim(),
-  }));
 
   const addExpression = (character: Character): void => {
     const text = (draftExpression[character.uid] ?? '').trim();
@@ -246,7 +225,6 @@ export function CharacterEditor({
               <th style={{ width: '16%' }}>默认名称</th>
               <th style={{ width: 132 }}>播放位置</th>
               <th>表情差分</th>
-              <th style={{ width: 430 }}>武器</th>
               <th className="col-mid">在剧情中的使用</th>
               <th style={{ width: 74 }}>操作</th>
             </tr>
@@ -392,104 +370,6 @@ export function CharacterEditor({
                         }}
                         onBlur={() => addExpression(character)}
                       />
-                    </div>
-                  </td>
-                  <td>
-                    {/* 武器：每把一条四下拉（武器 / 分组 / 插槽 / 攻击模式），导出成「武器ID|分组|插槽|攻击模式」 */}
-                    <div className="char-weapons">
-                      {character.weapons.map((entry) => (
-                        <div className="char-weapon-row" key={entry.uid}>
-                          <select
-                            value={entry.weaponUid}
-                            title="武器（下拉里显示武器名，导出写武器 ID）"
-                            onChange={(event) =>
-                              onUpdateWeapon(entry.uid, { weaponUid: event.target.value })
-                            }
-                          >
-                            <option value="">（未选武器）</option>
-                            {weaponOptions.map((item) => (
-                              <option key={item.value} value={item.value}>
-                                {item.label}
-                              </option>
-                            ))}
-                            {entry.weaponUid !== '' &&
-                              !weaponOptions.some((item) => item.value === entry.weaponUid) && (
-                                <option value={entry.weaponUid}>（武器已删除）</option>
-                              )}
-                          </select>
-                          <select
-                            value={entry.groupUid}
-                            title="绑定分组（导出用分组表的导出名称）"
-                            onChange={(event) =>
-                              onUpdateWeapon(entry.uid, { groupUid: event.target.value })
-                            }
-                          >
-                            <option value="">（未选分组）</option>
-                            {groupOptions.map((item) => (
-                              <option key={item.value} value={item.value}>
-                                {item.label}
-                              </option>
-                            ))}
-                            {entry.groupUid !== '' &&
-                              !groupOptions.some((item) => item.value === entry.groupUid) && (
-                                <option value={entry.groupUid}>（分组已删除）</option>
-                              )}
-                          </select>
-                          <select
-                            value={entry.slotUid}
-                            title="绑定插槽（导出用插槽表的导出名称）"
-                            onChange={(event) =>
-                              onUpdateWeapon(entry.uid, { slotUid: event.target.value })
-                            }
-                          >
-                            <option value="">（未选插槽）</option>
-                            {slotOptions.map((item) => (
-                              <option key={item.value} value={item.value}>
-                                {item.label}
-                              </option>
-                            ))}
-                            {entry.slotUid !== '' &&
-                              !slotOptions.some((item) => item.value === entry.slotUid) && (
-                                <option value={entry.slotUid}>（插槽已删除）</option>
-                              )}
-                          </select>
-                          <select
-                            value={entry.attackModeUid}
-                            title="攻击模式（导出用攻击模式表的导出名称）"
-                            onChange={(event) =>
-                              onUpdateWeapon(entry.uid, { attackModeUid: event.target.value })
-                            }
-                          >
-                            <option value="">（未选攻击模式）</option>
-                            {attackModeOptions.map((item) => (
-                              <option key={item.value} value={item.value}>
-                                {item.label}
-                              </option>
-                            ))}
-                            {entry.attackModeUid !== '' &&
-                              !attackModeOptions.some((item) => item.value === entry.attackModeUid) && (
-                                <option value={entry.attackModeUid}>（攻击模式已删除）</option>
-                              )}
-                          </select>
-                          <button
-                            type="button"
-                            className="mini danger"
-                            title="这个角色不带这把武器了"
-                            onClick={() => onRemoveWeapon(character.uid, entry.uid)}
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-
-                      <button
-                        type="button"
-                        className="option-add name-add"
-                        title="给这个角色加一把武器（分组默认火力）"
-                        onClick={() => onAddWeapon(character.uid)}
-                      >
-                        ＋ 添加武器
-                      </button>
                     </div>
                   </td>
                   <td className="usage-cell">{used === 0 ? '尚未使用' : `${used} 行对话`}</td>

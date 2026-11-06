@@ -1611,25 +1611,25 @@ div.line-row.selected > .line-card {
   min-width: 300px;
 }
 
-/* 角色表「武器」列：每把武器一行四个下拉，底下是「＋ 添加武器」 */
-.char-weapons {
+/* 角色预设「武器」列：每把武器一行四个下拉，底下是「＋ 添加武器」 */
+.weapon-loadout {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.char-weapon-row {
+.weapon-loadout-row {
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
-.char-weapon-row select {
+.weapon-loadout-row select {
   min-width: 0;
   flex: 1 1 0;
 }
 
-.char-weapon-row button {
+.weapon-loadout-row button {
   flex: 0 0 auto;
 }
 

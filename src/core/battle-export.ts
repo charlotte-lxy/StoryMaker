@@ -23,7 +23,7 @@ import {
 } from './battle';
 import { attributeNameOf, eventNameOf, skillNameOf } from './refs';
 import { weaponIconId } from './weapon-icons';
-import type { BattleData, GasModifier, GasOptionRow, GasPair, Project } from './types';
+import type { BattleData, GasModifier, GasOptionRow, GasPair, Project, WeaponLoadout } from './types';
 
 export const GAMEPLAY_TAGS_SHEET = 'GASGameplayTags';
 export const ATTRIBUTE_SHEET = 'GAS属性';
@@ -58,7 +58,7 @@ export const SKILL_HEADER: readonly string[] = [
   'GA类',
 ];
 export const EVENT_HEADER: readonly string[] = ['', '事件名', '事件标签'];
-export const CHARACTER_HEADER: readonly string[] = ['', '角色名', '属性列表', '技能列表'];
+export const CHARACTER_HEADER: readonly string[] = ['', '角色名', '属性列表', '技能列表', '武器'];
 export const WEAPON_HEADER: readonly string[] = [
   '',
   '武器名',
@@ -144,6 +144,33 @@ const attributePairs = (battle: BattleData, pairs: readonly GasPair[]): GasPair[
     .filter((pair) => pair.key.trim() !== '')
     .map((pair) => ({ ...pair, key: attributeTag(attributeNameOf(battle, pair.key)) }));
 
+/**
+ * 角色预设带的武器，每把一个字符串：`武器ID|分组导出名称|插槽导出名称|攻击模式导出名称`。
+ *
+ * 四个引用存的都是 uid，这里现查：武器取它的 ID（行名），另外三个取导出名称。
+ * 武器没选（uid 空或已被删）的那一条跳过——拼不出武器 ID 的字符串没有意义。
+ */
+function loadoutTexts(battle: BattleData, entries: readonly WeaponLoadout[]): string[] {
+  const weaponIds = new Map(battle.weapons.map((row) => [row.uid, row.id.trim()]));
+  const exportNameOf = (rows: readonly GasOptionRow[], uid: string): string =>
+    rows.find((row) => row.uid === uid)?.exportName.trim() ?? '';
+
+  const out: string[] = [];
+  for (const entry of entries) {
+    const weaponId = weaponIds.get(entry.weaponUid) ?? '';
+    if (weaponId === '') continue;
+    out.push(
+      [
+        weaponId,
+        exportNameOf(battle.weaponGroups, entry.groupUid),
+        exportNameOf(battle.slots, entry.slotUid),
+        exportNameOf(battle.attackModes, entry.attackModeUid),
+      ].join('|'),
+    );
+  }
+  return out;
+}
+
 /** 只清掉整行都空的情况，值本身保持原样 */
 const filledPairs = (pairs: readonly GasPair[]): GasPair[] =>
   pairs.filter((pair) => pair.key.trim() !== '' || pair.value.trim() !== '');
@@ -210,6 +237,8 @@ export function buildBattleRows(project: Project): BattleSheetRows {
           row.name,
           formatPairLiteral(attributePairs(battle, filledPairs(row.attributes))),
           formatArrayLiteral(skillTags(battle, row.skillUids)),
+          // 武器：每把一个字符串「武器ID|分组导出名称|插槽导出名称|攻击模式导出名称」
+          formatArrayLiteral(loadoutTexts(battle, row.weapons)),
         ]),
     ],
     weapons: [

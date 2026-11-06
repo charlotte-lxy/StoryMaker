@@ -28,7 +28,7 @@ function makeProject(): Project {
     playPositions: [],
     expressions: [],
     name: '测试项目',
-    characters: [{ uid: 'c1', id: 'CHA_甲', name: '甲', playPosition: '剧情对话框', nameEn: '', nameJa: '', aliases: [], expressions: [], actions: [], weapons: [] }],
+    characters: [{ uid: 'c1', id: 'CHA_甲', name: '甲', playPosition: '剧情对话框', nameEn: '', nameJa: '', aliases: [], expressions: [], actions: [] }],
     items: [{ uid: 'i1', id: 'Item_Coin', name: '金币' }],
     quests: [],
     images: [],

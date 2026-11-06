@@ -92,6 +92,7 @@ function makeProject(): Project {
       // 属性列表的 key 是属性 uid：a2 = 移动速度、a1 = 生命值
       attributes: [pair('a2', '5'), pair('a1', '100')],
       skillUids: ['s1', 's2'],
+      weapons: [],
     },
   ];
   battle.weapons = [
@@ -263,7 +264,32 @@ describe('战斗模块的导出', () => {
       '测试主角',
       '(("GAS.属性.移动速度","5"),("GAS.属性.生命值","100"))',
       '("GAS.技能.回血","GAS.技能.加速")',
+      // 还没带武器时这一列留空
+      '',
     ]);
+  });
+
+  it('角色表「武器」列：每把武器一个「武器ID|分组|插槽|攻击模式」字符串，都用导出名称', () => {
+    const project = makeProject();
+    const battle = project.battle;
+    battle.weaponGroups = [
+      { uid: 'wg1', name: '火力', exportName: 'TXT_WeaponTeam_火力', nameEn: '', nameJa: '' },
+    ];
+    battle.slots = [
+      { uid: 'sl1', name: '右手', exportName: 'TXT_WeaponTeamSlot_右手', nameEn: '', nameJa: '' },
+    ];
+    battle.attackModes = [
+      { uid: 'am1', name: '手动攻击', exportName: 'TXT_AttackMode_手动攻击', nameEn: '', nameJa: '' },
+    ];
+    battle.characters[0].weapons = [
+      { uid: 'cw1', weaponUid: 'w1', groupUid: 'wg1', slotUid: 'sl1', attackModeUid: 'am1' },
+      // 第二把没选武器：拼不出武器 ID，跳过
+      { uid: 'cw2', weaponUid: '', groupUid: 'wg1', slotUid: '', attackModeUid: '' },
+    ];
+
+    expect(buildBattleRows(project).characters[1][4]).toBe(
+      '("WEA_测试-手枪|TXT_WeaponTeam_火力|TXT_WeaponTeamSlot_右手|TXT_AttackMode_手动攻击")',
+    );
   });
 
   it('武器表：行名是武器 ID，弹匣 / 攻速 / 能量消耗都是数值列，末尾带武器图标与武器类', () => {

@@ -25,7 +25,6 @@ function makeProject(): Project {
       playPosition: '剧情对话框', nameEn: '', nameJa: '', aliases: [],
       expressions: ['微笑'],
       actions: [],
-      weapons: [],
     });
     draft.items.push({ uid: 'i1', id: 'Item_Coin', name: '金币' });
     draft.uiTexts.push({

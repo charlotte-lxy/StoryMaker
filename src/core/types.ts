@@ -189,19 +189,14 @@ export interface Character {
   expressions: string[];
   /** 该角色的动作清单，供指令「剧情|演出|…;动作:」这个参数的下拉使用 */
   actions: string[];
-  /**
-   * 这个角色带的武器（每把一条），导出角色表的「武器」列：
-   * 每把武器一个字符串 `武器ID|分组导出名称|插槽导出名称|攻击模式导出名称`。
-   */
-  weapons: CharacterWeapon[];
 }
 
 /**
- * 角色身上的一把武器：四个下拉各存那一行的 uid（改名字不会断引用）。
+ * 角色预设身上的一把武器：四个下拉各存那一行的 uid（改名字不会断引用）。
  *
- * 导出角色表时翻回：武器 ID + 分组 / 插槽 / 攻击模式的导出名称。
+ * 导出 GAS角色 的「武器」列时翻回：武器 ID + 分组 / 插槽 / 攻击模式的导出名称。
  */
-export interface CharacterWeapon {
+export interface WeaponLoadout {
   uid: string;
   /** 武器表那一行的 uid */
   weaponUid: string;
@@ -379,6 +374,11 @@ export interface GasCharacter {
   attributes: GasPair[];
   /** 技能列表：技能表那一行的 uid */
   skillUids: string[];
+  /**
+   * 这个角色预设带的武器（每把一条），导出 GAS角色 的「武器」列：
+   * 每把武器一个字符串 `武器ID|分组导出名称|插槽导出名称|攻击模式导出名称`。
+   */
+  weapons: WeaponLoadout[];
 }
 
 /** 武器，导出成 GAS武器 */
