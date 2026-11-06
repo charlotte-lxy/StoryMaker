@@ -44,6 +44,16 @@ export function BattleCharactersPage({ project, onChange }: Props) {
   const groupOptions = optionOf(battle.weaponGroups);
   const slotOptions = optionOf(battle.slots);
   const attackModeOptions = optionOf(battle.attackModes);
+
+  /**
+   * 只列这把武器支持的插槽 / 攻击模式（顺序按武器表里勾选的顺序）。
+   *
+   * 武器表里没勾的就不出现在下拉里——避免配出「武器不支持这个插槽」的组合。
+   * 没选武器时是空清单，下拉会置灰。
+   */
+  const supportedOf = (uids: readonly string[], all: { value: string; label: string }[]) =>
+    uids.map((uid) => all.find((item) => item.value === uid)).filter((item) => item !== undefined);
+
   const drag = useRowDrag((from, to) => onChange(reorderBattleRow(project, 'characters', from, to)));
 
   const counts = new Map<string, number>();
@@ -133,108 +143,160 @@ export function BattleCharactersPage({ project, onChange }: Props) {
                   <td>
                     {/* 武器：每把一条四下拉（武器 / 分组 / 插槽 / 攻击模式），导出成「武器ID|分组|插槽|攻击模式」 */}
                     <div className="weapon-loadout">
-                      {row.weapons.map((entry) => (
-                        <div className="weapon-loadout-row" key={entry.uid}>
-                          <select
-                            value={entry.weaponUid}
-                            title="武器（下拉里显示武器名，导出写武器 ID）"
-                            onChange={(event) =>
-                              onChange(
-                                updateCharacterWeapon(project, entry.uid, {
-                                  weaponUid: event.target.value,
-                                }),
-                              )
-                            }
-                          >
-                            <option value="">（未选武器）</option>
-                            {weaponOptions.map((item) => (
-                              <option key={item.value} value={item.value}>
-                                {item.label}
-                              </option>
-                            ))}
-                            {entry.weaponUid !== '' &&
-                              !weaponOptions.some((item) => item.value === entry.weaponUid) && (
-                                <option value={entry.weaponUid}>（武器已删除）</option>
-                              )}
-                          </select>
-                          <select
-                            value={entry.groupUid}
-                            title="绑定分组（导出用分组表的导出名称）"
-                            onChange={(event) =>
-                              onChange(
-                                updateCharacterWeapon(project, entry.uid, {
-                                  groupUid: event.target.value,
-                                }),
-                              )
-                            }
-                          >
-                            <option value="">（未选分组）</option>
-                            {groupOptions.map((item) => (
-                              <option key={item.value} value={item.value}>
-                                {item.label}
-                              </option>
-                            ))}
-                            {entry.groupUid !== '' &&
-                              !groupOptions.some((item) => item.value === entry.groupUid) && (
-                                <option value={entry.groupUid}>（分组已删除）</option>
-                              )}
-                          </select>
-                          <select
-                            value={entry.slotUid}
-                            title="绑定插槽（导出用插槽表的导出名称）"
-                            onChange={(event) =>
-                              onChange(
-                                updateCharacterWeapon(project, entry.uid, {
-                                  slotUid: event.target.value,
-                                }),
-                              )
-                            }
-                          >
-                            <option value="">（未选插槽）</option>
-                            {slotOptions.map((item) => (
-                              <option key={item.value} value={item.value}>
-                                {item.label}
-                              </option>
-                            ))}
-                            {entry.slotUid !== '' &&
-                              !slotOptions.some((item) => item.value === entry.slotUid) && (
-                                <option value={entry.slotUid}>（插槽已删除）</option>
-                              )}
-                          </select>
-                          <select
-                            value={entry.attackModeUid}
-                            title="攻击模式（导出用攻击模式表的导出名称）"
-                            onChange={(event) =>
-                              onChange(
-                                updateCharacterWeapon(project, entry.uid, {
-                                  attackModeUid: event.target.value,
-                                }),
-                              )
-                            }
-                          >
-                            <option value="">（未选攻击模式）</option>
-                            {attackModeOptions.map((item) => (
-                              <option key={item.value} value={item.value}>
-                                {item.label}
-                              </option>
-                            ))}
-                            {entry.attackModeUid !== '' &&
-                              !attackModeOptions.some(
-                                (item) => item.value === entry.attackModeUid,
-                              ) && <option value={entry.attackModeUid}>（攻击模式已删除）</option>}
-                          </select>
-                          <button
-                            type="button"
-                            className="mini danger"
-                            title="这个角色不带这把武器了"
-                            onClick={() =>
-                              onChange(removeCharacterWeapon(project, row.uid, entry.uid))
-                            }
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
+                      {row.weapons.map((entry) => {
+                        // 插槽 / 攻击模式只列这把武器支持的；换武器时若原选择不被支持就自动挑第一个
+                        const weapon = battle.weapons.find((item) => item.uid === entry.weaponUid);
+                        const entrySlots = supportedOf(weapon?.slotUids ?? [], slotOptions);
+                        const entryModes = supportedOf(weapon?.attackModeUids ?? [], attackModeOptions);
+                        const noWeapon = weapon === undefined;
+                        const noSlotHint = noWeapon
+                          ? '先选武器，这里只列这把武器支持的插槽'
+                          : '这把武器在武器表里没勾选任何插槽，先去武器表勾选';
+
+                        return (
+                          <div className="weapon-loadout-row" key={entry.uid}>
+                            <select
+                              value={entry.weaponUid}
+                              title="武器（下拉里显示武器名，导出写武器 ID）"
+                              onChange={(event) => {
+                                const nextWeapon = battle.weapons.find(
+                                  (item) => item.uid === event.target.value,
+                                );
+                                const nextSlots = supportedOf(
+                                  nextWeapon?.slotUids ?? [],
+                                  slotOptions,
+                                );
+                                const nextModes = supportedOf(
+                                  nextWeapon?.attackModeUids ?? [],
+                                  attackModeOptions,
+                                );
+                                onChange(
+                                  updateCharacterWeapon(project, entry.uid, {
+                                    weaponUid: event.target.value,
+                                    // 原来选的插槽 / 攻击模式新武器不支持了，就换成它支持的第一项
+                                    slotUid: nextSlots.some((item) => item.value === entry.slotUid)
+                                      ? entry.slotUid
+                                      : (nextSlots[0]?.value ?? ''),
+                                    attackModeUid: nextModes.some(
+                                      (item) => item.value === entry.attackModeUid,
+                                    )
+                                      ? entry.attackModeUid
+                                      : (nextModes[0]?.value ?? ''),
+                                  }),
+                                );
+                              }}
+                            >
+                              <option value="">（未选武器）</option>
+                              {weaponOptions.map((item) => (
+                                <option key={item.value} value={item.value}>
+                                  {item.label}
+                                </option>
+                              ))}
+                              {entry.weaponUid !== '' &&
+                                !weaponOptions.some((item) => item.value === entry.weaponUid) && (
+                                  <option value={entry.weaponUid}>（武器已删除）</option>
+                                )}
+                            </select>
+                            <select
+                              value={entry.groupUid}
+                              title="绑定分组（导出用分组表的导出名称）"
+                              onChange={(event) =>
+                                onChange(
+                                  updateCharacterWeapon(project, entry.uid, {
+                                    groupUid: event.target.value,
+                                  }),
+                                )
+                              }
+                            >
+                              <option value="">（未选分组）</option>
+                              {groupOptions.map((item) => (
+                                <option key={item.value} value={item.value}>
+                                  {item.label}
+                                </option>
+                              ))}
+                              {entry.groupUid !== '' &&
+                                !groupOptions.some((item) => item.value === entry.groupUid) && (
+                                  <option value={entry.groupUid}>（分组已删除）</option>
+                                )}
+                            </select>
+                            <select
+                              value={entry.slotUid}
+                              disabled={noWeapon || entrySlots.length === 0}
+                              title={
+                                entrySlots.length === 0
+                                  ? noSlotHint
+                                  : '绑定插槽（只列这把武器支持的；导出用插槽表的导出名称）'
+                              }
+                              onChange={(event) =>
+                                onChange(
+                                  updateCharacterWeapon(project, entry.uid, {
+                                    slotUid: event.target.value,
+                                  }),
+                                )
+                              }
+                            >
+                              <option value="">（未选插槽）</option>
+                              {entrySlots.map((item) => (
+                                <option key={item.value} value={item.value}>
+                                  {item.label}
+                                </option>
+                              ))}
+                              {entry.slotUid !== '' &&
+                                !entrySlots.some((item) => item.value === entry.slotUid) && (
+                                  <option value={entry.slotUid}>
+                                    {slotOptions.find((item) => item.value === entry.slotUid)
+                                      ?.label ?? '（插槽已删除）'}
+                                    （这把武器不支持）
+                                  </option>
+                                )}
+                            </select>
+                            <select
+                              value={entry.attackModeUid}
+                              disabled={noWeapon || entryModes.length === 0}
+                              title={
+                                entryModes.length === 0
+                                  ? noWeapon
+                                    ? '先选武器，这里只列这把武器支持的攻击模式'
+                                    : '这把武器在武器表里没勾选任何攻击模式，先去武器表勾选'
+                                  : '攻击模式（只列这把武器支持的；导出用攻击模式表的导出名称）'
+                              }
+                              onChange={(event) =>
+                                onChange(
+                                  updateCharacterWeapon(project, entry.uid, {
+                                    attackModeUid: event.target.value,
+                                  }),
+                                )
+                              }
+                            >
+                              <option value="">（未选攻击模式）</option>
+                              {entryModes.map((item) => (
+                                <option key={item.value} value={item.value}>
+                                  {item.label}
+                                </option>
+                              ))}
+                              {entry.attackModeUid !== '' &&
+                                !entryModes.some((item) => item.value === entry.attackModeUid) && (
+                                  <option value={entry.attackModeUid}>
+                                    {attackModeOptions.find(
+                                      (item) => item.value === entry.attackModeUid,
+                                    )?.label ?? '（攻击模式已删除）'}
+                                    （这把武器不支持）
+                                  </option>
+                                )}
+                            </select>
+                            <button
+                              type="button"
+                              className="mini danger"
+                              title="这个角色不带这把武器了"
+                              onClick={() =>
+                                onChange(removeCharacterWeapon(project, row.uid, entry.uid))
+                              }
+                            >
+                              ×
+                            </button>
+                          </div>
+                        );
+                      })}
 
                       <button
                         type="button"

@@ -2740,37 +2740,35 @@ describe('角色页的配置区与表情图片', () => {
 });
 
 
-  it('角色预设的「武器」列：一把武器四个下拉，默认火力分组，导出成一段字符串', async () => {
+  it('角色预设的「武器」列：插槽 / 攻击模式只列这把武器支持的，换武器自动换成支持的那项', async () => {
     const project = createEmptyProject();
+    const weapon = (uid: string, id: string, name: string, slots: string[], modes: string[]) => ({
+      uid,
+      id,
+      name,
+      description: '',
+      magazine: '10',
+      attackSpeed: '1',
+      energyCost: '0',
+      attackModeUids: modes,
+      slotUids: slots,
+    });
     project.battle.weapons = [
-      {
-        uid: 'w1',
-        id: 'WEA_测试-手枪',
-        name: '测试-手枪',
-        description: '',
-        magazine: '10',
-        attackSpeed: '1',
-        energyCost: '0',
-        attackModeUids: [],
-        slotUids: [],
-      },
-      {
-        uid: 'w2',
-        id: 'WEA_测试-刀',
-        name: '测试-刀',
-        description: '',
-        magazine: '-1',
-        attackSpeed: '1',
-        energyCost: '0',
-        attackModeUids: [],
-        slotUids: [],
-      },
+      // 手枪支持右手 / 左手，能用两种攻击模式
+      weapon('w1', 'WEA_测试-手枪', '测试-手枪', ['sl1', 'sl2'], ['am1', 'am2']),
+      // 刀只支持后背，只能用自动攻击
+      weapon('w2', 'WEA_测试-刀', '测试-刀', ['sl3'], ['am2']),
+      // 什么都没勾：插槽 / 攻击模式的下拉会置灰
+      weapon('w3', 'WEA_测试-炮', '测试-炮', [], []),
     ];
     project.battle.slots = [
       { uid: 'sl1', name: '右手', exportName: 'TXT_WeaponTeamSlot_右手', nameEn: '', nameJa: '' },
+      { uid: 'sl2', name: '左手', exportName: 'TXT_WeaponTeamSlot_左手', nameEn: '', nameJa: '' },
+      { uid: 'sl3', name: '后背', exportName: 'TXT_WeaponTeamSlot_后背', nameEn: '', nameJa: '' },
     ];
     project.battle.attackModes = [
       { uid: 'am1', name: '手动攻击', exportName: 'TXT_AttackMode_手动攻击', nameEn: '', nameJa: '' },
+      { uid: 'am2', name: '自动攻击', exportName: 'TXT_AttackMode_自动攻击', nameEn: '', nameJa: '' },
     ];
     project.battle.characters = [
       {
@@ -2789,7 +2787,7 @@ describe('角色页的配置区与表情图片', () => {
     fireEvent.click(screen.getByText('角色预设'));
     const container = document.body;
 
-    // 加一把：下拉里显示武器名，分组默认火力
+    // 加一把：默认第一把武器 + 火力分组 + 它支持的第一个插槽 / 攻击模式
     fireEvent.click(screen.getByText('＋ 添加武器'));
     const row = container.querySelector('.weapon-loadout-row') as HTMLElement;
     const selects = [...row.querySelectorAll('select')] as HTMLSelectElement[];
@@ -2798,13 +2796,46 @@ describe('角色页的配置区与表情图片', () => {
     expect(selects[1].selectedOptions[0].textContent).toBe('火力');
     expect(selects[2].selectedOptions[0].textContent).toBe('右手');
     expect(selects[3].selectedOptions[0].textContent).toBe('手动攻击');
-    // 下拉里是名字，不是 ID
-    expect([...selects[0].options].map((option) => option.textContent)).toContain('测试-刀');
 
-    // 换成刀
+    // 插槽只列手枪支持的（没有「后背」），攻击模式只列它支持的两种
+    expect([...selects[2].options].map((option) => option.textContent)).toEqual([
+      '（未选插槽）',
+      '右手',
+      '左手',
+    ]);
+    expect([...selects[3].options].map((option) => option.textContent)).toEqual([
+      '（未选攻击模式）',
+      '手动攻击',
+      '自动攻击',
+    ]);
+
+    // 选成「左手 + 自动攻击」，再把武器换成刀：插槽换成刀唯一支持的「后背」，自动攻击仍然支持就不动
+    fireEvent.change(selects[2], { target: { value: 'sl2' } });
+    fireEvent.change(selects[3], { target: { value: 'am2' } });
     fireEvent.change(selects[0], { target: { value: 'w2' } });
 
-    // 导出预览：角色表最后一列是「武器」，每把一个字符串
+    const afterWeapon = [...row.querySelectorAll('select')] as HTMLSelectElement[];
+    expect(afterWeapon[2].selectedOptions[0].textContent).toBe('后背');
+    expect(afterWeapon[3].selectedOptions[0].textContent).toBe('自动攻击');
+    expect([...afterWeapon[2].options].map((option) => option.textContent)).toEqual([
+      '（未选插槽）',
+      '后背',
+    ]);
+
+    // 换成什么都没勾的炮：两个下拉置灰、只留「未选」
+    fireEvent.change(afterWeapon[0], { target: { value: 'w3' } });
+    const afterEmpty = [...row.querySelectorAll('select')] as HTMLSelectElement[];
+    expect(afterEmpty[2].disabled).toBe(true);
+    expect(afterEmpty[3].disabled).toBe(true);
+    expect([...afterEmpty[2].options].map((option) => option.textContent)).toEqual(['（未选插槽）']);
+
+    // 换回手枪再选一遍，导出预览：最后一列每把一个字符串
+    fireEvent.change(afterEmpty[0], { target: { value: 'w1' } });
+    const afterBack = [...row.querySelectorAll('select')] as HTMLSelectElement[];
+    expect(afterBack[2].selectedOptions[0].textContent).toBe('右手');
+    fireEvent.change(afterBack[2], { target: { value: 'sl2' } });
+    fireEvent.change(afterBack[3], { target: { value: 'am1' } });
+
     fireEvent.click(within(rail()).getByText('导出'));
     const tab = [...document.querySelectorAll('.export-nav')].find((item) =>
       item.textContent?.startsWith('GAS角色'),
@@ -2816,10 +2847,8 @@ describe('角色页的配置区与表情图片', () => {
     const cells = [...document.querySelectorAll('.preview-table tbody tr.line-row td')].map(
       (td) => td.textContent,
     );
-    expect(cells[4]).toBe('("WEA_测试-刀|TXT_WeaponTeam_火力|TXT_WeaponTeamSlot_右手|TXT_AttackMode_手动攻击")');
+    expect(cells[4]).toBe('("WEA_测试-手枪|TXT_WeaponTeam_火力|TXT_WeaponTeamSlot_左手|TXT_AttackMode_手动攻击")');
   });
-
-
 describe('武器页：攻击模式与插槽', () => {
   const openWeapons = async (): Promise<HTMLElement> => {
     const { container } = await renderApp();
