@@ -32,6 +32,7 @@ import {
   type AssetCategoryRow,
   type Chapter,
   type CharacterAlias,
+  type CharacterWeapon,
   type CommandDef,
   type CommandParamDef,
   type ExportSettingRow,
@@ -543,6 +544,7 @@ export function addCharacter(project: Project): Project {
       // 建角色时给一份常用默认表情，可自行增删
       expressions: ['默认', '开心', '生气', '悲伤', '害羞'],
       actions: ['默认'],
+      weapons: [],
     });
     // 新角色用到的表情名补进全局表情表，立绘那边才能收集到图片
     for (const name of ['默认', '开心', '生气', '悲伤', '害羞']) ensureExpression(draft, name);
@@ -735,6 +737,59 @@ export function updateCharacterAlias(
       const alias = character.aliases.find((row) => row.uid === aliasUid);
       if (alias !== undefined) {
         Object.assign(alias, patch);
+        return;
+      }
+    }
+  });
+}
+
+/* ---------- 角色带的武器（每把一条，四个 uid） ---------- */
+/**
+ * 角色身上新增一把武器。
+ *
+ * 默认填第一个武器 / 第一个插槽 / 第一个攻击模式，分组默认「火力」——
+ * 所以加完只有武器需要挑（如果表里还没建，留空等策划去建）。
+ */
+export function addCharacterWeapon(project: Project, characterUid: string): Project {
+  return mutate(project, (draft) => {
+    const character = draft.characters.find((row) => row.uid === characterUid);
+    if (character === undefined) return;
+    const battle = draft.battle;
+    const group =
+      battle.weaponGroups.find((row) => row.name.trim() === '火力') ?? battle.weaponGroups[0];
+    character.weapons.push({
+      uid: newUid(),
+      weaponUid: battle.weapons[0]?.uid ?? '',
+      groupUid: group?.uid ?? '',
+      slotUid: battle.slots[0]?.uid ?? '',
+      attackModeUid: battle.attackModes[0]?.uid ?? '',
+    });
+  });
+}
+
+export function removeCharacterWeapon(
+  project: Project,
+  characterUid: string,
+  weaponEntryUid: string,
+): Project {
+  return mutate(project, (draft) => {
+    const character = draft.characters.find((row) => row.uid === characterUid);
+    if (character === undefined) return;
+    character.weapons = character.weapons.filter((row) => row.uid !== weaponEntryUid);
+  });
+}
+
+/** 改角色身上的一把武器（条目 uid 全局唯一，按它找就行） */
+export function updateCharacterWeapon(
+  project: Project,
+  weaponEntryUid: string,
+  patch: Partial<CharacterWeapon>,
+): Project {
+  return mutate(project, (draft) => {
+    for (const character of draft.characters) {
+      const row = character.weapons.find((item) => item.uid === weaponEntryUid);
+      if (row !== undefined) {
+        Object.assign(row, patch);
         return;
       }
     }

@@ -306,13 +306,13 @@ describe('战斗模块的导出', () => {
   it('支持攻击模式列表写成 (A,B,C)、支持插槽列表写成 ("a","b")，都用导出名称', () => {
     const project = makeProject();
     project.battle.attackModes = [
-      { uid: 'am1', name: '手动攻击', exportName: 'TXT_AttackMode_手动攻击' },
-      { uid: 'am2', name: '自动攻击', exportName: 'TXT_AttackMode_自动攻击' },
-      { uid: 'am3', name: '点防御', exportName: 'TXT_AttackMode_点防御' },
+      { uid: 'am1', name: '手动攻击', exportName: 'TXT_AttackMode_手动攻击', nameEn: '', nameJa: '' },
+      { uid: 'am2', name: '自动攻击', exportName: 'TXT_AttackMode_自动攻击', nameEn: '', nameJa: '' },
+      { uid: 'am3', name: '点防御', exportName: 'TXT_AttackMode_点防御', nameEn: '', nameJa: '' },
     ];
     project.battle.slots = [
-      { uid: 'sl1', name: '槽一', exportName: '111' },
-      { uid: 'sl2', name: '槽二', exportName: '222' },
+      { uid: 'sl1', name: '槽一', exportName: '111', nameEn: '', nameJa: '' },
+      { uid: 'sl2', name: '槽二', exportName: '222', nameEn: '', nameJa: '' },
     ];
     project.battle.weapons[0].attackModeUids = ['am1', 'am2', 'am3'];
     project.battle.weapons[0].slotUids = ['sl1', 'sl2'];
@@ -325,8 +325,8 @@ describe('战斗模块的导出', () => {
   it('导出名称为空的那一条不写进去', () => {
     const project = makeProject();
     project.battle.attackModes = [
-      { uid: 'am1', name: '手动攻击', exportName: '  ' },
-      { uid: 'am2', name: '自动攻击', exportName: 'TXT_AttackMode_自动攻击' },
+      { uid: 'am1', name: '手动攻击', exportName: '  ', nameEn: '', nameJa: '' },
+      { uid: 'am2', name: '自动攻击', exportName: 'TXT_AttackMode_自动攻击', nameEn: '', nameJa: '' },
     ];
     project.battle.weapons[0].attackModeUids = ['am1', 'am2'];
 

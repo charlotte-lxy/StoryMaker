@@ -97,7 +97,7 @@ function makeProject(): Project {
     expressions: [],
     name: '引用测试',
     characters: [
-      { uid: 'ch1', id: 'CHA_伊芙', name: '伊芙', playPosition: '剧情对话框', nameEn: '', nameJa: '', aliases: [], expressions: ['微笑'], actions: ['挥手'] },
+      { uid: 'ch1', id: 'CHA_伊芙', name: '伊芙', playPosition: '剧情对话框', nameEn: '', nameJa: '', aliases: [], expressions: ['微笑'], actions: ['挥手'], weapons: [] },
     ],
     items: [{ uid: 'it1', id: 'Item_Coin', name: '金币' }],
     quests: [],

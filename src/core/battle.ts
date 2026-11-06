@@ -5,6 +5,7 @@
  * 导出的 GameplayTags 表也就永远和几张表对得上。
  */
 
+import { newUid } from './ids';
 import type { BattleData, GasModifier, GasPair, Project } from './types';
 /** 各模块的 Tag 前缀 */
 export const TAG_PREFIX = {
@@ -29,6 +30,16 @@ export const DEFAULT_EFFECT_CLASS_PREFIX =
 export const DEFAULT_WEAPON_CLASS_PREFIX =
   "/Script/Engine.BlueprintGeneratedClass'/Game/GameContent/BP/Weapon/WeaponActors/";
 
+/** 武器分组的默认三条：显示名称 → 本地化 key */
+export const DEFAULT_WEAPON_GROUPS: readonly { name: string; exportName: string }[] = [
+  { name: '火力', exportName: 'TXT_WeaponTeam_火力' },
+  { name: '光束', exportName: 'TXT_WeaponTeam_光束' },
+  { name: '点防', exportName: 'TXT_WeaponTeam_点防' },
+];
+
+/** 新加的武器分组导出名称默认前缀 */
+export const WEAPON_GROUP_EXPORT_PREFIX = 'TXT_WeaponTeam_';
+
 /**
  * 武器类名按武器 ID 推出来：`WEA_Test_Sniper` → `BP_Weapon_Test_Sniper`。
  *
@@ -41,7 +52,7 @@ export function weaponClassName(weaponId: string): string {
   return base === '' ? '' : `BP_Weapon_${base}`;
 }
 
-/** 空项目里战斗模块的样子：三张前缀表 + 六张空表（武器页还有攻击模式 / 插槽两张配置表） */
+/** 空项目里战斗模块的样子：三张前缀表 + 六张空表（武器页还有分组 / 攻击模式 / 插槽三张配置表） */
 export function createEmptyBattle(): BattleData {
   return {
     skillClassPrefix: DEFAULT_SKILL_CLASS_PREFIX,
@@ -53,6 +64,14 @@ export function createEmptyBattle(): BattleData {
     events: [],
     characters: [],
     weapons: [],
+    // 分组默认就有这三条（导出名称是固定的本地化 key），新项目打开就能直接用
+    weaponGroups: DEFAULT_WEAPON_GROUPS.map((row) => ({
+      uid: newUid(),
+      name: row.name,
+      exportName: row.exportName,
+      nameEn: '',
+      nameJa: '',
+    })),
     attackModes: [],
     slots: [],
   };

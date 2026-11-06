@@ -13,8 +13,10 @@ import type {
   GasPair,
   GasSkill,
   GasWeapon,
+  LangKey,
   Project,
 } from '../core/types';
+import { WEAPON_GROUP_EXPORT_PREFIX } from '../core/battle';
 import { mutate } from './operations';
 
 /** 战斗模块里的子页面 */
@@ -283,9 +285,10 @@ export function updatePair(
 /* ---------- 攻击模式 / 插槽配置（武器页顶部的两张小表） ---------- */
 
 /** 武器页顶部的两张配置表：显示名称 + 导出名称 */
-export type WeaponOptionKey = 'attackModes' | 'slots';
+export type WeaponOptionKey = 'weaponGroups' | 'attackModes' | 'slots';
 
 const OPTION_LABEL: Record<WeaponOptionKey, string> = {
+  weaponGroups: '新分组',
   attackModes: '新攻击模式',
   slots: '新插槽',
 };
@@ -297,8 +300,10 @@ export function addWeaponOption(project: Project, key: WeaponOptionKey): Project
     let n = 1;
     while (taken.has(`${OPTION_LABEL[key]}${n === 1 ? '' : n}`)) n += 1;
     const name = `${OPTION_LABEL[key]}${n === 1 ? '' : n}`;
-    // 导出名称默认跟显示名称一样，策划可以改成 TXT_… / 插槽名
-    list.push({ uid: newUid(), name, exportName: name });
+    // 分组的导出名按现有约定带 TXT_WeaponTeam_ 前缀；其余默认跟显示名称一样
+    const exportName =
+      key === 'weaponGroups' ? `${WEAPON_GROUP_EXPORT_PREFIX}${name}` : name;
+    list.push({ uid: newUid(), name, exportName, nameEn: '', nameJa: '' });
   });
 }
 
@@ -314,13 +319,53 @@ export function updateWeaponOption(
   });
 }
 
-/** 删一条配置：武器的多选列表里也把它摘掉，免得留下悬空引用 */
+/**
+ * 删一条配置。
+ *
+ * 除了从表里拿掉，还要把引用一起清掉：武器表的多选列表里摘掉它，
+ * 角色身上那把武器如果正好选的是它，就把那一格清空（免得留下悬空引用）。
+ */
 export function removeWeaponOption(project: Project, key: WeaponOptionKey, uid: string): Project {
   return mutate(project, (draft) => {
     draft.battle[key] = draft.battle[key].filter((row) => row.uid !== uid);
-    const field = key === 'attackModes' ? 'attackModeUids' : 'slotUids';
-    for (const weapon of draft.battle.weapons) {
-      weapon[field] = weapon[field].filter((item) => item !== uid);
+
+    const field =
+      key === 'attackModes' ? 'attackModeUids' : key === 'slots' ? 'slotUids' : null;
+    if (field !== null) {
+      for (const weapon of draft.battle.weapons) {
+        weapon[field] = weapon[field].filter((item) => item !== uid);
+      }
+    }
+
+    const characterField =
+      key === 'weaponGroups' ? 'groupUid' : key === 'slots' ? 'slotUid' : 'attackModeUid';
+    for (const character of draft.characters) {
+      for (const row of character.weapons) {
+        if (row[characterField] === uid) row[characterField] = '';
+      }
+    }
+  });
+}
+
+/**
+ * 本地化页改一条武器配置的名字：中文写回「显示名称」，英文日文写在同一行上。
+ *
+ * 三张配置表（分组 / 攻击模式 / 插槽）共用一种行结构，按 uid 找一遍就行。
+ */
+export function updateWeaponOptionNameText(
+  project: Project,
+  uid: string,
+  lang: LangKey,
+  value: string,
+): Project {
+  return mutate(project, (draft) => {
+    for (const key of ['weaponGroups', 'attackModes', 'slots'] as const) {
+      const row = draft.battle[key].find((item) => item.uid === uid);
+      if (row === undefined) continue;
+      if (lang === 'zh') row.name = value;
+      else if (lang === 'en') row.nameEn = value;
+      else row.nameJa = value;
+      return;
     }
   });
 }

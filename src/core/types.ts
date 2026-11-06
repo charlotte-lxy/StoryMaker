@@ -189,6 +189,28 @@ export interface Character {
   expressions: string[];
   /** 该角色的动作清单，供指令「剧情|演出|…;动作:」这个参数的下拉使用 */
   actions: string[];
+  /**
+   * 这个角色带的武器（每把一条），导出角色表的「武器」列：
+   * 每把武器一个字符串 `武器ID|分组导出名称|插槽导出名称|攻击模式导出名称`。
+   */
+  weapons: CharacterWeapon[];
+}
+
+/**
+ * 角色身上的一把武器：四个下拉各存那一行的 uid（改名字不会断引用）。
+ *
+ * 导出角色表时翻回：武器 ID + 分组 / 插槽 / 攻击模式的导出名称。
+ */
+export interface CharacterWeapon {
+  uid: string;
+  /** 武器表那一行的 uid */
+  weaponUid: string;
+  /** 武器分组表那一行的 uid（新建时默认「火力」） */
+  groupUid: string;
+  /** 插槽表那一行的 uid */
+  slotUid: string;
+  /** 攻击模式表那一行的 uid */
+  attackModeUid: string;
 }
 
 /**
@@ -378,17 +400,22 @@ export interface GasWeapon {
 }
 
 /**
- * 武器用的「攻击模式 / 插槽」配置行。
+ * 武器用的「分组 / 攻击模式 / 插槽」配置行。
  *
  * 界面下拉里显示 `name`，导出表里写 `exportName`（可以不一样：
  * 攻击模式的导出名是本地化 key，比如 TXT_AttackMode_手动攻击；插槽就是它自己的名字）。
+ * 中文就是 `name`，英文日文存在 `nameEn` / `nameJa` 上，在「本地化」模块里填。
  */
 export interface GasOptionRow {
   uid: string;
-  /** 显示名称：写剧情时下拉里看到的 */
+  /** 显示名称：写剧情时下拉里看到的，同时是本地化表的中文 */
   name: string;
-  /** 导出名称：写进导出表的那一串 */
+  /** 导出名称：写进导出表的那一串，同时是本地化表的 key */
   exportName: string;
+  /** 英文名（本地化用，没填就是空串） */
+  nameEn: string;
+  /** 日文名（本地化用，没填就是空串） */
+  nameJa: string;
 }
 
 /**
@@ -410,6 +437,8 @@ export interface BattleData {
   events: GasEvent[];
   characters: GasCharacter[];
   weapons: GasWeapon[];
+  /** 武器的分组配置（显示名称 + 导出名称，默认 火力 / 光束 / 点防） */
+  weaponGroups: GasOptionRow[];
   /** 武器的攻击模式配置（显示名称 + 导出名称） */
   attackModes: GasOptionRow[];
   /** 武器的插槽配置（显示名称 + 导出名称） */

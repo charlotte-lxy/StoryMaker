@@ -677,6 +677,7 @@ describe('导出三张表', () => {
         aliases: [{ uid: 'al1', text: 'Q版伊芙', en: '', ja: '' }],
         expressions: [],
         actions: [],
+        weapons: [],
       },
     ];
     withAlias.chapters[0].groups[0].lines[0].characterUid = 'ch1';
@@ -751,6 +752,10 @@ describe('导出三张表', () => {
       'TXT_Dia_ch01_001-2B',
       'TXT_Dia_ch01_002-1',
       'TXT_Dia_ch01_003-1',
+      // 武器分组默认三条：导出名称就是本地化 key
+      'TXT_WeaponTeam_火力',
+      'TXT_WeaponTeam_光束',
+      'TXT_WeaponTeam_点防',
     ]);
   });
 
@@ -771,9 +776,9 @@ describe('导出三张表', () => {
 
     const uiRows = buildRows(withUi);
 
-    // 表头不变：5 条对话 / 选项文本 + 2 条 UI（角色名走的是「角色」子表那一套）
-    expect(uiRows.locale).toHaveLength(8);
-    expect(uiRows.locale.slice(6)).toEqual([
+    // 表头不变：5 条对话 / 选项文本 + 2 条 UI + 3 条武器分组（角色名走的是「角色」子表那一套）
+    expect(uiRows.locale).toHaveLength(11);
+    expect(uiRows.locale.slice(6, 8)).toEqual([
       ['TXT_Widget_开始游戏', '开始游戏', 'Start Game', 'ゲーム開始'],
       ['TXT_Widget_设置', '设置', 'Setting', '設定'],
     ]);
@@ -795,22 +800,89 @@ describe('导出三张表', () => {
         aliases: [{ uid: 'al1', text: 'unknown', en: '', ja: '' }],
         expressions: ['默认', '开心'],
         actions: ['默认'],
+        weapons: [],
       },
     ];
 
     const tables = buildRows(withCharacters);
-    expect(tables.characters[0]).toEqual(['', '播放位置', '显示名称', '表情差分列表']);
+    expect(tables.characters[0]).toEqual([
+      '',
+      '播放位置',
+      '显示名称',
+      '表情差分列表',
+      '武器',
+    ]);
     expect(tables.characters[1]).toEqual([
       'CHA_Q版伊芙',
       '战斗对话框',
       'TXT_CHA_Q版伊芙_DefaultName',
       '("默认","开心")',
+      '',
     ]);
     // 默认名称的中文进本地化表，这一格只放 key；别名不进这张子表
     expect(tables.characters.flat()).not.toContain('Q版伊芙');
     expect(tables.characters.flat().some((cell) => cell.includes('OtherName'))).toBe(false);
     expect(tables.locale).toContainEqual(['TXT_CHA_Q版伊芙_DefaultName', 'Q版伊芙', '', '']);
     expect(tables.locale).toContainEqual(['TXT_CHA_Q版伊芙_OtherName-1', 'unknown', '', '']);
+  });
+
+  it('角色子表的「武器」列：每把武器一个「武器ID|分组导出名称|插槽导出名称|攻击模式导出名称」', () => {
+    const project = makeProject();
+    const battle = project.battle;
+    // 分组默认三条（火力 / 光束 / 点防），这里再加一个插槽与一个攻击模式
+    battle.weapons = [
+      {
+        uid: 'w1',
+        id: 'WEA_测试-手枪',
+        name: '测试-手枪',
+        description: '',
+        magazine: '10',
+        attackSpeed: '1',
+        energyCost: '0',
+        attackModeUids: [],
+        slotUids: [],
+      },
+    ];
+    battle.slots = [{ uid: 'sl1', name: '右手', exportName: 'TXT_WeaponTeamSlot_右手', nameEn: '', nameJa: '' }];
+    battle.attackModes = [
+      { uid: 'am1', name: '手动攻击', exportName: 'TXT_AttackMode_手动攻击', nameEn: '', nameJa: '' },
+    ];
+    const fire = battle.weaponGroups.find((row) => row.name === '火力')!;
+    const beam = battle.weaponGroups.find((row) => row.name === '光束')!;
+
+    project.characters = [
+      {
+        uid: 'ch1',
+        id: 'CHA_伊芙',
+        name: '伊芙',
+        nameEn: '',
+        nameJa: '',
+        playPosition: '',
+        aliases: [],
+        expressions: [],
+        actions: [],
+        weapons: [
+          { uid: 'cw1', weaponUid: 'w1', groupUid: fire.uid, slotUid: 'sl1', attackModeUid: 'am1' },
+          // 第二把没选武器：拼不出武器 ID，跳过
+          { uid: 'cw2', weaponUid: '', groupUid: beam.uid, slotUid: '', attackModeUid: '' },
+        ],
+      },
+    ];
+
+    expect(buildRows(project).characters[1][4]).toBe(
+      '("WEA_测试-手枪|TXT_WeaponTeam_火力|TXT_WeaponTeamSlot_右手|TXT_AttackMode_手动攻击")',
+    );
+  });
+
+  it('武器配置的导出名称也进本地化表，中文就是它们的显示名称', () => {
+    const project = makeProject();
+    const fire = project.battle.weaponGroups.find((row) => row.name === '火力')!;
+    fire.nameEn = 'Firepower';
+    fire.nameJa = '火力';
+
+    const rows = buildRows(project).locale;
+    expect(rows).toContainEqual(['TXT_WeaponTeam_火力', '火力', 'Firepower', '火力']);
+    expect(rows).toContainEqual(['TXT_WeaponTeam_光束', '光束', '', '']);
   });
 
   it('生成含各张子表的 xlsx', async () => {

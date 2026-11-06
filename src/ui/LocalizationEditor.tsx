@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 
-import { collectLocaleEntries, collectNameEntries } from '../core/localization';
+import { collectLocaleEntries, collectNameEntries, collectWeaponOptionEntries } from '../core/localization';
 import type { LangKey, LocalizedText, Project, UiTextRow } from '../core/types';
 import { AutoGrowTextarea } from './AutoGrowTextarea';
 import { useRememberedChoice, useScrollMemory } from './view-memory';
@@ -18,6 +18,11 @@ interface Props {
    */
   onUpdateNameText: (uid: string, lang: LangKey, value: string) => void;
   /**
+   * 改「武器配置本地化」里的一条。中文是那一行的显示名称，
+   * 英文日文存在同一行上，都在战斗模块的分组 / 攻击模式 / 插槽表里。
+   */
+  onUpdateWeaponOptionText: (uid: string, lang: LangKey, value: string) => void;
+  /**
    * 底下校验条里点过来的那一行：切到它所在的页、滚到它并闪一下。
    * 短暂高亮后由上层清成 null。
    */
@@ -30,8 +35,8 @@ const LANGS: { lang: LangKey; label: string }[] = [
   { lang: 'ja', label: '日文' },
 ];
 
-/** 本地化模块的三个页面 */
-type LocalePage = 'story' | 'ui' | 'name';
+/** 本地化模块的四个页面 */
+type LocalePage = 'story' | 'ui' | 'name' | 'weapon';
 
 /** UI 本地化最上面那一行新增表单的草稿 */
 interface UiDraft extends LocalizedText {
@@ -69,6 +74,7 @@ export function LocalizationEditor({
   onRemoveUiText,
   onUpdateUiText,
   onUpdateNameText,
+  onUpdateWeaponOptionText,
   focusUid = null,
 }: Props) {
   const [page, setPage] = useRememberedChoice<LocalePage>('locale:page', 'story');
@@ -80,6 +86,8 @@ export function LocalizationEditor({
   const entries = useMemo(() => collectLocaleEntries(project), [project]);
   /** 角色名 / 别名：中文与译文都挂在角色表那一行上 */
   const nameEntries = useMemo(() => collectNameEntries(project), [project]);
+  /** 武器分组 / 攻击模式 / 插槽：key 是导出名称，中文是显示名称 */
+  const weaponEntries = useMemo(() => collectWeaponOptionEntries(project), [project]);
 
   const uiTexts = project.uiTexts;
 
@@ -104,6 +112,13 @@ export function LocalizationEditor({
         ? nameEntries
         : nameEntries.filter((entry) => hit([entry.key, entry.zh, entry.en, entry.ja], trimmed)),
     [nameEntries, trimmed],
+  );
+  const shownWeaponEntries = useMemo(
+    () =>
+      trimmed === ''
+        ? weaponEntries
+        : weaponEntries.filter((entry) => hit([entry.key, entry.zh, entry.en, entry.ja], trimmed)),
+    [weaponEntries, trimmed],
   );
 
   const stats = useMemo(() => {
@@ -130,6 +145,15 @@ export function LocalizationEditor({
     [nameEntries],
   );
 
+  /** 武器分组 / 攻击模式 / 插槽的中文是显示名称，英文日文缺没缺 */
+  const weaponUntranslated = useMemo(
+    () =>
+      weaponEntries.filter((entry) =>
+        missingTranslation({ zh: entry.zh, en: entry.en, ja: entry.ja }),
+      ).length,
+    [weaponEntries],
+  );
+
   /** UI 本地化的 key 重复提示：同一个 key 在 Unreal 里会互相覆盖 */
   const keyCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -142,9 +166,17 @@ export function LocalizationEditor({
       ? shownEntries.length
       : page === 'ui'
         ? shownUiTexts.length
-        : shownNameEntries.length;
+        : page === 'name'
+          ? shownNameEntries.length
+          : shownWeaponEntries.length;
   const total =
-    page === 'story' ? entries.length : page === 'ui' ? uiTexts.length : nameEntries.length;
+    page === 'story'
+      ? entries.length
+      : page === 'ui'
+        ? uiTexts.length
+        : page === 'name'
+          ? nameEntries.length
+          : weaponEntries.length;
 
   /** 表单里的 key 有没有和已有条目重名（去掉首尾空格后比） */
   const draftKey = draft.key.trim();
@@ -172,6 +204,7 @@ export function LocalizationEditor({
     setQuery('');
     if (entries.some((entry) => entry.uid === focusUid)) setPage('story');
     else if (nameEntries.some((entry) => entry.uid === focusUid)) setPage('name');
+    else if (weaponEntries.some((entry) => entry.uid === focusUid)) setPage('weapon');
     else setPage('ui');
     // 这几份清单只在选页时用一下，值变了不必重跑（否则会清掉用户刚输入的搜索词）
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -185,7 +218,7 @@ export function LocalizationEditor({
       node.scrollIntoView({ block: 'center' });
       return;
     }
-  }, [focusUid, page, shownEntries, shownUiTexts, shownNameEntries]);
+  }, [focusUid, page, shownEntries, shownUiTexts, shownNameEntries, shownWeaponEntries]);
 
   return (
     <div className="editor" ref={editorRef}>
@@ -210,12 +243,22 @@ export function LocalizationEditor({
                 '英文日文均已填写'
               )}
             </>
-          ) : (
+          ) : page === 'name' ? (
             <>
               共 {nameEntries.length} 条角色名 / 别名：都在角色表的「显示名称」里
               （默认名称与各别名，在这一页改会写回角色表），
               {nameUntranslated > 0 ? (
                 <strong className="warn-text">{nameUntranslated} 条缺英文或日文</strong>
+              ) : (
+                '英文日文均已填写'
+              )}
+            </>
+          ) : (
+            <>
+              共 {weaponEntries.length} 条武器配置名（分组 / 攻击模式 / 插槽的导出名称）：
+              从战斗模块的武器页自动收集，key 就是导出名称，中文是它们的显示名称，
+              {weaponUntranslated > 0 ? (
+                <strong className="warn-text">{weaponUntranslated} 条缺英文或日文</strong>
               ) : (
                 '英文日文均已填写'
               )}
@@ -250,6 +293,15 @@ export function LocalizationEditor({
           >
             角色名本地化
             <span className="count">{nameEntries.length}</span>
+          </button>
+          <button
+            type="button"
+            className={page === 'weapon' ? 'locale-nav active' : 'locale-nav'}
+            onClick={() => setPage('weapon')}
+            title="武器页的分组 / 攻击模式 / 插槽表：key 是导出名称，中文是显示名称，英文日文在这里填"
+          >
+            武器配置本地化
+            <span className="count">{weaponEntries.length}</span>
           </button>
 
           <input
@@ -423,6 +475,60 @@ export function LocalizationEditor({
                 </tbody>
               </table>
             </>
+          ) : page === 'weapon' ? (
+            weaponEntries.length === 0 ? (
+              <div className="empty-state">
+                还没有武器分组 / 攻击模式 / 插槽。先去「战斗」→「武器」页建几条，这里会自动收出来。
+              </div>
+            ) : shownWeaponEntries.length === 0 ? (
+              <div className="empty-state">没有匹配「{query.trim()}」的武器配置名。</div>
+            ) : (
+              <table className="lines">
+                <thead>
+                  <tr>
+                    <th className="col-key">文本 key（导出名称）</th>
+                    {LANGS.map((item) => (
+                      <th key={item.lang}>{item.label}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {shownWeaponEntries.map((entry) => {
+                    const text: LocalizedText = { zh: entry.zh, en: entry.en, ja: entry.ja };
+                    return (
+                      <tr
+                        className={`line-row${missingTranslation(text) ? ' needs-work' : ''}${
+                          focusUid === entry.uid ? ' flash' : ''
+                        }`}
+                        data-text-uid={entry.uid}
+                        key={entry.uid}
+                      >
+                        <td className="cell-id loc-key">
+                          {entry.key}
+                          <span className="kind-chip">{entry.kindLabel}</span>
+                        </td>
+                        {LANGS.map((item) => (
+                          <td key={item.lang}>
+                            <AutoGrowTextarea
+                              value={text[item.lang]}
+                              placeholder={item.lang === 'zh' ? '中文原文' : '待翻译'}
+                              title={
+                                item.lang === 'zh'
+                                  ? '中文改的是分组 / 攻击模式 / 插槽表的「显示名称」'
+                                  : undefined
+                              }
+                              onChange={(event) =>
+                                onUpdateWeaponOptionText(entry.uid, item.lang, event.target.value)
+                              }
+                            />
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )
           ) : nameEntries.length === 0 ? (
             <div className="empty-state">
               还没有角色名或别名。先去「角色」模块建角色、给他的「显示名称」添几个别名。

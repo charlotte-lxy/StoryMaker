@@ -56,7 +56,7 @@ import {
   nextReadableId,
   textIdOf,
 } from './ids';
-import { collectNameEntries } from './localization';
+import { collectNameEntries, collectWeaponOptionEntries } from './localization';
 import { characterIdOf, collectRefMaps, type UidToId } from './refs';
 import type { Character, CommandDef, Group, Line, Project, StoryOption } from './types';
 
@@ -95,7 +95,13 @@ export const LOCALE_HEADER: readonly string[] = ['', '中文', '英文', '日文
  * 第一列是行名（角色 ID，「默认名称」在本地化表里，所以这一格写的是文本 key）；
  * 播放位置直接写中文选项名，Unreal 那边认这三个串。
  */
-export const STORY_CHARACTER_HEADER: readonly string[] = ['', '播放位置', '显示名称', '表情差分列表'];
+export const STORY_CHARACTER_HEADER: readonly string[] = [
+  '',
+  '播放位置',
+  '显示名称',
+  '表情差分列表',
+  '武器',
+];
 
 export interface ExportRowSets {
   dialogue: string[][];
@@ -119,6 +125,34 @@ function buildGroupMap(project: Project): Map<string, Group> {
 }
 
 type RefFn = (uid: string) => string;
+
+/**
+ * 角色身上的武器，每把一个字符串：`武器ID|分组导出名称|插槽导出名称|攻击模式导出名称`。
+ *
+ * 四个引用存的都是 uid，这里现查：武器取它的 ID（行名），另外三个取导出名称。
+ * 武器没选（uid 空或已被删）的那一条跳过——拼不出武器 ID 的字符串没有意义。
+ */
+function characterWeaponTexts(project: Project, character: Character): string[] {
+  const battle = project.battle;
+  const weaponIds = new Map(battle.weapons.map((row) => [row.uid, row.id.trim()]));
+  const exportNameOf = (rows: { uid: string; exportName: string }[], uid: string): string =>
+    rows.find((row) => row.uid === uid)?.exportName.trim() ?? '';
+
+  const out: string[] = [];
+  for (const entry of character.weapons) {
+    const weaponId = weaponIds.get(entry.weaponUid) ?? '';
+    if (weaponId === '') continue;
+    out.push(
+      [
+        weaponId,
+        exportNameOf(battle.weaponGroups, entry.groupUid),
+        exportNameOf(battle.slots, entry.slotUid),
+        exportNameOf(battle.attackModes, entry.attackModeUid),
+      ].join('|'),
+    );
+  }
+  return out;
+}
 
 /** 生成各张表的行数据，供导出与测试共用 */
 export function buildRows(project: Project): ExportRowSets {
@@ -162,6 +196,8 @@ export function buildRows(project: Project): ExportRowSets {
       // 显示名跟对话文本一样进本地化表，这一格写默认名称的 key（别名不导出）
       characterNameKeyOf(id),
       formatArrayLiteral(character.expressions),
+      // 武器：每把一个字符串「武器ID|分组导出名称|插槽导出名称|攻击模式导出名称」
+      formatArrayLiteral(characterWeaponTexts(project, character)),
     ]);
   }
 
@@ -172,6 +208,11 @@ export function buildRows(project: Project): ExportRowSets {
 
   // 角色名与别名也进本地化表（中文就是角色表里的默认名称 / 别名文字）
   for (const entry of collectNameEntries(project)) {
+    locale.push([entry.key, entry.zh, entry.en, entry.ja]);
+  }
+
+  // 武器分组 / 攻击模式 / 插槽的导出名称也是本地化 key（中文就是它们的显示名称）
+  for (const entry of collectWeaponOptionEntries(project)) {
     locale.push([entry.key, entry.zh, entry.en, entry.ja]);
   }
 

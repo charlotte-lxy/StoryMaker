@@ -25,6 +25,7 @@ function makeProject(): Project {
       playPosition: '剧情对话框', nameEn: '', nameJa: '', aliases: [],
       expressions: ['微笑'],
       actions: [],
+      weapons: [],
     });
     draft.items.push({ uid: 'i1', id: 'Item_Coin', name: '金币' });
     draft.uiTexts.push({
@@ -126,6 +127,10 @@ describe('全局搜索', () => {
       ['UI 本地化', 1, 'TXT_Widget_开始游戏'],
       // 角色名 / 显示名的 key 也是 TXT_ 开头
       ['角色名本地化', 1, 'TXT_CHA_伊芙_DefaultName'],
+      // 武器分组 / 攻击模式 / 插槽的导出名称也是 TXT_ 开头
+      ['武器配置本地化', 1, 'TXT_WeaponTeam_火力'],
+      ['武器配置本地化', 2, 'TXT_WeaponTeam_光束'],
+      ['武器配置本地化', 3, 'TXT_WeaponTeam_点防'],
     ]);
   });
 

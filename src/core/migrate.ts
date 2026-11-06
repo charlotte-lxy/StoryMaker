@@ -18,6 +18,7 @@ import {
   DEFAULT_EFFECT_CLASS_PREFIX,
   DEFAULT_SKILL_CLASS_PREFIX,
   DEFAULT_WEAPON_CLASS_PREFIX,
+  DEFAULT_WEAPON_GROUPS,
 } from './battle';
 import {
   buildCommandText,
@@ -241,6 +242,16 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
       actions: Array.isArray(row.actions)
         ? row.actions.filter((item): item is string => typeof item === 'string')
         : [],
+      // 角色带的武器：每把存四个 uid（武器 / 分组 / 插槽 / 攻击模式）
+      weapons: (Array.isArray(row.weapons) ? row.weapons : [])
+        .filter(isRecord)
+        .map((item) => ({
+          uid: asUid(item.uid),
+          weaponUid: asString(item.weaponUid),
+          groupUid: asString(item.groupUid),
+          slotUid: asString(item.slotUid),
+          attackModeUid: asString(item.attackModeUid),
+        })),
     };
   });
 
@@ -431,16 +442,35 @@ function normalizeBattle(input: unknown): BattleData {
       attackModeUids: names(row.attackModeUids),
       slotUids: names(row.slotUids),
     })),
-    // 攻击模式 / 插槽配置表是后加的：老项目没有就空表
+    // 分组 / 攻击模式 / 插槽配置表都是后加的：老项目没有就空表（分组会补上默认三条）
+    weaponGroups: Array.isArray(raw.weaponGroups)
+      ? rows('weaponGroups').map((row) => ({
+          uid: asUid(row.uid),
+          name: text(row, 'name'),
+          exportName: text(row, 'exportName'),
+          nameEn: text(row, 'nameEn'),
+          nameJa: text(row, 'nameJa'),
+        }))
+      : DEFAULT_WEAPON_GROUPS.map((row) => ({
+          uid: newUid(),
+          name: row.name,
+          exportName: row.exportName,
+          nameEn: '',
+          nameJa: '',
+        })),
     attackModes: rows('attackModes').map((row) => ({
       uid: asUid(row.uid),
       name: text(row, 'name'),
       exportName: text(row, 'exportName'),
+      nameEn: text(row, 'nameEn'),
+      nameJa: text(row, 'nameJa'),
     })),
     slots: rows('slots').map((row) => ({
       uid: asUid(row.uid),
       name: text(row, 'name'),
       exportName: text(row, 'exportName'),
+      nameEn: text(row, 'nameEn'),
+      nameJa: text(row, 'nameJa'),
     })),
   };
 }

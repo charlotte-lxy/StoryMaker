@@ -43,24 +43,19 @@ export function BattleWeaponsPage({ project, onChange }: Props) {
 
   const optionTable = (key: WeaponOptionKey, title: string, hint: string) => {
     const list = project.battle[key];
+    const label = key === 'weaponGroups' ? '分组' : key === 'attackModes' ? '攻击模式' : '插槽';
     return (
       <section className="config-panel">
         <div className="lookup-subhead">
           <h3>{title}</h3>
           <span className="hint">{hint}</span>
-          <button
-            type="button"
-            className="primary"
-            onClick={() => onChange(addWeaponOption(project, key))}
-          >
-            ＋ 新增{key === 'attackModes' ? '攻击模式' : '插槽'}
+          <button type="button" className="primary" onClick={() => onChange(addWeaponOption(project, key))}>
+            ＋ 新增{label}
           </button>
         </div>
 
         {list.length === 0 ? (
-          <div className="empty-state">
-            还没有{key === 'attackModes' ? '攻击模式' : '插槽'}。先加一条，武器表里就能勾选它。
-          </div>
+          <div className="empty-state">还没有{label}。先加一条，武器 / 角色那边就能选它。</div>
         ) : (
           <table className="lines">
             <thead>
@@ -116,6 +111,11 @@ export function BattleWeaponsPage({ project, onChange }: Props) {
   return (
     <div className="editor" ref={editorRef}>
       <div className="char-config">
+        {optionTable(
+          'weaponGroups',
+          '武器分组',
+          '角色带武器时选的分组；显示名称给下拉用，导出名称（TXT_WeaponTeam_…）进角色表的「武器」列',
+        )}
         {optionTable(
           'attackModes',
           '攻击模式',

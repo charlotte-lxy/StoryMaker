@@ -6,6 +6,7 @@ import type { Line, Project } from '../core/types';
 import {
   addAssetCategory,
   addCharacter,
+  addCharacterWeapon,
   addCommandDef,
   addCommandModule,
   addExpression,
@@ -21,6 +22,7 @@ import {
   moveLinesTogether,
   mutate,
   removeAssetCategory,
+  removeCharacterWeapon,
   removeCommandModule,
   removeExpression,
   removeLines,
@@ -35,13 +37,18 @@ import {
   reorderLine,
   reorderLookupRow,
   updateAssetCategory,
+  updateCharacterWeapon,
   updateExpression,
   updatePlayPosition,
   updateTextByUid,
   updateUiText,
 } from './operations';
 import { buildDelayCommand } from '../core/command-build';
-
+import {
+  addWeaponOption,
+  removeWeaponOption,
+  updateWeaponOptionNameText,
+} from './battle-operations';
 function makeLine(uid: string, readableId: string, zh: string): Line {
   return {
     uid,
@@ -853,6 +860,8 @@ describe('播放位置配置', () => {
         aliases: [],
         expressions: [],
         actions: [],
+
+        weapons: [],
       },
     ];
 
@@ -878,6 +887,8 @@ describe('播放位置配置', () => {
         aliases: [],
         expressions: [],
         actions: [],
+
+        weapons: [],
       },
     ];
 
@@ -907,6 +918,8 @@ describe('表情差分配置', () => {
         aliases: [],
         expressions: ['微笑', '生气'],
         actions: [],
+
+        weapons: [],
       },
     ];
     project.chapters[0].groups[0].lines = [
@@ -963,6 +976,8 @@ describe('拖拽排序', () => {
       aliases: [],
       expressions: [],
       actions: [],
+
+      weapons: [],
     }));
     project.sounds = [
       { uid: 's1', id: 'S_1', name: '' },
@@ -986,5 +1001,111 @@ describe('拖拽排序', () => {
       '乙',
       '丙',
     ]);
+  });
+});
+
+describe('角色带的武器', () => {
+  /** 两把武器 + 一条插槽 + 一个攻击模式，角色身上还什么都没带 */
+  function makeWeaponProject(): Project {
+    const project = createEmptyProject();
+    project.battle.weapons = [
+      {
+        uid: 'w1',
+        id: 'WEA_测试-手枪',
+        name: '测试-手枪',
+        description: '',
+        magazine: '10',
+        attackSpeed: '1',
+        energyCost: '0',
+        attackModeUids: [],
+        slotUids: [],
+      },
+      {
+        uid: 'w2',
+        id: 'WEA_测试-刀',
+        name: '测试-刀',
+        description: '',
+        magazine: '-1',
+        attackSpeed: '1',
+        energyCost: '0',
+        attackModeUids: [],
+        slotUids: [],
+      },
+    ];
+    project.battle.slots = [{ uid: 'sl1', name: '右手', exportName: 'TXT_WeaponTeamSlot_右手', nameEn: '', nameJa: '' }];
+    project.battle.attackModes = [
+      { uid: 'am1', name: '手动攻击', exportName: 'TXT_AttackMode_手动攻击', nameEn: '', nameJa: '' },
+    ];
+    project.characters = [
+      {
+        uid: 'ch1',
+        id: 'CHA_伊芙',
+        name: '伊芙',
+        nameEn: '',
+        nameJa: '',
+        playPosition: project.playPositions[0]?.uid ?? '',
+        aliases: [],
+        expressions: [],
+        actions: [],
+        weapons: [],
+      },
+    ];
+    return project;
+  }
+
+  it('新增一把：默认第一把武器 + 火力分组 + 第一个插槽与攻击模式', () => {
+    const project = addCharacterWeapon(makeWeaponProject(), 'ch1');
+    const entry = project.characters[0].weapons[0];
+    expect(entry.weaponUid).toBe('w1');
+    expect(entry.slotUid).toBe('sl1');
+    expect(entry.attackModeUid).toBe('am1');
+    // 分组默认「火力」
+    const fire = project.battle.weaponGroups.find((row) => row.name === '火力')!;
+    expect(entry.groupUid).toBe(fire.uid);
+  });
+
+  it('改四个下拉：按条目 uid 改，删一把只动那一条', () => {
+    let project = addCharacterWeapon(makeWeaponProject(), 'ch1');
+    project = addCharacterWeapon(project, 'ch1');
+    const [first, second] = project.characters[0].weapons;
+
+    project = updateCharacterWeapon(project, second.uid, { weaponUid: 'w2' });
+    expect(project.characters[0].weapons.map((row) => row.weaponUid)).toEqual(['w1', 'w2']);
+
+    project = removeCharacterWeapon(project, 'ch1', first.uid);
+    expect(project.characters[0].weapons.map((row) => row.uid)).toEqual([second.uid]);
+  });
+
+  it('删掉分组 / 插槽：角色身上对应的那一格清空', () => {
+    let project = addCharacterWeapon(makeWeaponProject(), 'ch1');
+    const entry = project.characters[0].weapons[0];
+
+    project = removeWeaponOption(project, 'weaponGroups', entry.groupUid);
+    expect(project.characters[0].weapons[0].groupUid).toBe('');
+    expect(project.characters[0].weapons[0].slotUid).toBe('sl1');
+
+    project = removeWeaponOption(project, 'slots', 'sl1');
+    expect(project.characters[0].weapons[0].slotUid).toBe('');
+  });
+
+  it('新建分组时导出名称带 TXT_WeaponTeam_ 前缀，攻击模式仍默认等于显示名称', () => {
+    let project = addWeaponOption(makeWeaponProject(), 'weaponGroups');
+    const group = project.battle.weaponGroups.at(-1)!;
+    expect([group.name, group.exportName]).toEqual(['新分组', 'TXT_WeaponTeam_新分组']);
+
+    project = addWeaponOption(project, 'attackModes');
+    const mode = project.battle.attackModes.at(-1)!;
+    expect([mode.name, mode.exportName]).toEqual(['新攻击模式', '新攻击模式']);
+  });
+
+  it('本地化页改名：中文写回显示名称，英文日文写在同一行上', () => {
+    let project = makeWeaponProject();
+    const fire = project.battle.weaponGroups.find((row) => row.name === '火力')!;
+
+    project = updateWeaponOptionNameText(project, fire.uid, 'en', 'Firepower');
+    project = updateWeaponOptionNameText(project, fire.uid, 'ja', '火力');
+    project = updateWeaponOptionNameText(project, fire.uid, 'zh', '主火力');
+    const row = project.battle.weaponGroups.find((item) => item.uid === fire.uid)!;
+    expect([row.name, row.nameEn, row.nameJa]).toEqual(['主火力', 'Firepower', '火力']);
   });
 });

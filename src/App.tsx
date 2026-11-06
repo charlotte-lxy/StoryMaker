@@ -34,12 +34,14 @@ import {
   type ValidationReport,
 } from './core/validate';
 import { validateBattle } from './core/battle-validate';
+import { updateWeaponOptionNameText } from './state/battle-operations';
 import type { BattlePage } from './state/battle-operations';
 import type { SearchTarget } from './state/search';
 import {
   addChapter,
   addCharacter,
   addCharacterAlias,
+  addCharacterWeapon,
   addExpression,
   addPlayPosition,
   addCommandDef,
@@ -60,6 +62,7 @@ import {
   removeChapter,
   removeCharacter,
   removeCharacterAlias,
+  removeCharacterWeapon,
   removeExpression,
   removePlayPosition,
   removeCommandDef,
@@ -84,6 +87,7 @@ import {
   reorderLookupRow,
   setGroupNote,
   updateCharacterAlias,
+  updateCharacterWeapon,
   updateCommandDef,
   updateExpression,
   updatePlayPosition,
@@ -1214,6 +1218,15 @@ export default function App() {
                   onUpdateExpression={(uid, patch: Partial<ExpressionRow>) =>
                     setProject((prev) => updateExpression(prev, uid, patch))
                   }
+                  onAddWeapon={(characterUid) =>
+                    setProject((prev) => addCharacterWeapon(prev, characterUid))
+                  }
+                  onRemoveWeapon={(characterUid, weaponEntryUid) =>
+                    setProject((prev) => removeCharacterWeapon(prev, characterUid, weaponEntryUid))
+                  }
+                  onUpdateWeapon={(weaponEntryUid, patch) =>
+                    setProject((prev) => updateCharacterWeapon(prev, weaponEntryUid, patch))
+                  }
                   onReorder={(from, to) => setProject((prev) => reorderCharacter(prev, from, to))}
                 />
               )}
@@ -1234,6 +1247,9 @@ export default function App() {
                   onUpdateText={handleUpdateText}
                   onUpdateNameText={(uid, lang, value) =>
                     setProject((prev) => updateNameText(prev, uid, lang, value))
+                  }
+                  onUpdateWeaponOptionText={(uid, lang, value) =>
+                    setProject((prev) => updateWeaponOptionNameText(prev, uid, lang, value))
                   }
                   onAddUiText={(key, text) => setProject((prev) => addUiText(prev, key, text))}
                   onRemoveUiText={(uid) => setProject((prev) => removeUiText(prev, uid))}

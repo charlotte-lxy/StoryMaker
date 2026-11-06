@@ -95,6 +95,58 @@ export interface NameEntry {
 }
 
 /**
+ * 「武器配置本地化」页的一条：武器分组 / 攻击模式 / 插槽表里的一行。
+ *
+ * 中文就是那一行的显示名称，英文日文存在同一行上；key 是它的导出名称
+ * （如 TXT_WeaponTeam_火力）。导出名称空着的行没有 key，跳过（由校验条提醒）。
+ * 顺序：分组 → 攻击模式 → 插槽，各按表里的行序。
+ */
+export interface WeaponOptionEntry {
+  /** 那一行的 uid */
+  uid: string;
+  /** 来自哪张表 */
+  tableKey: 'weaponGroups' | 'attackModes' | 'slots';
+  /** 本地化 key = 导出名称 */
+  key: string;
+  /** 「武器分组」「攻击模式」「插槽」 */
+  kindLabel: string;
+  zh: string;
+  en: string;
+  ja: string;
+}
+
+const WEAPON_OPTION_TABLES: readonly {
+  key: WeaponOptionEntry['tableKey'];
+  kindLabel: string;
+}[] = [
+  { key: 'weaponGroups', kindLabel: '武器分组' },
+  { key: 'attackModes', kindLabel: '攻击模式' },
+  { key: 'slots', kindLabel: '插槽' },
+];
+
+export function collectWeaponOptionEntries(project: Project): WeaponOptionEntry[] {
+  const list: WeaponOptionEntry[] = [];
+
+  for (const table of WEAPON_OPTION_TABLES) {
+    for (const row of project.battle[table.key]) {
+      const key = row.exportName.trim();
+      if (key === '') continue;
+      list.push({
+        uid: row.uid,
+        tableKey: table.key,
+        key,
+        kindLabel: table.kindLabel,
+        zh: row.name,
+        en: row.nameEn,
+        ja: row.nameJa,
+      });
+    }
+  }
+
+  return list;
+}
+
+/**
  * 收集角色名与别名的本地化条目（顺序：角色表顺序，每个角色先默认名称、再各别名）。
  *
  * 对话行里的「显示名」不在这里——它只是从角色表的名称 / 别名里选一个，

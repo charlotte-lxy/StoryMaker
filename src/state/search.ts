@@ -9,7 +9,11 @@
  * 跟眼睛看到的对得上。要跳的行由界面按 uid 找，这里只负责给出目标。
  */
 
-import { collectLocaleEntries, collectNameEntries } from '../core/localization';
+import {
+  collectLocaleEntries,
+  collectNameEntries,
+  collectWeaponOptionEntries,
+} from '../core/localization';
 import {
   attributeNameOf,
   characterIdOf,
@@ -487,6 +491,17 @@ function localeDrafts(project: Project): Draft[] {
   collectNameEntries(project).forEach((entry, index) => {
     drafts.push({
       submodule: '角色名本地化',
+      rowNumber: index + 1,
+      rowLabel: entry.key,
+      fields: [entry.key, entry.zh, entry.en, entry.ja],
+      target: { kind: 'locale', uid: entry.uid },
+    });
+  });
+
+  // 武器分组 / 攻击模式 / 插槽的导出名称（key 就是导出名称，中文是显示名称）
+  collectWeaponOptionEntries(project).forEach((entry, index) => {
+    drafts.push({
+      submodule: '武器配置本地化',
       rowNumber: index + 1,
       rowLabel: entry.key,
       fields: [entry.key, entry.zh, entry.en, entry.ja],
