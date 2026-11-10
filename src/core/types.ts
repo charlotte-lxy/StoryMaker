@@ -192,27 +192,36 @@ export interface Character {
 }
 
 /**
- * 角色预设里的一把武器：先选武器，再给它挂若干「绑定关系」。
- *
- * 绑定关系是一条条（分组 + 插槽 + 攻击模式），每条的三个字段都存那一行的 uid，
- * 改名字不会断引用。同一把武器里分组不能重复（一个分组只能出现一次）。
+ * 角色预设「武器」列的一条：只记武器表那一行的 uid（界面上按顺序编号 1、2、3…）。
  */
-export interface WeaponBinding {
-  uid: string;
-  /** 分组表那一行的 uid */
-  groupUid: string;
-  /** 插槽表那一行的 uid（只能选这把武器支持的） */
-  slotUid: string;
-  /** 攻击模式表那一行的 uid（只能选这把武器支持的） */
-  attackModeUid: string;
-}
-
-/** 角色预设身上的一条武器（武器 + 它的绑定关系） */
 export interface WeaponEntry {
   uid: string;
   /** 武器表那一行的 uid；还没选武器时为空串 */
   weaponUid: string;
-  bindings: WeaponBinding[];
+}
+
+/**
+ * 「绑定关系」里某个插槽上装的武器。
+ *
+ * 一条 = 这个分组、这个插槽装了哪把武器（指向武器列里的某一条），以及用什么攻击模式。
+ * 三个字段都存 uid：插槽 → 插槽表，武器 → 武器列条目，攻击模式 → 攻击模式表。
+ */
+export interface WeaponSlotMount {
+  /** 插槽表那一行的 uid */
+  slotUid: string;
+  /** 武器列里那一条的 uid（不是武器表 uid：导出要的是武器列的下标） */
+  weaponEntryUid: string;
+  /** 攻击模式表那一行的 uid */
+  attackModeUid: string;
+}
+
+/** 「绑定关系」里的一个分组：这个分组下每个插槽装了什么 */
+export interface WeaponGroupBinding {
+  uid: string;
+  /** 分组表那一行的 uid（同一角色里不重复） */
+  groupUid: string;
+  /** 已经装了武器的插槽（没装的插槽不存，界面上按插槽表铺开） */
+  mounts: WeaponSlotMount[];
 }
 
 /**
@@ -382,10 +391,16 @@ export interface GasCharacter {
   /** 技能列表：技能表那一行的 uid */
   skillUids: string[];
   /**
-   * 这个角色预设带的武器（每把一条），导出 GAS角色 的「武器」列：
-   * 每把武器一个字符串 `武器ID=分组,插槽,攻击模式|分组,插槽,攻击模式`。
+   * 「武器」列：按顺序编号（1、2、3…）的武器，导出 GAS角色 的「武器」列
+   * （每把武器一个武器 ID，允许重复）。
    */
   weapons: WeaponEntry[];
+  /**
+   * 「绑定关系」列：每个分组一行，行里每个插槽装了什么武器、
+   * 用什么攻击模式，导出 GAS角色 的「武器绑定关系」列
+   * （每个装好的插槽一个字符串 `分组|插槽|武器下标|攻击模式`）。
+   */
+  weaponBindings: WeaponGroupBinding[];
 }
 
 /** 武器，导出成 GAS武器 */

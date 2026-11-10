@@ -2740,7 +2740,7 @@ describe('角色页的配置区与表情图片', () => {
 });
 
 
-  it('角色预设的武器：先选武器再挂绑定关系，插槽 / 攻击模式只列支持的，同一把武器分组不重复', async () => {
+  it('角色预设：武器列编号 + 绑定关系列（分组行里按插槽装武器、选攻击模式）', async () => {
     const project = createEmptyProject();
     const weapon = (uid: string, id: string, name: string, slots: string[], modes: string[]) => ({
       uid,
@@ -2754,17 +2754,12 @@ describe('角色页的配置区与表情图片', () => {
       slotUids: slots,
     });
     project.battle.weapons = [
-      // 手枪支持右手 / 左手，两种攻击模式
       weapon('w1', 'WEA_测试-手枪', '测试-手枪', ['sl1', 'sl2'], ['am1', 'am2']),
-      // 刀只支持后背，只能用自动攻击
-      weapon('w2', 'WEA_测试-刀', '测试-刀', ['sl3'], ['am2']),
-      // 什么都没勾：绑定行的插槽 / 攻击模式下拉置灰
-      weapon('w3', 'WEA_测试-炮', '测试-炮', [], []),
+      weapon('w2', 'WEA_测试-刀', '测试-刀', ['sl2'], ['am2']),
     ];
     project.battle.slots = [
       { uid: 'sl1', name: '右手', exportName: 'TXT_WeaponTeamSlot_右手', nameEn: '', nameJa: '' },
-      { uid: 'sl2', name: '左手', exportName: 'TXT_WeaponTeamSlot_左手', nameEn: '', nameJa: '' },
-      { uid: 'sl3', name: '后背', exportName: 'TXT_WeaponTeamSlot_后背', nameEn: '', nameJa: '' },
+      { uid: 'sl2', name: '后背', exportName: 'TXT_WeaponTeamSlot_后背', nameEn: '', nameJa: '' },
     ];
     project.battle.attackModes = [
       { uid: 'am1', name: '手动攻击', exportName: 'TXT_AttackMode_手动攻击', nameEn: '', nameJa: '' },
@@ -2778,6 +2773,7 @@ describe('角色页的配置区与表情图片', () => {
         attributes: [],
         skillUids: [],
         weapons: [],
+        weaponBindings: [],
       },
     ];
     seedProjectFile(JSON.stringify(project));
@@ -2785,84 +2781,93 @@ describe('角色页的配置区与表情图片', () => {
     await renderApp();
     fireEvent.click(within(rail()).getByText('战斗'));
     fireEvent.click(screen.getByText('角色预设'));
-    const container = document.body;
 
-    // 加一条武器：只有武器下拉，还没有绑定关系
+    // 加两条武器：编号 1、2 只给选了武器的条目
     fireEvent.click(screen.getByText('＋ 添加武器'));
-    const entry = container.querySelector('.weapon-entry') as HTMLElement;
-    expect(entry).toBeTruthy();
-    expect(entry.querySelectorAll('.weapon-binding')).toHaveLength(0);
-    const weaponSelect = entry.querySelector('select') as HTMLSelectElement;
-    expect(weaponSelect.selectedOptions[0].textContent).toBe('（未选武器）');
-    // 没选武器时不能加绑定
-    const addBinding = () =>
-      [...entry.querySelectorAll('button')].find((node) =>
-        node.textContent?.includes('＋ 添加绑定'),
-      ) as HTMLButtonElement;
-    expect(addBinding().disabled).toBe(true);
+    fireEvent.click(screen.getByText('＋ 添加武器'));
+    const items = () => [...document.querySelectorAll('.weapon-item')] as HTMLElement[];
+    const selectOf = (row: HTMLElement) => row.querySelector('select') as HTMLSelectElement;
+    expect(items()).toHaveLength(2);
+    const indexOf = (row: HTMLElement) =>
+      row.querySelector('.weapon-index')?.textContent ?? '';
+    expect(indexOf(items()[0])).toBe('—');
 
-    // 选武器 → 自动挂上第一条绑定关系
-    fireEvent.change(weaponSelect, { target: { value: 'w1' } });
-    const binding = () => entry.querySelectorAll('.weapon-binding')[0] as HTMLElement;
-    const selectsOf = (row: HTMLElement) => [...row.querySelectorAll('select')] as HTMLSelectElement[];
-    expect(entry.querySelectorAll('.weapon-binding')).toHaveLength(1);
-    expect(selectsOf(binding())[0].selectedOptions[0].textContent).toBe('火力');
-    expect(selectsOf(binding())[1].selectedOptions[0].textContent).toBe('右手');
-    expect(selectsOf(binding())[2].selectedOptions[0].textContent).toBe('手动攻击');
+    fireEvent.change(selectOf(items()[0]), { target: { value: 'w1' } });
+    fireEvent.change(selectOf(items()[1]), { target: { value: 'w2' } });
+    expect(indexOf(items()[0])).toBe('1');
+    expect(indexOf(items()[1])).toBe('2');
 
-    // 插槽只列手枪支持的，攻击模式只列它支持的两种
-    expect([...selectsOf(binding())[1].options].map((option) => option.textContent)).toEqual([
-      '（未选插槽）',
+    // 绑定关系列初始为空，加一个分组
+    expect(document.querySelectorAll('.binding-group')).toHaveLength(0);
+    fireEvent.click(document.querySelector('.weapon-bindings > button') as HTMLElement);
+    const groups = () => [...document.querySelectorAll('.binding-group')] as HTMLElement[];
+    expect(groups()).toHaveLength(1);
+    // 默认分组是「火力」
+    const groupSelect = groups()[0].querySelector('select') as HTMLSelectElement;
+    expect(groupSelect.selectedOptions[0].textContent).toBe('火力');
+
+    // 每个插槽一格下拉（插槽表两条 → 两格）
+    const slotsOf = (group: HTMLElement) =>
+      [...group.querySelectorAll('.binding-slot')] as HTMLElement[];
+    expect(slotsOf(groups()[0])).toHaveLength(2);
+    expect(slotsOf(groups()[0]).map((row) => row.querySelector('.binding-slot-name')?.textContent)).toEqual([
       '右手',
-      '左手',
-    ]);
-    expect([...selectsOf(binding())[2].options].map((option) => option.textContent)).toEqual([
-      '（未选攻击模式）',
-      '手动攻击',
-      '自动攻击',
+      '后背',
     ]);
 
-    // 再加一条绑定：分组自动挑还没用的「光束」，下拉里不再有「火力」
-    fireEvent.click(addBinding());
-    expect(entry.querySelectorAll('.weapon-binding')).toHaveLength(2);
-    const second = () => entry.querySelectorAll('.weapon-binding')[1] as HTMLElement;
-    expect(selectsOf(second())[0].selectedOptions[0].textContent).toBe('光束');
-    expect([...selectsOf(second())[0].options].map((option) => option.textContent)).toEqual([
-      '（未选分组）',
-      '光束',
-      '点防',
+    // 右手：刀不支持右手（禁用），选第 1 条（手枪）
+    const slotSelect = (group: HTMLElement, index: number) =>
+      slotsOf(group)[index].querySelector('select') as HTMLSelectElement;
+    const rightHand = slotSelect(groups()[0], 0);
+    expect([...rightHand.options].map((option) => option.textContent)).toEqual([
+      '（空）',
+      '1 - 测试-手枪',
+      '2 - 测试-刀（不支持此插槽）',
     ]);
-    // 第一条的分组下拉里「火力」还在（它自己选的）
-    expect([...selectsOf(binding())[0].options].map((option) => option.textContent)).toEqual([
-      '（未选分组）',
-      '火力',
-      '点防',
+    expect(([...rightHand.options][2] as HTMLOptionElement).disabled).toBe(true);
+
+    // 选项的 value 是武器列条目的 uid，按选项文字挑「1 - テスト…」那条
+    const pick = (select: HTMLSelectElement, prefix: string) => {
+      const option = [...select.options].find((item) => item.textContent?.startsWith(prefix));
+      fireEvent.change(select, { target: { value: option?.value ?? '' } });
+    };
+    pick(rightHand, '1 - 测试-手枪');
+    // 选完武器后出现攻击模式的单选按钮（按攻击模式表、只列它支持的）
+    const radios = () =>
+      [...slotsOf(groups()[0])[0].querySelectorAll('.attack-modes label')].map(
+        (label) => label.textContent?.trim(),
+      );
+    expect(radios()).toEqual(['手动攻击', '自动攻击']);
+    expect(
+      (slotsOf(groups()[0])[0].querySelector('input[type="radio"]') as HTMLInputElement).checked,
+    ).toBe(true);
+
+    // 换攻击模式
+    const secondRadio = slotsOf(groups()[0])[0].querySelectorAll('input[type="radio"]')[1];
+    fireEvent.click(secondRadio);
+
+    // 后背：手枪与刀都支持，但手枪已经装在「右手」了 → 该选项禁用
+    const back = slotSelect(groups()[0], 1);
+    const backOptions = [...back.options] as HTMLOptionElement[];
+    expect(backOptions.map((option) => option.textContent)).toEqual([
+      '（空）',
+      '1 - 测试-手枪（本组已用）',
+      '2 - 测试-刀',
     ]);
+    expect(backOptions[1].disabled).toBe(true);
 
-    // 换成刀：分组不变，插槽 / 攻击模式换成刀支持的
-    fireEvent.change(weaponSelect, { target: { value: 'w2' } });
-    expect(selectsOf(binding())[1].selectedOptions[0].textContent).toBe('后背');
-    expect(selectsOf(binding())[2].selectedOptions[0].textContent).toBe('自动攻击');
-    expect(selectsOf(second())[0].selectedOptions[0].textContent).toBe('光束');
-
-    // 换成什么都没勾的炮：两条绑定关系的插槽 / 攻击模式都置灰
-    fireEvent.change(weaponSelect, { target: { value: 'w3' } });
-    expect(selectsOf(binding())[1].disabled).toBe(true);
-    expect(selectsOf(binding())[2].disabled).toBe(true);
-
-    // 换回刀再导出：每把武器一个字符串，多条绑定用 | 隔开
-    fireEvent.change(weaponSelect, { target: { value: 'w2' } });
+    // 导出：武器列按顺序、绑定关系写 分组|插槽|下标|攻击模式
     fireEvent.click(within(rail()).getByText('导出'));
-    const tab = [...document.querySelectorAll('.export-nav')].find((item) =>
-      item.textContent?.startsWith('GAS角色'),
+    const tab = [...document.querySelectorAll('.export-nav')].find((node) =>
+      node.textContent?.startsWith('GAS角色'),
     ) as HTMLElement;
     fireEvent.click(tab);
-
     const cells = [...document.querySelectorAll('.preview-table tbody tr.line-row td')].map(
       (td) => td.textContent,
     );
-    expect(cells[4]).toBe(
-      '("WEA_测试-刀=TXT_WeaponTeam_火力,TXT_WeaponTeamSlot_后背,TXT_AttackMode_自动攻击|TXT_WeaponTeam_光束,TXT_WeaponTeamSlot_后背,TXT_AttackMode_自动攻击")',
+    expect(cells[4]).toBe('("WEA_测试-手枪","WEA_测试-刀")');
+    expect(cells[5]).toBe(
+      '("TXT_WeaponTeam_火力|TXT_WeaponTeamSlot_右手|1|TXT_AttackMode_自动攻击")',
     );
   });
 describe('武器页：攻击模式与插槽', () => {

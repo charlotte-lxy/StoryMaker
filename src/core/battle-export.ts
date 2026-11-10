@@ -23,7 +23,7 @@ import {
 } from './battle';
 import { attributeNameOf, eventNameOf, skillNameOf } from './refs';
 import { weaponIconId } from './weapon-icons';
-import type { BattleData, GasModifier, GasOptionRow, GasPair, Project, WeaponEntry } from './types';
+import type { BattleData, GasModifier, GasOptionRow, GasPair, Project, WeaponEntry, WeaponGroupBinding } from './types';
 
 export const GAMEPLAY_TAGS_SHEET = 'GASGameplayTags';
 export const ATTRIBUTE_SHEET = 'GAS属性';
@@ -58,7 +58,14 @@ export const SKILL_HEADER: readonly string[] = [
   'GA类',
 ];
 export const EVENT_HEADER: readonly string[] = ['', '事件名', '事件标签'];
-export const CHARACTER_HEADER: readonly string[] = ['', '角色名', '属性列表', '技能列表', '武器'];
+export const CHARACTER_HEADER: readonly string[] = [
+  '',
+  '角色名',
+  '属性列表',
+  '技能列表',
+  '武器',
+  '武器绑定关系',
+];
 export const WEAPON_HEADER: readonly string[] = [
   '',
   '武器名',
@@ -145,37 +152,62 @@ const attributePairs = (battle: BattleData, pairs: readonly GasPair[]): GasPair[
     .map((pair) => ({ ...pair, key: attributeTag(attributeNameOf(battle, pair.key)) }));
 
 /**
- * 角色预设带的武器，每把一个字符串：
- * `武器ID=分组,插槽,攻击模式|分组,插槽,攻击模式`。
+ * 角色预设「武器」列：每把武器一个武器 ID（按武器列的顺序，允许重复）。
  *
- * 一条武器可以有多个绑定关系（不同分组 / 插槽 / 攻击模式），用 `|` 隔开，每条三个字段用 `,` 隔开。
- * 三个引用存的都是 uid，这里现查：武器取它的 ID（行名），另外三个取导出名称。
- * 武器没选、或一条绑定关系都没有的那一条跳过（拼不出内容的字符串没有意义）；
- * 分组为空的绑定关系也跳过（没分组的绑定导出出来没有意义）。
+ * 还没选武器的那一条跳过（它没有 ID 可写），它也不占绑定关系里的下标。
  */
-function loadoutTexts(battle: BattleData, entries: readonly WeaponEntry[]): string[] {
+function weaponIdTexts(battle: BattleData, entries: readonly WeaponEntry[]): string[] {
   const weaponIds = new Map(battle.weapons.map((row) => [row.uid, row.id.trim()]));
+  const out: string[] = [];
+  for (const entry of entries) {
+    const id = weaponIds.get(entry.weaponUid) ?? '';
+    if (id !== '') out.push(id);
+  }
+  return out;
+}
+
+/** 导出里「武器列」的下标：从 1 开始数，和界面上的编号一致 */
+function weaponIndexesOf(entries: readonly WeaponEntry[]): Map<string, number> {
+  const map = new Map<string, number>();
+  let index = 0;
+  for (const entry of entries) {
+    if (entry.weaponUid === '') continue;
+    index += 1;
+    map.set(entry.uid, index);
+  }
+  return map;
+}
+
+/**
+ * 角色预设「武器绑定关系」列：每个装好的插槽一个字符串
+ * `分组|插槽|武器下标|攻击模式`。
+ *
+ * 分组 / 插槽 / 攻击模式都写导出名称；武器下标对应该角色「武器」列里的顺序（从 1 开始）。
+ * 分组或插槽没填、下标算不出来（那把武器已经不在武器列里了）的跳过。
+ */
+function weaponBindingTexts(
+  battle: BattleData,
+  entries: readonly WeaponEntry[],
+  groups: readonly WeaponGroupBinding[],
+): string[] {
+  const indexes = weaponIndexesOf(entries);
   const exportNameOf = (rows: readonly GasOptionRow[], uid: string): string =>
     rows.find((row) => row.uid === uid)?.exportName.trim() ?? '';
 
   const out: string[] = [];
-  for (const entry of entries) {
-    const weaponId = weaponIds.get(entry.weaponUid) ?? '';
-    if (weaponId === '') continue;
+  for (const group of groups) {
+    const groupName = exportNameOf(battle.weaponGroups, group.groupUid);
+    if (groupName === '') continue;
 
-    const bindings = entry.bindings
-      .map((binding) =>
-        [
-          exportNameOf(battle.weaponGroups, binding.groupUid),
-          exportNameOf(battle.slots, binding.slotUid),
-          exportNameOf(battle.attackModes, binding.attackModeUid),
-        ].join(','),
-      )
-      // 分组空着的绑定关系不导出
-      .filter((text) => !text.startsWith(','));
-
-    if (bindings.length === 0) continue;
-    out.push(`${weaponId}=${bindings.join('|')}`);
+    for (const mount of group.mounts) {
+      const slotName = exportNameOf(battle.slots, mount.slotUid);
+      const index = indexes.get(mount.weaponEntryUid) ?? 0;
+      if (slotName === '' || index === 0) continue;
+      out.push(
+        [groupName, slotName, String(index), exportNameOf(battle.attackModes, mount.attackModeUid)]
+          .join('|'),
+      );
+    }
   }
   return out;
 }
@@ -246,8 +278,9 @@ export function buildBattleRows(project: Project): BattleSheetRows {
           row.name,
           formatPairLiteral(attributePairs(battle, filledPairs(row.attributes))),
           formatArrayLiteral(skillTags(battle, row.skillUids)),
-          // 武器：每把一个字符串「武器ID|分组导出名称|插槽导出名称|攻击模式导出名称」
-          formatArrayLiteral(loadoutTexts(battle, row.weapons)),
+          // 武器：按顺序每把武器一个武器 ID；绑定关系另一列
+          formatArrayLiteral(weaponIdTexts(battle, row.weapons)),
+          formatArrayLiteral(weaponBindingTexts(battle, row.weapons, row.weaponBindings)),
         ]),
     ],
     weapons: [

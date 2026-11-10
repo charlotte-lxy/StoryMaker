@@ -92,6 +92,7 @@ function makeProject(): Project {
       // 属性列表的 key 是属性 uid：a2 = 移动速度、a1 = 生命值
       attributes: [pair('a2', '5'), pair('a1', '100')],
       skillUids: ['s1', 's2'],
+      weaponBindings: [],
       weapons: [],
     },
   ];
@@ -264,12 +265,13 @@ describe('战斗模块的导出', () => {
       '测试主角',
       '(("GAS.属性.移动速度","5"),("GAS.属性.生命值","100"))',
       '("GAS.技能.回血","GAS.技能.加速")',
-      // 还没带武器时这一列留空
+      // 还没带武器时「武器」与「武器绑定关系」两列都留空
+      '',
       '',
     ]);
   });
 
-  it('角色表「武器」列：每把武器一个「武器ID=分组,插槽,攻击模式|…」字符串，都用导出名称', () => {
+  it('角色表的「武器」列与「武器绑定关系」列：武器按下标、绑定关系写 分组|插槽|下标|攻击模式', () => {
     const project = makeProject();
     const battle = project.battle;
     battle.weaponGroups = [
@@ -284,24 +286,35 @@ describe('战斗模块的导出', () => {
       { uid: 'am1', name: '手动攻击', exportName: 'TXT_AttackMode_手动攻击', nameEn: '', nameJa: '' },
       { uid: 'am2', name: '自动攻击', exportName: 'TXT_AttackMode_自动攻击', nameEn: '', nameJa: '' },
     ];
+    // 武器列：三条，第二条没选武器（不占下标、也不出现在导出的武器列里）
     battle.characters[0].weapons = [
+      { uid: 'cw1', weaponUid: 'w1' },
+      { uid: 'cw2', weaponUid: '' },
+      { uid: 'cw3', weaponUid: 'w1' },
+    ];
+    // 绑定关系：火力下右手装第 1 条、后背装第 2 条；光束下右手装第 2 条
+    battle.characters[0].weaponBindings = [
       {
-        uid: 'cw1',
-        weaponUid: 'w1',
-        bindings: [
-          { uid: 'b1', groupUid: 'wg1', slotUid: 'sl1', attackModeUid: 'am1' },
-          // 同一条武器可以有多个绑定关系，用 | 隔开
-          { uid: 'b2', groupUid: 'wg2', slotUid: 'sl2', attackModeUid: 'am2' },
+        uid: 'gb1',
+        groupUid: 'wg1',
+        mounts: [
+          { slotUid: 'sl1', weaponEntryUid: 'cw1', attackModeUid: 'am1' },
+          { slotUid: 'sl2', weaponEntryUid: 'cw3', attackModeUid: 'am2' },
         ],
       },
-      // 没选武器的条目：跳过
-      { uid: 'cw2', weaponUid: '', bindings: [] },
-      // 有武器但一条绑定关系都没有：跳过
-      { uid: 'cw3', weaponUid: 'w1', bindings: [] },
+      {
+        uid: 'gb2',
+        groupUid: 'wg2',
+        mounts: [{ slotUid: 'sl1', weaponEntryUid: 'cw3', attackModeUid: 'am2' }],
+      },
     ];
 
-    expect(buildBattleRows(project).characters[1][4]).toBe(
-      '("WEA_测试-手枪=TXT_WeaponTeam_火力,TXT_WeaponTeamSlot_右手,TXT_AttackMode_手动攻击|TXT_WeaponTeam_光束,TXT_WeaponTeamSlot_后背,TXT_AttackMode_自动攻击")',
+    const row = buildBattleRows(project).characters[1];
+    // 武器列：允许重复，按顺序每个武器一个 ID
+    expect(row[4]).toBe('("WEA_测试-手枪","WEA_测试-手枪")');
+    // 绑定关系列：分组|插槽|武器下标|攻击模式，下标从 1 开始
+    expect(row[5]).toBe(
+      '("TXT_WeaponTeam_火力|TXT_WeaponTeamSlot_右手|1|TXT_AttackMode_手动攻击","TXT_WeaponTeam_火力|TXT_WeaponTeamSlot_后背|2|TXT_AttackMode_自动攻击","TXT_WeaponTeam_光束|TXT_WeaponTeamSlot_右手|2|TXT_AttackMode_自动攻击")',
     );
   });
 

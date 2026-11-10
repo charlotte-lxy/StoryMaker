@@ -3,14 +3,15 @@ import { describe, expect, it } from 'vitest';
 import {
   addBattleRow,
   addCharacterWeapon,
-  addWeaponBinding,
+  addWeaponGroupBinding,
   addWeaponOption,
   removeCharacterWeapon,
-  removeWeaponBinding,
+  removeWeaponGroupBinding,
   removeWeaponOption,
   updateBattleList,
   setCharacterWeapon,
-  updateWeaponBinding,
+  mountWeaponSlot,
+  setWeaponGroupBindingGroup,
   updateWeaponOption,
   updateWeaponOptionNameText,
 } from './battle-operations';
@@ -121,6 +122,7 @@ describe('角色预设带的武器', () => {
         name: '伊芙',
         attributes: [],
         skillUids: [],
+        weaponBindings: [],
         weapons: [],
       },
     ];
@@ -128,92 +130,107 @@ describe('角色预设带的武器', () => {
   }
 
 
-  it('新增武器：先只有武器下拉，选了武器才自动挂上第一条绑定关系', () => {
+
+  it('武器列：加一条只有武器下拉，选了武器只改它自己（不再自动挂绑定关系）', () => {
     let project = addCharacterWeapon(makeWeaponProject(), 'ch1');
     const entry = project.battle.characters[0].weapons[0];
     expect(entry.weaponUid).toBe('');
-    expect(entry.bindings).toEqual([]);
 
     project = setCharacterWeapon(project, entry.uid, 'w1');
-    const bound = project.battle.characters[0].weapons[0];
-    expect(bound.bindings).toHaveLength(1);
-    expect(bound.bindings[0].slotUid).toBe('sl1');
-    expect(bound.bindings[0].attackModeUid).toBe('am1');
-    // 分组默认第一个可用的（火力）
-    const fire = project.battle.weaponGroups[0];
-    expect(bound.bindings[0].groupUid).toBe(fire.uid);
+    expect(project.battle.characters[0].weapons[0].weaponUid).toBe('w1');
+    // 绑定关系是单独一列，不跟着武器走
+    expect(project.battle.characters[0].weaponBindings).toEqual([]);
   });
 
-  it('绑定关系能加、能改、能删；同一把武器的分组不重复', () => {
+  it('绑定关系：加分组默认挑没用的分组，行里装着插槽 → 武器', () => {
     let project = addCharacterWeapon(makeWeaponProject(), 'ch1');
     const entryUid = project.battle.characters[0].weapons[0].uid;
     project = setCharacterWeapon(project, entryUid, 'w1');
 
-    // 再加一条：自动挑第二个分组
-    project = addWeaponBinding(project, entryUid);
-    let bindings = project.battle.characters[0].weapons[0].bindings;
+    project = addWeaponGroupBinding(project, 'ch1');
+    const [first] = project.battle.characters[0].weaponBindings;
+    expect(first.groupUid).toBe(project.battle.weaponGroups[0].uid);
+    expect(first.mounts).toEqual([]);
+
+    // 第二个分组：自动挑下一个没用的
+    project = addWeaponGroupBinding(project, 'ch1');
+    const bindings = project.battle.characters[0].weaponBindings;
     expect(bindings).toHaveLength(2);
-    expect(new Set(bindings.map((row) => row.groupUid)).size).toBe(2);
+    expect(bindings[1].groupUid).toBe(project.battle.weaponGroups[1].uid);
 
-    // 改一条的插槽 / 攻击模式
-    const target = bindings[1];
-    project = updateWeaponBinding(project, target.uid, {
-      slotUid: 'sl1',
-      attackModeUid: 'am1',
-    });
-    bindings = project.battle.characters[0].weapons[0].bindings;
-    expect(bindings[1]).toMatchObject({ slotUid: 'sl1', attackModeUid: 'am1' });
+    // 在「火力」的右手插槽里装上第 1 条武器：默认带上它支持的第一个攻击模式
+    project = mountWeaponSlot(project, first.uid, 'sl1', { weaponEntryUid: entryUid });
+    const mount = project.battle.characters[0].weaponBindings[0].mounts[0];
+    expect(mount).toMatchObject({ slotUid: 'sl1', weaponEntryUid: entryUid, attackModeUid: 'am1' });
 
-    // 删一条
-    project = removeWeaponBinding(project, entryUid, bindings[0].uid);
-    bindings = project.battle.characters[0].weapons[0].bindings;
-    expect(bindings).toHaveLength(1);
-    expect(bindings[0].uid).toBe(target.uid);
+    // 改攻击模式
+    project = mountWeaponSlot(project, first.uid, 'sl1', { attackModeUid: 'am1' });
+    expect(project.battle.characters[0].weaponBindings[0].mounts[0].attackModeUid).toBe('am1');
+
+    // 清空这一格
+    project = mountWeaponSlot(project, first.uid, 'sl1', { weaponEntryUid: '' });
+    expect(project.battle.characters[0].weaponBindings[0].mounts).toEqual([]);
   });
 
-  it('分组全用完后不再加绑定；换武器把不支持的插槽 / 攻击模式换成新武器支持的', () => {
-    let project = makeWeaponProject();
-    // 只有两个分组，武器 w1 支持 sl1 / am1
-    project.battle.weaponGroups = project.battle.weaponGroups.slice(0, 2);
-    const entryUid = (project = addCharacterWeapon(project, 'ch1')).battle.characters[0].weapons[0]
-      .uid;
-    project = setCharacterWeapon(project, entryUid, 'w1');
-
-    project = addWeaponBinding(project, entryUid);
-    // 两个分组都用完了：再加不进去
-    const before = project.battle.characters[0].weapons[0].bindings.length;
-    project = addWeaponBinding(project, entryUid);
-    expect(project.battle.characters[0].weapons[0].bindings).toHaveLength(before);
-
-    // 换成刀（只支持 sl2 / am2）：绑定关系里的插槽 / 攻击模式跟着换
-    project = setCharacterWeapon(project, entryUid, 'w2');
-    const bindings = project.battle.characters[0].weapons[0].bindings;
-    expect(bindings.every((row) => row.slotUid === 'sl2' && row.attackModeUid === 'am2')).toBe(true);
-  });
-
-  it('删掉一把武器条目：只动那一条', () => {
-    let project = makeWeaponProject();
-    project = addCharacterWeapon(project, 'ch1');
-    project = addCharacterWeapon(project, 'ch1');
-    const [first, second] = project.battle.characters[0].weapons;
-    project = setCharacterWeapon(project, second.uid, 'w2');
-
-    project = removeCharacterWeapon(project, 'ch1', first.uid);
-    const left = project.battle.characters[0].weapons;
-    expect(left.map((row) => row.weaponUid)).toEqual(['w2']);
-  });
-
-  it('删掉分组 / 插槽：绑定关系里对应的那一格清空', () => {
+  it('换分组 / 删分组行；删武器时绑定关系里指向它的插槽一起清掉', () => {
     let project = addCharacterWeapon(makeWeaponProject(), 'ch1');
     const entryUid = project.battle.characters[0].weapons[0].uid;
     project = setCharacterWeapon(project, entryUid, 'w1');
-    const binding = project.battle.characters[0].weapons[0].bindings[0];
+    project = addWeaponGroupBinding(project, 'ch1');
+    const bindingUid = project.battle.characters[0].weaponBindings[0].uid;
+    project = mountWeaponSlot(project, bindingUid, 'sl1', { weaponEntryUid: entryUid });
 
+    // 换成光束
+    const beam = project.battle.weaponGroups[1];
+    project = setWeaponGroupBindingGroup(project, bindingUid, beam.uid);
+    expect(project.battle.characters[0].weaponBindings[0].groupUid).toBe(beam.uid);
+
+    // 删掉武器：插槽里的安装记录也清掉
+    project = removeCharacterWeapon(project, 'ch1', entryUid);
+    expect(project.battle.characters[0].weapons).toEqual([]);
+    expect(project.battle.characters[0].weaponBindings[0].mounts).toEqual([]);
+
+    // 删分组行
+    project = removeWeaponGroupBinding(project, bindingUid);
+    expect(project.battle.characters[0].weaponBindings).toEqual([]);
+  });
+
+  it('换武器时：原来装了这个插槽但新武器不支持，就清掉那一格', () => {
+    let project = makeWeaponProject();
+    project = addCharacterWeapon(project, 'ch1');
+    const entryUid = project.battle.characters[0].weapons[0].uid;
+    project = setCharacterWeapon(project, entryUid, 'w1');
+    project = addWeaponGroupBinding(project, 'ch1');
+    const bindingUid = project.battle.characters[0].weaponBindings[0].uid;
+    project = mountWeaponSlot(project, bindingUid, 'sl1', { weaponEntryUid: entryUid });
+
+    // 换成刀（只支持 sl2）：右手那一格装不上了，清空
+    project = setCharacterWeapon(project, entryUid, 'w2');
+    expect(project.battle.characters[0].weaponBindings[0].mounts).toEqual([]);
+  });
+
+  it('删掉分组 / 插槽 / 攻击模式：绑定关系里对应的内容一起处理', () => {
+    let project = addCharacterWeapon(makeWeaponProject(), 'ch1');
+    const entryUid = project.battle.characters[0].weapons[0].uid;
+    project = setCharacterWeapon(project, entryUid, 'w1');
+    project = addWeaponGroupBinding(project, 'ch1');
+    const binding = project.battle.characters[0].weaponBindings[0];
+    project = mountWeaponSlot(project, binding.uid, 'sl1', { weaponEntryUid: entryUid });
+
+    // 删插槽：那一格没了
+    project = removeWeaponOption(project, 'slots', 'sl1');
+    expect(project.battle.characters[0].weaponBindings[0].mounts).toEqual([]);
+
+    // 重新装上，再删攻击模式：攻击模式清空，安装还在
+    project = mountWeaponSlot(project, binding.uid, 'sl1', { weaponEntryUid: entryUid });
+    project = removeWeaponOption(project, 'attackModes', 'am1');
+    const mount = project.battle.characters[0].weaponBindings[0].mounts[0];
+    expect(mount.weaponEntryUid).toBe(entryUid);
+    expect(mount.attackModeUid).toBe('');
+
+    // 删分组：整个分组行去掉
     project = removeWeaponOption(project, 'weaponGroups', binding.groupUid);
-    expect(project.battle.characters[0].weapons[0].bindings[0].groupUid).toBe('');
-
-    project = removeWeaponOption(project, 'slots', binding.slotUid);
-    expect(project.battle.characters[0].weapons[0].bindings[0].slotUid).toBe('');
+    expect(project.battle.characters[0].weaponBindings).toEqual([]);
   });
 
   it('新建分组时导出名称带 TXT_WeaponTeam_ 前缀，攻击模式仍默认等于显示名称', () => {

@@ -1611,42 +1611,107 @@ div.line-row.selected > .line-card {
   min-width: 300px;
 }
 
-/* 角色预设「武器」列：一条武器（武器下拉）+ 若干绑定关系（分组 / 插槽 / 攻击模式） */
-.weapon-loadout {
+/* 角色预设「武器」列：一条武器一行，前面带编号（绑定关系里的下标就是它） */
+.weapon-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.weapon-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.weapon-index {
+  flex: 0 0 20px;
+  text-align: right;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.weapon-item select {
+  min-width: 0;
+  flex: 1 1 0;
+}
+
+.weapon-item button {
+  flex: 0 0 auto;
+}
+
+/* 角色预设「绑定关系」列：每个分组一块，块里按插槽铺开 */
+.weapon-bindings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.binding-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--head-bg);
+}
+
+.binding-group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.binding-group-head select {
+  min-width: 0;
+  flex: 0 1 160px;
+  font-weight: 600;
+}
+
+.binding-slots {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.weapon-entry {
+.binding-slot {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 4px 0 6px;
-  border-bottom: 1px dashed var(--border);
-}
-
-.weapon-entry-head,
-.weapon-binding {
-  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  gap: 6px 10px;
 }
 
-/* 绑定关系缩进一格，一眼看出它挂在哪把武器下面 */
-.weapon-binding {
-  padding-left: 12px;
+.binding-slot-name {
+  flex: 0 0 68px;
+  color: var(--text-dim);
 }
 
-.weapon-entry-head select,
-.weapon-binding select {
+.binding-slot select {
   min-width: 0;
-  flex: 1 1 0;
+  flex: 0 1 200px;
 }
 
-.weapon-entry-head button,
-.weapon-binding button {
-  flex: 0 0 auto;
+/* 攻击模式：一排紧凑的单选按钮 */
+.attack-modes {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.attack-modes label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.attack-modes input[type='radio'] {
+  margin: 0;
+  width: auto;
 }
 
 .lookup-subhead {

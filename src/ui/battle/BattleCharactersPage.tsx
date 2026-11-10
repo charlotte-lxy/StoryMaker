@@ -2,17 +2,18 @@ import type { Project } from '../../core/types';
 import {
   addBattleRow,
   addCharacterWeapon,
-  addWeaponBinding,
+  addWeaponGroupBinding,
   addPair,
   removeBattleRow,
   removeCharacterWeapon,
-  removeWeaponBinding,
+  removeWeaponGroupBinding,
   removePair,
   reorderBattleRow,
   updateBattleList,
+  mountWeaponSlot,
   setCharacterWeapon,
+  setWeaponGroupBindingGroup,
   updateBattleRow,
-  updateWeaponBinding,
   updatePair,
 } from '../../state/battle-operations';
 import { MultiSelect } from '../MultiSelect';
@@ -45,17 +46,12 @@ export function BattleCharactersPage({ project, onChange }: Props) {
     }));
   const weaponOptions = optionOf(battle.weapons);
   const groupOptions = optionOf(battle.weaponGroups);
-  const slotOptions = optionOf(battle.slots);
   const attackModeOptions = optionOf(battle.attackModes);
-
-  /**
-   * 只列这把武器支持的插槽 / 攻击模式（顺序按武器表里勾选的顺序）。
-   *
-   * 武器表里没勾的就不出现在下拉里——避免配出「武器不支持这个插槽」的组合。
-   * 没选武器时是空清单，下拉会置灰。
-   */
-  const supportedOf = (uids: readonly string[], all: { value: string; label: string }[]) =>
-    uids.map((uid) => all.find((item) => item.value === uid)).filter((item) => item !== undefined);
+  /** 绑定关系里按插槽表铺开：每个插槽一格 */
+  const slotColumns = battle.slots.map((row) => ({
+    uid: row.uid,
+    label: row.name.trim() === '' ? '（未命名插槽）' : row.name.trim(),
+  }));
 
   const drag = useRowDrag((from, to) => onChange(reorderBattleRow(project, 'characters', from, to)));
 
@@ -91,12 +87,44 @@ export function BattleCharactersPage({ project, onChange }: Props) {
                 <th style={{ width: 170 }}>角色名</th>
                 <th style={{ width: 330 }}>属性列表</th>
                 <th style={{ width: 260 }}>技能列表</th>
-                <th style={{ width: 440 }}>武器</th>
+                <th style={{ width: 260 }}>武器</th>
+                <th style={{ width: 560 }}>绑定关系</th>
                 <th style={{ width: 74 }}>操作</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, index) => (
+              {rows.map((row, index) => {
+                // 武器列里已经选好武器的那些条：编号从 1 开始，绑定关系的下拉按它列
+                const filledWeapons = row.weapons
+                  .filter((entry) => entry.weaponUid !== '')
+                  .map((entry) => {
+                    const weapon = battle.weapons.find((item) => item.uid === entry.weaponUid);
+                    const label =
+                      weapon === undefined
+                        ? '（武器已删除）'
+                        : weapon.name.trim() === ''
+                          ? weapon.id.trim()
+                          : weapon.name.trim();
+                    return { entry, weapon, label };
+                  })
+                  .filter(
+                    (item): item is { entry: (typeof row.weapons)[number]; weapon: NonNullable<typeof item.weapon>; label: string } =>
+                      item.weapon !== undefined,
+                  )
+                  .map((item, position) => ({ ...item, index: position + 1 }));
+
+                // 绑定关系下拉里能选的武器：武器列里的这些条（序号 - 武器名）
+                const freeGroupCount =
+                  battle.weaponGroups.length -
+                  row.weaponBindings.filter((item) => item.groupUid !== '').length;
+                const attackModesOf = (weapon: (typeof battle.weapons)[number] | undefined) =>
+                  weapon === undefined
+                    ? []
+                    : weapon.attackModeUids
+                        .map((uid) => attackModeOptions.find((item) => item.value === uid))
+                        .filter((item) => item !== undefined);
+
+                return (
                 <tr key={row.uid} data-battle-uid={row.uid} {...drag.rowProps(index)}>
                   <OrderCell index={index} drag={drag} />
                   <td>
@@ -144,193 +172,42 @@ export function BattleCharactersPage({ project, onChange }: Props) {
                     />
                   </td>
                   <td>
-                    {/* 武器：先挑武器，再给它挂若干绑定关系（分组 / 插槽 / 攻击模式），导出成「武器ID=分组,插槽,攻击模式|…」 */}
-                    <div className="weapon-loadout">
+                    {/* 武器列：只挑武器，按顺序编号（导出就是这个顺序的下标） */}
+                    <div className="weapon-list">
                       {row.weapons.map((entry) => {
-                        const weapon = battle.weapons.find((item) => item.uid === entry.weaponUid);
-                        const entrySlots = supportedOf(weapon?.slotUids ?? [], slotOptions);
-                        const entryModes = supportedOf(
-                          weapon?.attackModeUids ?? [],
-                          attackModeOptions,
-                        );
-                        const noWeapon = weapon === undefined;
-                        // 同一把武器（这个角色里的所有同名武器条目）分组不能重复
-                        const usedGroups = row.weapons
-                          .filter((item) => item.weaponUid === entry.weaponUid)
-                          .flatMap((item) => item.bindings.map((binding) => binding.groupUid));
-                        const freeGroups = groupOptions.filter(
-                          (item) => !usedGroups.includes(item.value),
-                        );
-                        const slotHint = noWeapon
-                          ? '先选武器，这里只列这把武器支持的插槽'
-                          : '这把武器在武器表里没勾选任何插槽，先去武器表勾选';
-                        const modeHint = noWeapon
-                          ? '先选武器，这里只列这把武器支持的攻击模式'
-                          : '这把武器在武器表里没勾选任何攻击模式，先去武器表勾选';
-
+                        const no = filledWeapons.find((item) => item.entry.uid === entry.uid)?.index;
                         return (
-                          <div className="weapon-entry" key={entry.uid}>
-                            <div className="weapon-entry-head">
-                              <select
-                                value={entry.weaponUid}
-                                title="武器（下拉里显示武器名，导出写武器 ID）"
-                                onChange={(event) =>
-                                  onChange(setCharacterWeapon(project, entry.uid, event.target.value))
-                                }
-                              >
-                                <option value="">（未选武器）</option>
-                                {weaponOptions.map((item) => (
-                                  <option key={item.value} value={item.value}>
-                                    {item.label}
-                                  </option>
-                                ))}
-                                {entry.weaponUid !== '' &&
-                                  !weaponOptions.some((item) => item.value === entry.weaponUid) && (
-                                    <option value={entry.weaponUid}>（武器已删除）</option>
-                                  )}
-                              </select>
-                              <button
-                                type="button"
-                                className="mini danger"
-                                title="这个角色不带这把武器了（它的绑定关系一起删掉）"
-                                onClick={() =>
-                                  onChange(removeCharacterWeapon(project, row.uid, entry.uid))
-                                }
-                              >
-                                ×
-                              </button>
-                            </div>
-
-                            {entry.bindings.map((binding) => (
-                              <div className="weapon-binding" key={binding.uid}>
-                                <select
-                                  value={binding.groupUid}
-                                  disabled={noWeapon}
-                                  title={
-                                    noWeapon
-                                      ? '先选武器，再选分组'
-                                      : usedGroups.filter((uid) => uid !== binding.groupUid).length >=
-                                          groupOptions.length
-                                        ? '分组表里还没有可用的分组'
-                                        : '绑定分组（同一把武器里不能重复；导出用分组表的导出名称）'
-                                  }
-                                  onChange={(event) =>
-                                    onChange(
-                                      updateWeaponBinding(project, binding.uid, {
-                                        groupUid: event.target.value,
-                                      }),
-                                    )
-                                  }
-                                >
-                                  <option value="">（未选分组）</option>
-                                  {groupOptions
-                                    .filter(
-                                      (item) =>
-                                        item.value === binding.groupUid ||
-                                        !usedGroups.includes(item.value),
-                                    )
-                                    .map((item) => (
-                                      <option key={item.value} value={item.value}>
-                                        {item.label}
-                                      </option>
-                                    ))}
-                                  {binding.groupUid !== '' &&
-                                    !groupOptions.some((item) => item.value === binding.groupUid) && (
-                                      <option value={binding.groupUid}>（分组已删除）</option>
-                                    )}
-                                </select>
-                                <select
-                                  value={binding.slotUid}
-                                  disabled={noWeapon || entrySlots.length === 0}
-                                  title={
-                                    entrySlots.length === 0
-                                      ? slotHint
-                                      : '绑定插槽（只列这把武器支持的；导出用插槽表的导出名称）'
-                                  }
-                                  onChange={(event) =>
-                                    onChange(
-                                      updateWeaponBinding(project, binding.uid, {
-                                        slotUid: event.target.value,
-                                      }),
-                                    )
-                                  }
-                                >
-                                  <option value="">（未选插槽）</option>
-                                  {entrySlots.map((item) => (
-                                    <option key={item.value} value={item.value}>
-                                      {item.label}
-                                    </option>
-                                  ))}
-                                  {binding.slotUid !== '' &&
-                                    !entrySlots.some((item) => item.value === binding.slotUid) && (
-                                      <option value={binding.slotUid}>
-                                        {slotOptions.find((item) => item.value === binding.slotUid)
-                                          ?.label ?? '（插槽已删除）'}
-                                        （这把武器不支持）
-                                      </option>
-                                    )}
-                                </select>
-                                <select
-                                  value={binding.attackModeUid}
-                                  disabled={noWeapon || entryModes.length === 0}
-                                  title={
-                                    entryModes.length === 0
-                                      ? modeHint
-                                      : '攻击模式（只列这把武器支持的；导出用攻击模式表的导出名称）'
-                                  }
-                                  onChange={(event) =>
-                                    onChange(
-                                      updateWeaponBinding(project, binding.uid, {
-                                        attackModeUid: event.target.value,
-                                      }),
-                                    )
-                                  }
-                                >
-                                  <option value="">（未选攻击模式）</option>
-                                  {entryModes.map((item) => (
-                                    <option key={item.value} value={item.value}>
-                                      {item.label}
-                                    </option>
-                                  ))}
-                                  {binding.attackModeUid !== '' &&
-                                    !entryModes.some(
-                                      (item) => item.value === binding.attackModeUid,
-                                    ) && (
-                                      <option value={binding.attackModeUid}>
-                                        {attackModeOptions.find(
-                                          (item) => item.value === binding.attackModeUid,
-                                        )?.label ?? '（攻击模式已删除）'}
-                                        （这把武器不支持）
-                                      </option>
-                                    )}
-                                </select>
-                                <button
-                                  type="button"
-                                  className="mini danger"
-                                  title="删掉这条绑定关系"
-                                  onClick={() =>
-                                    onChange(removeWeaponBinding(project, entry.uid, binding.uid))
-                                  }
-                                >
-                                  ×
-                                </button>
-                              </div>
-                            ))}
-
+                          <div className="weapon-item" key={entry.uid}>
+                            <span className="weapon-index" title="武器编号：绑定关系里的下标就是它">
+                              {no === undefined ? '—' : no}
+                            </span>
+                            <select
+                              value={entry.weaponUid}
+                              title="武器（下拉里显示武器名，导出写武器 ID）"
+                              onChange={(event) =>
+                                onChange(setCharacterWeapon(project, entry.uid, event.target.value))
+                              }
+                            >
+                              <option value="">（未选武器）</option>
+                              {weaponOptions.map((item) => (
+                                <option key={item.value} value={item.value}>
+                                  {item.label}
+                                </option>
+                              ))}
+                              {entry.weaponUid !== '' &&
+                                !weaponOptions.some((item) => item.value === entry.weaponUid) && (
+                                  <option value={entry.weaponUid}>（武器已删除）</option>
+                                )}
+                            </select>
                             <button
                               type="button"
-                              className="option-add name-add"
-                              disabled={noWeapon || freeGroups.length === 0}
-                              title={
-                                noWeapon
-                                  ? '先在上面选武器'
-                                  : freeGroups.length === 0
-                                    ? '这把武器的分组都绑完了'
-                                    : '再给这把武器加一条绑定关系（分组挑一个还没用的）'
+                              className="mini danger"
+                              title="不要这把武器了（绑定关系里装着它的插槽一起清掉）"
+                              onClick={() =>
+                                onChange(removeCharacterWeapon(project, row.uid, entry.uid))
                               }
-                              onClick={() => onChange(addWeaponBinding(project, entry.uid))}
                             >
-                              ＋ 添加绑定
+                              ×
                             </button>
                           </div>
                         );
@@ -339,10 +216,156 @@ export function BattleCharactersPage({ project, onChange }: Props) {
                       <button
                         type="button"
                         className="option-add name-add"
-                        title="给这个角色加一把武器，选好武器后再加绑定关系"
+                        title="给这个角色加一条武器"
                         onClick={() => onChange(addCharacterWeapon(project, row.uid))}
                       >
                         ＋ 添加武器
+                      </button>
+                    </div>
+                  </td>
+                  <td>
+                    {/* 绑定关系列：每个分组一行，行里每个插槽一个下拉，装好武器后选攻击模式 */}
+                    <div className="weapon-bindings">
+                      {row.weaponBindings.map((binding) => {
+                        const usedGroups = row.weaponBindings
+                          .filter((item) => item.uid !== binding.uid)
+                          .map((item) => item.groupUid);
+                        const groupName =
+                          groupOptions.find((item) => item.value === binding.groupUid)?.label ??
+                          '（未选分组）';
+
+                        return (
+                          <div className="binding-group" key={binding.uid}>
+                            <div className="binding-group-head">
+                              <select
+                                value={binding.groupUid}
+                                title="这个绑定关系属于哪个分组（同一角色里不重复）"
+                                onChange={(event) =>
+                                  onChange(
+                                    setWeaponGroupBindingGroup(project, binding.uid, event.target.value),
+                                  )
+                                }
+                              >
+                                <option value="">（未选分组）</option>
+                                {groupOptions
+                                  .filter(
+                                    (item) =>
+                                      item.value === binding.groupUid ||
+                                      !usedGroups.includes(item.value),
+                                  )
+                                  .map((item) => (
+                                    <option key={item.value} value={item.value}>
+                                      {item.label}
+                                    </option>
+                                  ))}
+                                {binding.groupUid !== '' &&
+                                  !groupOptions.some((item) => item.value === binding.groupUid) && (
+                                    <option value={binding.groupUid}>（分组已删除）</option>
+                                  )}
+                              </select>
+                              <button
+                                type="button"
+                                className="mini danger"
+                                title="删掉这个分组的所有绑定"
+                                onClick={() => onChange(removeWeaponGroupBinding(project, binding.uid))}
+                              >
+                                ×
+                              </button>
+                            </div>
+
+                            <div className="binding-slots">
+                              {slotColumns.map((slot) => {
+                                const mount = binding.mounts.find(
+                                  (item) => item.slotUid === slot.uid,
+                                );
+                                const mounted = filledWeapons.find(
+                                  (item) => item.entry.uid === mount?.weaponEntryUid,
+                                );
+                                const modes = mounted === undefined ? [] : attackModesOf(mounted.weapon);
+                                return (
+                                  <div className="binding-slot" key={slot.uid}>
+                                    <span className="binding-slot-name" title="插槽">
+                                      {slot.label}
+                                    </span>
+                                    <select
+                                      value={mount?.weaponEntryUid ?? ''}
+                                      title={`${groupName} · ${slot.label}：装哪条武器`}
+                                      onChange={(event) =>
+                                        onChange(
+                                          mountWeaponSlot(project, binding.uid, slot.uid, {
+                                            weaponEntryUid: event.target.value,
+                                          }),
+                                        )
+                                      }
+                                    >
+                                      <option value="">（空）</option>
+                                      {filledWeapons.map((item) => {
+                                        const usedHere = binding.mounts.some(
+                                          (other) =>
+                                            other.weaponEntryUid === item.entry.uid &&
+                                            other.slotUid !== slot.uid,
+                                        );
+                                        const supported = item.weapon.slotUids.includes(slot.uid);
+                                        return (
+                                          <option
+                                            key={item.entry.uid}
+                                            value={item.entry.uid}
+                                            disabled={usedHere || !supported}
+                                            title={
+                                              usedHere
+                                                ? '这条武器已经在这个分组里了'
+                                                : supported
+                                                  ? ''
+                                                  : '这条武器不支持这个插槽'
+                                            }
+                                          >
+                                            {item.index} - {item.label}
+                                            {usedHere ? '（本组已用）' : ''}
+                                            {!supported && !usedHere ? '（不支持此插槽）' : ''}
+                                          </option>
+                                        );
+                                      })}
+                                      {mount !== undefined && mounted === undefined && (
+                                        <option value={mount.weaponEntryUid}>（武器已删除）</option>
+                                      )}
+                                    </select>
+                                    {mounted !== undefined && modes.length > 0 && (
+                                      <span className="attack-modes">
+                                        {modes.map((mode) => (
+                                          <label key={mode.value} title="攻击模式">
+                                            <input
+                                              type="radio"
+                                              name={`mode-${binding.uid}-${slot.uid}`}
+                                              checked={mount?.attackModeUid === mode.value}
+                                              onChange={() =>
+                                                onChange(
+                                                  mountWeaponSlot(project, binding.uid, slot.uid, {
+                                                    attackModeUid: mode.value,
+                                                  }),
+                                                )
+                                              }
+                                            />
+                                            {mode.label}
+                                          </label>
+                                        ))}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      <button
+                        type="button"
+                        className="option-add name-add"
+                        disabled={freeGroupCount === 0}
+                        title={freeGroupCount === 0 ? '分组都用完了' : '再加一个分组'}
+                        onClick={() => onChange(addWeaponGroupBinding(project, row.uid))}
+                      >
+                        ＋ 添加分组
                       </button>
                     </div>
                   </td>
@@ -352,7 +375,8 @@ export function BattleCharactersPage({ project, onChange }: Props) {
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

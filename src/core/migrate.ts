@@ -55,6 +55,7 @@ import {
   type Project,
   type StoryOption,
   type WeaponEntry,
+  type WeaponGroupBinding,
 } from './types';
 
 export interface NormalizeResult {
@@ -375,47 +376,96 @@ function normalizeBattle(input: unknown): BattleData {
   const flag = (row: Record<string, unknown>, key: string): boolean => row[key] === true;
 
   /**
-   * 角色预设带的武器：一条 = 武器 + 若干绑定关系（分组 / 插槽 / 攻击模式）。
+   * 角色预设的两列武器数据：
+   *   weapons        —— 武器列（只记武器 uid，界面按顺序编号）
+   *   weaponBindings —— 绑定关系列（每个分组一行，行里每个插槽装了什么）
    *
-   * 老版本的形状是「一条武器只有一组绑定」（groupUid / slotUid / attackModeUid 直接挂在条目上），
-   * 读进来时包成一条绑定关系，不丢数据。
+   * 老版本的形状是「一条武器带着若干条（分组 / 插槽 / 攻击模式）绑定」，
+   * 读进来时拆成这两份：武器进武器列，绑定按分组归并成「分组 → 插槽 → 武器下标」。
    */
   const weaponEntriesOf = (value: unknown): WeaponEntry[] =>
-    (Array.isArray(value) ? value : []).filter(isRecord).map((row) => {
-      const legacy = isRecord(row) ? row : {};
-      const bindings = Array.isArray(legacy.bindings)
-        ? legacy.bindings.filter(isRecord).map((item) => ({
-            uid: asUid(item.uid),
-            groupUid: asString(item.groupUid),
-            slotUid: asString(item.slotUid),
-            attackModeUid: asString(item.attackModeUid),
-          }))
-        : [];
+    (Array.isArray(value) ? value : []).filter(isRecord).map((row) => ({
+      uid: asUid(row.uid),
+      weaponUid: asString(row.weaponUid),
+    }));
 
-      if (bindings.length > 0) {
-        return { uid: asUid(legacy.uid), weaponUid: asString(legacy.weaponUid), bindings };
+  /** 老形状里挂在武器上的那些绑定关系（新版已经不用），拿出来转成 weaponBindings */
+  const legacyBindingsOf = (value: unknown): Record<string, unknown>[] => {
+    const out: Record<string, unknown>[] = [];
+    for (const row of Array.isArray(value) ? value : []) {
+      if (!isRecord(row)) continue;
+      const uid = asUid(row.uid);
+      const weaponUid = asString(row.weaponUid);
+
+      if (Array.isArray(row.bindings)) {
+        for (const item of row.bindings) {
+          if (!isRecord(item)) continue;
+          out.push({ ...item, entryUid: uid, weaponUid });
+        }
+        continue;
       }
+      // 更老的形状：条目上直接写着单个分组 / 插槽 / 攻击模式
+      if (
+        asString(row.groupUid) !== '' ||
+        asString(row.slotUid) !== '' ||
+        asString(row.attackModeUid) !== ''
+      ) {
+        out.push({ ...row, entryUid: uid, weaponUid });
+      }
+    }
+    return out;
+  };
 
-      // 老形状：条目上直接写着单个分组 / 插槽 / 攻击模式
-      const hasLegacyBinding =
-        asString(legacy.groupUid) !== '' ||
-        asString(legacy.slotUid) !== '' ||
-        asString(legacy.attackModeUid) !== '';
-      return {
-        uid: asUid(legacy.uid),
-        weaponUid: asString(legacy.weaponUid),
-        bindings: hasLegacyBinding
-          ? [
-              {
-                uid: newUid(),
-                groupUid: asString(legacy.groupUid),
-                slotUid: asString(legacy.slotUid),
-                attackModeUid: asString(legacy.attackModeUid),
-              },
-            ]
-          : [],
-      };
-    });
+  const weaponBindingsOf = (
+    value: unknown,
+    weapons: readonly WeaponEntry[],
+    legacyBindings: readonly Record<string, unknown>[],
+  ): WeaponGroupBinding[] => {
+    const groups = new Map<string, WeaponGroupBinding>();
+
+    const mount = (
+      groupUid: string,
+      slotUid: string,
+      weaponEntryUid: string,
+      attackModeUid: string,
+    ): void => {
+      if (groupUid === '' || slotUid === '' || weaponEntryUid === '') return;
+      const existing = groups.get(groupUid) ?? { uid: newUid(), groupUid, mounts: [] };
+      // 同一个分组里同一个插槽只留第一个
+      if (existing.mounts.some((item) => item.slotUid === slotUid)) return;
+      existing.mounts.push({ slotUid, weaponEntryUid, attackModeUid });
+      groups.set(groupUid, existing);
+    };
+
+    // 新形状
+    for (const row of Array.isArray(value) ? value : []) {
+      if (!isRecord(row)) continue;
+      const groupUid = asString(row.groupUid);
+      const mounts = Array.isArray(row.mounts) ? row.mounts.filter(isRecord) : [];
+      for (const item of mounts) {
+        mount(
+          groupUid,
+          asString(item.slotUid),
+          asString(item.weaponEntryUid),
+          asString(item.attackModeUid),
+        );
+      }
+    }
+
+    // 老形状：按武器列的顺序，逐条折成「分组 → 该武器的插槽」
+    const entryByWeapon = new Map(weapons.map((item) => [item.weaponUid, item.uid]));
+    for (const row of legacyBindings) {
+      const entryUid = entryByWeapon.get(asString(row.weaponUid)) ?? asString(row.entryUid);
+      mount(
+        asString(row.groupUid),
+        asString(row.slotUid),
+        entryUid,
+        asString(row.attackModeUid),
+      );
+    }
+
+    return [...groups.values()];
+  };
 
   return {
     skillClassPrefix: asString(raw.skillClassPrefix) || DEFAULT_SKILL_CLASS_PREFIX,
@@ -465,6 +515,11 @@ function normalizeBattle(input: unknown): BattleData {
       skillUids: refs(row, 'skillUids', 'skills'),
       // 角色预设带的武器：每把存四个 uid（武器 / 分组 / 插槽 / 攻击模式）
       weapons: weaponEntriesOf(row.weapons),
+      weaponBindings: weaponBindingsOf(
+        row.weaponBindings,
+        weaponEntriesOf(row.weapons),
+        legacyBindingsOf(row.weapons),
+      ),
     })),
     weapons: rows('weapons').map((row) => ({
       uid: asUid(row.uid),

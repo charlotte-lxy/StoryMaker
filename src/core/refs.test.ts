@@ -85,6 +85,7 @@ function makeBattle(): BattleData {
       // 属性列表的 key 是属性 uid
       attributes: [{ uid: 'p1', key: 'a1', value: '100' }],
       skillUids: ['s1'],
+      weaponBindings: [],
       weapons: [],
     },
   ];

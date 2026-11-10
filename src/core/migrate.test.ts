@@ -694,7 +694,7 @@ describe('播放位置 / 表情差分 / 图片分类', () => {
     expect(rows[0].system).toBe('expressionImages');
   });
 
-  it('老项目里「一条武器一组绑定」的写法包成一条绑定关系', () => {
+  it('老项目里「一条武器一组绑定」的写法拆成武器列 + 绑定关系', () => {
     const result = normalizeProject({
       version: 1,
       name: '老项目',
@@ -716,11 +716,15 @@ describe('播放位置 / 表情差分 / 图片分类', () => {
                 slotUid: 'sl1',
                 attackModeUid: 'am1',
               },
-              // 新形状原样保留
+              // 上一版的形状：一条武器带若干条绑定
               {
                 uid: 'cw2',
                 weaponUid: 'w2',
-                bindings: [{ uid: 'b1', groupUid: 'wg2', slotUid: '', attackModeUid: '' }],
+                bindings: [
+                  { uid: 'b1', groupUid: 'wg2', slotUid: 'sl2', attackModeUid: 'am2' },
+                  // 同一个分组再装一个插槽：归并到同一个分组行里
+                  { uid: 'b2', groupUid: 'wg1', slotUid: 'sl3', attackModeUid: 'am1' },
+                ],
               },
             ],
           },
@@ -728,13 +732,18 @@ describe('播放位置 / 表情差分 / 图片分类', () => {
       },
     });
 
-    const entries = result!.project.battle.characters[0].weapons;
-    expect(entries[0].bindings).toHaveLength(1);
-    expect(entries[0].bindings[0]).toMatchObject({
-      groupUid: 'wg1',
-      slotUid: 'sl1',
-      attackModeUid: 'am1',
-    });
-    expect(entries[1].bindings.map((row) => row.groupUid)).toEqual(['wg2']);
+    const character = result!.project.battle.characters[0];
+    // 武器列：两条武器，各只记武器 uid
+    expect(character.weapons.map((row) => row.weaponUid)).toEqual(['w1', 'w2']);
+
+    // 绑定关系：按分组归并成两行
+    const byGroup = new Map(character.weaponBindings.map((row) => [row.groupUid, row.mounts]));
+    expect(byGroup.get('wg1')).toMatchObject([
+      { slotUid: 'sl1', weaponEntryUid: 'cw1', attackModeUid: 'am1' },
+      { slotUid: 'sl3', weaponEntryUid: 'cw2', attackModeUid: 'am1' },
+    ]);
+    expect(byGroup.get('wg2')).toMatchObject([
+      { slotUid: 'sl2', weaponEntryUid: 'cw2', attackModeUid: 'am2' },
+    ]);
   });
 });
