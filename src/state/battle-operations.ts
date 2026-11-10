@@ -14,7 +14,8 @@ import type {
   GasSkill,
   GasWeapon,
   LangKey,
-  WeaponLoadout,
+  BattleData,
+  WeaponBinding,
   Project,
 } from '../core/types';
 import { WEAPON_GROUP_EXPORT_PREFIX } from '../core/battle';
@@ -50,27 +51,43 @@ const NEW_ROW_LABEL: Record<Exclude<BattleRowKey, 'characters' | 'weapons'>, str
   events: '新事件',
 };
 
-/* ---------- 角色预设带的武器（每把一条，四个 uid） ---------- */
+/* ---------- 角色预设带的武器（一条武器 + 若干绑定关系） ---------- */
+
+/** 一条绑定关系的默认值：该武器还能用的第一个分组 + 它支持的第一个插槽 / 攻击模式 */
+function createBinding(
+  battle: BattleData,
+  weaponUid: string,
+  usedGroupUids: readonly string[],
+  groupUids: readonly string[] = [],
+): WeaponBinding | null {
+  const weapon = battle.weapons.find((row) => row.uid === weaponUid);
+  const groups = groupUids.length > 0 ? groupUids : battle.weaponGroups.map((row) => row.uid);
+  const freeGroup = groups.find((uid) => !usedGroupUids.includes(uid));
+  if (freeGroup === undefined) return null;
+
+  return {
+    uid: newUid(),
+    groupUid: freeGroup,
+    slotUid: weapon?.slotUids.find(
+      (uid) => battle.slots.some((row) => row.uid === uid),
+    ) ?? '',
+    attackModeUid: weapon?.attackModeUids.find(
+      (uid) => battle.attackModes.some((row) => row.uid === uid),
+    ) ?? '',
+  };
+}
+
 /**
- * 角色预设身上新增一把武器。
+ * 角色预设身上新增一条武器。
  *
- * 默认填第一把武器 / 第一把插槽 / 第一个攻击模式，分组默认「火力」——
- * 所以加完只有武器需要挑（如果表里还没建，留空等策划去建）。
+ * 只放一个「武器」下拉，先不选武器、也没有绑定关系——选了武器之后
+ * 才自动给它挂第一条绑定关系（默认第一个还没用的分组）。
  */
 export function addCharacterWeapon(project: Project, characterUid: string): Project {
   return mutate(project, (draft) => {
     const character = draft.battle.characters.find((row) => row.uid === characterUid);
     if (character === undefined) return;
-    const battle = draft.battle;
-    const group =
-      battle.weaponGroups.find((row) => row.name.trim() === '火力') ?? battle.weaponGroups[0];
-    character.weapons.push({
-      uid: newUid(),
-      weaponUid: battle.weapons[0]?.uid ?? '',
-      groupUid: group?.uid ?? '',
-      slotUid: battle.slots[0]?.uid ?? '',
-      attackModeUid: battle.attackModes[0]?.uid ?? '',
-    });
+    character.weapons.push({ uid: newUid(), weaponUid: '', bindings: [] });
   });
 }
 
@@ -86,18 +103,91 @@ export function removeCharacterWeapon(
   });
 }
 
-/** 改角色预设身上的一把武器（条目 uid 全局唯一，按它找就行） */
-export function updateCharacterWeapon(
+/**
+ * 给一条武器换武器。
+ *
+ * 换完把绑定关系里「新武器不支持」的插槽 / 攻击模式换成它支持的第一项，
+ * 分组保持不变（分组跟武器无关）；本来没有绑定关系就补上第一条。
+ */
+export function setCharacterWeapon(
   project: Project,
   weaponEntryUid: string,
-  patch: Partial<WeaponLoadout>,
+  weaponUid: string,
 ): Project {
   return mutate(project, (draft) => {
     for (const character of draft.battle.characters) {
-      const row = character.weapons.find((item) => item.uid === weaponEntryUid);
-      if (row !== undefined) {
-        Object.assign(row, patch);
-        return;
+      const entry = character.weapons.find((item) => item.uid === weaponEntryUid);
+      if (entry === undefined) break;
+      entry.weaponUid = weaponUid;
+
+      const weapon = draft.battle.weapons.find((row) => row.uid === weaponUid);
+      const slots = weapon?.slotUids ?? [];
+      const modes = weapon?.attackModeUids ?? [];
+      for (const binding of entry.bindings) {
+        if (!slots.includes(binding.slotUid)) binding.slotUid = slots[0] ?? '';
+        if (!modes.includes(binding.attackModeUid)) binding.attackModeUid = modes[0] ?? '';
+      }
+
+      if (entry.bindings.length === 0) {
+        const used = draft.battle.characters.flatMap((row) =>
+          row.weapons
+            .filter((item) => item.weaponUid === weaponUid)
+            .flatMap((item) => item.bindings.map((binding) => binding.groupUid)),
+        );
+        const binding = createBinding(draft.battle, weaponUid, used);
+        if (binding !== null) entry.bindings.push(binding);
+      }
+      return;
+    }
+  });
+}
+
+/** 给一条武器再加一条绑定关系（分组挑一个还没用过的） */
+export function addWeaponBinding(project: Project, weaponEntryUid: string): Project {
+  return mutate(project, (draft) => {
+    for (const character of draft.battle.characters) {
+      const entry = character.weapons.find((item) => item.uid === weaponEntryUid);
+      if (entry === undefined) break;
+      // 同一把武器（同一个角色里的所有同名武器条目）分组不能重复
+      const used = character.weapons
+        .filter((item) => item.weaponUid === entry.weaponUid)
+        .flatMap((item) => item.bindings.map((binding) => binding.groupUid));
+      const binding = createBinding(draft.battle, entry.weaponUid, used);
+      if (binding !== null) entry.bindings.push(binding);
+      return;
+    }
+  });
+}
+
+export function removeWeaponBinding(
+  project: Project,
+  weaponEntryUid: string,
+  bindingUid: string,
+): Project {
+  return mutate(project, (draft) => {
+    for (const character of draft.battle.characters) {
+      const entry = character.weapons.find((item) => item.uid === weaponEntryUid);
+      if (entry === undefined) break;
+      entry.bindings = entry.bindings.filter((row) => row.uid !== bindingUid);
+      return;
+    }
+  });
+}
+
+/** 改一条绑定关系（绑定 uid 全局唯一，按它找就行） */
+export function updateWeaponBinding(
+  project: Project,
+  bindingUid: string,
+  patch: Partial<WeaponBinding>,
+): Project {
+  return mutate(project, (draft) => {
+    for (const character of draft.battle.characters) {
+      for (const entry of character.weapons) {
+        const row = entry.bindings.find((item) => item.uid === bindingUid);
+        if (row !== undefined) {
+          Object.assign(row, patch);
+          return;
+        }
       }
     }
   });
@@ -396,8 +486,10 @@ export function removeWeaponOption(project: Project, key: WeaponOptionKey, uid: 
     const characterField =
       key === 'weaponGroups' ? 'groupUid' : key === 'slots' ? 'slotUid' : 'attackModeUid';
     for (const character of draft.battle.characters) {
-      for (const row of character.weapons) {
-        if (row[characterField] === uid) row[characterField] = '';
+      for (const entry of character.weapons) {
+        for (const row of entry.bindings) {
+          if (row[characterField] === uid) row[characterField] = '';
+        }
       }
     }
   });

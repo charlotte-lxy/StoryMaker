@@ -1611,25 +1611,41 @@ div.line-row.selected > .line-card {
   min-width: 300px;
 }
 
-/* 角色预设「武器」列：每把武器一行四个下拉，底下是「＋ 添加武器」 */
+/* 角色预设「武器」列：一条武器（武器下拉）+ 若干绑定关系（分组 / 插槽 / 攻击模式） */
 .weapon-loadout {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
-.weapon-loadout-row {
+.weapon-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 0 6px;
+  border-bottom: 1px dashed var(--border);
+}
+
+.weapon-entry-head,
+.weapon-binding {
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
-.weapon-loadout-row select {
+/* 绑定关系缩进一格，一眼看出它挂在哪把武器下面 */
+.weapon-binding {
+  padding-left: 12px;
+}
+
+.weapon-entry-head select,
+.weapon-binding select {
   min-width: 0;
   flex: 1 1 0;
 }
 
-.weapon-loadout-row button {
+.weapon-entry-head button,
+.weapon-binding button {
   flex: 0 0 auto;
 }
 

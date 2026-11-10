@@ -192,20 +192,27 @@ export interface Character {
 }
 
 /**
- * 角色预设身上的一把武器：四个下拉各存那一行的 uid（改名字不会断引用）。
+ * 角色预设里的一把武器：先选武器，再给它挂若干「绑定关系」。
  *
- * 导出 GAS角色 的「武器」列时翻回：武器 ID + 分组 / 插槽 / 攻击模式的导出名称。
+ * 绑定关系是一条条（分组 + 插槽 + 攻击模式），每条的三个字段都存那一行的 uid，
+ * 改名字不会断引用。同一把武器里分组不能重复（一个分组只能出现一次）。
  */
-export interface WeaponLoadout {
+export interface WeaponBinding {
   uid: string;
-  /** 武器表那一行的 uid */
-  weaponUid: string;
-  /** 武器分组表那一行的 uid（新建时默认「火力」） */
+  /** 分组表那一行的 uid */
   groupUid: string;
-  /** 插槽表那一行的 uid */
+  /** 插槽表那一行的 uid（只能选这把武器支持的） */
   slotUid: string;
-  /** 攻击模式表那一行的 uid */
+  /** 攻击模式表那一行的 uid（只能选这把武器支持的） */
   attackModeUid: string;
+}
+
+/** 角色预设身上的一条武器（武器 + 它的绑定关系） */
+export interface WeaponEntry {
+  uid: string;
+  /** 武器表那一行的 uid；还没选武器时为空串 */
+  weaponUid: string;
+  bindings: WeaponBinding[];
 }
 
 /**
@@ -376,9 +383,9 @@ export interface GasCharacter {
   skillUids: string[];
   /**
    * 这个角色预设带的武器（每把一条），导出 GAS角色 的「武器」列：
-   * 每把武器一个字符串 `武器ID|分组导出名称|插槽导出名称|攻击模式导出名称`。
+   * 每把武器一个字符串 `武器ID=分组,插槽,攻击模式|分组,插槽,攻击模式`。
    */
-  weapons: WeaponLoadout[];
+  weapons: WeaponEntry[];
 }
 
 /** 武器，导出成 GAS武器 */

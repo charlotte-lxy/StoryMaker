@@ -269,26 +269,39 @@ describe('战斗模块的导出', () => {
     ]);
   });
 
-  it('角色表「武器」列：每把武器一个「武器ID|分组|插槽|攻击模式」字符串，都用导出名称', () => {
+  it('角色表「武器」列：每把武器一个「武器ID=分组,插槽,攻击模式|…」字符串，都用导出名称', () => {
     const project = makeProject();
     const battle = project.battle;
     battle.weaponGroups = [
       { uid: 'wg1', name: '火力', exportName: 'TXT_WeaponTeam_火力', nameEn: '', nameJa: '' },
+      { uid: 'wg2', name: '光束', exportName: 'TXT_WeaponTeam_光束', nameEn: '', nameJa: '' },
     ];
     battle.slots = [
       { uid: 'sl1', name: '右手', exportName: 'TXT_WeaponTeamSlot_右手', nameEn: '', nameJa: '' },
+      { uid: 'sl2', name: '后背', exportName: 'TXT_WeaponTeamSlot_后背', nameEn: '', nameJa: '' },
     ];
     battle.attackModes = [
       { uid: 'am1', name: '手动攻击', exportName: 'TXT_AttackMode_手动攻击', nameEn: '', nameJa: '' },
+      { uid: 'am2', name: '自动攻击', exportName: 'TXT_AttackMode_自动攻击', nameEn: '', nameJa: '' },
     ];
     battle.characters[0].weapons = [
-      { uid: 'cw1', weaponUid: 'w1', groupUid: 'wg1', slotUid: 'sl1', attackModeUid: 'am1' },
-      // 第二把没选武器：拼不出武器 ID，跳过
-      { uid: 'cw2', weaponUid: '', groupUid: 'wg1', slotUid: '', attackModeUid: '' },
+      {
+        uid: 'cw1',
+        weaponUid: 'w1',
+        bindings: [
+          { uid: 'b1', groupUid: 'wg1', slotUid: 'sl1', attackModeUid: 'am1' },
+          // 同一条武器可以有多个绑定关系，用 | 隔开
+          { uid: 'b2', groupUid: 'wg2', slotUid: 'sl2', attackModeUid: 'am2' },
+        ],
+      },
+      // 没选武器的条目：跳过
+      { uid: 'cw2', weaponUid: '', bindings: [] },
+      // 有武器但一条绑定关系都没有：跳过
+      { uid: 'cw3', weaponUid: 'w1', bindings: [] },
     ];
 
     expect(buildBattleRows(project).characters[1][4]).toBe(
-      '("WEA_测试-手枪|TXT_WeaponTeam_火力|TXT_WeaponTeamSlot_右手|TXT_AttackMode_手动攻击")',
+      '("WEA_测试-手枪=TXT_WeaponTeam_火力,TXT_WeaponTeamSlot_右手,TXT_AttackMode_手动攻击|TXT_WeaponTeam_光束,TXT_WeaponTeamSlot_后背,TXT_AttackMode_自动攻击")',
     );
   });
 

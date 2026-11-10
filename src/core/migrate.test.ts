@@ -693,4 +693,48 @@ describe('播放位置 / 表情差分 / 图片分类', () => {
     expect(rows[0].path).toBe('/Game/Custom/Chars');
     expect(rows[0].system).toBe('expressionImages');
   });
+
+  it('老项目里「一条武器一组绑定」的写法包成一条绑定关系', () => {
+    const result = normalizeProject({
+      version: 1,
+      name: '老项目',
+      characters: [],
+      chapters: [{ uid: 'c1', id: 'ch01', title: '序章', groups: [] }],
+      battle: {
+        characters: [
+          {
+            uid: 'bc1',
+            id: 'CHA_1',
+            name: '一',
+            attributes: [],
+            skillUids: [],
+            weapons: [
+              {
+                uid: 'cw1',
+                weaponUid: 'w1',
+                groupUid: 'wg1',
+                slotUid: 'sl1',
+                attackModeUid: 'am1',
+              },
+              // 新形状原样保留
+              {
+                uid: 'cw2',
+                weaponUid: 'w2',
+                bindings: [{ uid: 'b1', groupUid: 'wg2', slotUid: '', attackModeUid: '' }],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const entries = result!.project.battle.characters[0].weapons;
+    expect(entries[0].bindings).toHaveLength(1);
+    expect(entries[0].bindings[0]).toMatchObject({
+      groupUid: 'wg1',
+      slotUid: 'sl1',
+      attackModeUid: 'am1',
+    });
+    expect(entries[1].bindings.map((row) => row.groupUid)).toEqual(['wg2']);
+  });
 });
