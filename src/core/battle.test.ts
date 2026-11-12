@@ -102,6 +102,10 @@ function makeProject(): Project {
       id: 'WEA_测试-手枪',
       name: '测试-手枪',
       description: '测试用直线远程武器',
+      nameEn: '',
+      nameJa: '',
+      descriptionEn: '',
+      descriptionJa: '',
       magazine: '10',
       attackSpeed: '1',
       energyCost: '5',
@@ -318,12 +322,13 @@ describe('战斗模块的导出', () => {
     );
   });
 
-  it('武器表：行名是武器 ID，弹匣 / 攻速 / 能量消耗都是数值列，末尾带武器图标与武器类', () => {
+  it('武器表：行名是武器 ID，武器名 / 描述导出文本 key，末尾带武器图标与武器类', () => {
     expect(rows.weapons[0]).toEqual([...WEAPON_HEADER]);
     expect(rows.weapons[1]).toEqual([
       'WEA_测试-手枪',
-      '测试-手枪',
-      '测试用直线远程武器',
+      // 武器名 / 描述导出的是本地化 key
+      'TXT_WeaponName_WEA_测试-手枪',
+      'TXT_WeaponInfo_WEA_测试-手枪',
       '10',
       '1',
       '5',

@@ -12,7 +12,7 @@
 import {
   collectLocaleEntries,
   collectNameEntries,
-  collectWeaponOptionEntries,
+  collectWeaponLocaleEntries,
 } from '../core/localization';
 import {
   attributeNameOf,
@@ -499,7 +499,7 @@ function localeDrafts(project: Project): Draft[] {
   });
 
   // 武器分组 / 攻击模式 / 插槽的导出名称（key 就是导出名称，中文是显示名称）
-  collectWeaponOptionEntries(project).forEach((entry, index) => {
+  collectWeaponLocaleEntries(project).forEach((entry, index) => {
     drafts.push({
       submodule: '武器配置本地化',
       rowNumber: index + 1,

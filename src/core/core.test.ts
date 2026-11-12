@@ -828,6 +828,41 @@ describe('导出三张表', () => {
     expect(rows).toContainEqual(['TXT_WeaponTeam_光束', '光束', '', '']);
   });
 
+  it('武器名 / 武器描述按武器 ID 生成文本 key，中文就是武器表里那两段文字', () => {
+    const project = makeProject();
+    project.battle.weapons = [
+      {
+        uid: 'w1',
+        id: 'WEA_测试-手枪',
+        name: '测试-手枪',
+        nameEn: 'Test Pistol',
+        nameJa: 'テストピストル',
+        description: '测试用直线远程武器',
+        descriptionEn: 'A test pistol',
+        descriptionJa: '',
+        magazine: '10',
+        attackSpeed: '1',
+        energyCost: '0',
+        attackModeUids: [],
+        slotUids: [],
+      },
+    ];
+
+    const rows = buildRows(project).locale;
+    expect(rows).toContainEqual([
+      'TXT_WeaponName_WEA_测试-手枪',
+      '测试-手枪',
+      'Test Pistol',
+      'テストピストル',
+    ]);
+    expect(rows).toContainEqual([
+      'TXT_WeaponInfo_WEA_测试-手枪',
+      '测试用直线远程武器',
+      'A test pistol',
+      '',
+    ]);
+  });
+
   it('生成含各张子表的 xlsx', async () => {
     const buffer = await exportWorkbook(project);
     const workbook = new ExcelJS.Workbook();

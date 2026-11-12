@@ -408,8 +408,15 @@ export interface GasWeapon {
   uid: string;
   /** 武器 ID，如 WEA_测试-手枪 */
   id: string;
+  /** 武器名（中文；导出时换成 TXT_WeaponName_<武器ID> 这个文本 key） */
   name: string;
+  /** 武器名的英文 / 日文（在本地化页里填） */
+  nameEn: string;
+  nameJa: string;
+  /** 武器描述（中文；导出时换成 TXT_WeaponInfo_<武器ID>） */
   description: string;
+  descriptionEn: string;
+  descriptionJa: string;
   /** 弹匣容量，-1 表示无限 */
   magazine: string;
   attackSpeed: string;

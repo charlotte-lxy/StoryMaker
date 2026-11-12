@@ -5,7 +5,7 @@
  * 「第几行」就是本地化页面上从上往下数的行号，两边各算一遍迟早会对不上。
  */
 
-import { aliasNameKeyOf, characterNameKeyOf, textIdOf } from './ids';
+import { aliasNameKeyOf, characterNameKeyOf, textIdOf, weaponInfoKeyOf, weaponNameKeyOf } from './ids';
 import type { LocalizedText, Project } from './types';
 
 export interface LocaleEntry {
@@ -95,20 +95,25 @@ export interface NameEntry {
 }
 
 /**
- * 「武器配置本地化」页的一条：武器分组 / 攻击模式 / 插槽表里的一行。
+ * 「武器配置本地化」页的一行（统一形状）。
  *
- * 中文就是那一行的显示名称，英文日文存在同一行上；key 是它的导出名称
- * （如 TXT_WeaponTeam_火力）。导出名称空着的行没有 key，跳过（由校验条提醒）。
- * 顺序：分组 → 攻击模式 → 插槽，各按表里的行序。
+ * 两种来源：
+ *   - 武器分组 / 攻击模式 / 插槽表的一行：key = 导出名称，中文 = 显示名称；
+ *   - 武器表的一行：武器名（key `TXT_WeaponName_<武器ID>`）或武器描述
+ *     （key `TXT_WeaponInfo_<武器ID>`），中文就是表里那一段文字。
+ *
+ * 中文与译文都挂回原来的表，所以这一页改中文＝改那边的显示名称 / 武器名 / 武器描述。
  */
-export interface WeaponOptionEntry {
-  /** 那一行的 uid */
+export interface WeaponLocaleEntry {
+  /** 那一行的 uid（武器名 / 描述都用武器那一行的 uid） */
   uid: string;
-  /** 来自哪张表 */
-  tableKey: 'weaponGroups' | 'attackModes' | 'slots';
-  /** 本地化 key = 导出名称 */
+  /** 改的是哪一份数据：配置表（分组 / 攻击模式 / 插槽）还是武器本身 */
+  source: 'option' | 'weapon';
+  /** 武器描述那一条：改的是 description 而不是 name */
+  field?: 'name' | 'description';
+  /** 本地化 key */
   key: string;
-  /** 「武器分组」「攻击模式」「插槽」 */
+  /** 「武器分组」「攻击模式」「插槽」「武器名」「武器描述」 */
   kindLabel: string;
   zh: string;
   en: string;
@@ -116,7 +121,7 @@ export interface WeaponOptionEntry {
 }
 
 const WEAPON_OPTION_TABLES: readonly {
-  key: WeaponOptionEntry['tableKey'];
+  key: 'weaponGroups' | 'attackModes' | 'slots';
   kindLabel: string;
 }[] = [
   { key: 'weaponGroups', kindLabel: '武器分组' },
@@ -124,8 +129,13 @@ const WEAPON_OPTION_TABLES: readonly {
   { key: 'slots', kindLabel: '插槽' },
 ];
 
-export function collectWeaponOptionEntries(project: Project): WeaponOptionEntry[] {
-  const list: WeaponOptionEntry[] = [];
+/**
+ * 「武器配置本地化」页的全部行：分组 → 攻击模式 → 插槽 → 每把武器的名 → 每把武器的描述。
+ *
+ * 顺序就是页面上从上往下数的行号，全局搜索也按它算。
+ */
+export function collectWeaponLocaleEntries(project: Project): WeaponLocaleEntry[] {
+  const list: WeaponLocaleEntry[] = [];
 
   for (const table of WEAPON_OPTION_TABLES) {
     for (const row of project.battle[table.key]) {
@@ -133,7 +143,7 @@ export function collectWeaponOptionEntries(project: Project): WeaponOptionEntry[
       if (key === '') continue;
       list.push({
         uid: row.uid,
-        tableKey: table.key,
+        source: 'option',
         key,
         kindLabel: table.kindLabel,
         zh: row.name,
@@ -141,6 +151,32 @@ export function collectWeaponOptionEntries(project: Project): WeaponOptionEntry[
         ja: row.nameJa,
       });
     }
+  }
+
+  // 武器表的武器名 / 武器描述：key 按武器 ID 现算，ID 空着的行拼不出 key，跳过
+  for (const weapon of project.battle.weapons) {
+    const id = weapon.id.trim();
+    if (id === '') continue;
+    list.push({
+      uid: weapon.uid,
+      source: 'weapon',
+      field: 'name',
+      key: weaponNameKeyOf(id),
+      kindLabel: '武器名',
+      zh: weapon.name,
+      en: weapon.nameEn,
+      ja: weapon.nameJa,
+    });
+    list.push({
+      uid: weapon.uid,
+      source: 'weapon',
+      field: 'description',
+      key: weaponInfoKeyOf(id),
+      kindLabel: '武器描述',
+      zh: weapon.description,
+      en: weapon.descriptionEn,
+      ja: weapon.descriptionJa,
+    });
   }
 
   return list;

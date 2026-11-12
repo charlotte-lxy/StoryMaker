@@ -70,6 +70,20 @@ export function aliasNameKeyOf(characterId: string, index: number): string {
 }
 
 /**
+ * 武器「武器名」的本地化 key：TXT_WeaponName_ + 武器ID。
+ *
+ * 武器表的「武器名」列导出的是这个 key（跟角色名一个套路），中文在本地化页里看。
+ */
+export function weaponNameKeyOf(weaponId: string): string {
+  return `TXT_WeaponName_${weaponId}`;
+}
+
+/** 武器「武器描述」的本地化 key：TXT_WeaponInfo_ + 武器ID */
+export function weaponInfoKeyOf(weaponId: string): string {
+  return `TXT_WeaponInfo_${weaponId}`;
+}
+
+/**
  * 取可读 ID 里"段内序号"那一截，如 Dia_ch01_001-22 → 22。
  *
  * 界面上到处用完整 ID 太占地方，策划自己记的也是这个序号；

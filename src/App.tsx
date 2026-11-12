@@ -34,7 +34,7 @@ import {
   type ValidationReport,
 } from './core/validate';
 import { validateBattle } from './core/battle-validate';
-import { updateWeaponOptionNameText } from './state/battle-operations';
+import { updateWeaponOptionNameText, updateWeaponText } from './state/battle-operations';
 import type { BattlePage } from './state/battle-operations';
 import type { SearchTarget } from './state/search';
 import {
@@ -1238,6 +1238,9 @@ export default function App() {
                   }
                   onUpdateWeaponOptionText={(uid, lang, value) =>
                     setProject((prev) => updateWeaponOptionNameText(prev, uid, lang, value))
+                  }
+                  onUpdateWeaponText={(uid, field, lang, value) =>
+                    setProject((prev) => updateWeaponText(prev, uid, field, lang, value))
                   }
                   onAddUiText={(key, text) => setProject((prev) => addUiText(prev, key, text))}
                   onRemoveUiText={(uid) => setProject((prev) => removeUiText(prev, uid))}

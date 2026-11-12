@@ -63,7 +63,8 @@ pnpm dev          # 开发服务器 http://localhost:5180
 
 本地化表末尾依次接上：UI 本地化的界面文案（TXT_Widget_* 这类）、
 角色名与别名（TXT_<角色ID>_DefaultName / TXT_<角色ID>_OtherName-<别名序号>）、
-武器分组 / 攻击模式 / 插槽的导出名称（TXT_WeaponTeam_* 等，中文就是它们的显示名称）
+武器分组 / 攻击模式 / 插槽的导出名称（TXT_WeaponTeam_* 等，中文就是它们的显示名称），
+武器名与武器描述（TXT_WeaponName_<武器ID> / TXT_WeaponInfo_<武器ID>）
 
 战斗（属性 / 事件 / 效果 / 技能 / 角色预设 / 武器）
   → GASGameplayTags（四张表里的条目自动收集，Tag 由名字合成）

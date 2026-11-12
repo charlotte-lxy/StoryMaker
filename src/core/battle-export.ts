@@ -21,6 +21,7 @@ import {
   tagStructLiteral,
   weaponClassName,
 } from './battle';
+import { weaponInfoKeyOf, weaponNameKeyOf } from './ids';
 import { attributeNameOf, eventNameOf, skillNameOf } from './refs';
 import { weaponIconId } from './weapon-icons';
 import type { BattleData, GasModifier, GasOptionRow, GasPair, Project, WeaponEntry, WeaponGroupBinding } from './types';
@@ -289,8 +290,10 @@ export function buildBattleRows(project: Project): BattleSheetRows {
         .filter((row) => row.id.trim() !== '' || row.name.trim() !== '')
         .map((row) => [
           row.id.trim(),
-          row.name,
-          row.description,
+          // 武器名 / 武器描述导出的是本地化 key（中文在「武器配置本地化」页里看 / 改）；
+          // 没填武器 ID 的行拼不出 key，原样写文字（校验条会提醒缺 ID）
+          row.id.trim() === '' ? row.name : weaponNameKeyOf(row.id.trim()),
+          row.id.trim() === '' ? row.description : weaponInfoKeyOf(row.id.trim()),
           row.magazine,
           row.attackSpeed,
           row.energyCost,

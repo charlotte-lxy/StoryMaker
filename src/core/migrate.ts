@@ -525,7 +525,11 @@ function normalizeBattle(input: unknown): BattleData {
       uid: asUid(row.uid),
       id: text(row, 'id'),
       name: text(row, 'name'),
+      nameEn: text(row, 'nameEn'),
+      nameJa: text(row, 'nameJa'),
       description: text(row, 'description'),
+      descriptionEn: text(row, 'descriptionEn'),
+      descriptionJa: text(row, 'descriptionJa'),
       magazine: text(row, 'magazine'),
       attackSpeed: text(row, 'attackSpeed'),
       // 武器表改成「能量消耗」之后，老数据里的修改器 / 技能列表不再读

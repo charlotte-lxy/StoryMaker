@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 
-import { collectLocaleEntries, collectNameEntries, collectWeaponOptionEntries } from '../core/localization';
+import { collectLocaleEntries, collectNameEntries, collectWeaponLocaleEntries } from '../core/localization';
 import type { LangKey, LocalizedText, Project, UiTextRow } from '../core/types';
 import { AutoGrowTextarea } from './AutoGrowTextarea';
 import { useRememberedChoice, useScrollMemory } from './view-memory';
@@ -18,10 +18,19 @@ interface Props {
    */
   onUpdateNameText: (uid: string, lang: LangKey, value: string) => void;
   /**
-   * 改「武器配置本地化」里的一条。中文是那一行的显示名称，
-   * 英文日文存在同一行上，都在战斗模块的分组 / 攻击模式 / 插槽表里。
+   * 改「武器配置本地化」里武器分组 / 攻击模式 / 插槽那一行。中文是显示名称，
+   * 英文日文存在同一行上，都在战斗模块的那三张表里。
    */
   onUpdateWeaponOptionText: (uid: string, lang: LangKey, value: string) => void;
+  /**
+   * 改「武器配置本地化」里武器的名字或描述（中文写回武器表，英文日文挂在同一行上）。
+   */
+  onUpdateWeaponText: (
+    uid: string,
+    field: 'name' | 'description',
+    lang: LangKey,
+    value: string,
+  ) => void;
   /**
    * 底下校验条里点过来的那一行：切到它所在的页、滚到它并闪一下。
    * 短暂高亮后由上层清成 null。
@@ -75,6 +84,7 @@ export function LocalizationEditor({
   onUpdateUiText,
   onUpdateNameText,
   onUpdateWeaponOptionText,
+  onUpdateWeaponText,
   focusUid = null,
 }: Props) {
   const [page, setPage] = useRememberedChoice<LocalePage>('locale:page', 'story');
@@ -87,7 +97,7 @@ export function LocalizationEditor({
   /** 角色名 / 别名：中文与译文都挂在角色表那一行上 */
   const nameEntries = useMemo(() => collectNameEntries(project), [project]);
   /** 武器分组 / 攻击模式 / 插槽：key 是导出名称，中文是显示名称 */
-  const weaponEntries = useMemo(() => collectWeaponOptionEntries(project), [project]);
+  const weaponEntries = useMemo(() => collectWeaponLocaleEntries(project), [project]);
 
   const uiTexts = project.uiTexts;
 
@@ -495,13 +505,21 @@ export function LocalizationEditor({
                 <tbody>
                   {shownWeaponEntries.map((entry) => {
                     const text: LocalizedText = { zh: entry.zh, en: entry.en, ja: entry.ja };
+                    // 同一把武器有「武器名」和「武器描述」两条，key 要拼 uid + 字段才唯一
+                    const rowKey = `${entry.uid}-${entry.field ?? 'option'}`;
+                    const zhHint =
+                      entry.source === 'weapon'
+                        ? entry.field === 'description'
+                          ? '中文改的是武器表的「武器描述」'
+                          : '中文改的是武器表的「武器名」'
+                        : '中文改的是分组 / 攻击模式 / 插槽表的「显示名称」';
                     return (
                       <tr
                         className={`line-row${missingTranslation(text) ? ' needs-work' : ''}${
                           focusUid === entry.uid ? ' flash' : ''
                         }`}
                         data-text-uid={entry.uid}
-                        key={entry.uid}
+                        key={rowKey}
                       >
                         <td className="cell-id loc-key">
                           {entry.key}
@@ -512,14 +530,19 @@ export function LocalizationEditor({
                             <AutoGrowTextarea
                               value={text[item.lang]}
                               placeholder={item.lang === 'zh' ? '中文原文' : '待翻译'}
-                              title={
-                                item.lang === 'zh'
-                                  ? '中文改的是分组 / 攻击模式 / 插槽表的「显示名称」'
-                                  : undefined
-                              }
-                              onChange={(event) =>
-                                onUpdateWeaponOptionText(entry.uid, item.lang, event.target.value)
-                              }
+                              title={item.lang === 'zh' ? zhHint : undefined}
+                              onChange={(event) => {
+                                if (entry.source === 'weapon') {
+                                  onUpdateWeaponText(
+                                    entry.uid,
+                                    entry.field ?? 'name',
+                                    item.lang,
+                                    event.target.value,
+                                  );
+                                  return;
+                                }
+                                onUpdateWeaponOptionText(entry.uid, item.lang, event.target.value);
+                              }}
                             />
                           </td>
                         ))}

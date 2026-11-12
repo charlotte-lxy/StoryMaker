@@ -392,6 +392,52 @@ describe('界面冒烟测试', () => {
       expect(screen.getByDisplayValue('Firepower')).toBeTruthy();
     });
 
+    it('武器名与武器描述也收进这一页：key 按武器 ID 现算，中文是武器表里那两段文字', async () => {
+      const project = createEmptyProject();
+      project.battle.weapons = [
+        {
+          uid: 'w1',
+          id: 'WEA_测试-手枪',
+          name: '测试-手枪',
+          nameEn: '',
+          nameJa: '',
+          description: '测试用直线远程武器',
+          descriptionEn: '',
+          descriptionJa: '',
+          magazine: '10',
+          attackSpeed: '1',
+          energyCost: '0',
+          attackModeUids: [],
+          slotUids: [],
+        },
+      ];
+      seedProjectFile(JSON.stringify(project));
+
+      await openLocale();
+      fireEvent.click(screen.getByText('武器配置本地化'));
+
+      expect(screen.getByText('TXT_WeaponName_WEA_测试-手枪')).toBeTruthy();
+      expect(screen.getByText('TXT_WeaponInfo_WEA_测试-手枪')).toBeTruthy();
+      // 中文就是武器表里的武器名 / 武器描述
+      expect(screen.getByDisplayValue('测试-手枪')).toBeTruthy();
+      expect(screen.getByDisplayValue('测试用直线远程武器')).toBeTruthy();
+
+      // 改英文：写回武器表那一行
+      const nameRow = screen.getByText('TXT_WeaponName_WEA_测试-手枪').closest('tr') as HTMLElement;
+      fireEvent.change(nameRow.querySelectorAll('textarea')[1], {
+        target: { value: 'Test Pistol' },
+      });
+      expect(screen.getByDisplayValue('Test Pistol')).toBeTruthy();
+
+      // 改中文：武器表里的武器名跟着变（武器页的下拉里也能看到）
+      fireEvent.change(nameRow.querySelectorAll('textarea')[0], {
+        target: { value: '测试手枪' },
+      });
+      fireEvent.click(within(rail()).getByText('战斗'));
+      fireEvent.click(screen.getByText('武器'));
+      expect(screen.getByDisplayValue('测试手枪')).toBeTruthy();
+    });
+
     it('搜索框对着当前这一页模糊搜索 key 与三语文本', async () => {
       seedLocaleProject();
       await openLocale();
@@ -2353,6 +2399,10 @@ describe('立绘：图片分类与「图片」子表', () => {
         id: 'WEA_测试-手枪',
         name: '测试-手枪',
         description: '',
+        nameEn: '',
+        nameJa: '',
+        descriptionEn: '',
+        descriptionJa: '',
         magazine: '10',
         attackSpeed: '1',
         energyCost: '0',
@@ -2747,6 +2797,10 @@ describe('角色页的配置区与表情图片', () => {
       id,
       name,
       description: '',
+      nameEn: '',
+      nameJa: '',
+      descriptionEn: '',
+      descriptionJa: '',
       magazine: '10',
       attackSpeed: '1',
       energyCost: '0',
@@ -2947,6 +3001,10 @@ describe('武器页：攻击模式与插槽', () => {
         id: 'WEA_测试-手枪',
         name: '测试-手枪',
         description: '',
+        nameEn: '',
+        nameJa: '',
+        descriptionEn: '',
+        descriptionJa: '',
         magazine: '10',
         attackSpeed: '1.000000',
         energyCost: '0',
@@ -2985,8 +3043,9 @@ describe('武器页：攻击模式与插槽', () => {
     );
     expect(cells).toEqual([
       'WEA_测试-手枪',
-      '测试-手枪',
-      '',
+      // 武器名 / 武器描述导出的是文本 key（中文在「武器配置本地化」页里看）
+      'TXT_WeaponName_WEA_测试-手枪',
+      'TXT_WeaponInfo_WEA_测试-手枪',
       '10',
       '1.000000',
       '0',

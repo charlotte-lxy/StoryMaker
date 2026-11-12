@@ -240,6 +240,10 @@ export function addBattleRow(project: Project, key: BattleRowKey): Project {
         id: `${ID_PREFIX.weapons}${n}`,
         name: '',
         description: '',
+        nameEn: '',
+        nameJa: '',
+        descriptionEn: '',
+        descriptionJa: '',
         magazine: '-1',
         attackSpeed: '1',
         energyCost: '0',
@@ -536,6 +540,33 @@ export function updateWeaponOptionNameText(
       else row.nameJa = value;
       return;
     }
+  });
+}
+
+/**
+ * 本地化页改武器的名字 / 描述：中文写回武器表那一格，英文日文写在同一行上。
+ *
+ * key 是按武器 ID 现算的，所以改武器 ID 时 key 会跟着变，译文不用搬家。
+ */
+export function updateWeaponText(
+  project: Project,
+  weaponUid: string,
+  field: 'name' | 'description',
+  lang: LangKey,
+  value: string,
+): Project {
+  return mutate(project, (draft) => {
+    const row = draft.battle.weapons.find((item) => item.uid === weaponUid);
+    if (row === undefined) return;
+    if (field === 'name') {
+      if (lang === 'zh') row.name = value;
+      else if (lang === 'en') row.nameEn = value;
+      else row.nameJa = value;
+      return;
+    }
+    if (lang === 'zh') row.description = value;
+    else if (lang === 'en') row.descriptionEn = value;
+    else row.descriptionJa = value;
   });
 }
 

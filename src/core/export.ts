@@ -56,7 +56,7 @@ import {
   nextReadableId,
   textIdOf,
 } from './ids';
-import { collectNameEntries, collectWeaponOptionEntries } from './localization';
+import { collectNameEntries, collectWeaponLocaleEntries } from './localization';
 import { characterIdOf, collectRefMaps, type UidToId } from './refs';
 import type { Character, CommandDef, Group, Line, Project, StoryOption } from './types';
 
@@ -176,7 +176,7 @@ export function buildRows(project: Project): ExportRowSets {
   }
 
   // 武器分组 / 攻击模式 / 插槽的导出名称也是本地化 key（中文就是它们的显示名称）
-  for (const entry of collectWeaponOptionEntries(project)) {
+  for (const entry of collectWeaponLocaleEntries(project)) {
     locale.push([entry.key, entry.zh, entry.en, entry.ja]);
   }
 
