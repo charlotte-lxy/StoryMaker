@@ -420,6 +420,8 @@ export interface GasWeapon {
   /** 弹匣容量，-1 表示无限 */
   magazine: string;
   attackSpeed: string;
+  /** 基础伤害：这武器一发的伤害 */
+  baseDamage: string;
   /** 能量消耗：开一枪要多少能量 */
   energyCost: string;
   /** 支持攻击模式：攻击模式配置表那一行的 uid（改名字不会断） */

@@ -407,6 +407,7 @@ describe('界面冒烟测试', () => {
           magazine: '10',
           attackSpeed: '1',
           energyCost: '0',
+          baseDamage: '0',
           attackModeUids: [],
           slotUids: [],
         },
@@ -2406,6 +2407,7 @@ describe('立绘：图片分类与「图片」子表', () => {
         magazine: '10',
         attackSpeed: '1',
         energyCost: '0',
+        baseDamage: '0',
         attackModeUids: [],
         slotUids: [],
       },
@@ -2804,6 +2806,7 @@ describe('角色页的配置区与表情图片', () => {
       magazine: '10',
       attackSpeed: '1',
       energyCost: '0',
+      baseDamage: '0',
       attackModeUids: modes,
       slotUids: slots,
     });
@@ -2989,6 +2992,31 @@ describe('武器页：攻击模式与插槽', () => {
     expect(toggles[1].textContent).toContain('主武器槽');
   });
 
+  it('武器表有「基础伤害」列：新武器默认 0，改了会进导出', async () => {
+    await openWeapons();
+    fireEvent.click(screen.getByText('＋ 新增武器'));
+
+    const headers = [...document.querySelectorAll('.battle-table thead th')].map(
+      (th) => th.textContent,
+    );
+    expect(headers).toContain('基础伤害');
+
+    const damage = screen.getByTitle('基础伤害：这把武器一发的伤害') as HTMLInputElement;
+    expect(damage.value).toBe('0');
+    fireEvent.change(damage, { target: { value: '25' } });
+
+    // 导出预览里那一列跟着变
+    fireEvent.click(within(rail()).getByText('导出'));
+    const tab = [...document.querySelectorAll('.export-nav')].find((item) =>
+      item.textContent?.startsWith('GAS武器'),
+    ) as HTMLElement;
+    fireEvent.click(tab);
+    const cells = [...document.querySelectorAll('.preview-table tbody tr.line-row td')].map(
+      (td) => td.textContent,
+    );
+    expect(cells[5]).toBe('25');
+  });
+
   it('导出预览的 GAS武器 表多了两列，格式照着样例来', async () => {
     const project = createEmptyProject();
     project.battle.attackModes = [
@@ -3008,6 +3036,7 @@ describe('武器页：攻击模式与插槽', () => {
         magazine: '10',
         attackSpeed: '1.000000',
         energyCost: '0',
+        baseDamage: '0',
         attackModeUids: ['am1'],
         slotUids: ['sl1'],
       },
@@ -3031,6 +3060,7 @@ describe('武器页：攻击模式与插槽', () => {
       '武器描述',
       '弹匣容量',
       '攻击速度',
+      '基础伤害',
       '能量消耗',
       '支持攻击模式列表',
       '支持插槽列表',
@@ -3048,6 +3078,7 @@ describe('武器页：攻击模式与插槽', () => {
       'TXT_WeaponInfo_WEA_测试-手枪',
       '10',
       '1.000000',
+      '0',
       '0',
       '(TXT_AttackMode_手动攻击)',
       '("111")',

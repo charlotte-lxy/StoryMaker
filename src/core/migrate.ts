@@ -532,6 +532,7 @@ function normalizeBattle(input: unknown): BattleData {
       descriptionJa: text(row, 'descriptionJa'),
       magazine: text(row, 'magazine'),
       attackSpeed: text(row, 'attackSpeed'),
+      baseDamage: text(row, 'baseDamage'),
       // 武器表改成「能量消耗」之后，老数据里的修改器 / 技能列表不再读
       energyCost: text(row, 'energyCost'),
       attackModeUids: names(row.attackModeUids),

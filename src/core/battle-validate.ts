@@ -308,6 +308,7 @@ export function validateBattle(project: Project): ValidationReport {
     }
     checkNumber(issues, row.magazine, '弹匣容量', '武器', target, 'weapons', row.uid);
     checkNumber(issues, row.attackSpeed, '攻击速度', '武器', target, 'weapons', row.uid);
+    checkNumber(issues, row.baseDamage, '基础伤害', '武器', target, 'weapons', row.uid);
     checkNumber(issues, row.energyCost, '能量消耗', '武器', target, 'weapons', row.uid);
   }
 

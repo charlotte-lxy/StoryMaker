@@ -246,6 +246,7 @@ export function addBattleRow(project: Project, key: BattleRowKey): Project {
         descriptionJa: '',
         magazine: '-1',
         attackSpeed: '1',
+        baseDamage: '0',
         energyCost: '0',
         attackModeUids: [],
         slotUids: [],
