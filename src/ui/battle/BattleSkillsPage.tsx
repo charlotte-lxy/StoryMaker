@@ -1,4 +1,3 @@
-import { classPath } from '../../core/battle';
 import type { Project } from '../../core/types';
 import {
   addBattleRow,
@@ -8,7 +7,6 @@ import {
   reorderBattleRow,
   updateBattleList,
   updateBattleRow,
-  updateClassPrefix,
   updatePair,
 } from '../../state/battle-operations';
 import { MultiSelect } from '../MultiSelect';
@@ -50,17 +48,6 @@ export function BattleSkillsPage({ project, onChange }: Props) {
         <button type="button" className="primary" onClick={() => onChange(addBattleRow(project, 'skills'))}>
           ＋ 新增技能
         </button>
-      </div>
-
-      <div className="battle-prefix-card">
-        <label className="battle-prefix-field">
-          <span className="line-field-name">类名路径前缀</span>
-          <input
-            value={project.battle.skillClassPrefix}
-            onChange={(event) => onChange(updateClassPrefix(project, 'skillClassPrefix', event.target.value))}
-          />
-          <span className="hint">GA类 = {classPath(project.battle.skillClassPrefix, 'BP_GA_Heal') || '（前缀为空）'}</span>
-        </label>
       </div>
 
       {rows.length === 0 ? (

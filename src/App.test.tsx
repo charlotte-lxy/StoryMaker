@@ -1802,6 +1802,40 @@ describe('战斗模块', () => {
     fireEvent.click(within(rail()).getByText('战斗'));
   }
 
+  it('前缀只在导入设置里配：GA / GE 页不再摆前缀框，导入设置里五条竖着排在数据表之后', async () => {
+    await openBattle();
+
+    // 技能页 / 效果页都不再有前缀输入
+    fireEvent.click(screen.getByText('技能（GA）'));
+    expect(screen.queryByText('类名路径前缀')).toBeNull();
+    fireEvent.click(screen.getByText('效果（GE）'));
+    expect(screen.queryByText('类名路径前缀')).toBeNull();
+
+    // 导入设置里：数据表在前，五条前缀竖着排在后面
+    fireEvent.click(within(rail()).getByText('导出'));
+    // 打开「Unreal导入设置」工具页
+    fireEvent.click(screen.getByText('Unreal导入设置'));
+
+    // 新建项目里还没有数据表：先加一条，方便比对顺序
+    fireEvent.click(screen.getByText('＋ 新增数据表'));
+
+    const labels = [...document.querySelectorAll('.import-prefixes .battle-prefix-field')].map(
+      (field) => field.querySelector('.line-field-name')?.textContent,
+    );
+    expect(labels).toEqual([
+      '技能表的 GA类 前缀',
+      '效果表的 GE类 前缀',
+      '属性表的 属性类 前缀',
+      '武器表的 武器类 前缀',
+      '特殊指令表的 Command类 前缀',
+    ]);
+    // 前缀区块排在数据表表格之后
+    const table = document.querySelector('.battle-table') as HTMLElement;
+    const prefixes = document.querySelector('.import-prefixes') as HTMLElement;
+    expect(
+      table.compareDocumentPosition(prefixes) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
   it('属性表有「显示文本」与「属性类」两列，改了之后进导出预览', async () => {
     await openBattle();
     fireEvent.click(screen.getByText('＋ 新增属性'));
@@ -2374,7 +2408,15 @@ describe('导出模块', () => {
 
     // 前缀在「Unreal 导入设置」里改，类名跟着变
     fireEvent.click(screen.getByText('Unreal导入设置'));
-    fireEvent.change(screen.getAllByDisplayValue(/^\/Script\/Engine\.BlueprintGeneratedClass/)[0], {
+    /** 按条目文字找前缀输入框（前缀条目现在竖着排在数据表后面，顺序会变） */
+    const prefixInput = (label: string): HTMLInputElement => {
+      const field = [...document.querySelectorAll('.battle-prefix-field')].find((node) =>
+        node.textContent?.includes(label),
+      ) as HTMLElement;
+      return field.querySelector('input') as HTMLInputElement;
+    };
+
+    fireEvent.change(prefixInput('特殊指令表的 Command类 前缀'), {
       target: { value: "/Script/Engine.BlueprintGeneratedClass'/Game/BP/Cmd/" },
     });
 

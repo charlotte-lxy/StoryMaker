@@ -2505,6 +2505,27 @@ table.lines td.cell-order {
 }
 
 /* 类名路径前缀：和 Tag 一样是导出时自动补全的，放在表头上方 */
+/* 导入设置里的前缀配置：每条一个小卡片，竖着排 */
+.import-prefixes {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.import-prefixes .battle-prefix-field {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--head-bg);
+}
+
+.import-prefix-head {
+  margin-top: 22px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
 .battle-prefix-card {
   display: flex;
   flex-wrap: wrap;

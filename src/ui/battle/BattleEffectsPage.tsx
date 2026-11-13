@@ -1,4 +1,3 @@
-import { classPath } from '../../core/battle';
 import type { Project } from '../../core/types';
 import {
   addBattleRow,
@@ -7,7 +6,6 @@ import {
   removeModifier,
   reorderBattleRow,
   updateBattleRow,
-  updateClassPrefix,
   updateModifier,
 } from '../../state/battle-operations';
 import { ModifierList } from './ModifierList';
@@ -47,18 +45,6 @@ export function BattleEffectsPage({ project, onChange }: Props) {
         </button>
       </div>
 
-      <div className="battle-prefix-card">
-        <label className="battle-prefix-field">
-          <span className="line-field-name">类名路径前缀</span>
-          <input
-            value={project.battle.effectClassPrefix}
-            onChange={(event) => onChange(updateClassPrefix(project, 'effectClassPrefix', event.target.value))}
-          />
-          <span className="hint">
-            GE类 = {classPath(project.battle.effectClassPrefix, 'BP_GameEffect_Base') || '（前缀为空）'}
-          </span>
-        </label>
-      </div>
 
       {rows.length === 0 ? (
         <div className="empty-state">还没有效果。点右上角「＋ 新增效果」，修改器列表可以从属性表里选属性。</div>

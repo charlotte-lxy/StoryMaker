@@ -77,8 +77,9 @@ pnpm dev          # 开发服务器 http://localhost:5180
     插槽 `("a","b")`、武器图标 `PIC_武器ID`、
     武器类 `前缀 + BP_Weapon_<武器ID去WEA_>`（拼不出来写 None））
 
-导出 / Unreal导入设置（一行一张 DataTable：表名 + 文件夹 + 子表）
+导出 / Unreal导入设置（一行一张 DataTable：表名 + 文件夹 + 子表；
   → 导入设置（数据表引用、csv 文件名两列算出来）
+  数据表之后是五条竖排的前缀配置（GA类 / GE类 / 属性类 / 武器类 / Command类）
 ```
 
 导出与界面上的「导出预览」用的是同一处 `buildAllSheets`，预览里看到的就是导出去的内容。
