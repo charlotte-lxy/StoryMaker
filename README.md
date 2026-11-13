@@ -68,6 +68,7 @@ pnpm dev          # 开发服务器 http://localhost:5180
 
 战斗（属性 / 事件 / 效果 / 技能 / 角色预设 / 武器）
   → GASGameplayTags（四张表里的条目自动收集，Tag 由名字合成）
+  （GAS属性：行名=Tag / 属性标签 / 显示文本（TXT_Attribute_<属性名>）/ 属性类）
   → GAS属性 / GAS效果 / GAS技能 / GAS事件 / GAS角色 / GAS武器
   （GAS角色 的「武器」列：按顺序每条武器一个武器 ID；「武器绑定关系」列：每个装好的插槽一个
     `分组|插槽|武器下标|攻击模式`）

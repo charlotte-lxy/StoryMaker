@@ -392,6 +392,38 @@ describe('界面冒烟测试', () => {
       expect(screen.getByDisplayValue('Firepower')).toBeTruthy();
     });
 
+    it('属性本地化：收属性表的「显示文本」，key 按属性名现算', async () => {
+      const project = createEmptyProject();
+      project.battle.attributes = [
+        {
+          uid: 'at1',
+          name: '生命值',
+          note: '',
+          tagNote: '',
+          className: 'BP_GAS_AttributeBase',
+          displayText: '生命',
+          displayTextEn: '',
+          displayTextJa: '',
+        },
+      ];
+      seedProjectFile(JSON.stringify(project));
+
+      await openLocale();
+      fireEvent.click(screen.getByText('属性本地化'));
+
+      expect(screen.getByText('TXT_Attribute_生命值')).toBeTruthy();
+      expect(screen.getByDisplayValue('生命')).toBeTruthy();
+
+      // 填英文：写回属性表那一行
+      const row = screen.getByText('TXT_Attribute_生命值').closest('tr') as HTMLElement;
+      fireEvent.change(row.querySelectorAll('textarea')[1], { target: { value: 'HP' } });
+      expect(screen.getByDisplayValue('HP')).toBeTruthy();
+
+      // 改中文：属性表的「显示文本」跟着变
+      fireEvent.change(row.querySelectorAll('textarea')[0], { target: { value: '生命值显示' } });
+      fireEvent.click(within(rail()).getByText('战斗'));
+      expect(screen.getByDisplayValue('生命值显示')).toBeTruthy();
+    });
     it('武器名与武器描述也收进这一页：key 按武器 ID 现算，中文是武器表里那两段文字', async () => {
       const project = createEmptyProject();
       project.battle.weapons = [
@@ -1769,6 +1801,43 @@ describe('战斗模块', () => {
     await renderApp();
     fireEvent.click(within(rail()).getByText('战斗'));
   }
+
+  it('属性表有「显示文本」与「属性类」两列，改了之后进导出预览', async () => {
+    await openBattle();
+    fireEvent.click(screen.getByText('＋ 新增属性'));
+    fireEvent.change(screen.getByPlaceholderText('属性名'), { target: { value: '生命值' } });
+
+    const headers = [...document.querySelectorAll('.battle-main thead th')].map(
+      (th) => th.textContent,
+    );
+    expect(headers).toContain('显示文本');
+    expect(headers).toContain('属性类');
+
+    // 新建属性默认属性类 BP_GAS_AttributeBase
+    const className = screen.getByPlaceholderText('BP_GAS_AttributeBase') as HTMLInputElement;
+    expect(className.value).toBe('BP_GAS_AttributeBase');
+
+    fireEvent.change(screen.getByPlaceholderText('界面上显示的名字（中文）'), {
+      target: { value: '生命' },
+    });
+    fireEvent.change(className, { target: { value: 'BP_GAS_Attribute_HP' } });
+
+    fireEvent.click(within(rail()).getByText('导出'));
+    const tab = [...document.querySelectorAll('.export-nav')].find((item) =>
+      item.textContent?.startsWith('GAS属性'),
+    ) as HTMLElement;
+    fireEvent.click(tab);
+    const cells = [...document.querySelectorAll('.preview-table tbody tr.line-row td')].map(
+      (td) => td.textContent,
+    );
+    expect(cells).toEqual([
+      'GAS.属性.生命值',
+      '(TagName="GAS.属性.生命值")',
+      // 显示文本导出本地化 key，属性类 = 前缀 + 类名
+      'TXT_Attribute_生命值',
+      "/Script/Engine.BlueprintGeneratedClass'/Game/GameContent/BP/GAS/AS/AttributeBlueprint/BP_GAS_Attribute_HP.BP_GAS_Attribute_HP_C'",
+    ]);
+  });
 
   it('侧边栏有七个子模块，默认停在属性表', async () => {
     await openBattle();

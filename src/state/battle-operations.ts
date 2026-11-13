@@ -16,7 +16,7 @@ import type {
   LangKey,
   Project,
 } from '../core/types';
-import { WEAPON_GROUP_EXPORT_PREFIX } from '../core/battle';
+import { DEFAULT_ATTRIBUTE_CLASS_NAME, WEAPON_GROUP_EXPORT_PREFIX } from '../core/battle';
 import { mutate } from './operations';
 
 /** 战斗模块里的子页面 */
@@ -262,7 +262,16 @@ export function addBattleRow(project: Project, key: BattleRowKey): Project {
     const name = `${label}${n}`;
 
     if (key === 'attributes') {
-      draft.battle.attributes.push({ uid: newUid(), name, note: '', tagNote: '' });
+      draft.battle.attributes.push({
+        uid: newUid(),
+        name,
+        note: '',
+        tagNote: '',
+        className: DEFAULT_ATTRIBUTE_CLASS_NAME,
+        displayText: '',
+        displayTextEn: '',
+        displayTextJa: '',
+      });
       return;
     }
     if (key === 'events') {
@@ -347,7 +356,7 @@ export function reorderBattleRow(
 /** 类名路径前缀：技能用 GA 的，效果用 GE 的 */
 export function updateClassPrefix(
   project: Project,
-  key: 'skillClassPrefix' | 'effectClassPrefix' | 'weaponClassPrefix',
+  key: 'skillClassPrefix' | 'effectClassPrefix' | 'weaponClassPrefix' | 'attributeClassPrefix',
   value: string,
 ): Project {
   return mutate(project, (draft) => {
@@ -541,6 +550,24 @@ export function updateWeaponOptionNameText(
       else row.nameJa = value;
       return;
     }
+  });
+}
+
+/**
+ * 本地化页改属性的「显示文本」：中文写回属性表，英文日文写在同一行上。
+ */
+export function updateAttributeText(
+  project: Project,
+  attributeUid: string,
+  lang: LangKey,
+  value: string,
+): Project {
+  return mutate(project, (draft) => {
+    const row = draft.battle.attributes.find((item) => item.uid === attributeUid);
+    if (row === undefined) return;
+    if (lang === 'zh') row.displayText = value;
+    else if (lang === 'en') row.displayTextEn = value;
+    else row.displayTextJa = value;
   });
 }
 

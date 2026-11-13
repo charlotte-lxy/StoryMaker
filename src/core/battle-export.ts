@@ -21,7 +21,7 @@ import {
   tagStructLiteral,
   weaponClassName,
 } from './battle';
-import { weaponInfoKeyOf, weaponNameKeyOf } from './ids';
+import { attributeTextKeyOf, weaponInfoKeyOf, weaponNameKeyOf } from './ids';
 import { attributeNameOf, eventNameOf, skillNameOf } from './refs';
 import { weaponIconId } from './weapon-icons';
 import type { BattleData, GasModifier, GasOptionRow, GasPair, Project, WeaponEntry, WeaponGroupBinding } from './types';
@@ -35,7 +35,13 @@ export const CHARACTER_SHEET = 'GAS角色';
 export const WEAPON_SHEET = 'GAS武器';
 
 export const GAMEPLAY_TAGS_HEADER: readonly string[] = ['', 'Tag', 'DevComment'];
-export const ATTRIBUTE_HEADER: readonly string[] = ['', '属性名', '属性标签'];
+/** 属性表：行名 = 合成好的 Tag；属性名字只在界面上用，不进导出 */
+export const ATTRIBUTE_HEADER: readonly string[] = [
+  '',
+  '属性标签',
+  '显示文本',
+  '属性类',
+];
 export const EFFECT_HEADER: readonly string[] = [
   '',
   '效果名',
@@ -231,7 +237,15 @@ export function buildBattleRows(project: Project): BattleSheetRows {
       [...ATTRIBUTE_HEADER],
       ...battle.attributes
         .filter((row) => row.name.trim() !== '')
-        .map((row) => [attributeTag(row.name), row.name.trim(), tagStructLiteral(attributeTag(row.name))]),
+        .map((row) => [
+          // 行名与「属性标签」都是合成好的 Tag
+          attributeTag(row.name),
+          tagStructLiteral(attributeTag(row.name)),
+          // 显示文本写本地化 key（中文在「属性本地化」页）
+          attributeTextKeyOf(row.name.trim()),
+          // 属性类 = 前缀 + 类名；拼不出来时按 Unreal 习惯写 None
+          classPath(battle.attributeClassPrefix, row.className) || 'None',
+        ]),
     ],
     effects: [
       [...EFFECT_HEADER],

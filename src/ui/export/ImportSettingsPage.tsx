@@ -1,5 +1,5 @@
 import type { Project } from '../../core/types';
-import { classPath, weaponClassName } from '../../core/battle';
+import { DEFAULT_ATTRIBUTE_CLASS_NAME, classPath, weaponClassName } from '../../core/battle';
 import { EXPORT_SUBTABLES, csvFileName, dataTableRef } from '../../core/export-settings';
 import { specialCommandClassName } from '../../core/special-commands';
 import { updateClassPrefix } from '../../state/battle-operations';
@@ -60,6 +60,22 @@ export function ImportSettingsPage({ project, onChange }: Props) {
           <span className="hint">
             Command类 ={' '}
             {classPath(project.specialCommandClassPrefix, specialCommandClassName('SP_001')) ||
+              '（前缀为空）'}
+          </span>
+        </label>
+
+        {/* 属性类 = 前缀 + 属性表里那一行的类名（默认 BP_GAS_AttributeBase） */}
+        <label className="battle-prefix-field">
+          <span className="line-field-name">属性表的 属性类 前缀</span>
+          <input
+            value={project.battle.attributeClassPrefix}
+            onChange={(event) =>
+              onChange(updateClassPrefix(project, 'attributeClassPrefix', event.target.value))
+            }
+          />
+          <span className="hint">
+            属性类 ={' '}
+            {classPath(project.battle.attributeClassPrefix, DEFAULT_ATTRIBUTE_CLASS_NAME) ||
               '（前缀为空）'}
           </span>
         </label>

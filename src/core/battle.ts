@@ -26,6 +26,11 @@ export const DEFAULT_SKILL_CLASS_PREFIX =
   "/Script/Engine.BlueprintGeneratedClass'/Game/GameContent/BP/GAS/GA/BSGA/";
 export const DEFAULT_EFFECT_CLASS_PREFIX =
   "/Script/Engine.BlueprintGeneratedClass'/Game/GameContent/BP/GAS/GE/BSGE/";
+/** 属性类的前缀：GAS属性 的「属性类」列由它 + 每行的类名拼成 */
+export const DEFAULT_ATTRIBUTE_CLASS_PREFIX =
+  "/Script/Engine.BlueprintGeneratedClass'/Game/GameContent/BP/GAS/AS/AttributeBlueprint/";
+/** 属性的默认类名（新建属性时用它） */
+export const DEFAULT_ATTRIBUTE_CLASS_NAME = 'BP_GAS_AttributeBase';
 /** 武器类的前缀：GAS武器 的「武器类」列由它 + BP_Weapon_<武器ID去WEA_> 拼成 */
 export const DEFAULT_WEAPON_CLASS_PREFIX =
   "/Script/Engine.BlueprintGeneratedClass'/Game/GameContent/BP/Weapon/WeaponActors/";
@@ -58,6 +63,7 @@ export function createEmptyBattle(): BattleData {
     skillClassPrefix: DEFAULT_SKILL_CLASS_PREFIX,
     effectClassPrefix: DEFAULT_EFFECT_CLASS_PREFIX,
     weaponClassPrefix: DEFAULT_WEAPON_CLASS_PREFIX,
+    attributeClassPrefix: DEFAULT_ATTRIBUTE_CLASS_PREFIX,
     attributes: [],
     effects: [],
     skills: [],

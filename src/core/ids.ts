@@ -78,6 +78,11 @@ export function weaponNameKeyOf(weaponId: string): string {
   return `TXT_WeaponName_${weaponId}`;
 }
 
+/** 属性「显示文本」的本地化 key：TXT_Attribute_ + 属性名 */
+export function attributeTextKeyOf(attributeName: string): string {
+  return `TXT_Attribute_${attributeName}`;
+}
+
 /** 武器「武器描述」的本地化 key：TXT_WeaponInfo_ + 武器ID */
 export function weaponInfoKeyOf(weaponId: string): string {
   return `TXT_WeaponInfo_${weaponId}`;

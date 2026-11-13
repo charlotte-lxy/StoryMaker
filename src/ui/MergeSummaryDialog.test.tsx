@@ -32,6 +32,7 @@ function makeProject(): Project {
       skillClassPrefix: '',
       effectClassPrefix: '',
       weaponClassPrefix: '',
+      attributeClassPrefix: '',
       attributes: [],
       effects: [],
       skills: [],

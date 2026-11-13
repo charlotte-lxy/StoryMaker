@@ -241,6 +241,9 @@ Vite + React 19 + TypeScript，导出用 ExcelJS。三种产物共用同一套�
   还收武器表的**武器名与武器描述**：key = `TXT_WeaponName_<武器ID>` / `TXT_WeaponInfo_<武器ID>`，
   中文就是武器表里那两段文字（在这一页改中文就是改武器表），英文日文存在武器那一行上。
   以上武器相关的条目都在本地化的「武器配置本地化」页：分组 → 攻击模式 → 插槽 → 武器名 → 武器描述。
+  还收属性表的**显示文本**（在本地化的「属性本地化」页）：key = `TXT_Attribute_<属性名>`，
+  中文就是属性表里那一格（在这一页改中文就是改属性表），英文日文存在属性那一行上；
+  显示文本一个字都没填的属性先不列进来。
 - 特殊指令表：行名（无标题）/ Command类 / 备注。
   只收剧情里**实际用到**的、主指令是「其他」且分支是「特殊」的指令（「指令」行自己那条），
   同名一行、按第一次出现的顺序；行名取参数「特殊指令ID」的值（取不到就取第一个参数），
@@ -270,6 +273,12 @@ Vite + React 19 + TypeScript，导出用 ExcelJS。三种产物共用同一套�
   `/Game/GameContent/Asset/Sound`，新类型默认放在 `根/类型名`）；音效行存类型的 uid。
   没选类型（或类型被删了）的「音频」「音效类型」两列留空，由校验条提醒。
   图片分类与音效类型是同一套「资源分类」结构（`AssetCategoryRow`），界面共用一张小表。
+- 战斗 GAS属性 表：行名（合成好的 Tag，如 `GAS.属性.生命值`）/ 属性标签
+  （`(TagName="GAS.属性.生命值")`）/ 显示文本（`TXT_Attribute_<属性名>`）/ 属性类。
+  属性类 = `attributeClassPrefix` + 每行的类名 + `.<类名>_C'`；前缀在「Unreal导入设置」里改
+  （默认 `/Script/Engine.BlueprintGeneratedClass'/Game/GameContent/BP/GAS/AS/AttributeBlueprint/`），
+  每行类名在属性表里填、新建默认 `BP_GAS_AttributeBase`；拼不出来时写 `None`。
+  属性名只在界面与 Tag 合成时用，不单独占一列。
 - 战斗 GAS角色 表（角色预设，别和剧情那张「角色」搞混）：行名（角色 ID）/ 角色名 /
   属性列表 / 技能列表 / **武器** / **武器绑定关系**。
   「武器」列是 `GasCharacter.weapons`：每条只记一个武器 uid（`WeaponEntry`），界面上按顺序

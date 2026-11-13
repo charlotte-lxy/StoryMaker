@@ -12,6 +12,7 @@
 import {
   collectLocaleEntries,
   collectNameEntries,
+  collectAttributeTextEntries,
   collectWeaponLocaleEntries,
 } from '../core/localization';
 import {
@@ -491,6 +492,17 @@ function localeDrafts(project: Project): Draft[] {
   collectNameEntries(project).forEach((entry, index) => {
     drafts.push({
       submodule: '角色名本地化',
+      rowNumber: index + 1,
+      rowLabel: entry.key,
+      fields: [entry.key, entry.zh, entry.en, entry.ja],
+      target: { kind: 'locale', uid: entry.uid },
+    });
+  });
+
+  // 属性表的「显示文本」（key = TXT_Attribute_<属性名>）
+  collectAttributeTextEntries(project).forEach((entry, index) => {
+    drafts.push({
+      submodule: '属性本地化',
       rowNumber: index + 1,
       rowLabel: entry.key,
       fields: [entry.key, entry.zh, entry.en, entry.ja],

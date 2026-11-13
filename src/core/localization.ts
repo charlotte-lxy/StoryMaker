@@ -5,7 +5,14 @@
  * 「第几行」就是本地化页面上从上往下数的行号，两边各算一遍迟早会对不上。
  */
 
-import { aliasNameKeyOf, characterNameKeyOf, textIdOf, weaponInfoKeyOf, weaponNameKeyOf } from './ids';
+import {
+  aliasNameKeyOf,
+  attributeTextKeyOf,
+  characterNameKeyOf,
+  textIdOf,
+  weaponInfoKeyOf,
+  weaponNameKeyOf,
+} from './ids';
 import type { LocalizedText, Project } from './types';
 
 export interface LocaleEntry {
@@ -179,6 +186,44 @@ export function collectWeaponLocaleEntries(project: Project): WeaponLocaleEntry[
     });
   }
 
+  return list;
+}
+
+/**
+ * 「属性本地化」页的一条：属性表里的一行。
+ *
+ * key = `TXT_Attribute_<属性名>`，中文就是那一行的「显示文本」（在这一页改中文 = 改属性表），
+ * 英文日文存在同一行上。属性名空着的行拼不出 key，跳过。
+ */
+export interface AttributeTextEntry {
+  uid: string;
+  key: string;
+  zh: string;
+  en: string;
+  ja: string;
+}
+
+export function collectAttributeTextEntries(project: Project): AttributeTextEntry[] {
+  const list: AttributeTextEntry[] = [];
+  for (const row of project.battle.attributes) {
+    const name = row.name.trim();
+    if (name === '') continue;
+    // 显示文本（三语都空）还没填的，先不列进来——没东西可翻
+    if (
+      row.displayText.trim() === '' &&
+      row.displayTextEn.trim() === '' &&
+      row.displayTextJa.trim() === ''
+    ) {
+      continue;
+    }
+    list.push({
+      uid: row.uid,
+      key: attributeTextKeyOf(name),
+      zh: row.displayText,
+      en: row.displayTextEn,
+      ja: row.displayTextJa,
+    });
+  }
   return list;
 }
 

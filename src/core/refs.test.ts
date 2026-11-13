@@ -37,7 +37,18 @@ function line(uid: string, readableId: string, over: Partial<Line> = {}): Line {
 
 function makeBattle(): BattleData {
   const battle = createEmptyBattle();
-  battle.attributes = [{ uid: 'a1', name: '生命值', note: '', tagNote: '' }];
+  battle.attributes = [
+    {
+      uid: 'a1',
+      name: '生命值',
+      note: '',
+      tagNote: '',
+      className: 'BP_GAS_AttributeBase',
+      displayText: '',
+      displayTextEn: '',
+      displayTextJa: '',
+    },
+  ];
   battle.events = [{ uid: 'v1', name: '受击', note: '', tagNote: '' }];
   battle.effects = [
     {
@@ -55,6 +66,7 @@ function makeBattle(): BattleData {
       // 属性那一格是 uid
       modifiers: [{ uid: 'm1', duration: '基础', attributeUid: 'a1', operator: '-', value: 'Damage' }],
       tagNote: '',
+
     },
   ];
   battle.skills = [
@@ -66,6 +78,7 @@ function makeBattle(): BattleData {
       listenEventUids: [],
       parameters: [],
       tagNote: '',
+
     },
     {
       uid: 's2',
@@ -75,6 +88,7 @@ function makeBattle(): BattleData {
       listenEventUids: ['v1'],
       parameters: [],
       tagNote: '',
+
     },
   ];
   battle.characters = [

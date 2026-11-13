@@ -15,6 +15,8 @@
  */
 
 import {
+  DEFAULT_ATTRIBUTE_CLASS_NAME,
+  DEFAULT_ATTRIBUTE_CLASS_PREFIX,
   DEFAULT_EFFECT_CLASS_PREFIX,
   DEFAULT_SKILL_CLASS_PREFIX,
   DEFAULT_WEAPON_CLASS_PREFIX,
@@ -471,11 +473,16 @@ function normalizeBattle(input: unknown): BattleData {
     skillClassPrefix: asString(raw.skillClassPrefix) || DEFAULT_SKILL_CLASS_PREFIX,
     effectClassPrefix: asString(raw.effectClassPrefix) || DEFAULT_EFFECT_CLASS_PREFIX,
     weaponClassPrefix: asString(raw.weaponClassPrefix) || DEFAULT_WEAPON_CLASS_PREFIX,
+    attributeClassPrefix: asString(raw.attributeClassPrefix) || DEFAULT_ATTRIBUTE_CLASS_PREFIX,
     attributes: rows('attributes').map((row) => ({
       uid: asUid(row.uid),
       name: text(row, 'name'),
       note: text(row, 'note'),
       tagNote: text(row, 'tagNote'),
+      className: text(row, 'className') || DEFAULT_ATTRIBUTE_CLASS_NAME,
+      displayText: text(row, 'displayText'),
+      displayTextEn: text(row, 'displayTextEn'),
+      displayTextJa: text(row, 'displayTextJa'),
     })),
     effects: rows('effects').map((row) => ({
       uid: asUid(row.uid),

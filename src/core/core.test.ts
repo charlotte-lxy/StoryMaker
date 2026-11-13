@@ -828,6 +828,36 @@ describe('导出三张表', () => {
     expect(rows).toContainEqual(['TXT_WeaponTeam_光束', '光束', '', '']);
   });
 
+  it('属性的显示文本按属性名生成 key（TXT_Attribute_），没填的不列进来', () => {
+    const project = makeProject();
+    project.battle.attributes = [
+      {
+        uid: 'at1',
+        name: '生命值',
+        note: '',
+        tagNote: '',
+        className: 'BP_GAS_AttributeBase',
+        displayText: '生命',
+        displayTextEn: 'HP',
+        displayTextJa: '',
+      },
+      {
+        uid: 'at2',
+        name: '攻击',
+        note: '',
+        tagNote: '',
+        className: 'BP_GAS_AttributeBase',
+        displayText: '',
+        displayTextEn: '',
+        displayTextJa: '',
+      },
+    ];
+
+    const rows = buildRows(project).locale;
+    expect(rows).toContainEqual(['TXT_Attribute_生命值', '生命', 'HP', '']);
+    // 没填显示文本（三语都空）的不列进来
+    expect(rows.some((row) => row[0] === 'TXT_Attribute_攻击')).toBe(false);
+  });
   it('武器名 / 武器描述按武器 ID 生成文本 key，中文就是武器表里那两段文字', () => {
     const project = makeProject();
     project.battle.weapons = [

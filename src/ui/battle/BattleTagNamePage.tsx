@@ -1,4 +1,4 @@
-import type { Project } from '../../core/types';
+import type { GasAttribute, Project } from '../../core/types';
 import {
   addBattleRow,
   removeBattleRow,
@@ -65,7 +65,17 @@ export function BattleTagNamePage({
               <th className="cell-order" title="拖动下面的把手调整顺序，导出顺序跟着变">
                 顺序
               </th>
-              <th style={{ width: '32%' }}>{nameLabel}</th>
+              <th style={{ width: '22%' }}>{nameLabel}</th>
+              {tableKey === 'attributes' && (
+                <>
+                  <th style={{ width: 200 }} title="导出去的显示文本（本地化 key 按属性名现算）">
+                    显示文本
+                  </th>
+                  <th style={{ width: 200 }} title="属性类名，导出时前缀由导入设置里的「属性类 前缀」补全">
+                    属性类
+                  </th>
+                </>
+              )}
               <th>备注</th>
               <th style={{ width: 74 }}>操作</th>
             </tr>
@@ -86,6 +96,30 @@ export function BattleTagNamePage({
                     <div className="field-error">{nameLabel}重复</div>
                   )}
                 </td>
+                {tableKey === 'attributes' && (
+                  <>
+                    <td>
+                      <input
+                        value={(row as GasAttribute).displayText}
+                        placeholder="界面上显示的名字（中文）"
+                        title="中文写这里；导出写 TXT_Attribute_<属性名>，英文日文在「属性本地化」页填"
+                        onChange={(event) =>
+                          onChange(updateBattleRow(project, tableKey, row.uid, { displayText: event.target.value }))
+                        }
+                      />
+                    </td>
+                    <td>
+                      <input
+                        value={(row as GasAttribute).className}
+                        placeholder="BP_GAS_AttributeBase"
+                        title="属性类名；导出时拼成 前缀 + 类名.类名_C'"
+                        onChange={(event) =>
+                          onChange(updateBattleRow(project, tableKey, row.uid, { className: event.target.value }))
+                        }
+                      />
+                    </td>
+                  </>
+                )}
                 <td>
                   <input
                     value={row.note}

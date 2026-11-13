@@ -323,6 +323,13 @@ export interface GasAttribute {
   name: string;
   note: string;
   tagNote: string;
+  /** 属性类名（导出补全成完整路径），如 BP_GAS_AttributeBase */
+  className: string;
+  /** 显示文本（中文；导出写 TXT_Attribute_<属性名> 这个文本 key） */
+  displayText: string;
+  /** 显示文本的英文 / 日文（在本地化页里填） */
+  displayTextEn: string;
+  displayTextJa: string;
 }
 
 export interface GasEvent {
@@ -462,6 +469,8 @@ export interface BattleData {
   effectClassPrefix: string;
   /** 武器类名的路径前缀，导出 GAS武器 的「武器类」用 */
   weaponClassPrefix: string;
+  /** 属性类名的路径前缀，导出 GAS属性 的「属性类」用 */
+  attributeClassPrefix: string;
   attributes: GasAttribute[];
   effects: GasEffect[];
   skills: GasSkill[];

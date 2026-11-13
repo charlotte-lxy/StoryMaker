@@ -24,7 +24,7 @@ import {
   buildBattleRows,
 } from './battle-export';
 import { validateBattle } from './battle-validate';
-import type { GasEffect, GasModifier, GasPair, Project } from './types';
+import type { GasAttribute, GasEffect, GasModifier, GasPair, Project } from './types';
 
 function modifier(over: Partial<GasModifier> = {}): GasModifier {
   // 属性那一格存的是属性表的 uid：a1 = 生命值
@@ -57,9 +57,20 @@ function effect(over: Partial<GasEffect> = {}): GasEffect {
 /** 一份把七张表都填了一点儿的项目数据 */
 function makeProject(): Project {
   const battle = createEmptyBattle();
+  const attribute = (uid: string, name: string, note: string, tagNote: string): GasAttribute => ({
+    uid,
+    name,
+    note,
+    tagNote,
+    className: 'BP_GAS_AttributeBase',
+    displayText: '',
+    displayTextEn: '',
+    displayTextJa: '',
+  });
+
   battle.attributes = [
-    { uid: 'a1', name: '生命值', note: '血量', tagNote: '血量标签' },
-    { uid: 'a2', name: '移动速度', note: '', tagNote: '' },
+    attribute('a1', '生命值', '血量', '血量标签'),
+    attribute('a2', '移动速度', '', ''),
   ];
   battle.events = [{ uid: 'v1', name: '受击', note: '', tagNote: '' }];
   battle.effects = [effect()];
@@ -218,10 +229,17 @@ describe('战斗模块的导出', () => {
     expect(rows.gameplayTags).toHaveLength(7); // 表头 + 6 条
   });
 
-  it('属性表只有 行名 / 属性名 / 属性标签 三列', () => {
+  it('属性表：行名 = Tag，后面是属性标签 / 显示文本（文本 key）/ 属性类', () => {
     expect(rows.attributes[0]).toEqual([...ATTRIBUTE_HEADER]);
-    expect(rows.attributes[1]).toEqual(['GAS.属性.生命值', '生命值', '(TagName="GAS.属性.生命值")']);
-    for (const row of rows.attributes) expect(row).toHaveLength(3);
+    expect(rows.attributes[1]).toEqual([
+      'GAS.属性.生命值',
+      '(TagName="GAS.属性.生命值")',
+      // 显示文本导出的是本地化 key
+      'TXT_Attribute_生命值',
+      // 属性类 = 前缀 + 类名
+      "/Script/Engine.BlueprintGeneratedClass'/Game/GameContent/BP/GAS/AS/AttributeBlueprint/BP_GAS_AttributeBase.BP_GAS_AttributeBase_C'",
+    ]);
+    for (const row of rows.attributes) expect(row).toHaveLength(4);
   });
 
   it('效果表去掉输入列与 Tag / DevComment，布尔写成 True / False', () => {
@@ -395,7 +413,16 @@ describe('战斗模块的导出', () => {
 
   it('名字空着的行不进表', () => {
     const project = makeProject();
-    project.battle.attributes.push({ uid: 'a3', name: '  ', note: '', tagNote: '' });
+    project.battle.attributes.push({
+      uid: 'a3',
+      name: '  ',
+      note: '',
+      tagNote: '',
+      className: 'BP_GAS_AttributeBase',
+      displayText: '',
+      displayTextEn: '',
+      displayTextJa: '',
+    });
     expect(buildBattleRows(project).attributes).toHaveLength(3); // 表头 + 2 条
   });
 });
@@ -408,7 +435,16 @@ describe('战斗模块的校验', () => {
 
   it('重名会报错，只报一条并带上子页面与行 uid', () => {
     const project = makeProject();
-    project.battle.attributes.push({ uid: 'a9', name: '生命值', note: '', tagNote: '' });
+    project.battle.attributes.push({
+      uid: 'a9',
+      name: '生命值',
+      note: '',
+      tagNote: '',
+      className: 'BP_GAS_AttributeBase',
+      displayText: '',
+      displayTextEn: '',
+      displayTextJa: '',
+    });
 
     const report = validateBattle(project);
 
