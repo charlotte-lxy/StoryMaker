@@ -166,6 +166,7 @@ export function BattleCharactersPage({ project, onChange }: Props) {
                       options={skillOptions}
                       placeholder="未选技能"
                       title="勾选这个角色会的技能"
+                      stacked
                       onChange={(next) =>
                         onChange(updateBattleList(project, 'characters', row.uid, 'skillUids', next))
                       }

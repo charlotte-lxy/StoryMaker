@@ -2792,6 +2792,43 @@ describe('角色页的配置区与表情图片', () => {
 });
 
 
+  it('角色预设的技能列表：已选技能竖着排，一个一行', async () => {
+    const project = createEmptyProject();
+    project.battle.skills = ['回血', '防御', '加速'].map((name, index) => ({
+      uid: `s${index + 1}`,
+      name,
+      className: '',
+      lockSkillUids: [],
+      listenEventUids: [],
+      parameters: [],
+      tagNote: '',
+    }));
+    project.battle.characters = [
+      {
+        uid: 'ch1',
+        id: 'CHA_伊芙',
+        name: '伊芙',
+        attributes: [],
+        skillUids: ['s1', 's2', 's3'],
+        weapons: [],
+        weaponBindings: [],
+      },
+    ];
+    seedProjectFile(JSON.stringify(project));
+
+    await renderApp();
+    fireEvent.click(within(rail()).getByText('战斗'));
+    fireEvent.click(screen.getByText('角色预设'));
+
+    const button = screen.getByTitle('勾选这个角色会的技能');
+    const values = button.querySelector('.multi-values.stacked') as HTMLElement;
+    expect(values).toBeTruthy();
+    // 一个名字一个元素（竖排），而不是一串「、」连起来的文字
+    expect(
+      [...values.querySelectorAll('.multi-value-line')].map((node) => node.textContent),
+    ).toEqual(['回血', '防御', '加速']);
+  });
+
   it('角色预设：武器列编号 + 绑定关系列（分组行里按插槽装武器、选攻击模式）', async () => {
     const project = createEmptyProject();
     const weapon = (uid: string, id: string, name: string, slots: string[], modes: string[]) => ({

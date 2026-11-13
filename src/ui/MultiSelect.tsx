@@ -17,6 +17,12 @@ interface Props {
   /** 一个都没选时按钮上显示的字 */
   placeholder: string;
   title?: string;
+  /**
+   * 已选的名字怎么摆：一行挤着（默认）还是一行一个。
+   *
+   * 角色预设的「技能列表」用竖排——技能名一排挤成一条会横着撑满整格，看不清选了几条。
+   */
+  stacked?: boolean;
   onChange: (next: string[]) => void;
 }
 
@@ -43,7 +49,7 @@ interface Placement {
  * 挂在按钮里的话，最后一行的清单会被那一层 overflow 整块裁掉，一个选项都看不到。
  * 位置按按钮当前的位置算，下方放不下就翻到上方。
  */
-export function MultiSelect({ values, options, placeholder, title, onChange }: Props) {
+export function MultiSelect({ values, options, placeholder, title, stacked = false, onChange }: Props) {
   const [anchor, setAnchor] = useState<DOMRect | null>(null);
   const [placement, setPlacement] = useState<Placement | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
@@ -109,6 +115,14 @@ export function MultiSelect({ values, options, placeholder, title, onChange }: P
       >
         {values.length === 0 ? (
           <span className="multi-placeholder">{placeholder}</span>
+        ) : stacked ? (
+          <span className="multi-values stacked">
+            {values.map((value) => (
+              <span key={value} className="multi-value-line">
+                {labelOf(value)}
+              </span>
+            ))}
+          </span>
         ) : (
           <span className="multi-values">{values.map(labelOf).join('、')}</span>
         )}

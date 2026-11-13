@@ -2734,6 +2734,19 @@ table.lines.preview-table td {
   white-space: nowrap;
 }
 
+/* 竖排：一个名字一行（角色预设的「技能列表」用，免得一条横线拉满整格） */
+.multi-values.stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  white-space: normal;
+  text-overflow: clip;
+}
+
+.multi-value-line {
+  line-height: 1.5;
+}
+
 .multi-placeholder {
   color: var(--text-dim);
 }
