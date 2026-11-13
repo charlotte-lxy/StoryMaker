@@ -131,6 +131,29 @@ export function classPath(prefix: string, className: string): string {
 }
 
 /** 键值对数组的字面量：(("Speed","10"),("Attack","20"))；空列表返回空串 */
+/**
+ * 属性列表里某一格的最终数值：顺着绑定链（sourceKey 存的是另一个属性的 uid）一直找到尽头。
+ *
+ * 链断了（被绑定的属性不在这个列表里）或者成环时返回 undefined——导出时整行跳过。
+ */
+export function attributePairValue(
+  pairs: readonly GasPair[],
+  pairUid: string,
+): string | undefined {
+  const start = pairs.find((pair) => pair.uid === pairUid);
+  if (start === undefined) return undefined;
+  const seen = new Set<string>([start.uid]);
+  let current = start;
+  for (;;) {
+    const source = (current.sourceKey ?? '').trim();
+    if (source === '') return current.value;
+    const next = pairs.find((pair) => pair.key === source);
+    if (next === undefined || seen.has(next.uid)) return undefined;
+    seen.add(next.uid);
+    current = next;
+  }
+}
+
 export function formatPairLiteral(pairs: readonly GasPair[]): string {
   const filled = pairs.filter((pair) => pair.key.trim() !== '' || pair.value.trim() !== '');
   if (filled.length === 0) return '';

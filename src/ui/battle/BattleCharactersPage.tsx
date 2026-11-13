@@ -1,23 +1,24 @@
 import type { Project } from '../../core/types';
+import { attributePairValue } from '../../core/battle';
+import { attributeNameOf } from '../../core/refs';
 import {
   addBattleRow,
   addCharacterWeapon,
   addWeaponGroupBinding,
-  addPair,
   removeBattleRow,
   removeCharacterWeapon,
   removeWeaponGroupBinding,
-  removePair,
   reorderBattleRow,
   updateBattleList,
   mountWeaponSlot,
+  bindCharacterAttribute,
+  setCharacterAttribute,
   setCharacterWeapon,
   setWeaponGroupBindingGroup,
   updateBattleRow,
   updatePair,
 } from '../../state/battle-operations';
 import { MultiSelect } from '../MultiSelect';
-import { PairList } from './PairList';
 import { OrderCell, useRowDrag } from './row-drag';
 import { useScrollMemory } from '../view-memory';
 
@@ -147,18 +148,79 @@ export function BattleCharactersPage({ project, onChange }: Props) {
                     />
                   </td>
                   <td>
-                    <PairList
-                      pairs={row.attributes}
-                      keyOptions={attributeOptions}
-                      keyPlaceholder="选属性"
-                      valuePlaceholder="数值"
-                      addLabel="＋ 添加属性"
-                      onAdd={() => onChange(addPair(project, 'characters', row.uid))}
-                      onRemove={(pairUid) => onChange(removePair(project, 'characters', row.uid, pairUid))}
-                      onUpdate={(pairUid, patch) =>
-                        onChange(updatePair(project, 'characters', row.uid, pairUid, patch))
-                      }
+                    {/* 属性列：勾属性 → 下面自动列出每一行（初始值 + 可以绑别的属性） */}
+                    <MultiSelect
+                      values={row.attributes.map((pair) => pair.key).filter((key) => key !== '')}
+                      options={attributeOptions}
+                      placeholder="未选属性"
+                      title="勾选这个角色有哪些属性"
+                      stacked
+                      onChange={(next) => {
+                        const current = new Set(row.attributes.map((pair) => pair.key));
+                        for (const key of next) {
+                          if (!current.has(key)) {
+                            onChange(setCharacterAttribute(project, row.uid, key, true));
+                          }
+                        }
+                        for (const key of current) {
+                          if (!next.includes(key)) {
+                            onChange(setCharacterAttribute(project, row.uid, key, false));
+                          }
+                        }
+                      }}
                     />
+                    {row.attributes.length > 0 && (
+                      <div className="attribute-rows">
+                        {row.attributes.map((pair) => {
+                          const name = attributeNameOf(project.battle, pair.key);
+                          const bound = (pair.sourceKey ?? '') !== '';
+                          const shown = bound
+                            ? (attributePairValue(row.attributes, pair.uid) ?? '')
+                            : pair.value;
+                          return (
+                            <div className="attribute-row" key={pair.uid}>
+                              <span className="attribute-name" title={name}>
+                                {name === '' ? '（空）' : name}
+                              </span>
+                              <input
+                                value={shown}
+                                placeholder="0"
+                                disabled={bound}
+                                title={
+                                  bound
+                                    ? '跟着被绑定的属性走，不能手改'
+                                    : '初始值，默认 0'
+                                }
+                                onChange={(event) =>
+                                  onChange(updatePair(project, 'characters', row.uid, pair.uid, { value: event.target.value }))
+                                }
+                              />
+                              <select
+                                className="attribute-source"
+                                value={pair.sourceKey ?? ''}
+                                title="也可以不填数，而是跟着另一个属性走"
+                                onChange={(event) =>
+                                  onChange(bindCharacterAttribute(project, row.uid, pair.uid, event.target.value))
+                                }
+                              >
+                                <option value="">初始值</option>
+                                {row.attributes
+                                  .filter((item) => item.key !== '' && item.key !== pair.key)
+                                  .map((item) => (
+                                    <option key={item.uid} value={item.key}>
+                                      跟随 {attributeNameOf(project.battle, item.key)}
+                                    </option>
+                                  ))}
+                                {bound &&
+                                  !row.attributes.some((item) => item.key === pair.sourceKey) && (
+                                    <option value={pair.sourceKey}>（已不在列表里）</option>
+                                  )}
+                              </select>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </td>
                   <td>
                     <MultiSelect

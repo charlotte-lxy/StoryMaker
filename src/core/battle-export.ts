@@ -10,6 +10,7 @@
 
 import { formatArrayLiteral } from './array-literal';
 import {
+  attributePairValue,
   attributeTag,
   classPath,
   collectGameplayTags,
@@ -153,11 +154,21 @@ const weaponClassOf = (battle: BattleData, weaponId: string): string => {
   return prefix === '' || name === '' ? 'None' : classPath(prefix, name);
 };
 
-/** 角色属性列表的 key 是属性表的 uid，导出成属性 Tag */
+/**
+ * 角色属性列表的 key 是属性表的 uid，导出成属性 Tag。
+ *
+ * 某一格可以绑定另一个属性（初始值跟着它走）：这里顺着绑定链找到最终那一格的数字填上，
+ * 链断了（被绑定的属性不在这个列表里）或成环时整行不导出。
+ */
 const attributePairs = (battle: BattleData, pairs: readonly GasPair[]): GasPair[] =>
   pairs
     .filter((pair) => pair.key.trim() !== '')
-    .map((pair) => ({ ...pair, key: attributeTag(attributeNameOf(battle, pair.key)) }));
+    .flatMap((pair) => {
+      // 绑了别的属性就写对方的数字；链断了 / 成环整行不导出
+      const value = attributePairValue(pairs, pair.uid);
+      if (value === undefined) return [];
+      return [{ ...pair, key: attributeTag(attributeNameOf(battle, pair.key)), value }];
+    });
 
 /**
  * 角色预设「武器」列：每把武器一个武器 ID（按武器列的顺序，允许重复）。

@@ -1819,19 +1819,19 @@ describe('战斗模块', () => {
     // 新建项目里还没有数据表：先加一条，方便比对顺序
     fireEvent.click(screen.getByText('＋ 新增数据表'));
 
-    const labels = [...document.querySelectorAll('.import-prefixes .battle-prefix-field')].map(
-      (field) => field.querySelector('.line-field-name')?.textContent,
+    const labels = [...document.querySelectorAll('.import-prefix-wrap tbody tr')].map(
+      (tr) => tr.querySelector('.prefix-name')?.textContent,
     );
     expect(labels).toEqual([
-      '技能表的 GA类 前缀',
-      '效果表的 GE类 前缀',
-      '属性表的 属性类 前缀',
-      '武器表的 武器类 前缀',
-      '特殊指令表的 Command类 前缀',
+      '技能表的 GA类',
+      '效果表的 GE类',
+      '属性表的 属性类',
+      '武器表的 武器类',
+      '特殊指令表的 Command类',
     ]);
     // 前缀区块排在数据表表格之后
     const table = document.querySelector('.battle-table') as HTMLElement;
-    const prefixes = document.querySelector('.import-prefixes') as HTMLElement;
+    const prefixes = document.querySelector('.import-prefix-wrap') as HTMLElement;
     expect(
       table.compareDocumentPosition(prefixes) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
@@ -2408,15 +2408,15 @@ describe('导出模块', () => {
 
     // 前缀在「Unreal 导入设置」里改，类名跟着变
     fireEvent.click(screen.getByText('Unreal导入设置'));
-    /** 按条目文字找前缀输入框（前缀条目现在竖着排在数据表后面，顺序会变） */
+    /** 按表里那一行的名字找前缀输入框 */
     const prefixInput = (label: string): HTMLInputElement => {
-      const field = [...document.querySelectorAll('.battle-prefix-field')].find((node) =>
-        node.textContent?.includes(label),
+      const row = [...document.querySelectorAll('.import-prefix-wrap tbody tr')].find((node) =>
+        node.querySelector('.prefix-name')?.textContent === label,
       ) as HTMLElement;
-      return field.querySelector('input') as HTMLInputElement;
+      return row.querySelector('input') as HTMLInputElement;
     };
 
-    fireEvent.change(prefixInput('特殊指令表的 Command类 前缀'), {
+    fireEvent.change(prefixInput('特殊指令表的 Command类'), {
       target: { value: "/Script/Engine.BlueprintGeneratedClass'/Game/BP/Cmd/" },
     });
 
@@ -2903,6 +2903,67 @@ describe('角色页的配置区与表情图片', () => {
 });
 
 
+  it('角色预设的属性列表：多选框勾属性 → 下面自动出行，初始值默认 0、可以绑属性', async () => {
+    const project = createEmptyProject();
+    project.battle.attributes = ['生命值', '攻击'].map((name, index) => ({
+      uid: `at${index + 1}`,
+      name,
+      note: '',
+      tagNote: '',
+      className: 'BP_GAS_AttributeBase',
+      displayText: '',
+      displayTextEn: '',
+      displayTextJa: '',
+    }));
+    project.battle.characters = [
+      {
+        uid: 'ch1',
+        id: 'CHA_伊芙',
+        name: '伊芙',
+        attributes: [],
+        skillUids: [],
+        weapons: [],
+        weaponBindings: [],
+      },
+    ];
+    seedProjectFile(JSON.stringify(project));
+
+    await renderApp();
+    fireEvent.click(within(rail()).getByText('战斗'));
+    fireEvent.click(screen.getByText('角色预设'));
+
+    // 多选框里勾两个属性
+    const toggle = screen.getByTitle('勾选这个角色有哪些属性');
+    fireEvent.click(toggle);
+    fireEvent.click(screen.getByText('生命值'));
+    fireEvent.click(screen.getByText('攻击'));
+
+    // 下面自动出两行，默认 0
+    const rows = [...document.querySelectorAll('.attribute-row')] as HTMLElement[];
+    expect(rows).toHaveLength(2);
+    expect((rows[0].querySelector('input') as HTMLInputElement).value).toBe('0');
+
+    // 第二行绑定第一行：输入框置灰，显示对方的数
+    const source = rows[1].querySelector('select') as HTMLSelectElement;
+    fireEvent.change(source, { target: { value: 'at1' } });
+    fireEvent.change(rows[0].querySelector('input') as HTMLInputElement, {
+      target: { value: '120' },
+    });
+    const bound = rows[1].querySelector('input') as HTMLInputElement;
+    expect(bound.disabled).toBe(true);
+    expect(bound.value).toBe('120');
+
+    // 导出：绑定的那一行写和对方一样的数
+    fireEvent.click(within(rail()).getByText('导出'));
+    const tab = [...document.querySelectorAll('.export-nav')].find((item) =>
+      item.textContent?.startsWith('GAS角色'),
+    ) as HTMLElement;
+    fireEvent.click(tab);
+    const cells = [...document.querySelectorAll('.preview-table tbody tr.line-row td')].map(
+      (td) => td.textContent,
+    );
+    expect(cells[2]).toBe('(("GAS.属性.生命值","120"),("GAS.属性.攻击","120"))');
+  });
   it('角色预设的技能列表：已选技能竖着排，一个一行', async () => {
     const project = createEmptyProject();
     project.battle.skills = ['回血', '防御', '加速'].map((name, index) => ({

@@ -90,6 +90,8 @@ export type IssueCode =
   | 'battle-unknown-attribute'
   | 'battle-empty-pair'
   | 'battle-duplicate-pair'
+  | 'battle-attribute-binding-missing'
+  | 'battle-attribute-binding-cycle'
   | 'battle-dangling-ref'
   | 'battle-duplicate-id'
   | 'battle-empty-id';

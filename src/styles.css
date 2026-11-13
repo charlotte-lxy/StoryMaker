@@ -2505,25 +2505,65 @@ table.lines td.cell-order {
 }
 
 /* 类名路径前缀：和 Tag 一样是导出时自动补全的，放在表头上方 */
-/* 导入设置里的前缀配置：每条一个小卡片，竖着排 */
-.import-prefixes {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 4px;
-}
-
-.import-prefixes .battle-prefix-field {
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--head-bg);
-}
-
+/* 导入设置里的前缀配置：一张小表，一行一条，最后一列显示拼出来的样子 */
 .import-prefix-head {
   margin-top: 22px;
   padding-top: 14px;
   border-top: 1px solid var(--border);
+}
+
+.import-prefix-wrap {
+  margin-top: 4px;
+}
+
+.import-prefix-wrap td {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.prefix-name {
+  color: var(--text-dim);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.prefix-sample {
+  color: var(--text-dim);
+  font-size: 12px;
+  word-break: break-all;
+}
+
+/* 角色预设属性列：多选框下面自动填出的每一行 */
+.attribute-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.attribute-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.attribute-name {
+  flex: 0 0 74px;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attribute-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.attribute-source {
+  flex: 0 0 auto;
+  max-width: 74px;
+  font-size: 12px;
 }
 
 .battle-prefix-card {

@@ -59,6 +59,50 @@ function characterOfWeapon(draft: Project, entryUid: string): GasCharacter | und
 }
 
 /** 加一条武器（只占个位置，武器还没选） */
+/**
+ * 角色预设的属性列表：多选框里勾 / 取消一个属性。
+ *
+ * 勾上就加一行（初始值 0）；取消时连带把别人指向它的绑定也清掉，
+ * 不留下指向不存在属性的悬空绑定。
+ */
+export function setCharacterAttribute(
+  project: Project,
+  characterUid: string,
+  attributeUid: string,
+  checked: boolean,
+): Project {
+  return mutate(project, (draft) => {
+    const row = draft.battle.characters.find((item) => item.uid === characterUid);
+    if (row === undefined) return;
+    if (checked) {
+      if (row.attributes.some((pair) => pair.key === attributeUid)) return;
+      row.attributes.push({ uid: newUid(), key: attributeUid, value: '0' });
+      return;
+    }
+    row.attributes = row.attributes.filter((pair) => pair.key !== attributeUid);
+    for (const pair of row.attributes) {
+      if ((pair.sourceKey ?? '') === attributeUid) pair.sourceKey = '';
+    }
+  });
+}
+
+/**
+ * 属性列表里某一行的初始值绑定到另一个属性（空串 = 改回自己填）。
+ */
+export function bindCharacterAttribute(
+  project: Project,
+  characterUid: string,
+  pairUid: string,
+  sourceAttributeUid: string,
+): Project {
+  return mutate(project, (draft) => {
+    const row = draft.battle.characters.find((item) => item.uid === characterUid);
+    const pair = row?.attributes.find((item) => item.uid === pairUid);
+    if (pair === undefined) return;
+    pair.sourceKey = sourceAttributeUid;
+  });
+}
+
 export function addCharacterWeapon(project: Project, characterUid: string): Project {
   return mutate(project, (draft) => {
     const character = draft.battle.characters.find((row) => row.uid === characterUid);

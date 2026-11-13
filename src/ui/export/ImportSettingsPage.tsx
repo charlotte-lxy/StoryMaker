@@ -138,80 +138,81 @@ export function ImportSettingsPage({ project, onChange }: Props) {
         </span>
       </div>
 
-      <div className="import-prefixes">
-        <div className="battle-prefix-field">
-          <span className="line-field-name">技能表的 GA类 前缀</span>
-          <input
-            value={project.battle.skillClassPrefix}
-            onChange={(event) =>
-              onChange(updateClassPrefix(project, 'skillClassPrefix', event.target.value))
-            }
-          />
-          <span className="hint">
-            GA类 ={' '}
-            {classPath(project.battle.skillClassPrefix, 'BP_GA_Heal') || '（前缀为空）'}
-          </span>
-        </div>
-
-        <div className="battle-prefix-field">
-          <span className="line-field-name">效果表的 GE类 前缀</span>
-          <input
-            value={project.battle.effectClassPrefix}
-            onChange={(event) =>
-              onChange(updateClassPrefix(project, 'effectClassPrefix', event.target.value))
-            }
-          />
-          <span className="hint">
-            GE类 ={' '}
-            {classPath(project.battle.effectClassPrefix, 'BP_GE_Poison') || '（前缀为空）'}
-          </span>
-        </div>
-
-        <div className="battle-prefix-field">
-          <span className="line-field-name">属性表的 属性类 前缀</span>
-          <input
-            value={project.battle.attributeClassPrefix}
-            onChange={(event) =>
-              onChange(updateClassPrefix(project, 'attributeClassPrefix', event.target.value))
-            }
-          />
-          <span className="hint">
-            属性类 ={' '}
-            {classPath(project.battle.attributeClassPrefix, DEFAULT_ATTRIBUTE_CLASS_NAME) ||
-              '（前缀为空）'}
-          </span>
-        </div>
-
-        <div className="battle-prefix-field">
-          <span className="line-field-name">武器表的 武器类 前缀</span>
-          <input
-            value={project.battle.weaponClassPrefix}
-            onChange={(event) =>
-              onChange(updateClassPrefix(project, 'weaponClassPrefix', event.target.value))
-            }
-          />
-          <span className="hint">
-            武器类 ={' '}
-            {classPath(project.battle.weaponClassPrefix, weaponClassName('WEA_Test_Sniper')) ||
-              '（前缀为空）'}
-          </span>
-        </div>
-
-        <div className="battle-prefix-field">
-          <span className="line-field-name">特殊指令表的 Command类 前缀</span>
-          <input
-            value={project.specialCommandClassPrefix}
-            onChange={(event) =>
-              onChange(updateSpecialCommandClassPrefix(project, event.target.value))
-            }
-          />
-          <span className="hint">
-            Command类 ={' '}
-            {classPath(project.specialCommandClassPrefix, specialCommandClassName('SP_001')) ||
-              '（前缀为空）'}
-          </span>
-        </div>
-      </div>
-    </div>
+      {/* 数据表之后：每种「类名」各一条前缀，表格一行一条，最后列出拼出来的样子 */}
+      <div className="battle-table-wrap import-prefix-wrap">
+        <table className="lines battle-table">
+          <thead>
+            <tr>
+              <th style={{ width: 200 }}>前缀配置</th>
+              <th>前缀</th>
+              <th style={{ width: 360 }} title="导出时拼出来的完整类路径">
+                拼出来的样子
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+              <tr key="技能表的 GA类">
+                <td className="prefix-name">技能表的 GA类</td>
+                <td>
+                  <input
+                    value={project.battle.skillClassPrefix}
+                    onChange={(event) => onChange(updateClassPrefix(project, 'skillClassPrefix', event.target.value))}
+                  />
+                </td>
+                <td className="prefix-sample" title="导出时拼出来的样子">
+                  {classPath(project.battle.skillClassPrefix, 'BP_GA_Heal') || '（前缀为空）'}
+                </td>
+              </tr>
+              <tr key="效果表的 GE类">
+                <td className="prefix-name">效果表的 GE类</td>
+                <td>
+                  <input
+                    value={project.battle.effectClassPrefix}
+                    onChange={(event) => onChange(updateClassPrefix(project, 'effectClassPrefix', event.target.value))}
+                  />
+                </td>
+                <td className="prefix-sample" title="导出时拼出来的样子">
+                  {classPath(project.battle.effectClassPrefix, 'BP_GE_Poison') || '（前缀为空）'}
+                </td>
+              </tr>
+              <tr key="属性表的 属性类">
+                <td className="prefix-name">属性表的 属性类</td>
+                <td>
+                  <input
+                    value={project.battle.attributeClassPrefix}
+                    onChange={(event) => onChange(updateClassPrefix(project, 'attributeClassPrefix', event.target.value))}
+                  />
+                </td>
+                <td className="prefix-sample" title="导出时拼出来的样子">
+                  {classPath(project.battle.attributeClassPrefix, DEFAULT_ATTRIBUTE_CLASS_NAME) || '（前缀为空）'}
+                </td>
+              </tr>
+              <tr key="武器表的 武器类">
+                <td className="prefix-name">武器表的 武器类</td>
+                <td>
+                  <input
+                    value={project.battle.weaponClassPrefix}
+                    onChange={(event) => onChange(updateClassPrefix(project, 'weaponClassPrefix', event.target.value))}
+                  />
+                </td>
+                <td className="prefix-sample" title="导出时拼出来的样子">
+                  {classPath(project.battle.weaponClassPrefix, weaponClassName('WEA_Test_Sniper')) || '（前缀为空）'}
+                </td>
+              </tr>
+              <tr key="特殊指令表的 Command类">
+                <td className="prefix-name">特殊指令表的 Command类</td>
+                <td>
+                  <input
+                    value={project.specialCommandClassPrefix}
+                    onChange={(event) => onChange(updateSpecialCommandClassPrefix(project, event.target.value))}
+                  />
+                </td>
+                <td className="prefix-sample" title="导出时拼出来的样子">
+                  {classPath(project.specialCommandClassPrefix, specialCommandClassName('SP_001')) || '（前缀为空）'}
+                </td>
+              </tr>
+          </tbody>
+        </table>
+      </div>    </div>
   );
 }

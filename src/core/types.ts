@@ -309,6 +309,11 @@ export interface GasPair {
   uid: string;
   key: string;
   value: string;
+  /**
+   * 只给「角色预设的属性列表」用：这一格的初始值跟着另一个属性走（存那个属性的 uid）。
+   * 顺链解析到最终那一格的数字，导出时写对方的值；链断了 / 成环就整行不导出。
+   */
+  sourceKey?: string;
 }
 
 /**

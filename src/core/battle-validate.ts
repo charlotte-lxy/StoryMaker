@@ -5,7 +5,7 @@
  * 修改器引用了一个不存在的属性、技能锁定的 GA 已经被删掉等等。
  */
 
-import { modifierText } from './battle';
+import { attributePairValue, modifierText } from './battle';
 import { attributeNameOf, looksLikeUid, resolveAttribute, resolveEvent, resolveSkill } from './refs';
 import type { Issue, IssueCode, ValidationReport } from './validate';
 import type { BattleData, GasModifier, GasPair, Project } from './types';
@@ -287,6 +287,39 @@ export function validateBattle(project: Project): ValidationReport {
       if (key !== '' && resolveAttribute(battle, key) === undefined) {
         issues.push(
           issue('error', 'battle-unknown-attribute', '角色预设', `属性列表引用了属性表里没有的属性${attributeLabel(key)}`, target, 'characters', row.uid),
+        );
+      }
+    }
+    // 初始值绑了另一个属性：对方不在列表里或者绕成了环，导出时这一行会被跳过
+    for (const pair of row.attributes) {
+      const source = (pair.sourceKey ?? '').trim();
+      if (source === '') continue;
+      const name = attributeNameOf(battle, pair.key);
+      if (!row.attributes.some((item) => item.key === source)) {
+        issues.push(
+          issue(
+            'error',
+            'battle-attribute-binding-missing',
+            '角色预设',
+            `属性「${name}」的初始值绑定的属性不在属性列表里，导出时这一行会被跳过`,
+            target,
+            'characters',
+            row.uid,
+          ),
+        );
+        continue;
+      }
+      if (attributePairValue(row.attributes, pair.uid) === undefined) {
+        issues.push(
+          issue(
+            'error',
+            'battle-attribute-binding-cycle',
+            '角色预设',
+            `属性「${name}」的初始值互相绑定成了环，导出时这一行会被跳过`,
+            target,
+            'characters',
+            row.uid,
+          ),
         );
       }
     }

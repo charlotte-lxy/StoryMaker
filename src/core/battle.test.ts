@@ -411,6 +411,41 @@ describe('战斗模块的导出', () => {
     expect(buildBattleRows(project).weapons[1][7]).toBe('(TXT_AttackMode_自动攻击)');
   });
 
+  it('属性初始值可以绑定另一个属性：顺链取最终数字，链断与成环的行不导出', () => {
+    const project = makeProject();
+    project.battle.characters[0].attributes = [
+      { uid: 'pa', key: 'a1', value: '100' },
+      { uid: 'pb', key: 'a2', value: '30', sourceKey: 'a1' },
+    ];
+
+    // B 跟着 A 走：写 A 的 100
+    expect(buildBattleRows(project).characters[1][2]).toBe(
+      '(("GAS.属性.生命值","100"),("GAS.属性.移动速度","100"))',
+    );
+
+    // 链断了（被绑定的属性不在列表里）：这一行不写
+    project.battle.characters[0].attributes = [
+      { uid: 'pa', key: 'a1', value: '100' },
+      { uid: 'pb', key: 'a2', value: '30', sourceKey: 'gone' },
+    ];
+    expect(buildBattleRows(project).characters[1][2]).toBe('(("GAS.属性.生命值","100"))');
+
+    // 互相绑定成环：两条都不写
+    project.battle.characters[0].attributes = [
+      { uid: 'pa', key: 'a1', value: '100', sourceKey: 'a2' },
+      { uid: 'pb', key: 'a2', value: '30', sourceKey: 'a1' },
+    ];
+    expect(buildBattleRows(project).characters[1][2]).toBe('');
+  });
+  it('初始值绑定指向不存在的属性：报一条错，说明导出时会跳过', () => {
+    const project = makeProject();
+    project.battle.characters[0].attributes = [{ uid: 'pa', key: 'a1', value: '1', sourceKey: 'gone' }];
+
+    const report = validateBattle(project);
+
+    expect(report.issues.map((item) => item.code)).toEqual(['battle-attribute-binding-missing']);
+    expect(report.issues[0].message).toContain('不在属性列表里');
+  });
   it('名字空着的行不进表', () => {
     const project = makeProject();
     project.battle.attributes.push({
