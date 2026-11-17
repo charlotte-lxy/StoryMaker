@@ -1,7 +1,7 @@
 {
   "name": "storymaker",
   "private": true,
-  "version": "0.1.61",
+  "version": "0.1.62",
   "type": "module",
   "description": "剧情对话编辑器",
   "main": "electron/main.cjs",
@@ -46,7 +46,7 @@
       "output": "app-release"
     },
     "electronDist": "node_modules/electron/dist",
-    "files": ["dist/**/*", "electron/**/*", "build/icon.ico", "package.json"],
+    "files": ["dist/**/*", "electron/**/*", "build/icon.ico", "package.json", "!node_modules/**/*"],
     "win": {
       "icon": "build/icon.ico",
       "target": [
