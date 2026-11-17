@@ -9,6 +9,7 @@ import {
   ExpressionImageTable,
   LookupRowsTable,
   WeaponIconTable,
+  type AssetColumnProps,
 } from './LookupEditor';
 import { useRememberedChoice, useScrollMemory } from './view-memory';
 
@@ -32,6 +33,8 @@ interface Props {
   onUpdateCategory: (kind: CategoryKind, uid: string, patch: Partial<AssetCategoryRow>) => void;
   /** 全局搜索 / 校验条跳过来的那一行：切到「自定义图片」页并高亮它 */
   focusUid?: string | null;
+  /** 传了才显示「素材管理」列 */
+  assets?: AssetColumnProps;
 }
 
 /**
@@ -55,6 +58,7 @@ export function ImagesEditor({
   onRemoveCategory,
   onUpdateCategory,
   focusUid = null,
+  assets,
 }: Props) {
   const [page, setPage] = useRememberedChoice<ImagesPage>('images:page', 'images');
   const editorRef = useScrollMemory(`lookup:images:${page}`);
@@ -130,6 +134,7 @@ export function ImagesEditor({
                 onRemove={onRemove}
                 onReorder={onReorder}
                 focusUid={focusUid}
+                assets={assets}
               />
             )}
           </div>
@@ -137,13 +142,13 @@ export function ImagesEditor({
 
         {page === 'expressions' && (
           <div className="editor" ref={editorRef}>
-            <ExpressionImageTable project={project} />
+            <ExpressionImageTable project={project} assets={assets} />
           </div>
         )}
 
         {page === 'weaponIcons' && (
           <div className="editor" ref={editorRef}>
-            <WeaponIconTable project={project} />
+            <WeaponIconTable project={project} assets={assets} />
           </div>
         )}
       </div>

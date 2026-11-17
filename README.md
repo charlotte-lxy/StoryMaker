@@ -36,7 +36,7 @@ pnpm dev          # 开发服务器 http://localhost:5180
 | `pnpm dev` | 开发服务器 :5180 | 开发（`/api` 自动转给本地服务） |
 | `pnpm build` | `dist/` 多文件 | 内网服务器 |
 | `pnpm build:app` | `app-release/win-unpacked/` + `app-update/` | Electron 桌面版（唯一交付方式） |
-| `pnpm test` | — | 600 个测试 |
+| `pnpm test` | — | 627 个测试 |
 | `pnpm verify:app-update` | — | Electron 自动更新自检（双源 / 清单 / 哈希） |
 
 `pnpm build:app` 会同时生成 `app-update/`（`version.json` + `app.asar`）。桌面版设置页里能看
@@ -107,8 +107,8 @@ StoryMaker（Electron 主进程）
 1. 工程开着，且 `.uproject` 里启用了 `PythonScriptPlugin`（BulletShootGame 已经启用）
 2. 编辑器里 `Editor Preferences → Python → Enable Remote Execution` 勾上
 
-然后在「Unreal」页填两个路径：Unreal 项目文件（`.uproject`）和素材文件夹。这两项是**本机配置**，
-存在 localStorage，不进项目文件——换台机器路径本来就该不一样。
+然后在「设置」页选**素材文件夹**，在「Unreal」页填 **Unreal 项目文件**（`.uproject`）。
+这两项都是本机配置，存在 localStorage，不进项目文件——换台机器路径本来就该不一样。
 
 导入分三类，各自独立：
 
@@ -120,6 +120,21 @@ StoryMaker（Electron 主进程）
   对不上的会在界面上列出来，不会猜。
 
 注意：脚本在编辑器主线程上同步跑，导入量大时**编辑器界面会卡住**，别关它。
+
+## 素材管理（立绘 / 音效）
+
+立绘（自定义图片、表情立绘、武器图标）和音效的每一行都有「素材管理」列，规则一句话：
+**素材文件夹里的文件名（不含扩展名）就是图片 ID / 音效 ID**。
+
+- 还没素材 → 「上传素材」按钮，选完自动复制进素材文件夹并按 ID 重命名（平铺在根目录）
+- 图片有素材 → 「预览」弹窗看图、「…」换一张、「删除」
+- 音效有素材 → 播放 / 暂停、可拖的进度条、当前时长 / 总时长，外加「…」和「删除」
+- 同一个 ID 有多个文件（如 png + jpg）会提示重复，导入时用第一个
+
+格式限制：图片 `png/jpg/jpeg/tga`，音效 `wav/ogg/flac`——都是 UE 能直接导进去的。
+`tga` 浏览器显示不了，「预览」按钮会禁用，导入后在 UE 里看。
+
+素材文件夹在「设置」页配；表情立绘和武器图标是自动收集的只读表，素材列同样能用。
 
 指令 / 条件统一写成 `主指令|分支|参数名:值;参数名:值`（空分支留空段、无参数就空到底）：
 

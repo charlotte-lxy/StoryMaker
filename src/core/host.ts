@@ -89,6 +89,39 @@ export interface UnrealImportReport {
 }
 
 /**
+ * 素材文件夹里的一个文件。
+ *
+ * `baseName` 不含扩展名，界面拿它和图片 ID / 音效 ID 对。
+ */
+export interface AssetFileInfo {
+  filePath: string;
+  fileName: string;
+  baseName: string;
+  kind: 'image' | 'sound';
+}
+
+export interface AssetListResult {
+  ok: boolean;
+  files: AssetFileInfo[];
+  message?: string;
+}
+
+export interface AssetUploadResult {
+  ok: boolean;
+  /** 用户在选择框里点了取消 */
+  canceled?: boolean;
+  filePath?: string;
+  message?: string;
+}
+
+export interface AssetReadResult {
+  ok: boolean;
+  /** 文件二进制；成功时一定有 */
+  data?: Uint8Array;
+  message?: string;
+}
+
+/**
  * 「导入到 Unreal」能力：只有桌面版有（要开本机 UDP/TCP 去连编辑器）。
  * 网页版 / 本地服务版拿不到，界面显示成不支持。
  */
@@ -101,6 +134,19 @@ export interface UnrealApi {
   pickUproject: () => Promise<string | null>;
   /** 挑素材文件夹；取消返回 null */
   pickAssetFolder: () => Promise<string | null>;
+  /** 列素材文件夹里的图片 / 音效（递归，只给文件名与路径） */
+  listAssets: (folder: string) => Promise<AssetListResult>;
+  /** 选一个文件复制进素材文件夹并按 ID 重命名；`replace` 会先删掉同 ID 的旧文件 */
+  uploadAsset: (request: {
+    folder: string;
+    id: string;
+    kind: 'image' | 'sound';
+    replace?: boolean;
+  }) => Promise<AssetUploadResult>;
+  /** 删掉一个素材文件 */
+  removeAsset: (filePath: string) => Promise<{ ok: boolean; message?: string }>;
+  /** 读素材内容，用于预览图和音频播放 */
+  readAsset: (filePath: string) => Promise<AssetReadResult>;
 }
 
 /**
@@ -164,6 +210,15 @@ export interface DesktopBridge {
   unrealImport?: (request: UnrealImportRequest) => Promise<UnrealImportReport>;
   unrealPickUproject?: () => Promise<string | null>;
   unrealPickAssetFolder?: () => Promise<string | null>;
+  unrealListAssets?: (folder: string) => Promise<AssetListResult>;
+  unrealUploadAsset?: (request: {
+    folder: string;
+    id: string;
+    kind: 'image' | 'sound';
+    replace?: boolean;
+  }) => Promise<AssetUploadResult>;
+  unrealRemoveAsset?: (filePath: string) => Promise<{ ok: boolean; message?: string }>;
+  unrealReadAsset?: (filePath: string) => Promise<AssetReadResult>;
 }
 
 /** 本地服务版：由服务端注入的一次性令牌，防止别的网页乱调本地接口 */
@@ -331,12 +386,20 @@ function desktopHost(bridge: DesktopBridge): HostApi {
     bridge.unrealDiscover !== undefined &&
     bridge.unrealImport !== undefined &&
     bridge.unrealPickUproject !== undefined &&
-    bridge.unrealPickAssetFolder !== undefined
+    bridge.unrealPickAssetFolder !== undefined &&
+    bridge.unrealListAssets !== undefined &&
+    bridge.unrealUploadAsset !== undefined &&
+    bridge.unrealRemoveAsset !== undefined &&
+    bridge.unrealReadAsset !== undefined
       ? {
           discover: (uprojectPath) => bridge.unrealDiscover!(uprojectPath),
           runImport: (request) => bridge.unrealImport!(request),
           pickUproject: () => bridge.unrealPickUproject!(),
           pickAssetFolder: () => bridge.unrealPickAssetFolder!(),
+          listAssets: (folder) => bridge.unrealListAssets!(folder),
+          uploadAsset: (request) => bridge.unrealUploadAsset!(request),
+          removeAsset: (filePath) => bridge.unrealRemoveAsset!(filePath),
+          readAsset: (filePath) => bridge.unrealReadAsset!(filePath),
         }
       : undefined;
 

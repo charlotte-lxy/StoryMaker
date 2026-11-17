@@ -14,6 +14,7 @@ const path = require('node:path');
 const updateCore = require('./update-core.cjs');
 const { UnrealRemoteSession } = require('./unreal-remote.cjs');
 const { runImport } = require('./unreal-import.cjs');
+const unrealAssets = require('./unreal-assets.cjs');
 
 /** 开发模式直接连 Vite，正式模式读打包进来的 dist */
 const isDev = !app.isPackaged;
@@ -401,6 +402,48 @@ ipcMain.handle('unreal:pick-asset-folder', async () => {
   });
   if (result.canceled || result.filePaths.length === 0) return null;
   return result.filePaths[0];
+});
+
+/** ---------- 素材文件夹：列表、上传、删除、读内容 ---------- */
+
+ipcMain.handle('unreal:list-assets', async (_event, folder) => {
+  try {
+    return { ok: true, files: await unrealAssets.listAssetFiles(folder) };
+  } catch (error) {
+    return { ok: false, files: [], message: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+ipcMain.handle('unreal:upload-asset', async (_event, request) => {
+  const kind = request.kind === 'sound' ? 'sound' : 'image';
+  const extensions = unrealAssets.allowedExtensions(kind);
+  const picked = await dialog.showOpenDialog(mainWindow, {
+    title: kind === 'sound' ? '选择音频文件' : '选择图片文件',
+    properties: ['openFile'],
+    filters: [{ name: kind === 'sound' ? '音频' : '图片', extensions }],
+  });
+  if (picked.canceled || picked.filePaths.length === 0) return { ok: false, canceled: true };
+
+  return unrealAssets.uploadAssetFile({
+    folder: request.folder,
+    id: request.id,
+    kind,
+    sourceFile: picked.filePaths[0],
+    replace: request.replace === true,
+  });
+});
+
+ipcMain.handle('unreal:remove-asset', async (_event, filePath) => {
+  return unrealAssets.removeAssetFile(filePath);
+});
+
+/** 预览图 / 播放音频用：把文件内容读给渲染进程，不走 file:// */
+ipcMain.handle('unreal:read-asset', async (_event, filePath) => {
+  try {
+    return { ok: true, data: await readFile(filePath) };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : String(error) };
+  }
 });
 
 app.whenReady().then(() => {

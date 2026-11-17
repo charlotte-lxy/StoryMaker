@@ -53,4 +53,16 @@ contextBridge.exposeInMainWorld('storymakerDesktop', {
 
   /** 挑素材文件夹；取消返回 null */
   unrealPickAssetFolder: () => ipcRenderer.invoke('unreal:pick-asset-folder'),
+
+  /** 列出素材文件夹里的图片 / 音效文件 */
+  unrealListAssets: (folder) => ipcRenderer.invoke('unreal:list-assets', folder),
+
+  /** 选一个文件复制进素材文件夹，按 ID 重命名 */
+  unrealUploadAsset: (request) => ipcRenderer.invoke('unreal:upload-asset', request),
+
+  /** 删掉一个素材文件 */
+  unrealRemoveAsset: (filePath) => ipcRenderer.invoke('unreal:remove-asset', filePath),
+
+  /** 读素材内容（预览图 / 播放音频） */
+  unrealReadAsset: (filePath) => ipcRenderer.invoke('unreal:read-asset', filePath),
 });

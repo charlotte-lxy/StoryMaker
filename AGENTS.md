@@ -123,7 +123,7 @@ Vite + React 19 + TypeScript，导出用 ExcelJS。三种产物共用同一套�
 | `pnpm dev` | 开发服务器 :5180 | 开发（`/api` 自动转给同一个本地服务） |
 | `pnpm build` | `dist/` 多文件 | 内网服务器 |
 | `pnpm build:app` | `app-release/win-unpacked/` + `app-update/` | Electron 桌面版（**唯一交付方式**） |
-| `pnpm test` | — | 600 个测试 |
+| `pnpm test` | — | 627 个测试 |
 | `pnpm verify:app-update` | — | 自动更新自检（版本比较 / 清单校验 / 双源兜底 / 哈希） |
 
 ## 打包（统一走 `pnpm build:app`）
@@ -254,6 +254,14 @@ UDP 组播 `239.0.0.1:6766` 发现节点（`pong` 带回 `project_name` / `engin
 - 连哪个工程靠 `pong` 里的 `project_name` 和 `.uproject` 文件名对齐；只有一个编辑器在线时也接受。
 - 能力只在桌面版有（`HostApi.unreal` 可选），网页版 / 本地服务版是 `undefined`，界面显示「只有桌面版支持」。
   本机配置（`.uproject` 路径、素材文件夹）存 localStorage 的 `storymaker.unreal.v1`，**不进项目文件**。
+- 素材文件夹在**设置页**配（不在 Unreal 页）；`HostApi.unreal` 的 `listAssets / uploadAsset / removeAsset / readAsset`
+  是立绘与音效「素材管理」列用的，文件读写全在 `electron/unreal-assets.cjs`。
+  上传一律**平铺到素材文件夹根目录**并按 `<ID><原扩展名>` 重命名；同一 ID 只留一份（「…」重选会删旧的）。
+  格式收 `png/jpg/jpeg/tga` 与 `wav/ogg/flac`，别的一律拒绝。
+- 预览图和音频播放**不走 file://**：主进程把文件读成二进制回来，渲染进程包 Blob。
+  tga 浏览器显示不了，「预览」按钮要禁用并说明去 UE 里看。
+- 自动收集的「表情立绘 / 武器图标」两张表跟自定义图片同构（ID / 图片分类 / 说明 / 素材管理），
+  只读输入框，**没有拖拽**；导出路径不再单独成列，改看「素材管理」。
 
 ## 环境坑（踩过的，别重踩）
 

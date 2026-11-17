@@ -4107,3 +4107,67 @@ tr.locale-form-note td {
   white-space: pre-wrap;
   word-break: break-all;
 }
+/* ---------- 素材管理 ---------- */
+
+.asset-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.asset-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--id-text);
+}
+
+.sound-cell {
+  gap: 4px;
+}
+
+.sound-progress {
+  width: 92px;
+  min-width: 60px;
+  flex: 0 0 auto;
+  accent-color: var(--accent);
+}
+
+.sound-time {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.play-toggle {
+  width: 28px;
+  padding: 0;
+}
+
+.image-preview-modal {
+  width: min(880px, 92vw);
+}
+
+.image-preview {
+  display: block;
+  max-width: 100%;
+  max-height: 66vh;
+  margin: 0 auto;
+  object-fit: contain;
+}
+
+.settings-path-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.settings-path-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+}

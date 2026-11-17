@@ -155,26 +155,12 @@ export function UnrealImportPage({ project, prefs, onChangePrefs, host }: Props)
             </tr>
             <tr>
               <th>素材文件夹</th>
-              <td>
-                <input
-                  value={prefs.assetFolder}
-                  placeholder="png / wav 放这里，文件名就是图片 / 音效 ID"
-                  onChange={(event) => onChangePrefs({ assetFolder: event.target.value })}
-                />
-              </td>
-              <td>
-                <button
-                  type="button"
-                  className="mini"
-                  disabled={unreal === undefined}
-                  onClick={() => {
-                    void unreal?.pickAssetFolder().then((picked) => {
-                      if (picked !== null) onChangePrefs({ assetFolder: picked });
-                    });
-                  }}
-                >
-                  选择…
-                </button>
+              <td colSpan={2}>
+                <span className="hint">
+                  {prefs.assetFolder.trim() === ''
+                    ? '还没配。去「设置」页选一个素材文件夹。'
+                    : `${prefs.assetFolder}（在「设置」页改）`}
+                </span>
               </td>
             </tr>
             <tr>

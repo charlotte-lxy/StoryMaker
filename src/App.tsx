@@ -139,6 +139,7 @@ import { ScriptPalette } from './ui/ScriptPalette';
 import { Sidebar } from './ui/Sidebar';
 import { UpdatePrompt } from './ui/UpdatePanel';
 import { UnrealImportPage } from './ui/UnrealImportPage';
+import { useAssetLibrary } from './ui/use-asset-library';
 import { useCollab } from './ui/useCollab';
 import { useUpdater } from './ui/use-updater';
 import { useScrollMemory } from './ui/view-memory';
@@ -207,6 +208,8 @@ export default function App() {
   const [settings, setSettings] = useState<Settings>(loadSettings);
   /** 「导入到 Unreal」的本机配置：工程路径、素材文件夹（都是这台机器的路径，不进项目文件） */
   const [unrealPrefs, setUnrealPrefs] = useState<UnrealPrefs>(loadUnrealPrefs);
+  /** 素材文件夹里的文件：立绘和音效的「素材管理」列共用这一份 */
+  const assetLibrary = useAssetLibrary(host, unrealPrefs.assetFolder);
   const [module, setModule] = useState<Module>('story');
   const [activeGroupUid, setActiveGroupUid] = useState<string>('');
   /** 各模块底部的校验结果列表是否展开；平时收起，只在这条上显示条数 */
@@ -1293,6 +1296,7 @@ export default function App() {
                   onUpdateCategory={(kind, uid, patch) =>
                     setProject((prev) => updateAssetCategory(prev, kind, uid, patch))
                   }
+                  assets={module === 'sounds' ? { library: assetLibrary, host } : undefined}
                 />
               )}
 
@@ -1301,6 +1305,7 @@ export default function App() {
                 <ImagesEditor
                   project={project}
                   focusUid={focusRowUid}
+                  assets={{ library: assetLibrary, host }}
                   onAdd={() => handleLookup.add('images')}
                   onRemove={(kind, uid) => handleLookup.remove(kind, uid)}
                   onUpdate={(kind, uid, patch) => handleLookup.update(kind, uid, patch)}
@@ -1378,6 +1383,9 @@ export default function App() {
                 <SettingsEditor
                   settings={settings}
                   updater={updater}
+                  unrealPrefs={unrealPrefs}
+                  onChangeUnrealPrefs={(patch) => setUnrealPrefs((prev) => ({ ...prev, ...patch }))}
+                  pickAssetFolder={host?.unreal?.pickAssetFolder}
                   onChange={(patch) => {
                     setSettings((prev) => ({ ...prev, ...patch }));
                     // 主题跟着项目文件走：换台机器打开还是同一个颜色

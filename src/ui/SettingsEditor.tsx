@@ -1,4 +1,4 @@
-import type { Settings } from '../state/prefs';
+import type { Settings, UnrealPrefs } from '../state/prefs';
 import { UpdateCard } from './UpdatePanel';
 import type { Updater } from './use-updater';
 import { useScrollMemory } from './view-memory';
@@ -7,6 +7,11 @@ interface Props {
   settings: Settings;
   onChange: (patch: Partial<Settings>) => void;
   updater: Updater;
+  /** 「导入到 Unreal」那一组本机配置；素材文件夹就放在这里 */
+  unrealPrefs: UnrealPrefs;
+  onChangeUnrealPrefs: (patch: Partial<UnrealPrefs>) => void;
+  /** 挑素材文件夹；网页版 / 本地服务版没有这个能力（传 undefined） */
+  pickAssetFolder?: () => Promise<string | null>;
 }
 
 const AUTO_SAVE_ON =
@@ -14,7 +19,14 @@ const AUTO_SAVE_ON =
 
 const AUTO_SAVE_OFF = '改动不会自动写回项目文件，请记得点顶部的「保存」。';
 
-export function SettingsEditor({ settings, onChange, updater }: Props) {
+export function SettingsEditor({
+  settings,
+  onChange,
+  updater,
+  unrealPrefs,
+  onChangeUnrealPrefs,
+  pickAssetFolder,
+}: Props) {
   const editorRef = useScrollMemory('settings');
 
   return (
@@ -68,6 +80,36 @@ export function SettingsEditor({ settings, onChange, updater }: Props) {
               深色
             </button>
           </div>
+        </div>
+      </section>
+
+      <section className="settings-card">
+        <div className="settings-item">
+          <div className="settings-text">
+            <strong>素材文件夹</strong>
+            <span>
+              立绘、音效的「素材管理」列和「导入到 Unreal」都从这里找文件；
+              文件名（不含扩展名）必须等于图片 ID / 音效 ID。
+            </span>
+          </div>
+        </div>
+        <div className="settings-path-row">
+          <input
+            value={unrealPrefs.assetFolder}
+            placeholder={pickAssetFolder === undefined ? '网页版不支持选文件夹' : '还没选，点右边「选择文件夹」'}
+            onChange={(event) => onChangeUnrealPrefs({ assetFolder: event.target.value })}
+          />
+          <button
+            type="button"
+            disabled={pickAssetFolder === undefined}
+            onClick={() => {
+              void pickAssetFolder?.().then((picked) => {
+                if (picked !== null) onChangeUnrealPrefs({ assetFolder: picked });
+              });
+            }}
+          >
+            选择文件夹
+          </button>
         </div>
       </section>
 

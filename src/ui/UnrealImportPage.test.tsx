@@ -55,6 +55,10 @@ function makeUnreal(overrides: Partial<UnrealApi> = {}): UnrealApi {
     })),
     pickUproject: vi.fn(async () => null),
     pickAssetFolder: vi.fn(async () => null),
+    listAssets: vi.fn(async () => ({ ok: true, files: [] })),
+    uploadAsset: vi.fn(async () => ({ ok: false, canceled: true })),
+    removeAsset: vi.fn(async () => ({ ok: true })),
+    readAsset: vi.fn(async () => ({ ok: true, data: new Uint8Array() })),
     ...overrides,
   };
 }

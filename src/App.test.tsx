@@ -2590,13 +2590,17 @@ describe('立绘：图片分类与「图片」子表', () => {
 
     const section = container.querySelector('.expression-images') as HTMLElement;
     expect(section.querySelector('h3')?.textContent).toBe('武器图标（自动收集）');
-    const row = [...section.querySelectorAll('tbody tr')][0];
-    expect(row.textContent).toContain('PIC_WEA_测试-手枪');
-    expect(row.textContent).toContain('测试-手枪');
-    expect(row.textContent).toContain('武器图标');
-    expect(row.textContent).toContain(
-      "/Script/Engine.Texture2D'/Game/GameContent/Asset/Image/WeaponIcon/PIC_WEA_测试-手枪.PIC_WEA_测试-手枪'",
+    const row = [...section.querySelectorAll('tbody tr')][0] as HTMLElement;
+    // 这三列是只读输入框（样式跟自定义图片一致），值要读 input 而不是 textContent
+    const values = [...row.querySelectorAll('input')].map(
+      (input) => (input as HTMLInputElement).value,
     );
+    expect(values).toContain('PIC_WEA_测试-手枪');
+    expect(values).toContain('测试-手枪');
+    expect(values).toContain('武器图标');
+    // 路径不再单独成列：改成与自定义图片一致的「素材管理」
+    expect(section.textContent).toContain('素材管理');
+    expect(row.textContent).toContain('桌面版才能管素材');
   });
 
   it('导出预览的「图片」子表按分类路径拼出资源路径', async () => {
@@ -2917,14 +2921,15 @@ describe('角色页的配置区与表情图片', () => {
     fireEvent.click(expressionNav);
     const section = container.querySelector('.expression-images') as HTMLElement;
     expect(section.querySelector('h3')?.textContent).toBe('表情立绘（自动收集）');
-    const rowsText = [...section.querySelectorAll('tbody tr')].map((row) => row.textContent ?? '');
+    const assetRows = [...section.querySelectorAll('tbody tr')] as HTMLElement[];
+    const cellValues = (row: HTMLElement): string[] =>
+      [...row.querySelectorAll('input')].map((input) => (input as HTMLInputElement).value);
     // 角色刚建时自带「默认」这些表情，这里找手动加的「微笑」那一条
-    const smileRow = rowsText.find((text) => text.includes('PIC_CHA_角色1-smile'));
+    const smileRow = assetRows.find((row) => cellValues(row).includes('PIC_CHA_角色1-smile'));
     expect(smileRow).toBeTruthy();
-    expect(smileRow).toContain('微笑');
-    expect(smileRow).toContain(
-      "/Script/Engine.Texture2D'/Game/GameContent/Asset/Image/CharacterIllusion/CHA_角色1/PIC_CHA_角色1-smile.PIC_CHA_角色1-smile'",
-    );
+    expect(cellValues(smileRow!).some((value) => value.includes('微笑'))).toBe(true);
+    // 路径不再单独成列：改成与自定义图片一致的「素材管理」
+    expect(section.textContent).toContain('素材管理');
   });
 
   it('角色表、立绘表都能拖拽排序', async () => {

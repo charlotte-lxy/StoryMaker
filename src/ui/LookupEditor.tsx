@@ -1,9 +1,18 @@
 import type { AssetCategoryRow, LookupRow, Project } from '../core/types';
+import type { HostApi } from '../core/host';
 import { collectExpressionImages } from '../core/expression-images';
 import { collectWeaponIcons } from '../core/weapon-icons';
 import type { CategoryKind, LookupKind } from '../state/operations';
+import { ImageAssetCell, SoundAssetCell } from './AssetManager';
 import { OrderCell, useRowDrag } from './battle/row-drag';
+import type { AssetLibrary } from './use-asset-library';
 import { useScrollMemory } from './view-memory';
+
+/** 表格要显示「素材管理」列时传进来的东西 */
+export interface AssetColumnProps {
+  library: AssetLibrary;
+  host: HostApi | undefined;
+}
 
 interface LookupMeta {
   title: string;
@@ -130,6 +139,7 @@ export function LookupRowsTable({
   onRemove,
   onReorder,
   focusUid = null,
+  assets,
 }: {
   kind: LookupKind;
   project: Project;
@@ -141,10 +151,13 @@ export function LookupRowsTable({
   onRemove: (kind: LookupKind, uid: string) => void;
   onReorder: (kind: LookupKind, from: number, to: number) => void;
   focusUid?: string | null;
+  /** 传了就多一列「素材管理」（立绘 / 音效用），不传就是普通表 */
+  assets?: AssetColumnProps;
 }) {
   const meta = TITLES[kind];
   /** 物品表多一列物品描述，名称那一列也改叫「物品名称」 */
   const isItem = kind === 'items';
+  const hasAssets = assets !== undefined;
   const categories: AssetCategoryRow[] =
     categoryKind === undefined ? [] : project[categoryKind];
   const categoryByUid = new Map(categories.map((row) => [row.uid, row]));
@@ -162,6 +175,7 @@ export function LookupRowsTable({
           {column !== undefined && <th style={{ width: 170 }}>{column}</th>}
           <th>{isItem ? '物品名称' : '说明'}</th>
           {isItem && <th>物品描述</th>}
+          {hasAssets && <th style={{ width: 280 }}>素材管理</th>}
           <th style={{ width: 86 }}>操作</th>
         </tr>
       </thead>
@@ -222,6 +236,15 @@ export function LookupRowsTable({
                   />
                 </td>
               )}
+              {hasAssets && (
+                <td>
+                  {kind === 'sounds' ? (
+                    <SoundAssetCell id={row.id} library={assets.library} host={assets.host} />
+                  ) : (
+                    <ImageAssetCell id={row.id} library={assets.library} host={assets.host} />
+                  )}
+                </td>
+              )}
               <td>
                 <button type="button" onClick={() => onRemove(kind, row.uid)}>
                   删除
@@ -242,7 +265,13 @@ export function LookupRowsTable({
  * 分类固定是「角色立绘」，路径是「分类路径/<角色ID>/<图片ID>」。
  * 这张表不存盘，供核对与导出用。
  */
-export function ExpressionImageTable({ project }: { project: Project }) {
+export function ExpressionImageTable({
+  project,
+  assets,
+}: {
+  project: Project;
+  assets?: AssetColumnProps;
+}) {
   const images = collectExpressionImages(project);
 
   return (
@@ -251,7 +280,7 @@ export function ExpressionImageTable({ project }: { project: Project }) {
         <h3>表情立绘（自动收集）</h3>
         <span className="hint">
           角色模块里勾了表情，这里就自动有一条：ID = PIC_角色ID-表情标识，分类「角色立绘」，
-          路径「分类路径/角色ID/图片ID」。导出「图片」子表时自动接在自定义图片后面。
+          路径「分类路径/角色ID/图片ID」。这张表只读，要改角色或表情请去角色模块。
         </span>
       </div>
 
@@ -263,21 +292,29 @@ export function ExpressionImageTable({ project }: { project: Project }) {
         <table className="lines">
           <thead>
             <tr>
-              <th style={{ width: '30%' }}>图片 ID</th>
-              <th style={{ width: 120 }}>角色</th>
-              <th style={{ width: 100 }}>表情</th>
-              <th style={{ width: 120 }}>图片分类</th>
-              <th>图片路径</th>
+              <th style={{ width: '24%' }}>图片 ID</th>
+              <th style={{ width: 170 }}>图片分类</th>
+              <th>说明</th>
+              {assets !== undefined && <th style={{ width: 280 }}>素材管理</th>}
             </tr>
           </thead>
           <tbody>
             {images.map((image) => (
               <tr className="line-row" key={image.id}>
-                <td className="command-cell">{image.id}</td>
-                <td className="command-cell">{image.characterName}</td>
-                <td className="command-cell">{image.expression}</td>
-                <td className="command-cell">{image.categoryName}</td>
-                <td className="command-cell">{image.path}</td>
+                <td>
+                  <input readOnly value={image.id} title={image.path} />
+                </td>
+                <td>
+                  <input readOnly value={image.categoryName} />
+                </td>
+                <td>
+                  <input readOnly value={image.note} />
+                </td>
+                {assets !== undefined && (
+                  <td>
+                    <ImageAssetCell id={image.id} library={assets.library} host={assets.host} />
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -292,7 +329,13 @@ export function ExpressionImageTable({ project }: { project: Project }) {
  *
  * 每把武器自动一条：ID = PIC_<武器ID>，分类「武器图标」，路径「分类路径/图片ID」。
  */
-export function WeaponIconTable({ project }: { project: Project }) {
+export function WeaponIconTable({
+  project,
+  assets,
+}: {
+  project: Project;
+  assets?: AssetColumnProps;
+}) {
   const icons = collectWeaponIcons(project);
 
   return (
@@ -301,7 +344,7 @@ export function WeaponIconTable({ project }: { project: Project }) {
         <h3>武器图标（自动收集）</h3>
         <span className="hint">
           战斗模块里每把武器自动一条：ID = PIC_武器ID，分类「武器图标」，
-          路径「分类路径/图片ID」。导出「图片」子表时自动接在后面。
+          路径「分类路径/图片ID」。这张表只读，要改武器请去战斗模块。
         </span>
       </div>
 
@@ -313,19 +356,29 @@ export function WeaponIconTable({ project }: { project: Project }) {
         <table className="lines">
           <thead>
             <tr>
-              <th style={{ width: '34%' }}>图片 ID</th>
-              <th style={{ width: 180 }}>武器</th>
-              <th style={{ width: 120 }}>图片分类</th>
-              <th>图片路径</th>
+              <th style={{ width: '24%' }}>图片 ID</th>
+              <th style={{ width: 170 }}>图片分类</th>
+              <th>说明</th>
+              {assets !== undefined && <th style={{ width: 280 }}>素材管理</th>}
             </tr>
           </thead>
           <tbody>
             {icons.map((icon) => (
               <tr className="line-row" key={icon.id}>
-                <td className="command-cell">{icon.id}</td>
-                <td className="command-cell">{icon.weaponName}</td>
-                <td className="command-cell">{icon.categoryName}</td>
-                <td className="command-cell">{icon.path}</td>
+                <td>
+                  <input readOnly value={icon.id} title={icon.path} />
+                </td>
+                <td>
+                  <input readOnly value={icon.categoryName} />
+                </td>
+                <td>
+                  <input readOnly value={icon.note} />
+                </td>
+                {assets !== undefined && (
+                  <td>
+                    <ImageAssetCell id={icon.id} library={assets.library} host={assets.host} />
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -349,6 +402,8 @@ interface Props {
   onUpdateCategory: (kind: CategoryKind, uid: string, patch: Partial<AssetCategoryRow>) => void;
   /** 全局搜索跳过来的那一行：交给上层滚过去，这里只负责高亮它 */
   focusUid?: string | null;
+  /** 传了就多一列「素材管理」（音效页用） */
+  assets?: AssetColumnProps;
 }
 
 export function LookupEditor({
@@ -362,6 +417,7 @@ export function LookupEditor({
   onRemoveCategory,
   onUpdateCategory,
   focusUid = null,
+  assets,
 }: Props) {
   const editorRef = useScrollMemory(`lookup:${kind}`);
   const rows = project[kind];
@@ -404,6 +460,7 @@ export function LookupEditor({
           onRemove={onRemove}
           onReorder={onReorder}
           focusUid={focusUid}
+          assets={assets}
         />
       )}
     </div>
