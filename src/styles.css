@@ -4321,9 +4321,26 @@ tr.locale-form-note td {
   color: var(--text-dim);
 }
 
+/*
+ * 弹窗里的表格不要再套用模块页那份 min-width：1180px 是给整页大表格的，
+ * 放进 920px 的弹窗里必然横向滚动。这里改成按容器宽度分列、长内容自己换行。
+ */
+.export-ue-modal table.lines.battle-table {
+  min-width: 0;
+  width: 100%;
+  table-layout: fixed;
+}
+
+.export-ue-modal table.lines.battle-table th,
+.export-ue-modal table.lines.battle-table td {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .export-ue-result {
   max-height: 240px;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* ---------- 目录树选择 ---------- */
