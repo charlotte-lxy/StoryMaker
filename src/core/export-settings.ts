@@ -26,6 +26,7 @@ export const EXPORT_SUBTABLES = [
   '特殊指令',
   '图片',
   '音频',
+  '物品',
   'GASGameplayTags',
   'GAS属性',
   'GAS效果',

@@ -232,8 +232,23 @@ export interface LookupRow {
   uid: string;
   /** 导出时写进指令的 ID，如 Item_Coin、Task_Test_01、SCE_Home_001、S_dididi */
   id: string;
-  /** 说明文字，只在界面下拉里显示（立绘表里这一格同时是「备注」列） */
+  /**
+   * 物品名称 / 任务名 / 立绘与音效的说明文字。
+   *
+   * 物品表里这一格是「物品名称」，导出「物品」子表时写本地化 key；
+   * 立绘表里这一格同时是「备注」列。
+   */
   name: string;
+  /**
+   * 物品名称的英文 / 日文（只有物品表用；中文就是 name）。
+   * 在本地化「物品本地化」页里填，存在物品表那一行上。
+   */
+  nameEn?: string;
+  nameJa?: string;
+  /** 物品描述（只有物品表用）及其英文 / 日文 */
+  description?: string;
+  descriptionEn?: string;
+  descriptionJa?: string;
   /**
    * 资源分类（立绘的「图片分类」、音效的「音效类型」，存 AssetCategoryRow 的 uid）。
    *

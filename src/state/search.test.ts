@@ -126,6 +126,9 @@ describe('全局搜索', () => {
       ['UI 本地化', 1, 'TXT_Widget_开始游戏'],
       // 角色名 / 显示名的 key 也是 TXT_ 开头
       ['角色名本地化', 1, 'TXT_CHA_伊芙_DefaultName'],
+      // 物品的名称与描述：key 按物品 ID 现算
+      ['物品本地化', 1, 'TXT_ItemName_Item_Coin'],
+      ['物品本地化', 2, 'TXT_ItemInfo_Item_Coin'],
       // 武器分组 / 攻击模式 / 插槽的导出名称也是 TXT_ 开头
       ['武器配置本地化', 1, 'TXT_WeaponTeam_火力'],
       ['武器配置本地化', 2, 'TXT_WeaponTeam_光束'],

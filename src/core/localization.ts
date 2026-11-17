@@ -9,6 +9,8 @@ import {
   aliasNameKeyOf,
   attributeTextKeyOf,
   characterNameKeyOf,
+  itemInfoKeyOf,
+  itemNameKeyOf,
   textIdOf,
   weaponInfoKeyOf,
   weaponNameKeyOf,
@@ -183,6 +185,59 @@ export function collectWeaponLocaleEntries(project: Project): WeaponLocaleEntry[
       zh: weapon.description,
       en: weapon.descriptionEn,
       ja: weapon.descriptionJa,
+    });
+  }
+
+  return list;
+}
+
+/**
+ * 「物品本地化」页的一行（统一形状）。
+ *
+ * 物品表的一行出两条：物品名（key `TXT_ItemName_<物品ID>`）与物品描述
+ * （key `TXT_ItemInfo_<物品ID>`），中文就是表里那一段文字。
+ * 中文与译文都挂回物品表，所以这一页改中文＝改物品表。
+ */
+export interface ItemLocaleEntry {
+  /** 物品表那一行的 uid（物品名 / 描述都用它） */
+  uid: string;
+  /** 改的是物品名还是物品描述 */
+  field: 'name' | 'description';
+  key: string;
+  kindLabel: string;
+  zh: string;
+  en: string;
+  ja: string;
+}
+
+/**
+ * 「物品本地化」页的全部行：物品表顺序，每行先物品名、再物品描述。
+ *
+ * 物品 ID 空着的行拼不出 key，跳过。
+ */
+export function collectItemLocaleEntries(project: Project): ItemLocaleEntry[] {
+  const list: ItemLocaleEntry[] = [];
+
+  for (const item of project.items) {
+    const id = item.id.trim();
+    if (id === '') continue;
+    list.push({
+      uid: item.uid,
+      field: 'name',
+      key: itemNameKeyOf(id),
+      kindLabel: '物品名称',
+      zh: item.name,
+      en: item.nameEn ?? '',
+      ja: item.nameJa ?? '',
+    });
+    list.push({
+      uid: item.uid,
+      field: 'description',
+      key: itemInfoKeyOf(id),
+      kindLabel: '物品描述',
+      zh: item.description ?? '',
+      en: item.descriptionEn ?? '',
+      ja: item.descriptionJa ?? '',
     });
   }
 

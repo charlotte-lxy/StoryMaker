@@ -13,6 +13,7 @@ import {
   collectLocaleEntries,
   collectNameEntries,
   collectAttributeTextEntries,
+  collectItemLocaleEntries,
   collectWeaponLocaleEntries,
 } from '../core/localization';
 import {
@@ -326,7 +327,7 @@ function lookupDrafts(project: Project, key: 'items' | 'quests' | 'images' | 'so
     submodule: LOOKUP_LABEL[key],
     rowNumber: index + 1,
     rowLabel: row.id || row.name,
-    fields: [row.id, row.name],
+    fields: [row.id, row.name, row.description ?? ''],
     target: { kind: 'row', module: key, uid: row.uid },
   }));
 }
@@ -492,6 +493,17 @@ function localeDrafts(project: Project): Draft[] {
   collectNameEntries(project).forEach((entry, index) => {
     drafts.push({
       submodule: '角色名本地化',
+      rowNumber: index + 1,
+      rowLabel: entry.key,
+      fields: [entry.key, entry.zh, entry.en, entry.ja],
+      target: { kind: 'locale', uid: entry.uid },
+    });
+  });
+
+  // 物品表的「物品名称 / 物品描述」（key = TXT_ItemName_<物品ID> / TXT_ItemInfo_<物品ID>）
+  collectItemLocaleEntries(project).forEach((entry, index) => {
+    drafts.push({
+      submodule: '物品本地化',
       rowNumber: index + 1,
       rowLabel: entry.key,
       fields: [entry.key, entry.zh, entry.en, entry.ja],

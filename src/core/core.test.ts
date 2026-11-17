@@ -15,7 +15,7 @@ import {
   renumberGroup,
   textIdOf,
 } from './ids';
-import { DIALOGUE_HEADER, buildRows, countLines, exportWorkbook, type ExportRowSets } from './export';
+import { DIALOGUE_HEADER, buildItemRows, buildRows, countLines, exportWorkbook, type ExportRowSets } from './export';
 import type {
   CommandDef,
   CommandParamDef,
@@ -894,6 +894,33 @@ describe('导出三张表', () => {
     ]);
   });
 
+  it('物品名 / 物品描述按物品 ID 生成文本 key，并进「物品」子表与本地化表', () => {
+    const project = makeProject();
+    project.items = [
+      {
+        uid: 'i1',
+        id: 'Item_Coin',
+        name: '金币',
+        nameEn: 'Coin',
+        nameJa: 'コイン',
+        description: '通用货币',
+        descriptionEn: '',
+        descriptionJa: '',
+      },
+      { uid: 'i2', id: '', name: '没 ID 的物品' },
+    ];
+
+    const rows = buildItemRows(project);
+    expect(rows[0]).toEqual(['', '物品名称', '物品描述']);
+    expect(rows[1]).toEqual(['Item_Coin', 'TXT_ItemName_Item_Coin', 'TXT_ItemInfo_Item_Coin']);
+    // 没填物品 ID 的行拼不出 key，原样写文字（校验条会提醒缺 ID）
+    expect(rows[2]).toEqual(['', '没 ID 的物品', '']);
+
+    const locale = buildRows(project).locale;
+    expect(locale).toContainEqual(['TXT_ItemName_Item_Coin', '金币', 'Coin', 'コイン']);
+    expect(locale).toContainEqual(['TXT_ItemInfo_Item_Coin', '通用货币', '', '']);
+  });
+
   it('生成含各张子表的 xlsx', async () => {
     const buffer = await exportWorkbook(project);
     const workbook = new ExcelJS.Workbook();
@@ -908,6 +935,7 @@ describe('导出三张表', () => {
       '特殊指令',
       '图片',
       '音频',
+      '物品',
       'GASGameplayTags',
       'GAS属性',
       'GAS效果',

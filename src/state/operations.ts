@@ -795,6 +795,33 @@ export function reorderLookupRow(
   });
 }
 
+/**
+ * 本地化页改物品的名称 / 描述：中文写回物品表那一格，英文日文写在同一行上。
+ *
+ * key 是按物品 ID 现算的，所以改物品 ID 时 key 会跟着变，译文不用搬家。
+ */
+export function updateItemText(
+  project: Project,
+  itemUid: string,
+  field: 'name' | 'description',
+  lang: LangKey,
+  value: string,
+): Project {
+  return mutate(project, (draft) => {
+    const row = draft.items.find((item) => item.uid === itemUid);
+    if (row === undefined) return;
+    if (field === 'name') {
+      if (lang === 'zh') row.name = value;
+      else if (lang === 'en') row.nameEn = value;
+      else row.nameJa = value;
+      return;
+    }
+    if (lang === 'zh') row.description = value;
+    else if (lang === 'en') row.descriptionEn = value;
+    else row.descriptionJa = value;
+  });
+}
+
 /* ---------- 资源分类（图片分类 / 音效类型） ---------- */
 
 /** 带「分类名 + 存储路径」的资源表：立绘的图片分类、音效的音效类型 */

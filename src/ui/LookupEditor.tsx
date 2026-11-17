@@ -16,7 +16,9 @@ interface LookupMeta {
 const TITLES: Record<LookupKind, LookupMeta> = {
   items: {
     title: '物品表',
-    hint: '物品 ID 供指令「背包||物品:…;运算符:+;数量:」与条件「背包||物品:…;运算符:>=」的下拉使用。',
+    hint:
+      '物品 ID 供指令「背包||物品:…;运算符:+;数量:」与条件「背包||物品:…;运算符:>=」的下拉使用。' +
+      '物品名称 / 物品描述会作为中文收进本地化「物品本地化」页，导出「物品」子表时写 TXT_ItemName_物品ID / TXT_ItemInfo_物品ID。',
     placeholder: '例如：金币',
   },
   quests: {
@@ -141,6 +143,8 @@ export function LookupRowsTable({
   focusUid?: string | null;
 }) {
   const meta = TITLES[kind];
+  /** 物品表多一列物品描述，名称那一列也改叫「物品名称」 */
+  const isItem = kind === 'items';
   const categories: AssetCategoryRow[] =
     categoryKind === undefined ? [] : project[categoryKind];
   const categoryByUid = new Map(categories.map((row) => [row.uid, row]));
@@ -154,9 +158,10 @@ export function LookupRowsTable({
       <thead>
         <tr>
           <th className="cell-order" title="按住把手上下拖动可调整顺序" />
-          <th style={{ width: column === undefined ? '34%' : '24%' }}>ID</th>
+          <th style={{ width: isItem ? '24%' : column === undefined ? '34%' : '24%' }}>ID</th>
           {column !== undefined && <th style={{ width: 170 }}>{column}</th>}
-          <th>说明</th>
+          <th>{isItem ? '物品名称' : '说明'}</th>
+          {isItem && <th>物品描述</th>}
           <th style={{ width: 86 }}>操作</th>
         </tr>
       </thead>
@@ -206,6 +211,17 @@ export function LookupRowsTable({
                   onChange={(event) => onUpdate(kind, row.uid, { name: event.target.value })}
                 />
               </td>
+              {isItem && (
+                <td>
+                  <input
+                    value={row.description ?? ''}
+                    placeholder="物品描述（译文在本地化「物品本地化」页里填）"
+                    onChange={(event) =>
+                      onUpdate(kind, row.uid, { description: event.target.value })
+                    }
+                  />
+                </td>
+              )}
               <td>
                 <button type="button" onClick={() => onRemove(kind, row.uid)}>
                   删除

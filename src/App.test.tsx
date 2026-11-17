@@ -471,6 +471,44 @@ describe('界面冒烟测试', () => {
       expect(screen.getByDisplayValue('测试手枪')).toBeTruthy();
     });
 
+    it('物品本地化：收物品表的名称与描述，key 按物品 ID 现算', async () => {
+      const project = createEmptyProject();
+      project.items = [
+        {
+          uid: 'i1',
+          id: 'Item_Coin',
+          name: '金币',
+          nameEn: '',
+          nameJa: '',
+          description: '通用货币',
+          descriptionEn: '',
+          descriptionJa: '',
+        },
+      ];
+      seedProjectFile(JSON.stringify(project));
+
+      await openLocale();
+      fireEvent.click(screen.getByText('物品本地化'));
+
+      expect(screen.getByText('TXT_ItemName_Item_Coin')).toBeTruthy();
+      expect(screen.getByText('TXT_ItemInfo_Item_Coin')).toBeTruthy();
+      // 中文就是物品表里的物品名称 / 物品描述
+      expect(screen.getByDisplayValue('金币')).toBeTruthy();
+      expect(screen.getByDisplayValue('通用货币')).toBeTruthy();
+
+      // 填英文：写回物品表那一行
+      const nameRow = screen.getByText('TXT_ItemName_Item_Coin').closest('tr') as HTMLElement;
+      fireEvent.change(nameRow.querySelectorAll('textarea')[1], { target: { value: 'Coin' } });
+      expect(screen.getByDisplayValue('Coin')).toBeTruthy();
+
+      // 改中文：物品表的「物品名称」跟着变
+      fireEvent.change(nameRow.querySelectorAll('textarea')[0], {
+        target: { value: '金币（新）' },
+      });
+      fireEvent.click(within(rail()).getByText('物品'));
+      expect(screen.getByDisplayValue('金币（新）')).toBeTruthy();
+    });
+
     it('搜索框对着当前这一页模糊搜索 key 与三语文本', async () => {
       seedLocaleProject();
       await openLocale();
@@ -623,6 +661,25 @@ describe('界面冒烟测试', () => {
       expect(screen.getByDisplayValue('伊芙（新）')).toBeTruthy();
       expect(screen.getByDisplayValue('Q版伊芙（新）')).toBeTruthy();
     });
+  });
+
+  it('物品表有「物品名称 / 物品描述」两列，改描述写回项目', async () => {
+    const project = createEmptyProject();
+    project.items = [{ uid: 'i1', id: 'Item_Coin', name: '金币', description: '通用货币' }];
+    const host = seedProjectFile(JSON.stringify(project));
+
+    await renderApp();
+    fireEvent.click(within(rail()).getByText('物品'));
+
+    expect(screen.getByText('物品名称')).toBeTruthy();
+    expect(screen.getByText('物品描述')).toBeTruthy();
+    fireEvent.change(screen.getByDisplayValue('通用货币'), {
+      target: { value: '到处都能用' },
+    });
+
+    await waitFor(() => expect(host.written.length).toBeGreaterThan(0), { timeout: 3000 });
+    const saved = JSON.parse(host.disk.get(DEFAULT_PROJECT_PATH) ?? '{}');
+    expect(saved.items[0].description).toBe('到处都能用');
   });
 
   it('新增章节会出现在侧边栏', async () => {
@@ -2256,6 +2313,7 @@ describe('导出模块', () => {
       '特殊指令',
       '图片',
       '音频',
+      '物品',
       'GASGameplayTags',
       'GAS属性',
       'GAS效果',
@@ -2316,6 +2374,7 @@ describe('导出模块', () => {
       '特殊指令',
       '图片',
       '音频',
+      '物品',
       'GASGameplayTags',
       'GAS属性',
       'GAS效果',
@@ -2344,6 +2403,7 @@ describe('导出模块', () => {
       '特殊指令',
       '图片',
       '音频',
+      '物品',
       'GASGameplayTags',
       'GAS属性',
       'GAS效果',

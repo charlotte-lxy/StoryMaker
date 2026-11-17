@@ -53,11 +53,14 @@ import {
   firstLineIdOf,
   groupUidOfFirstLine,
   isContinueTarget,
+  itemInfoKeyOf,
+  itemNameKeyOf,
   nextReadableId,
   textIdOf,
 } from './ids';
 import {
   collectAttributeTextEntries,
+  collectItemLocaleEntries,
   collectNameEntries,
   collectWeaponLocaleEntries,
 } from './localization';
@@ -69,6 +72,8 @@ export const OPTION_SHEET = '选项';
 export const LOCALE_SHEET = '本地化';
 /** 剧情角色表；战斗那边的「GAS角色」是另一张（见 battle-export.ts） */
 export const STORY_CHARACTER_SHEET = '角色';
+/** 物品表；物品名称 / 物品描述两列写本地化 key，中文在「物品本地化」页 */
+export const ITEM_SHEET = '物品';
 
 export const DIALOGUE_HEADER: readonly string[] = [
   '',
@@ -100,6 +105,9 @@ export const LOCALE_HEADER: readonly string[] = ['', '中文', '英文', '日文
  * 播放位置直接写中文选项名，Unreal 那边认这三个串。
  */
 export const STORY_CHARACTER_HEADER: readonly string[] = ['', '播放位置', '显示名称', '表情差分列表'];
+
+/** 物品表：行名是物品 ID，两列文本都写本地化 key */
+export const ITEM_HEADER: readonly string[] = ['', '物品名称', '物品描述'];
 
 export interface ExportRowSets {
   dialogue: string[][];
@@ -179,6 +187,11 @@ export function buildRows(project: Project): ExportRowSets {
     locale.push([entry.key, entry.zh, entry.en, entry.ja]);
   }
 
+  // 物品的名称与描述也进本地化表（中文就是物品表里那两段文字）
+  for (const entry of collectItemLocaleEntries(project)) {
+    locale.push([entry.key, entry.zh, entry.en, entry.ja]);
+  }
+
   // 武器分组 / 攻击模式 / 插槽的导出名称也是本地化 key（中文就是它们的显示名称）
   for (const entry of collectWeaponLocaleEntries(project)) {
     locale.push([entry.key, entry.zh, entry.en, entry.ja]);
@@ -190,6 +203,30 @@ export function buildRows(project: Project): ExportRowSets {
   }
 
   return { dialogue, options, locale, characters };
+}
+
+/**
+ * 「物品」子表：行名 = 物品 ID，物品名称 / 物品描述两列写本地化 key。
+ *
+ * 中文在本地化「物品本地化」页里看 / 改；物品 ID 空着的行拼不出 key，原样写文字。
+ */
+export function buildItemRows(project: Project): string[][] {
+  const rows = project.items.filter(
+    (row) =>
+      row.id.trim() !== '' || row.name.trim() !== '' || (row.description ?? '').trim() !== '',
+  );
+  return [
+    [...ITEM_HEADER],
+    ...rows.map((row) => {
+      const id = row.id.trim();
+      const description = row.description ?? '';
+      return [
+        id,
+        id === '' ? row.name : itemNameKeyOf(id),
+        id === '' ? description : itemInfoKeyOf(id),
+      ];
+    }),
+  ];
 }
 
 /**
@@ -418,6 +455,7 @@ export function buildAllSheets(project: Project): ExportedSheet[] {
     { name: SPECIAL_COMMAND_SHEET, rows: buildSpecialCommandRows(project) },
     { name: IMAGE_SHEET, rows: buildImageRows(project) },
     { name: SOUND_SHEET, rows: buildSoundRows(project) },
+    { name: ITEM_SHEET, rows: buildItemRows(project) },
     // 战斗模块（GAS）七张表
     { name: GAMEPLAY_TAGS_SHEET, rows: battle.gameplayTags },
     { name: ATTRIBUTE_SHEET, rows: battle.attributes },

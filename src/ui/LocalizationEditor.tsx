@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState, type KeyboardEvent } from 'reac
 
 import {
   collectAttributeTextEntries,
+  collectItemLocaleEntries,
   collectLocaleEntries,
   collectNameEntries,
   collectWeaponLocaleEntries,
@@ -39,6 +40,15 @@ interface Props {
   /** 改「属性本地化」里的一条：中文写回属性表的「显示文本」 */
   onUpdateAttributeText: (uid: string, lang: LangKey, value: string) => void;
   /**
+   * 改「物品本地化」里物品的名称或描述（中文写回物品表，英文日文挂在同一行上）。
+   */
+  onUpdateItemText: (
+    uid: string,
+    field: 'name' | 'description',
+    lang: LangKey,
+    value: string,
+  ) => void;
+  /**
    * 底下校验条里点过来的那一行：切到它所在的页、滚到它并闪一下。
    * 短暂高亮后由上层清成 null。
    */
@@ -51,8 +61,8 @@ const LANGS: { lang: LangKey; label: string }[] = [
   { lang: 'ja', label: '日文' },
 ];
 
-/** 本地化模块的四个页面 */
-type LocalePage = 'story' | 'ui' | 'name' | 'attribute' | 'weapon';
+/** 本地化模块的页面 */
+type LocalePage = 'story' | 'ui' | 'name' | 'attribute' | 'weapon' | 'item';
 
 /** UI 本地化最上面那一行新增表单的草稿 */
 interface UiDraft extends LocalizedText {
@@ -93,6 +103,7 @@ export function LocalizationEditor({
   onUpdateWeaponOptionText,
   onUpdateWeaponText,
   onUpdateAttributeText,
+  onUpdateItemText,
   focusUid = null,
 }: Props) {
   const [page, setPage] = useRememberedChoice<LocalePage>('locale:page', 'story');
@@ -108,6 +119,8 @@ export function LocalizationEditor({
   const weaponEntries = useMemo(() => collectWeaponLocaleEntries(project), [project]);
   /** 属性表的「显示文本」：key = TXT_Attribute_<属性名> */
   const attributeEntries = useMemo(() => collectAttributeTextEntries(project), [project]);
+  /** 物品表的「物品名称 / 物品描述」：key = TXT_ItemName_<物品ID> / TXT_ItemInfo_<物品ID> */
+  const itemEntries = useMemo(() => collectItemLocaleEntries(project), [project]);
 
   const uiTexts = project.uiTexts;
 
@@ -148,6 +161,13 @@ export function LocalizationEditor({
         ? weaponEntries
         : weaponEntries.filter((entry) => hit([entry.key, entry.zh, entry.en, entry.ja], trimmed)),
     [weaponEntries, trimmed],
+  );
+  const shownItemEntries = useMemo(
+    () =>
+      trimmed === ''
+        ? itemEntries
+        : itemEntries.filter((entry) => hit([entry.key, entry.zh, entry.en, entry.ja], trimmed)),
+    [itemEntries, trimmed],
   );
 
   const stats = useMemo(() => {
@@ -192,6 +212,15 @@ export function LocalizationEditor({
     [weaponEntries],
   );
 
+  /** 物品名称 / 描述的英文日文缺没缺 */
+  const itemUntranslated = useMemo(
+    () =>
+      itemEntries.filter((entry) =>
+        missingTranslation({ zh: entry.zh, en: entry.en, ja: entry.ja }),
+      ).length,
+    [itemEntries],
+  );
+
   /** UI 本地化的 key 重复提示：同一个 key 在 Unreal 里会互相覆盖 */
   const keyCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -199,26 +228,22 @@ export function LocalizationEditor({
     return counts;
   }, [uiTexts]);
 
-  const shown =
-    page === 'story'
-      ? shownEntries.length
-      : page === 'ui'
-        ? shownUiTexts.length
-        : page === 'name'
-          ? shownNameEntries.length
-          : page === 'attribute'
-            ? shownAttributeEntries.length
-            : shownWeaponEntries.length;
-  const total =
-    page === 'story'
-      ? entries.length
-      : page === 'ui'
-        ? uiTexts.length
-        : page === 'name'
-          ? nameEntries.length
-          : page === 'attribute'
-            ? attributeEntries.length
-            : weaponEntries.length;
+  const shown = {
+    story: shownEntries.length,
+    ui: shownUiTexts.length,
+    name: shownNameEntries.length,
+    attribute: shownAttributeEntries.length,
+    weapon: shownWeaponEntries.length,
+    item: shownItemEntries.length,
+  }[page];
+  const total = {
+    story: entries.length,
+    ui: uiTexts.length,
+    name: nameEntries.length,
+    attribute: attributeEntries.length,
+    weapon: weaponEntries.length,
+    item: itemEntries.length,
+  }[page];
 
   /** 表单里的 key 有没有和已有条目重名（去掉首尾空格后比） */
   const draftKey = draft.key.trim();
@@ -246,6 +271,7 @@ export function LocalizationEditor({
     setQuery('');
     if (entries.some((entry) => entry.uid === focusUid)) setPage('story');
     else if (nameEntries.some((entry) => entry.uid === focusUid)) setPage('name');
+    else if (itemEntries.some((entry) => entry.uid === focusUid)) setPage('item');
     else if (attributeEntries.some((entry) => entry.uid === focusUid)) setPage('attribute');
     else if (weaponEntries.some((entry) => entry.uid === focusUid)) setPage('weapon');
     else setPage('ui');
@@ -261,7 +287,7 @@ export function LocalizationEditor({
       node.scrollIntoView({ block: 'center' });
       return;
     }
-  }, [focusUid, page, shownEntries, shownUiTexts, shownNameEntries, shownWeaponEntries]);
+  }, [focusUid, page, shownEntries, shownUiTexts, shownNameEntries, shownWeaponEntries, shownItemEntries]);
 
   return (
     <div className="editor" ref={editorRef}>
@@ -306,12 +332,23 @@ export function LocalizationEditor({
                 '英文日文均已填写'
               )}
             </>
-          ) : (
+          ) : page === 'weapon' ? (
             <>
               共 {weaponEntries.length} 条武器配置名（分组 / 攻击模式 / 插槽的导出名称）：
               从战斗模块的武器页自动收集，key 就是导出名称，中文是它们的显示名称，
               {weaponUntranslated > 0 ? (
                 <strong className="warn-text">{weaponUntranslated} 条缺英文或日文</strong>
+              ) : (
+                '英文日文均已填写'
+              )}
+            </>
+          ) : (
+            <>
+              共 {itemEntries.length} 条物品名称 / 描述：从物品模块的物品表自动收集，
+              key 按物品 ID 现算（TXT_ItemName_物品ID / TXT_ItemInfo_物品ID），
+              中文就是表里那两段文字，
+              {itemUntranslated > 0 ? (
+                <strong className="warn-text">{itemUntranslated} 条缺英文或日文</strong>
               ) : (
                 '英文日文均已填写'
               )}
@@ -346,6 +383,15 @@ export function LocalizationEditor({
           >
             角色名本地化
             <span className="count">{nameEntries.length}</span>
+          </button>
+          <button
+            type="button"
+            className={page === 'item' ? 'locale-nav active' : 'locale-nav'}
+            onClick={() => setPage('item')}
+            title="物品表的「物品名称 / 物品描述」：key 按物品 ID 现算，改中文就是改物品表"
+          >
+            物品本地化
+            <span className="count">{itemEntries.length}</span>
           </button>
           <button
             type="button"
@@ -647,6 +693,66 @@ export function LocalizationEditor({
                                 }
                                 onUpdateWeaponOptionText(entry.uid, item.lang, event.target.value);
                               }}
+                            />
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )
+          ) : page === 'item' ? (
+            itemEntries.length === 0 ? (
+              <div className="empty-state">
+                还没有物品。先去「物品」模块建几条，这里会自动收出来。
+              </div>
+            ) : shownItemEntries.length === 0 ? (
+              <div className="empty-state">没有匹配「{query.trim()}」的物品名称或描述。</div>
+            ) : (
+              <table className="lines">
+                <thead>
+                  <tr>
+                    <th className="col-key">文本 key（按物品 ID 生成）</th>
+                    {LANGS.map((item) => (
+                      <th key={item.lang}>{item.label}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {shownItemEntries.map((entry) => {
+                    const text: LocalizedText = { zh: entry.zh, en: entry.en, ja: entry.ja };
+                    const zhHint =
+                      entry.field === 'description'
+                        ? '中文改的是物品表的「物品描述」'
+                        : '中文改的是物品表的「物品名称」';
+                    return (
+                      <tr
+                        className={`line-row${missingTranslation(text) ? ' needs-work' : ''}${
+                          focusUid === entry.uid ? ' flash' : ''
+                        }`}
+                        data-text-uid={entry.uid}
+                        // 同一件物品有「物品名称」和「物品描述」两条，key 要拼 uid + 字段才唯一
+                        key={`${entry.uid}-${entry.field}`}
+                      >
+                        <td className="cell-id loc-key">
+                          {entry.key}
+                          <span className="kind-chip">{entry.kindLabel}</span>
+                        </td>
+                        {LANGS.map((item) => (
+                          <td key={item.lang}>
+                            <AutoGrowTextarea
+                              value={text[item.lang]}
+                              placeholder={item.lang === 'zh' ? '中文原文' : '待翻译'}
+                              title={item.lang === 'zh' ? zhHint : undefined}
+                              onChange={(event) =>
+                                onUpdateItemText(
+                                  entry.uid,
+                                  entry.field,
+                                  item.lang,
+                                  event.target.value,
+                                )
+                              }
                             />
                           </td>
                         ))}

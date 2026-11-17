@@ -88,6 +88,16 @@ export function weaponInfoKeyOf(weaponId: string): string {
   return `TXT_WeaponInfo_${weaponId}`;
 }
 
+/** 物品「物品名称」的本地化 key：TXT_ItemName_ + 物品ID（导出「物品」子表时写它） */
+export function itemNameKeyOf(itemId: string): string {
+  return `TXT_ItemName_${itemId}`;
+}
+
+/** 物品「物品描述」的本地化 key：TXT_ItemInfo_ + 物品ID */
+export function itemInfoKeyOf(itemId: string): string {
+  return `TXT_ItemInfo_${itemId}`;
+}
+
 /**
  * 取可读 ID 里"段内序号"那一截，如 Dia_ch01_001-22 → 22。
  *

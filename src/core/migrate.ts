@@ -149,6 +149,21 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
   }
   if (!Array.isArray(project.variables)) project.variables = [];
 
+  // 物品表后来多了「物品名称 / 物品描述」的三语字段（中文就是 name / description），
+  // 老项目里没有，补成空串，免得界面读到 undefined。
+  project.items = (Array.isArray(project.items) ? project.items : [])
+    .filter(isRecord)
+    .map((row) => ({
+      uid: asUid(row.uid),
+      id: asString(row.id),
+      name: asString(row.name),
+      nameEn: asString(row.nameEn),
+      nameJa: asString(row.nameJa),
+      description: asString(row.description),
+      descriptionEn: asString(row.descriptionEn),
+      descriptionJa: asString(row.descriptionJa),
+    }));
+
   // 图片分类 / 音效类型是后加的表：老项目没有就补空表；已有的行补齐字段
   for (const key of ['imageCategories', 'soundCategories'] as const) {
     const rawCategories: unknown = project[key];

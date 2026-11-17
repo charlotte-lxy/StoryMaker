@@ -94,6 +94,7 @@ import {
   updatePlayPosition,
   updateCommandParam,
   updateAssetCategory,
+  updateItemText,
   updateLookupRow,
   updateNameText,
   updateTextByUid,
@@ -1252,6 +1253,9 @@ export default function App() {
                   }
                   onUpdateAttributeText={(uid, lang, value) =>
                     setProject((prev) => updateAttributeText(prev, uid, lang, value))
+                  }
+                  onUpdateItemText={(uid, field, lang, value) =>
+                    setProject((prev) => updateItemText(prev, uid, field, lang, value))
                   }
                   onAddUiText={(key, text) => setProject((prev) => addUiText(prev, key, text))}
                   onRemoveUiText={(uid) => setProject((prev) => removeUiText(prev, uid))}

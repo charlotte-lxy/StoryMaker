@@ -64,10 +64,13 @@ pnpm dev          # 开发服务器 http://localhost:5180
       武器图标（每把武器一条 `PIC_武器ID`）路径是「武器图标」分类路径 / 图片ID
   → 音频表（一条音效一行：行名 / 音频 / 音效类型 / 备注；
       路径由「音效类型」表里的存储路径 + 音效 ID 拼出来）
+  → 物品表（物品 ID / 物品名称 / 物品描述；
+      名称与描述两列写 TXT_ItemName_<物品ID> / TXT_ItemInfo_<物品ID>）
   → 本地化表（TXT_ + ID 作 key，中英日）
 
 本地化表末尾依次接上：UI 本地化的界面文案（TXT_Widget_* 这类）、
 角色名与别名（TXT_<角色ID>_DefaultName / TXT_<角色ID>_OtherName-<别名序号>）、
+物品名称与描述（TXT_ItemName_<物品ID> / TXT_ItemInfo_<物品ID>）、
 武器分组 / 攻击模式 / 插槽的导出名称（TXT_WeaponTeam_* 等，中文就是它们的显示名称），
 武器名与武器描述（TXT_WeaponName_<武器ID> / TXT_WeaponInfo_<武器ID>）
 
