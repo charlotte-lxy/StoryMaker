@@ -77,12 +77,11 @@
 **每次改动完成后，自动提交并推送到 GitHub，commit message 用中文。**
 
 - 收尾顺序固定：改完 → 跑验证 → `git add` → `git commit` → `git push origin main`。
-  验证按改动范围选：碰前端跑 `pnpm test`，碰单文件产物跑 `pnpm verify:release`，
-  碰 `storymaker-server.ps1` 跑 `pnpm verify:server`，碰自动更新跑 `pnpm verify:update`。
+  验证按改动范围选：碰前端跑 `pnpm test`，碰打包或自动更新跑 `pnpm verify:app-update`。
 - **每次提交都要把 `package.json` 的 `version` 往上加**（末位递增，`0.1.0` → `0.1.1`）。
-  这个号会被 `pnpm build:single` 写进 `release/version.json`，本地服务只认"远端版本号
-  更大"才更新：不加号，策划那边收不到这一版；加了号，本机自己刚构建、还没推上去的
-  新版才不会被仓库里的旧版倒着覆盖回去。
+  这个号会由 `pnpm build:app` 写进 `app-update/version.json`，客户端只认"远端版本号更大"
+  才更新：不加号，策划那边收不到这一版；加了号，本机刚构建、还没推上去的新版才不会被
+  仓库里的旧版倒着覆盖回去。
 - **commit message 必须是中文**，一句话说清「改了什么、为什么」，跟仓库现有风格一致。
   例：`补充 README：项目定位、快速开始与常用命令`
 - **只提交这次改动涉及的文件**，不要用 `git add -A` 把无关文件顺手带进去
@@ -100,10 +99,8 @@
   `(Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings').ProxyServer`
 - **推送失败不要静默跳过**：凭据失效或代理没起时，把原始报错贴出来告诉用户，
   不要谎称已上传。
-- `pnpm build:single` 会重写 `release/` 下的四个文件（`index.html`、两个启动脚本，
-  以及记录各文件 SHA-256、供启动时比对更新的 `version.json`），这是**预期的**——
-  `release/` 按仓库约定纳入版本控制，这四个文件要一并提交；漏掉 `version.json`
-  自动更新就会拿对不上的哈希去比。
+- `pnpm build:app` 会重写 `app-update/version.json` 和 `app-update/app.asar`，这是**预期的**——
+  这两个文件按仓库约定纳入版本控制，必须随版本一起提交；漏了客户端就拉不到新版。
 
 ---
 
@@ -125,18 +122,14 @@ Vite + React 19 + TypeScript，导出用 ExcelJS。三种产物共用同一套�
 |---|---|---|
 | `pnpm dev` | 开发服务器 :5180 | 开发（`/api` 自动转给同一个本地服务） |
 | `pnpm build` | `dist/` 多文件 | 内网服务器 |
-| `pnpm build:single` | `release/`：`index.html` + `启动StoryMaker.bat` + `storymaker-server.ps1` + `version.json` | 策划双击即用 |
-| `pnpm build:app` | `app-release/win-unpacked/` + `app-update/` | Electron 桌面版（**对外打包统一走这条**） |
+| `pnpm build:app` | `app-release/win-unpacked/` + `app-update/` | Electron 桌面版（**唯一交付方式**） |
 | `pnpm test` | — | 164 个测试 |
-| `pnpm verify:release` | — | 单文件产物自检 |
-| `pnpm verify:server` | — | 本地服务自检（真起进程、真发 HTTP、真落盘） |
-| `pnpm verify:update` | — | 自动更新自检（本地 HTTP 冒充远端，不碰真实网络） |
-| `pnpm verify:app-update` | — | Electron 自动更新自检（版本比较 / 清单校验 / 双源兜底 / 哈希） |
+| `pnpm verify:app-update` | — | 自动更新自检（版本比较 / 清单校验 / 双源兜底 / 哈希） |
 
 ## 打包（统一走 `pnpm build:app`）
 
 对外交付一律用 `pnpm build:app`，产物是 `app-release/win-unpacked/`（绿包）+ `app-update/`（自动更新用），
-双击 `StoryMaker.exe` 即用。`build` / `build:single` 只在需要内网部署或单文件分发时才用。
+双击 `StoryMaker.exe` 即用。`pnpm build` 只用于内网多文件部署；单文件产物已弃用，见本节末尾。
 
 固定流程：
 
@@ -162,7 +155,7 @@ Vite + React 19 + TypeScript，导出用 ExcelJS。三种产物共用同一套�
   `pnpm` 可执行入口；只有 `pnpm.mjs` 时它会拿到空输出，报 `No JSON content found in output`。
 - 终端里若注入了 `ELECTRON_RUN_AS_NODE=1`，启动 Electron 会退化成 Node、开窗即退；自检前先清掉它。
 - **发版必须把 `app-update/version.json` 和 `app-update/app.asar` 一起提交**，漏了客户端就拉不到新版。
-  `app-update/` 跟 `release/` 一样纳入版本控制。
+  `app-update/` 纳入版本控制。
 
 ### Electron 自动更新（只换 app.asar）
 
@@ -178,6 +171,14 @@ Vite + React 19 + TypeScript，导出用 ExcelJS。三种产物共用同一套�
   代价是 exe 的 `FileVersion` 会停在安装时那一版，界面里显示的版本来自 asar 的 `package.json`。
 - 更新逻辑的纯函数在 `electron/update-core.cjs`，`pnpm verify:app-update` 会起本地 HTTP 源验证双源兜底与哈希校验。
 - 首次上线自动更新时，老版本没有更新器，需要手动换一次完整文件夹（之后才会走增量）。
+
+### 单文件产物（已弃用）
+
+`build:single` 已从 `package.json` 删除，`verify:release` / `verify:server` / `verify:update` 一并移除。
+**不要恢复这个脚本，也不要手动跑 `vite build --mode singlefile`。** `release/` 下是历史产物，
+保持原样，不再重建、不再提交新构建；对外只发 `app-release/win-unpacked/`。
+`tools/` 里与单文件相关的脚本（`make-launcher`、`verify-release`、`verify-server`、`verify-update`）
+留作参考，不再维护，也不要因为它们去改 `release/`。
 
 ## 项目文件与数据存放（不要改回去）
 
@@ -238,21 +239,8 @@ Vite + React 19 + TypeScript，导出用 ExcelJS。三种产物共用同一套�
 - **`pwsh` 实际是 Windows PowerShell 5.1**。它的 `-Encoding utf8` 会**写入 BOM**，
   而 harness 的 pnpm 包装器用 `JSON.parse` 读工作目录的 `package.json`，遇 BOM 直接崩。
   写 JSON 请用 `[System.IO.File]::WriteAllText` + `UTF8Encoding($false)`，或用 write 工具。
-- **单文件产物必须打成 IIFE**。`file://` 下浏览器会以 CORS 为由拒绝执行
-  `<script type="module">`，页面白屏。已加插件剥掉 `type="module"`。
-- **剥掉 module 后脚本不再 defer**。Vite 把脚本放在 `<head>`，执行时 `#root` 还不存在。
-  `src/main.tsx` 已改成等 `DOMContentLoaded`，不要改回去。
 - **绝不要用 `window.confirm`**。它在 Electron 下同步阻塞渲染进程，关掉之后
   页面上所有输入框和下拉框都点不动。用 `src/ui/ConfirmDialog.tsx`。
-- **改完前端记得跑 `pnpm verify:release`**。它能挡住上面那类"开发正常、打包白屏"的问题。
-- **`tools/server/*.ps1` 必须是 CRLF + UTF-8 BOM**。Windows PowerShell 5.1 读不带 BOM 的
-  脚本会按 ANSI 解析（中文全变乱码），而 LF 换行会让 here-string 直接解析失败
-  （报 "A 'using' statement must appear before any other statements" 这种莫名其妙的错）。
-  `tools/make-launcher.mts` 在往 release/ 拷贝时会统一补上，但源文件本身也得是 CRLF。
-- **本地服务的对话框要显式置顶**。系统文件对话框弹出时不会自动成为前台窗口，
-  可能躲在浏览器后面，让人以为点了没反应。已用 `Show-DialogOnTop` 处理，别简化掉。
-- **改了 `storymaker-server.ps1` 要跑 `pnpm verify:server`**（真起进程、真发 HTTP、真落盘），
-  `pnpm test` 覆盖不到它。
 
 ## 文件位置
 

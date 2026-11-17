@@ -33,8 +33,15 @@ function stripModuleType(): Plugin {
  *   vite build                     → dist/，常规多文件，适合放到内网服务器
  *   vite build --mode singlefile   → release/StoryMaker.html，所有 JS/CSS 内联成一个文件，
  *                                    策划双击就能用，不需要服务、不需要安装任何东西
+ *
+ * 单文件产物已经弃用（见 AGENTS.md）：package.json 里不再有 build:single，
+ * 这里也直接拒绝 singlefile 模式，免得有人绕过脚本手动再打一版。
  */
 export default defineConfig(({ mode }) => {
+  if (mode === 'singlefile') {
+    throw new Error('单文件产物已弃用：对外只发 pnpm build:app 的 Electron 桌面版');
+  }
+
   const single = mode === 'singlefile';
 
   return {

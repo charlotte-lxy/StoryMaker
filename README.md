@@ -10,13 +10,13 @@
 
 ## 快速开始
 
-### 策划：双击即用
+### 策划：解压即用
 
-`release/` 里已经放好了构建产物，不需要安装任何东西：
+把 `app-release/win-unpacked/` 整个文件夹拷给策划，双击里面的 `StoryMaker.exe` 即可，不需要安装：
 
-1. 双击 `release/启动StoryMaker.bat`
-2. 浏览器自动打开编辑器，先「新建项目文件」或「打开已有项目文件」
-3. 之后每次改动都会自动写回你选定的那个 `.json`（防抖 800ms）
+1. 先「新建项目文件」或「打开已有项目文件」
+2. 之后每次改动都会自动写回你选定的那个 `.json`（防抖 800ms）
+3. 有新版本时软件会自己提示下载，重启后生效
 
 项目内容**只有一份**，就在那个 `.json` 里，本机不缓存副本——换台电脑把 `.json` 拷过去就能接着编。
 
@@ -35,18 +35,15 @@ pnpm dev          # 开发服务器 http://localhost:5180
 |---|---|---|
 | `pnpm dev` | 开发服务器 :5180 | 开发（`/api` 自动转给本地服务） |
 | `pnpm build` | `dist/` 多文件 | 内网服务器 |
-| `pnpm build:single` | `release/` | 策划双击即用的单文件产物 |
-| `pnpm build:app` | `app-release/win-unpacked/` + `app-update/` | Electron 桌面版 |
+| `pnpm build:app` | `app-release/win-unpacked/` + `app-update/` | Electron 桌面版（唯一交付方式） |
 | `pnpm test` | — | 380 个测试 |
-| `pnpm verify:release` | — | 单文件产物自检 |
-| `pnpm verify:server` | — | 本地服务自检（真起进程、真发 HTTP、真落盘） |
 | `pnpm verify:app-update` | — | Electron 自动更新自检（双源 / 清单 / 哈希） |
-
-`pnpm build:single` 会重写 `release/` 下的三个文件，构建完记得提交。
 
 `pnpm build:app` 会同时生成 `app-update/`（`version.json` + `app.asar`）。桌面版设置页里能看
 当前版本、手动检查更新；启动 3 秒后也会在后台查一次，有新版就提示下载。更新只替换
 `resources/app.asar`（约 1.4 MB），exe 不动，所以这两个文件也要随版本提交。
+
+单文件产物（`build:single`）已弃用，脚本已删除；`release/` 下只是历史产物，不再更新。
 
 ## 数据流
 
@@ -132,7 +129,7 @@ src/testing/  测试用的假宿主
 tools/        导入脚本、构建辅助、本地服务
 electron/     桌面版主进程与 preload
 testinput/    真实样例（策划的需求总表与 CSV）
-release/      单文件产物（构建生成，但纳入版本控制）
+release/      历史单文件产物（已弃用，不再更新）
 ```
 
 ## 注意
@@ -144,8 +141,8 @@ release/      单文件产物（构建生成，但纳入版本控制）
    node node_modules/electron/install.js
    ```
 
-2. **改完前端记得跑 `pnpm verify:release`**，它能挡住「开发正常、打包白屏」那类问题（单文件必须打成 IIFE，`file://` 下浏览器会拒绝执行 module 脚本）。
+2. **改完前端跑 `pnpm test`**；改了打包或自动更新再跑 `pnpm verify:app-update`。
 
-3. **改了 `release/storymaker-server.ps1` 要跑 `pnpm verify:server`**，`pnpm test` 覆盖不到它。该脚本源文件必须是 CRLF + UTF-8 BOM，否则 Windows PowerShell 5.1 会把中文按 ANSI 解析。
+3. 单文件产物已弃用：`build:single` 脚本已删除，`release/` 下是历史文件，不要再重建或更新它。
 
 更细的约定（踩过的坑、导出列结构、四个不要动的核心设计）见 [AGENTS.md](./AGENTS.md)。
