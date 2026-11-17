@@ -36,7 +36,7 @@ pnpm dev          # 开发服务器 http://localhost:5180
 | `pnpm dev` | 开发服务器 :5180 | 开发（`/api` 自动转给本地服务） |
 | `pnpm build` | `dist/` 多文件 | 内网服务器 |
 | `pnpm build:app` | `app-release/win-unpacked/` + `app-update/` | Electron 桌面版（唯一交付方式） |
-| `pnpm test` | — | 380 个测试 |
+| `pnpm test` | — | 600 个测试 |
 | `pnpm verify:app-update` | — | Electron 自动更新自检（双源 / 清单 / 哈希） |
 
 `pnpm build:app` 会同时生成 `app-update/`（`version.json` + `app.asar`）。桌面版设置页里能看
@@ -88,6 +88,38 @@ pnpm dev          # 开发服务器 http://localhost:5180
 ```
 
 导出与界面上的「导出预览」用的是同一处 `buildAllSheets`，预览里看到的就是导出去的内容。
+
+## 导入到 Unreal（桌面版）
+
+侧边栏的「Unreal」页可以把导出内容**直接灌进打开着的 Unreal 编辑器**，不用再手工拆 CSV、
+逐个点 reimport、拖图片。走的是引擎自带的 **Python Remote Execution**：
+
+```
+StoryMaker（Electron 主进程）
+  ── UDP 239.0.0.1:6766 发现 ──→  编辑器（pong 带回项目名 / 引擎版本）
+  ←─ TCP 回连 ──────────────────  编辑器
+  ── command（一段 Python）───→  编辑器里跑
+  ←─ command_result（逐条结果）──
+```
+
+前置条件（一次性）：
+
+1. 工程开着，且 `.uproject` 里启用了 `PythonScriptPlugin`（BulletShootGame 已经启用）
+2. 编辑器里 `Editor Preferences → Python → Enable Remote Execution` 勾上
+
+然后在「Unreal」页填两个路径：Unreal 项目文件（`.uproject`）和素材文件夹。这两项是**本机配置**，
+存在 localStorage，不进项目文件——换台机器路径本来就该不一样。
+
+导入分三类，各自独立：
+
+- **数据表**：按「Unreal 导入设置」里配的那些行，把对应子表转成 CSV 写进临时目录，
+  用 `DataTableFunctionLibrary.fill_data_table_from_csv_file` 灌进去。
+  没配的表不导（比如物品表就没配），「导入设置」自己那张子表也不是 DataTable，跳过。
+- **图片 / 音效**：扫素材文件夹，**文件名（不含扩展名）= 图片 ID / 音效 ID** 才认，
+  大小写不同也算没对上。目标路径直接取导出表里那一列的完整引用，所以和策划看到的表永远一致。
+  对不上的会在界面上列出来，不会猜。
+
+注意：脚本在编辑器主线程上同步跑，导入量大时**编辑器界面会卡住**，别关它。
 
 指令 / 条件统一写成 `主指令|分支|参数名:值;参数名:值`（空分支留空段、无参数就空到底）：
 

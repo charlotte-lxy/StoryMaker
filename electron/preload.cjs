@@ -41,4 +41,16 @@ contextBridge.exposeInMainWorld('storymakerDesktop', {
     ipcRenderer.on('update:available', listener);
     return () => ipcRenderer.removeListener('update:available', listener);
   },
+
+  /** 找在线的 Unreal 编辑器；返回 { nodes, error? } */
+  unrealDiscover: (uprojectPath) => ipcRenderer.invoke('unreal:discover', uprojectPath),
+
+  /** 导入到 Unreal：数据表 / 图片 / 音效 */
+  unrealImport: (request) => ipcRenderer.invoke('unreal:import', request),
+
+  /** 挑 .uproject 文件；取消返回 null */
+  unrealPickUproject: () => ipcRenderer.invoke('unreal:pick-uproject'),
+
+  /** 挑素材文件夹；取消返回 null */
+  unrealPickAssetFolder: () => ipcRenderer.invoke('unreal:pick-asset-folder'),
 });

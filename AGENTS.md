@@ -123,7 +123,7 @@ Vite + React 19 + TypeScript，导出用 ExcelJS。三种产物共用同一套�
 | `pnpm dev` | 开发服务器 :5180 | 开发（`/api` 自动转给同一个本地服务） |
 | `pnpm build` | `dist/` 多文件 | 内网服务器 |
 | `pnpm build:app` | `app-release/win-unpacked/` + `app-update/` | Electron 桌面版（**唯一交付方式**） |
-| `pnpm test` | — | 164 个测试 |
+| `pnpm test` | — | 600 个测试 |
 | `pnpm verify:app-update` | — | 自动更新自检（版本比较 / 清单校验 / 双源兜底 / 哈希） |
 
 ## 打包（统一走 `pnpm build:app`）
@@ -233,6 +233,27 @@ Vite + React 19 + TypeScript，导出用 ExcelJS。三种产物共用同一套�
 `Line.command`、`StoryOption.appearConditions / enableConditions` 都是
 `主指令|分支|参数名:值;…` 的指令文本，统一用 `CommandListInput` 那条
 「先选主指令 → 再选分支 → 按参数顺序摆控件」的逐级交互填。
+
+## 导入到 Unreal（桌面版）
+
+侧边栏「Unreal」页把导出内容直接灌进打开着的编辑器，走引擎自带的 **Python Remote Execution**：
+UDP 组播 `239.0.0.1:6766` 发现节点（`pong` 带回 `project_name` / `engine_root`），TCP 回连后跑一段 Python 拿结果。
+
+- 协议客户端在 `electron/unreal-remote.cjs`，只做发现 / 开通道 / 跑脚本三件事。
+  **必须绑 6766 并 `addMembership` 加入组播组**：只往 `127.0.0.1:6766` 发单播 ping 收不到任何回应（实测踩过）。
+- 导入编排在 `electron/unreal-import.cjs`：写临时 CSV → 扫素材文件夹 → 生成 Python → 交给远程执行。
+  生成脚本是纯函数 `buildImportScript()`，单独测；脚本里一项失败不影响别的项。
+- 界面侧的纯数据计划在 `src/core/unreal-import.ts`（`buildUnrealImportPlan`）。
+  图片 / 音效的包路径直接从导出表那一列解析（`packagePathOf`），**不要另按分类拼一份**——
+  否则表情立绘那种多一层子文件夹的会分叉。
+- 数据表用 `DataTableFunctionLibrary.fill_data_table_from_csv_file` 灌，图片 / 音效用
+  `AssetImportTask` + `replace_existing`。CSV 写成**不带 BOM**：UE 的 CSV 解析对 BOM 敏感，
+  StoryMaker 自己生成的 CSV 也一直是不带 BOM 的。
+- 素材按「文件名（不含扩展名）= ID」精确匹配，大小写不同也算没对上——宁可报错让人改文件名，也不猜着导错资源。
+- 脚本在编辑器**主线程同步跑**，导入量大时编辑器界面会卡住；超时给到 10 分钟，不要改小。
+- 连哪个工程靠 `pong` 里的 `project_name` 和 `.uproject` 文件名对齐；只有一个编辑器在线时也接受。
+- 能力只在桌面版有（`HostApi.unreal` 可选），网页版 / 本地服务版是 `undefined`，界面显示「只有桌面版支持」。
+  本机配置（`.uproject` 路径、素材文件夹）存 localStorage 的 `storymaker.unreal.v1`，**不进项目文件**。
 
 ## 环境坑（踩过的，别重踩）
 

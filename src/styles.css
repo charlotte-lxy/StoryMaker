@@ -4078,3 +4078,32 @@ tr.locale-form-note td {
   font-size: 12px;
   white-space: nowrap;
 }
+
+/* ---------- 「导入到 Unreal」页 ---------- */
+
+.import-section {
+  margin-top: 18px;
+}
+
+.import-section h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.unreal-log {
+  margin: 8px 0 0;
+  max-height: 320px;
+  overflow: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--head-bg);
+  color: var(--id-text);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-all;
+}

@@ -162,3 +162,35 @@ export function saveCollabPrefs(prefs: CollabPrefs): void {
     clientId: prefs.clientId,
   });
 }
+
+const UNREAL_KEY = 'storymaker.unreal.v1';
+
+/**
+ * 「导入到 Unreal」的本机配置。
+ *
+ * 存的是这台机器的路径，不是项目内容，所以放 localStorage：
+ * 换台机器打开同一个项目，路径本来就该不一样。
+ */
+export interface UnrealPrefs {
+  /** Unreal 项目文件（.uproject）的完整路径；空串表示还没配 */
+  uprojectPath: string;
+  /** 本地素材文件夹：png / wav 丢在里面，文件名就是图片 / 音效 ID */
+  assetFolder: string;
+}
+
+export const DEFAULT_UNREAL_PREFS: UnrealPrefs = { uprojectPath: '', assetFolder: '' };
+
+export function loadUnrealPrefs(): UnrealPrefs {
+  const parsed = readJson(UNREAL_KEY);
+  if (parsed === null || typeof parsed !== 'object') return { ...DEFAULT_UNREAL_PREFS };
+
+  const raw = parsed as Partial<UnrealPrefs>;
+  return {
+    uprojectPath: typeof raw.uprojectPath === 'string' ? raw.uprojectPath : '',
+    assetFolder: typeof raw.assetFolder === 'string' ? raw.assetFolder : '',
+  };
+}
+
+export function saveUnrealPrefs(prefs: UnrealPrefs): void {
+  writeJson(UNREAL_KEY, { uprojectPath: prefs.uprojectPath, assetFolder: prefs.assetFolder });
+}

@@ -106,9 +106,12 @@ import {
   clampStorySplit,
   loadSettings,
   loadStorySplit,
+  loadUnrealPrefs,
   saveSettings,
   saveStorySplit,
+  saveUnrealPrefs,
   type Settings,
+  type UnrealPrefs,
 } from './state/prefs';
 import { BattleEditor } from './ui/BattleEditor';
 import { BatchEditBar } from './ui/BatchEditBar';
@@ -135,6 +138,7 @@ import { SettingsEditor } from './ui/SettingsEditor';
 import { ScriptPalette } from './ui/ScriptPalette';
 import { Sidebar } from './ui/Sidebar';
 import { UpdatePrompt } from './ui/UpdatePanel';
+import { UnrealImportPage } from './ui/UnrealImportPage';
 import { useCollab } from './ui/useCollab';
 import { useUpdater } from './ui/use-updater';
 import { useScrollMemory } from './ui/view-memory';
@@ -165,6 +169,7 @@ type Module =
   | 'battle'
   | 'locale'
   | 'export'
+  | 'unreal'
   | 'settings';
 
 /**
@@ -200,6 +205,8 @@ export default function App() {
   const [phase, setPhase] = useState<Phase>('loading');
   const [project, setProject] = useState<Project>(createEmptyProject);
   const [settings, setSettings] = useState<Settings>(loadSettings);
+  /** 「导入到 Unreal」的本机配置：工程路径、素材文件夹（都是这台机器的路径，不进项目文件） */
+  const [unrealPrefs, setUnrealPrefs] = useState<UnrealPrefs>(loadUnrealPrefs);
   const [module, setModule] = useState<Module>('story');
   const [activeGroupUid, setActiveGroupUid] = useState<string>('');
   /** 各模块底部的校验结果列表是否展开；平时收起，只在这条上显示条数 */
@@ -352,6 +359,10 @@ export default function App() {
   useEffect(() => {
     saveSettings(settings);
   }, [settings]);
+
+  useEffect(() => {
+    saveUnrealPrefs(unrealPrefs);
+  }, [unrealPrefs]);
 
   useEffect(() => {
     if (toast === '') return;
@@ -1166,6 +1177,7 @@ export default function App() {
             组内从上往下排（导出在设置上面）。以后再加置底按钮，加在这两个前面。
           */}
           {railButton('export', '⤓', '导出', 'rail-item-bottom')}
+          {railButton('unreal', '◈', 'Unreal')}
           {railButton('settings', '⚙', '设置')}
         </nav>
 
@@ -1350,6 +1362,15 @@ export default function App() {
                   project={project}
                   onChange={setProject}
                   onExport={() => void handleExport()}
+                />
+              )}
+
+              {module === 'unreal' && (
+                <UnrealImportPage
+                  project={project}
+                  prefs={unrealPrefs}
+                  onChangePrefs={(patch) => setUnrealPrefs((prev) => ({ ...prev, ...patch }))}
+                  host={host}
                 />
               )}
 

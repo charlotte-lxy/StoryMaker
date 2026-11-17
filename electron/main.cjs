@@ -12,6 +12,8 @@ const os = require('node:os');
 const path = require('node:path');
 
 const updateCore = require('./update-core.cjs');
+const { UnrealRemoteSession } = require('./unreal-remote.cjs');
+const { runImport } = require('./unreal-import.cjs');
 
 /** 开发模式直接连 Vite，正式模式读打包进来的 dist */
 const isDev = !app.isPackaged;
@@ -303,6 +305,104 @@ ipcMain.handle('update:check', async () => {
 ipcMain.handle('update:download', () => downloadUpdate());
 ipcMain.handle('update:apply', () => applyUpdate());
 
+/** ---------- 导入到 Unreal ---------- */
+
+/**
+ * 本机唯一的 Remote Execution 会话。
+ *
+ * UDP 发现端口 6766 一个进程只能占一份，所以整个应用共用一个会话，
+ * 发现和导入都走它；窗口关掉时统一关。
+ */
+let unrealSession = null;
+
+function getUnrealSession() {
+  if (unrealSession === null) unrealSession = new UnrealRemoteSession();
+  return unrealSession;
+}
+
+/** 从 .uproject 路径取项目名，用来确认连的是这个工程而不是别的 */
+function projectNameOf(uprojectPath) {
+  const base = path.basename(String(uprojectPath ?? ''));
+  return base.toLowerCase().endsWith('.uproject') ? base.slice(0, -'.uproject'.length) : base;
+}
+
+const NO_EDITOR_MESSAGE =
+  '没有发现在线的 Unreal 编辑器。请先打开工程，并确认 Editor Preferences → Python → Enable Remote Execution 已勾上。';
+
+ipcMain.handle('unreal:discover', async () => {
+  try {
+    const nodes = await getUnrealSession().discover(3000);
+    return nodes.length === 0 ? { nodes: [], error: NO_EDITOR_MESSAGE } : { nodes };
+  } catch (error) {
+    return { nodes: [], error: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+ipcMain.handle('unreal:import', async (_event, request) => {
+  try {
+    const session = getUnrealSession();
+    const nodes = await session.discover(3000);
+    if (nodes.length === 0) return { ok: false, message: NO_EDITOR_MESSAGE };
+
+    // 按项目名认目标；只有一个编辑器在线时也接受，免得策划还是得核对一遍名字
+    const expected = projectNameOf(request.uprojectPath);
+    const sameName = nodes.filter(
+      (node) => node.projectName.toLowerCase() === expected.toLowerCase(),
+    );
+    const node = sameName[0] ?? (nodes.length === 1 ? nodes[0] : undefined);
+    if (node === undefined) {
+      const found = nodes.map((item) => item.projectName || '（未命名）').join('、');
+      return { ok: false, message: `在线的编辑器里没有 ${expected || '目标工程'}，发现的是：${found}` };
+    }
+
+    const scope = request.scope ?? { tables: true, images: true, sounds: true };
+    const plan = {
+      tables: scope.tables ? request.plan.tables : [],
+      images: scope.images ? request.plan.images : [],
+      sounds: scope.sounds ? request.plan.sounds : [],
+    };
+
+    const result = await runImport({
+      session,
+      nodeId: node.id,
+      plan,
+      assetFolder: typeof request.assetFolder === 'string' ? request.assetFolder : '',
+      timeoutMs: 600_000,
+    });
+
+    return {
+      ok: true,
+      success: result.outcome.success,
+      output: result.outcome.output,
+      counts: result.counts,
+      missing: result.missing,
+      unused: result.unused,
+      skipped: result.skipped,
+    };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : String(error) };
+  }
+});
+
+ipcMain.handle('unreal:pick-uproject', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: '选择 Unreal 项目文件',
+    properties: ['openFile'],
+    filters: [{ name: 'Unreal 项目', extensions: ['uproject'] }],
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return result.filePaths[0];
+});
+
+ipcMain.handle('unreal:pick-asset-folder', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: '选择素材文件夹（png / wav 放这里，文件名就是图片 / 音效 ID）',
+    properties: ['openDirectory'],
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return result.filePaths[0];
+});
+
 app.whenReady().then(() => {
   createWindow();
   app.on('activate', () => {
@@ -312,4 +412,12 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
+});
+
+/** 退出前把发现端口让出来，否则下次启动要等系统回收 */
+app.on('before-quit', () => {
+  if (unrealSession !== null) {
+    unrealSession.close();
+    unrealSession = null;
+  }
 });

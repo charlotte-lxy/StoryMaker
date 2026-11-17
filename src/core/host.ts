@@ -40,6 +40,69 @@ export interface UpdateNotice {
   size: number;
 }
 
+/** 一个在线的 Unreal 编辑器（Remote Execution 发现到的节点） */
+export interface UnrealNodeInfo {
+  id: string;
+  user: string;
+  machine: string;
+  engineVersion: string;
+  engineRoot: string;
+  projectRoot: string;
+  /** 项目名，用来确认连的是这个工程而不是别的 */
+  projectName: string;
+}
+
+/** 一条导入结果：一张表 / 一张图 / 一条音效 */
+export interface UnrealImportItem {
+  kind: 'table' | 'image' | 'sound';
+  label: string;
+  ok: boolean;
+  detail: string;
+}
+
+export interface UnrealImportRequest {
+  /** 目标 Unreal 项目的 .uproject 路径 */
+  uprojectPath: string;
+  /** 素材文件夹；空串表示这次只导数据表 */
+  assetFolder: string;
+  /** 要导什么，由界面上的勾选决定 */
+  scope: { tables: boolean; images: boolean; sounds: boolean };
+  plan: {
+    tables: Array<{ label: string; assetPath: string; csvText: string }>;
+    images: Array<{ id: string; assetPath: string }>;
+    sounds: Array<{ id: string; assetPath: string }>;
+  };
+}
+
+export interface UnrealImportReport {
+  ok: boolean;
+  /** UE 那边脚本整体跑成功没有；ok 只代表「流程走通了」 */
+  success?: boolean;
+  message?: string;
+  /** UE 的原始日志，出错时给策划看 */
+  output?: string[];
+  counts?: { tables: number; images: number; sounds: number };
+  missing?: { images: string[]; sounds: string[] };
+  unused?: { images: string[]; sounds: string[] };
+  /** 素材对不上文件名、被跳过的数量 */
+  skipped?: { images: number; sounds: number };
+}
+
+/**
+ * 「导入到 Unreal」能力：只有桌面版有（要开本机 UDP/TCP 去连编辑器）。
+ * 网页版 / 本地服务版拿不到，界面显示成不支持。
+ */
+export interface UnrealApi {
+  /** 找在线的编辑器；连不上时返回空列表并带一条 error */
+  discover: (uprojectPath: string) => Promise<{ nodes: UnrealNodeInfo[]; error?: string }>;
+  /** 真正导入：连上编辑器、跑脚本、把结果拿回来 */
+  runImport: (request: UnrealImportRequest) => Promise<UnrealImportReport>;
+  /** 挑 .uproject 文件；取消返回 null */
+  pickUproject: () => Promise<string | null>;
+  /** 挑素材文件夹；取消返回 null */
+  pickAssetFolder: () => Promise<string | null>;
+}
+
 /**
  * 自动更新能力：只有打包后的桌面版有。
  * 网页版 / 本地服务版拿不到它，界面上显示成「当前环境不支持」。
@@ -79,6 +142,8 @@ export interface HostApi {
   revealFile: (filePath: string) => Promise<void>;
   /** 自动更新；没有这个能力的宿主是 undefined */
   update?: UpdateApi;
+  /** 导入到 Unreal；没有这个能力的宿主（网页版 / 本地服务版）是 undefined */
+  unreal?: UnrealApi;
 }
 
 /** Electron 主进程通过 preload 暴露的接口 */
@@ -94,6 +159,11 @@ export interface DesktopBridge {
   downloadUpdate?: () => Promise<UpdateDownloadResult>;
   applyUpdate?: () => Promise<UpdateDownloadResult>;
   onUpdateAvailable?: (listener: (notice: UpdateNotice) => void) => () => void;
+  /** 导入到 Unreal；老版本 preload 没有这一组 */
+  unrealDiscover?: (uprojectPath: string) => Promise<{ nodes: UnrealNodeInfo[]; error?: string }>;
+  unrealImport?: (request: UnrealImportRequest) => Promise<UnrealImportReport>;
+  unrealPickUproject?: () => Promise<string | null>;
+  unrealPickAssetFolder?: () => Promise<string | null>;
 }
 
 /** 本地服务版：由服务端注入的一次性令牌，防止别的网页乱调本地接口 */
@@ -257,6 +327,19 @@ function desktopHost(bridge: DesktopBridge): HostApi {
         }
       : undefined;
 
+  const unreal: UnrealApi | undefined =
+    bridge.unrealDiscover !== undefined &&
+    bridge.unrealImport !== undefined &&
+    bridge.unrealPickUproject !== undefined &&
+    bridge.unrealPickAssetFolder !== undefined
+      ? {
+          discover: (uprojectPath) => bridge.unrealDiscover!(uprojectPath),
+          runImport: (request) => bridge.unrealImport!(request),
+          pickUproject: () => bridge.unrealPickUproject!(),
+          pickAssetFolder: () => bridge.unrealPickAssetFolder!(),
+        }
+      : undefined;
+
   return {
     kind: 'desktop',
     // 桌面版把"上次的项目路径"记在本机 localStorage 里，只记路径，不记项目内容
@@ -273,6 +356,7 @@ function desktopHost(bridge: DesktopBridge): HostApi {
     exportFile: (suggestedName, data) => bridge.exportFile(suggestedName, data),
     revealFile: (filePath) => bridge.revealFile(filePath),
     update,
+    unreal,
   };
 }
 
