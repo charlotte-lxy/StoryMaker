@@ -1,9 +1,12 @@
 import type { Settings } from '../state/prefs';
+import { UpdateCard } from './UpdatePanel';
+import type { Updater } from './use-updater';
 import { useScrollMemory } from './view-memory';
 
 interface Props {
   settings: Settings;
   onChange: (patch: Partial<Settings>) => void;
+  updater: Updater;
 }
 
 const AUTO_SAVE_ON =
@@ -11,7 +14,7 @@ const AUTO_SAVE_ON =
 
 const AUTO_SAVE_OFF = '改动不会自动写回项目文件，请记得点顶部的「保存」。';
 
-export function SettingsEditor({ settings, onChange }: Props) {
+export function SettingsEditor({ settings, onChange, updater }: Props) {
   const editorRef = useScrollMemory('settings');
 
   return (
@@ -67,6 +70,8 @@ export function SettingsEditor({ settings, onChange }: Props) {
           </div>
         </div>
       </section>
+
+      <UpdateCard updater={updater} />
     </div>
   );
 }

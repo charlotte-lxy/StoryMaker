@@ -36,12 +36,17 @@ pnpm dev          # 开发服务器 http://localhost:5180
 | `pnpm dev` | 开发服务器 :5180 | 开发（`/api` 自动转给本地服务） |
 | `pnpm build` | `dist/` 多文件 | 内网服务器 |
 | `pnpm build:single` | `release/` | 策划双击即用的单文件产物 |
-| `pnpm build:app` | `app-release/win-unpacked/` | Electron 桌面版 |
+| `pnpm build:app` | `app-release/win-unpacked/` + `app-update/` | Electron 桌面版 |
 | `pnpm test` | — | 380 个测试 |
 | `pnpm verify:release` | — | 单文件产物自检 |
 | `pnpm verify:server` | — | 本地服务自检（真起进程、真发 HTTP、真落盘） |
+| `pnpm verify:app-update` | — | Electron 自动更新自检（双源 / 清单 / 哈希） |
 
 `pnpm build:single` 会重写 `release/` 下的三个文件，构建完记得提交。
+
+`pnpm build:app` 会同时生成 `app-update/`（`version.json` + `app.asar`）。桌面版设置页里能看
+当前版本、手动检查更新；启动 3 秒后也会在后台查一次，有新版就提示下载。更新只替换
+`resources/app.asar`（约 1.4 MB），exe 不动，所以这两个文件也要随版本提交。
 
 ## 数据流
 

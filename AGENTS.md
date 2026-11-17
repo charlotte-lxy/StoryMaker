@@ -126,16 +126,17 @@ Vite + React 19 + TypeScript，导出用 ExcelJS。三种产物共用同一套�
 | `pnpm dev` | 开发服务器 :5180 | 开发（`/api` 自动转给同一个本地服务） |
 | `pnpm build` | `dist/` 多文件 | 内网服务器 |
 | `pnpm build:single` | `release/`：`index.html` + `启动StoryMaker.bat` + `storymaker-server.ps1` + `version.json` | 策划双击即用 |
-| `pnpm build:app` | `app-release/win-unpacked/` | Electron 桌面版（**对外打包统一走这条**） |
+| `pnpm build:app` | `app-release/win-unpacked/` + `app-update/` | Electron 桌面版（**对外打包统一走这条**） |
 | `pnpm test` | — | 164 个测试 |
 | `pnpm verify:release` | — | 单文件产物自检 |
 | `pnpm verify:server` | — | 本地服务自检（真起进程、真发 HTTP、真落盘） |
 | `pnpm verify:update` | — | 自动更新自检（本地 HTTP 冒充远端，不碰真实网络） |
+| `pnpm verify:app-update` | — | Electron 自动更新自检（版本比较 / 清单校验 / 双源兜底 / 哈希） |
 
 ## 打包（统一走 `pnpm build:app`）
 
-对外交付一律用 `pnpm build:app`，产物是 `app-release/win-unpacked/`，双击 `StoryMaker.exe` 即用。
-`build` / `build:single` 只在需要内网部署或单文件分发时才用。
+对外交付一律用 `pnpm build:app`，产物是 `app-release/win-unpacked/`（绿包）+ `app-update/`（自动更新用），
+双击 `StoryMaker.exe` 即用。`build` / `build:single` 只在需要内网部署或单文件分发时才用。
 
 固定流程：
 
@@ -146,9 +147,11 @@ Vite + React 19 + TypeScript，导出用 ExcelJS。三种产物共用同一套�
 2. **清缓存**：删 `app-release/`、`dist/`、`tsconfig.tsbuildinfo`、`node_modules/.vite`。
    **不要清** `%LOCALAPPDATA%\electron-builder\Cache`：electron、7zip、winCodeSign 都在里面，
    清了会重新走 GitHub 下载，只会更慢。
-3. **执行**：`pnpm build:app`（`tsc -b` → `vite build` → `electron-builder --win`），本机干净构建约 30 秒。
+3. **执行**：`pnpm build:app`（`tsc -b` → `vite build` → `electron-builder --win` →
+   `tools/make-app-update.mts`），本机干净构建约 30 秒。
 4. **验证产物**：`resources/app.asar` 约 1.4 MB / 11 个条目；exe 的 `FileVersion` 等于 `package.json`
-   的 `version`；`app-release` 总量约 370 MB（electron.exe 独占 246 MB）。
+   的 `version`；`app-release` 总量约 370 MB（electron.exe 独占 246 MB）；
+   `app-update/version.json` 的 `version` 与 `package.json` 一致、`sha256` 与 `app-update/app.asar` 对得上。
 5. **启动自检**：起 `win-unpacked/StoryMaker.exe`，等主窗口出现：冷启动 2–3 秒、热启动 0.4 秒内算正常。
 
 注意事项：
@@ -158,6 +161,23 @@ Vite + React 19 + TypeScript，导出用 ExcelJS。三种产物共用同一套�
 - electron-builder 在 Windows 上通过 PowerShell 调 `pnpm list --json` 收集依赖，所以 PATH 里必须有
   `pnpm` 可执行入口；只有 `pnpm.mjs` 时它会拿到空输出，报 `No JSON content found in output`。
 - 终端里若注入了 `ELECTRON_RUN_AS_NODE=1`，启动 Electron 会退化成 Node、开窗即退；自检前先清掉它。
+- **发版必须把 `app-update/version.json` 和 `app-update/app.asar` 一起提交**，漏了客户端就拉不到新版。
+  `app-update/` 跟 `release/` 一样纳入版本控制。
+
+### Electron 自动更新（只换 app.asar）
+
+设置页有「版本与更新」：显示 `当前版本 vX`、手动「检查更新」、发现新版后「下载更新 / 重启并安装」。
+启动 3 秒后主进程会在后台查一次，有新版就通过 `update:available` 推给界面弹提示；
+连不上更新源就静默跳过，绝不影响使用。
+
+- 更新源：`raw.githubusercontent.com/.../main/app-update`，失败再试 `cdn.jsdelivr.net/gh/...@main/app-update`。
+  仓库必须保持 **public**（私库要 token，不能放进客户端）。可用 `STORYMAKER_APP_UPDATE_BASE`（逗号分隔）覆盖。
+- 清单 `app-update/version.json`：`version` / `file`（只认 `app.asar`）/ `sha256` / `size`。
+- 下载到 `resources/app.asar.new`，核对大小与 SHA-256；通过后由一个小 bat 在进程退出后替换 `app.asar` 并重启。
+- **exe 不参与更新**：所以 `build.disableAsarIntegrity` 已关掉，避免 exe 里写死的 asar 哈希跟替换后的文件对不上。
+  代价是 exe 的 `FileVersion` 会停在安装时那一版，界面里显示的版本来自 asar 的 `package.json`。
+- 更新逻辑的纯函数在 `electron/update-core.cjs`，`pnpm verify:app-update` 会起本地 HTTP 源验证双源兜底与哈希校验。
+- 首次上线自动更新时，老版本没有更新器，需要手动换一次完整文件夹（之后才会走增量）。
 
 ## 项目文件与数据存放（不要改回去）
 

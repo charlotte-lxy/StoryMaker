@@ -19,6 +19,40 @@ export interface PickedProject {
   content: string;
 }
 
+/** 自动更新的检查结果 */
+export interface UpdateCheckResult {
+  status: 'latest' | 'available' | 'error' | 'unsupported';
+  current: string;
+  latest?: string;
+  /** 新版本 app.asar 的字节数，用来在界面上显示下载大小 */
+  size?: number;
+  message?: string;
+}
+
+export interface UpdateDownloadResult {
+  ok: boolean;
+  message?: string;
+}
+
+export interface UpdateNotice {
+  current: string;
+  latest: string;
+  size: number;
+}
+
+/**
+ * 自动更新能力：只有打包后的桌面版有。
+ * 网页版 / 本地服务版拿不到它，界面上显示成「当前环境不支持」。
+ */
+export interface UpdateApi {
+  check: () => Promise<UpdateCheckResult>;
+  download: () => Promise<UpdateDownloadResult>;
+  /** 重启并安装：主进程会退出，替换 app.asar 后再拉起来 */
+  apply: () => Promise<UpdateDownloadResult>;
+  /** 启动时后台检查到新版会推事件；返回取消订阅的函数 */
+  onAvailable: (listener: (notice: UpdateNotice) => void) => () => void;
+}
+
 export interface HostApi {
   kind: 'desktop' | 'server';
   /** 上一次开启的项目文件路径；没有则 null */
@@ -43,6 +77,8 @@ export interface HostApi {
   exportFile: (suggestedName: string, data: ArrayBuffer) => Promise<string | null>;
   /** 在文件管理器里定位文件 */
   revealFile: (filePath: string) => Promise<void>;
+  /** 自动更新；没有这个能力的宿主是 undefined */
+  update?: UpdateApi;
 }
 
 /** Electron 主进程通过 preload 暴露的接口 */
@@ -53,6 +89,11 @@ export interface DesktopBridge {
   writeProject: (filePath: string, content: string) => Promise<void>;
   exportFile: (suggestedName: string, data: ArrayBuffer) => Promise<string | null>;
   revealFile: (filePath: string) => Promise<void>;
+  /** 下面四个只在打包后的桌面版里有（测试用假宿主可以不给） */
+  checkUpdate?: () => Promise<UpdateCheckResult>;
+  downloadUpdate?: () => Promise<UpdateDownloadResult>;
+  applyUpdate?: () => Promise<UpdateDownloadResult>;
+  onUpdateAvailable?: (listener: (notice: UpdateNotice) => void) => () => void;
 }
 
 /** 本地服务版：由服务端注入的一次性令牌，防止别的网页乱调本地接口 */
@@ -203,6 +244,19 @@ function serverHost(token: string): HostApi {
 }
 
 function desktopHost(bridge: DesktopBridge): HostApi {
+  // 老版本 preload 或者测试用的假宿主可能没有这几个方法
+  const update: UpdateApi | undefined =
+    bridge.checkUpdate !== undefined &&
+    bridge.downloadUpdate !== undefined &&
+    bridge.applyUpdate !== undefined
+      ? {
+          check: () => bridge.checkUpdate!(),
+          download: () => bridge.downloadUpdate!(),
+          apply: () => bridge.applyUpdate!(),
+          onAvailable: (listener) => bridge.onUpdateAvailable?.(listener) ?? (() => {}),
+        }
+      : undefined;
+
   return {
     kind: 'desktop',
     // 桌面版把"上次的项目路径"记在本机 localStorage 里，只记路径，不记项目内容
@@ -218,6 +272,7 @@ function desktopHost(bridge: DesktopBridge): HostApi {
     writeBackup: (backupTarget, content) => bridge.writeProject(backupTarget, content),
     exportFile: (suggestedName, data) => bridge.exportFile(suggestedName, data),
     revealFile: (filePath) => bridge.revealFile(filePath),
+    update,
   };
 }
 

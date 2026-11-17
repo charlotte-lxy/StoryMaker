@@ -25,4 +25,20 @@ contextBridge.exposeInMainWorld('storymakerDesktop', {
 
   /** 在资源管理器里定位文件 */
   revealFile: (filePath) => ipcRenderer.invoke('shell:reveal', filePath),
+
+  /** 查更新：返回 { status, current, latest?, size?, message? } */
+  checkUpdate: () => ipcRenderer.invoke('update:check'),
+
+  /** 下载并校验新 asar；返回 { ok, message? } */
+  downloadUpdate: () => ipcRenderer.invoke('update:download'),
+
+  /** 重启并安装：主进程会起一个 bat，退出后替换 app.asar 再拉起自己 */
+  applyUpdate: () => ipcRenderer.invoke('update:apply'),
+
+  /** 启动时后台检查到新版会推这个事件；返回取消订阅的函数 */
+  onUpdateAvailable: (callback) => {
+    const listener = (_event, info) => callback(info);
+    ipcRenderer.on('update:available', listener);
+    return () => ipcRenderer.removeListener('update:available', listener);
+  },
 });

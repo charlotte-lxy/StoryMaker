@@ -133,7 +133,9 @@ import { ProjectGate } from './ui/ProjectGate';
 import { SettingsEditor } from './ui/SettingsEditor';
 import { ScriptPalette } from './ui/ScriptPalette';
 import { Sidebar } from './ui/Sidebar';
+import { UpdatePrompt } from './ui/UpdatePanel';
 import { useCollab } from './ui/useCollab';
+import { useUpdater } from './ui/use-updater';
 import { useScrollMemory } from './ui/view-memory';
 
 /** 一个模块的校验结果，右上角的总数弹层与模块底部的校验条都用它 */
@@ -192,6 +194,8 @@ function saveBlob(filename: string, blob: Blob): void {  const url = URL.createO
 export default function App() {
   /** 当前宿主：桌面版走 Electron，本地服务版走 bat 起的服务；都没有时为 undefined */
   const [host, setHost] = useState<HostApi | undefined>(undefined);
+  /** 自动更新：设置页的卡片和启动时的提示共用这一份状态 */
+  const updater = useUpdater(host?.update);
   const [phase, setPhase] = useState<Phase>('loading');
   const [project, setProject] = useState<Project>(createEmptyProject);
   const [settings, setSettings] = useState<Settings>(loadSettings);
@@ -1348,6 +1352,7 @@ export default function App() {
               {module === 'settings' && (
                 <SettingsEditor
                   settings={settings}
+                  updater={updater}
                   onChange={(patch) => {
                     setSettings((prev) => ({ ...prev, ...patch }));
                     // 主题跟着项目文件走：换台机器打开还是同一个颜色
@@ -1487,6 +1492,8 @@ export default function App() {
       </div>
 
       {toast !== '' && <div className="toast">{toast}</div>}
+
+      <UpdatePrompt updater={updater} />
 
       {confirmRequest !== null && (
         <ConfirmDialog

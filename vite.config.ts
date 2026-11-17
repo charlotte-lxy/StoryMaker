@@ -2,6 +2,7 @@ import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
 
+import pkg from './package.json';
 import { devProjectService } from './tools/dev-service';
 
 /**
@@ -39,6 +40,10 @@ export default defineConfig(({ mode }) => {
   return {
     // 单文件是用 file:// 打开的，资源路径必须相对
     base: './',
+    // 版本号在界面上显示（设置页），来源只有 package.json
+    define: {
+      __APP_VERSION__: JSON.stringify(pkg.version),
+    },
     plugins: [
       react(),
       // 开发时页面的项目文件读写也走本地服务，见 tools/dev-service.ts

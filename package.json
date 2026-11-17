@@ -1,7 +1,7 @@
 {
   "name": "storymaker",
   "private": true,
-  "version": "0.1.63",
+  "version": "0.1.64",
   "type": "module",
   "description": "剧情对话编辑器",
   "main": "electron/main.cjs",
@@ -9,12 +9,13 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:single": "tsc -b && vite build --mode singlefile && vite-node tools/make-launcher.mts",
-    "build:app": "tsc -b && vite build && electron-builder --win",
+    "build:app": "tsc -b && vite build && electron-builder --win && vite-node tools/make-app-update.mts",
     "preview": "vite preview",
     "test": "vitest run",
     "verify:release": "vite-node tools/verify-release.mts",
     "verify:server": "vite-node tools/verify-server.mts",
     "verify:update": "vite-node tools/verify-update.mts",
+    "verify:app-update": "vite-node tools/verify-app-update.mts",
     "verify:collab": "vite-node tools/verify-collab.mts"
   },
   "dependencies": {
@@ -46,6 +47,7 @@
       "output": "app-release"
     },
     "electronDist": "node_modules/electron/dist",
+    "disableAsarIntegrity": true,
     "files": ["dist/**/*", "electron/**/*", "build/icon.ico", "package.json", "!node_modules/**/*"],
     "win": {
       "icon": "build/icon.ico",

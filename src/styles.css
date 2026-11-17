@@ -3571,6 +3571,35 @@ tr.locale-form-note td {
   line-height: 1.65;
 }
 
+/* ---------- 版本与更新 ---------- */
+
+.update-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.update-status {
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.update-status.ok {
+  color: var(--ok);
+}
+
+.update-status.error {
+  color: var(--danger);
+}
+
+.update-hint {
+  margin: 10px 0 0;
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 /* 开关和主题选择都靠右，和左边的说明文字拉开距离 */
 .settings-item > .switch,
 .settings-item > .theme-picker {
