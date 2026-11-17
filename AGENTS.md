@@ -123,7 +123,7 @@ Vite + React 19 + TypeScript，导出用 ExcelJS。三种产物共用同一套�
 | `pnpm dev` | 开发服务器 :5180 | 开发（`/api` 自动转给同一个本地服务） |
 | `pnpm build` | `dist/` 多文件 | 内网服务器 |
 | `pnpm build:app` | `app-release/win-unpacked/` + `app-update/` | Electron 桌面版（**唯一交付方式**） |
-| `pnpm test` | — | 665 个测试 |
+| `pnpm test` | — | 675 个测试 |
 | `pnpm verify:app-update` | — | 自动更新自检（版本比较 / 清单校验 / 双源兜底 / 哈希） |
 
 ## 打包（统一走 `pnpm build:app`）
@@ -242,7 +242,9 @@ Vite + React 19 + TypeScript，导出用 ExcelJS。三种产物共用同一套�
 
 ## 导入到 Unreal（桌面版）
 
-**导出模块**的「Unreal导入设置」页负责连接与配置，工具栏的「导出到 UE」弹窗负责导入操作。
+**连接在「设置」页**（项目文件、检测连接、自动连接开关、检测间隔），顶部工具条有个 UE 状态标签；
+「导出 → Unreal导入设置」负责数据表与类名前缀的配置；导出模块左侧工具列表的
+「导出到 UE」（在 Unreal导入设置 和 导出 Excel 中间）打开导入弹窗。
 走引擎自带的 **Python Remote Execution**：
 UDP 组播 `239.0.0.1:6766` 发现节点（`pong` 带回 `project_name` / `engine_root`），TCP 回连后跑一段 Python 拿结果。
 

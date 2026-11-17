@@ -36,7 +36,7 @@ pnpm dev          # 开发服务器 http://localhost:5180
 | `pnpm dev` | 开发服务器 :5180 | 开发（`/api` 自动转给本地服务） |
 | `pnpm build` | `dist/` 多文件 | 内网服务器 |
 | `pnpm build:app` | `app-release/win-unpacked/` + `app-update/` | Electron 桌面版（唯一交付方式） |
-| `pnpm test` | — | 665 个测试 |
+| `pnpm test` | — | 675 个测试 |
 | `pnpm verify:app-update` | — | Electron 自动更新自检（双源 / 清单 / 哈希） |
 
 `pnpm build:app` 会同时生成 `app-update/`（`version.json` + `app.asar` + `changelog.json`）。桌面版设置页里能看
@@ -112,8 +112,11 @@ StoryMaker（Electron 主进程）
 1. 工程开着，且 `.uproject` 里启用了 `PythonScriptPlugin`（BulletShootGame 已经启用）
 2. 编辑器里 `Editor Preferences → Python → Enable Remote Execution` 勾上
 
-然后在「设置」页选**素材文件夹**，在「导出 → Unreal导入设置」里填 **Unreal 项目文件**（`.uproject`）
-并点「检测连接」。这两项都是本机配置，存在 localStorage，不进项目文件——换台机器路径本来就该不一样。
+然后在「设置」页配 **Unreal 项目文件**（`.uproject`）、**素材文件夹**，并决定要不要**自动连接**
+（默认开，5 秒探一次）。这些全是本机配置，存在 localStorage，不进项目文件——换台机器路径本来就该不一样。
+顶部工具条上的 **UE** 标签会显示连接状态：绿色=连上、灰色=没连，点一下跳到设置。
+
+连上之后，「导出 → Unreal导入设置」里才能选数据表、配前缀。
 
 **连上之后才能配数据表和前缀**：数据表从编辑器里检索出来的 DataTable 下拉里选，
 前缀从 Content 目录树里选文件夹。没连上时只能看，不能改。
@@ -125,8 +128,9 @@ StoryMaker（Electron 主进程）
 - **数据表**：按「Unreal 导入设置」里配的那些行，把对应子表转成 CSV 写进临时目录，
   用 `DataTableFunctionLibrary.fill_data_table_from_csv_file` 灌进去。
 
-配好之后点工具栏的 **「导出到 UE」**：弹窗里是导入范围、`导入 / 全量导入` 两个按钮、
-实时进度条和逐条结果，导完点「完成」关掉。
+配好之后用导出模块左侧工具列表里的 **「导出到 UE」**（在「Unreal导入设置」和「导出 Excel」中间）：
+弹窗里是导入范围、`导入 / 全量导入` 两个按钮、实时进度条和逐条结果，导完点「完成」关掉。
+没连上编辑器时这个按钮是灰的。
 
 **素材跟条目 uid 绑定，不跟文件名绑定**：条目 ID 改名后，素材文件会跟着改名
 （比如 `SCE_Black.png` → `SCE_New.png`），导入时也会把 UE 里的旧资产重命名，

@@ -168,7 +168,7 @@ const UNREAL_KEY = 'storymaker.unreal.v1';
 /**
  * 「导入到 Unreal」的本机配置。
  *
- * 存的是这台机器的路径，不是项目内容，所以放 localStorage：
+ * 存的是这台机器的路径与连接习惯，不是项目内容，所以放 localStorage：
  * 换台机器打开同一个项目，路径本来就该不一样。
  */
 export interface UnrealPrefs {
@@ -176,21 +176,44 @@ export interface UnrealPrefs {
   uprojectPath: string;
   /** 本地素材文件夹：png / wav 丢在里面，文件名就是图片 / 音效 ID */
   assetFolder: string;
+  /** 打开软件后自动定时探测编辑器；关掉就只能手动点「检测连接」 */
+  autoConnect: boolean;
+  /** 自动探测的间隔（秒）；太小没意义，最小按 1 秒算 */
+  connectIntervalSec: number;
 }
 
-export const DEFAULT_UNREAL_PREFS: UnrealPrefs = { uprojectPath: '', assetFolder: '' };
+/** 自动检测的默认间隔：5 秒一次 */
+export const DEFAULT_CONNECT_INTERVAL_SEC = 5;
+
+export const DEFAULT_UNREAL_PREFS: UnrealPrefs = {
+  uprojectPath: '',
+  assetFolder: '',
+  autoConnect: true,
+  connectIntervalSec: DEFAULT_CONNECT_INTERVAL_SEC,
+};
 
 export function loadUnrealPrefs(): UnrealPrefs {
   const parsed = readJson(UNREAL_KEY);
   if (parsed === null || typeof parsed !== 'object') return { ...DEFAULT_UNREAL_PREFS };
 
   const raw = parsed as Partial<UnrealPrefs>;
+  const interval = Number(raw.connectIntervalSec);
   return {
     uprojectPath: typeof raw.uprojectPath === 'string' ? raw.uprojectPath : '',
     assetFolder: typeof raw.assetFolder === 'string' ? raw.assetFolder : '',
+    autoConnect: typeof raw.autoConnect === 'boolean' ? raw.autoConnect : DEFAULT_UNREAL_PREFS.autoConnect,
+    connectIntervalSec:
+      Number.isFinite(interval) && interval >= 1
+        ? Math.min(120, Math.round(interval))
+        : DEFAULT_CONNECT_INTERVAL_SEC,
   };
 }
 
 export function saveUnrealPrefs(prefs: UnrealPrefs): void {
-  writeJson(UNREAL_KEY, { uprojectPath: prefs.uprojectPath, assetFolder: prefs.assetFolder });
+  writeJson(UNREAL_KEY, {
+    uprojectPath: prefs.uprojectPath,
+    assetFolder: prefs.assetFolder,
+    autoConnect: prefs.autoConnect,
+    connectIntervalSec: prefs.connectIntervalSec,
+  });
 }

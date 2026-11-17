@@ -755,8 +755,10 @@ describe('设置、自动保存与自动加载', () => {
   it('关掉自动保存后，编辑不再写项目文件', async () => {
     await renderApp();
     fireEvent.click(within(rail()).getByText('设置'));
-    fireEvent.click(screen.getByRole('checkbox')); // 关掉自动保存
-    expect(screen.getByText(/不会自动写回项目文件/)).toBeTruthy();
+    // 「自动保存」那个开关：按标题定位，别按序号（设置页现在有好几个开关）
+    const autoSaveItem = screen.getByText('自动保存').closest('.settings-item') as HTMLElement;
+    fireEvent.click(autoSaveItem.querySelector('input') as HTMLInputElement);
+    expect(screen.getAllByText(/不会自动写回项目文件/).length).toBeGreaterThan(0);
 
     fireEvent.change(nameInput(), { target: { value: '不该被自动保存' } });
     await new Promise((done) => setTimeout(done, 1000));
@@ -2323,11 +2325,17 @@ describe('导出模块', () => {
       'GAS武器',
     ]);
 
-    // 工具列表在子表列表下面：「Unreal导入设置」在「导出 Excel」上方
+    // 工具列表在子表列表下面：「Unreal导入设置」→「导出到 UE」→「导出 Excel」
     expect([...document.querySelectorAll('.export-tool')].map((button) => button.textContent)).toEqual([
       'Unreal导入设置',
+      '导出到 UE',
       '导出 Excel',
     ]);
+    // 没连编辑器时「导出到 UE」是灰的
+    const exportToUe = [...document.querySelectorAll('.export-tool')].find(
+      (button) => button.textContent === '导出到 UE',
+    ) as HTMLButtonElement;
+    expect(exportToUe.disabled).toBe(true);
     const sheetList = document.querySelector('.export-sheets') as HTMLElement;
     const tools = document.querySelector('.export-tools') as HTMLElement;
     expect(sheetList.compareDocumentPosition(tools) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

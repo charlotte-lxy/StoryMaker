@@ -137,6 +137,7 @@ import { ProjectGate } from './ui/ProjectGate';
 import { SettingsEditor } from './ui/SettingsEditor';
 import { ScriptPalette } from './ui/ScriptPalette';
 import { Sidebar } from './ui/Sidebar';
+import { UnrealBadge } from './ui/UnrealBadge';
 import { UpdatePrompt } from './ui/UpdatePanel';
 import { ExportToUeDialog } from './ui/export/ExportToUeDialog';
 import { useAssetLibrary } from './ui/use-asset-library';
@@ -211,7 +212,10 @@ export default function App() {
   /** 素材文件夹里的文件：立绘和音效的「素材管理」列共用这一份 */
   const assetLibrary = useAssetLibrary(host, unrealPrefs.assetFolder);
   /** 和 Unreal 编辑器的连接：导入设置页和「导出到 UE」弹窗共用 */
-  const unrealConnection = useUnrealConnection(host, unrealPrefs.uprojectPath);
+  const unrealConnection = useUnrealConnection(host, unrealPrefs.uprojectPath, {
+    autoConnect: unrealPrefs.autoConnect,
+    intervalSec: unrealPrefs.connectIntervalSec,
+  });
   /** 「导出到 UE」弹窗开着没有 */
   const [ueDialogOpen, setUeDialogOpen] = useState(false);
   const [module, setModule] = useState<Module>('story');
@@ -1097,15 +1101,6 @@ export default function App() {
 
         <span className="spacer" />
 
-        <button
-          type="button"
-          className="toolbar-ue"
-          title="把数据表和素材导入到打开着的 Unreal 编辑器"
-          onClick={() => setUeDialogOpen(true)}
-        >
-          导出到 UE
-        </button>
-
         {/* 当前项目文件名：和协作状态、校验结果一样是「现在什么情况」，因此归到右边一组，
             中间那块地方留给全局搜索框 */}
         <span className="file-chip" title={projectPath ?? '还没有项目文件'}>
@@ -1124,6 +1119,9 @@ export default function App() {
           onRename={collab.setMyName}
           onRecolor={collab.setMyColor}
         />
+
+        {/* UE 连接状态：和「协作」一个样式，绿点=连上、灰点=没连 */}
+        <UnrealBadge connection={unrealConnection} onOpenSettings={() => setModule('settings')} />
 
         <div className="check-summary">
           <button
@@ -1390,10 +1388,8 @@ export default function App() {
                   project={project}
                   onChange={setProject}
                   onExport={() => void handleExport()}
+                  onExportToUe={() => setUeDialogOpen(true)}
                   connection={unrealConnection}
-                  host={host}
-                  prefs={unrealPrefs}
-                  onChangePrefs={(patch) => setUnrealPrefs((prev) => ({ ...prev, ...patch }))}
                 />
               )}
 
@@ -1404,6 +1400,8 @@ export default function App() {
                   unrealPrefs={unrealPrefs}
                   onChangeUnrealPrefs={(patch) => setUnrealPrefs((prev) => ({ ...prev, ...patch }))}
                   pickAssetFolder={host?.unreal?.pickAssetFolder}
+                  pickUproject={host?.unreal?.pickUproject}
+                  connection={unrealConnection}
                   onChange={(patch) => {
                     setSettings((prev) => ({ ...prev, ...patch }));
                     // 主题跟着项目文件走：换台机器打开还是同一个颜色

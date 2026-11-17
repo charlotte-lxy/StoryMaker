@@ -178,8 +178,11 @@ export interface UnrealCatalogResult {
  * 网页版 / 本地服务版拿不到，界面显示成不支持。
  */
 export interface UnrealApi {
-  /** 找在线的编辑器；连不上时返回空列表并带一条 error */
-  discover: (uprojectPath: string) => Promise<{ nodes: UnrealNodeInfo[]; error?: string }>;
+  /** 找在线的编辑器；连不上时返回空列表并带一条 error。timeoutMs 给自动探测用短超时 */
+  discover: (
+    uprojectPath: string,
+    timeoutMs?: number,
+  ) => Promise<{ nodes: UnrealNodeInfo[]; error?: string }>;
   /** 查编辑器里的数据表与文件夹清单（导入设置的下拉 / 目录树用） */
   queryCatalog: (uprojectPath: string) => Promise<UnrealCatalogResult>;
   /** 真正导入：连上编辑器、跑脚本、把结果拿回来 */
@@ -269,7 +272,10 @@ export interface DesktopBridge {
   applyUpdate?: () => Promise<UpdateDownloadResult>;
   onUpdateAvailable?: (listener: (notice: UpdateNotice) => void) => () => void;
   /** 导入到 Unreal；老版本 preload 没有这一组 */
-  unrealDiscover?: (uprojectPath: string) => Promise<{ nodes: UnrealNodeInfo[]; error?: string }>;
+  unrealDiscover?: (
+    uprojectPath: string,
+    timeoutMs?: number,
+  ) => Promise<{ nodes: UnrealNodeInfo[]; error?: string }>;
   unrealQueryCatalog?: (uprojectPath: string) => Promise<UnrealCatalogResult>;
   unrealImport?: (request: UnrealImportRequest) => Promise<UnrealImportReport>;
   unrealImportProgress?: (
@@ -468,7 +474,7 @@ function desktopHost(bridge: DesktopBridge): HostApi {
     bridge.unrealRenameAsset !== undefined &&
     bridge.unrealReadAsset !== undefined
       ? {
-          discover: (uprojectPath) => bridge.unrealDiscover!(uprojectPath),
+          discover: (uprojectPath, timeoutMs) => bridge.unrealDiscover!(uprojectPath, timeoutMs),
           queryCatalog: (uprojectPath) => bridge.unrealQueryCatalog!(uprojectPath),
           runImport: (request) => bridge.unrealImport!(request),
           onImportProgress: (listener) => bridge.unrealImportProgress!(listener),

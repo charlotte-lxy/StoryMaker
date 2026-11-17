@@ -1,7 +1,6 @@
 import { useState } from 'react';
 
 import type { Project } from '../../core/types';
-import type { HostApi } from '../../core/host';
 import {
   DEFAULT_ATTRIBUTE_CLASS_NAME,
   classPath,
@@ -16,7 +15,6 @@ import {
   updateExportSetting,
   updateSpecialCommandClassPrefix,
 } from '../../state/operations';
-import type { UnrealPrefs } from '../../state/prefs';
 import type { UnrealConnection } from '../use-unreal-connection';
 import { useScrollMemory } from '../view-memory';
 import { FolderTreeDialog } from './FolderTreeDialog';
@@ -24,11 +22,7 @@ import { FolderTreeDialog } from './FolderTreeDialog';
 interface Props {
   project: Project;
   onChange: (next: Project) => void;
-  prefs: UnrealPrefs;
-  onChangePrefs: (patch: Partial<UnrealPrefs>) => void;
   connection: UnrealConnection;
-  /** 挑 .uproject 文件的能力（桌面版才有） */
-  host: HostApi | undefined;
 }
 
 /** 前缀配置的五行：键、标题、示例类名 */
@@ -60,19 +54,13 @@ export function prefixFromFolder(folder: string): string {
 /**
  * Unreal 导入设置。
  *
- * 一页三块：
- *   连接   —— 填 .uproject、连上编辑器；连上之后下面两块才可配
+ * 一页两块（连接在「设置」页里）：
  *   数据表 —— 一行一张 DataTable：从编辑器里选，自动带出表名和文件夹，再选内容来自哪个子表
  *   前缀   —— 每种「类名」一条前缀，从编辑器目录树里选文件夹自动拼出来
+ *
+ * 没连上编辑器时两块都只能看，不能改。
  */
-export function ImportSettingsPage({
-  project,
-  onChange,
-  prefs,
-  onChangePrefs,
-  connection,
-  host,
-}: Props) {
+export function ImportSettingsPage({ project, onChange, connection }: Props) {
   const editorRef = useScrollMemory('export:settings');
   const rows = project.exportSettings;
   const connected = connection.status === 'online';
@@ -142,77 +130,26 @@ export function ImportSettingsPage({
         </span>
       </div>
 
-      {/* ---------- 连接 ---------- */}
-      <div className="battle-table-wrap">
-        <table className="lines battle-table">
-          <tbody>
-            <tr>
-              <th style={{ width: 110 }}>Unreal 项目文件</th>
-              <td>
-                <input
-                  value={prefs.uprojectPath}
-                  placeholder="E:\Unreal\UnrealProject\BulletShoot\BulletShootGame\BulletShootGame.uproject"
-                  onChange={(event) => onChangePrefs({ uprojectPath: event.target.value })}
-                />
-              </td>
-              <td style={{ width: 90 }}>
-                <button
-                  type="button"
-                  className="mini"
-                  disabled={host?.unreal === undefined}
-                  onClick={() => {
-                    void host?.unreal?.pickUproject().then((picked) => {
-                      if (picked !== null) onChangePrefs({ uprojectPath: picked });
-                    });
-                  }}
-                >
-                  选择…
-                </button>
-              </td>
-            </tr>
-            <tr>
-              <th>连接</th>
-              <td colSpan={2}>
-                <button
-                  type="button"
-                  className="mini"
-                  disabled={!connection.available || connection.status === 'checking'}
-                  onClick={() => void connection.connect()}
-                >
-                  {connection.status === 'checking' ? '检测中…' : '检测连接'}
-                </button>{' '}
-                {connection.status === 'online' && (
-                  <span className="hint">
-                    已连接 {connection.node?.projectName}（引擎 {connection.node?.engineVersion}）·{' '}
-                    {connection.catalogLoading
-                      ? '正在读取数据表…'
-                      : `找到 ${tables.length} 张数据表、${connection.catalog?.folders.length ?? 0} 个文件夹`}
-                    {connection.catalogError !== '' && (
-                      <span className="field-error">　{connection.catalogError}</span>
-                    )}
-                  </span>
-                )}
-                {connection.status === 'offline' && (
-                  <span className="field-error">{connection.message}</span>
-                )}
-                {connection.status === 'idle' && <span className="hint">还没检测</span>}
-                {!connection.available && <span className="hint">只有桌面版能连编辑器</span>}
-                {connected && !connection.catalogLoading && (
-                  <>
-                    {' '}
-                    <button
-                      type="button"
-                      className="mini"
-                      onClick={() => void connection.refreshCatalog()}
-                    >
-                      重新读取
-                    </button>
-                  </>
-                )}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      {/* 连接本身在「设置」页里；这里只报一句当前状态 */}
+      <div className="import-connect-note">
+        {connected ? (
+          <span className="hint">
+            已连接 {connection.node?.projectName || '（未命名工程）'}（引擎{' '}
+            {connection.node?.engineVersion || '未知版本'}）·{' '}
+            {connection.catalogLoading
+              ? '正在读取数据表…'
+              : `找到 ${tables.length} 张数据表、${connection.catalog?.folders.length ?? 0} 个文件夹`}
+            {connection.catalogError !== '' && (
+              <span className="field-error">　{connection.catalogError}</span>
+            )}
+          </span>
+        ) : (
+          <span className="field-error">
+            {connection.available
+              ? '还没连上编辑器：去「设置 → Unreal 连接」里点「检测连接」。'
+              : '只有桌面版能连编辑器。'}
+          </span>
+        )}
       </div>
 
       {/* ---------- 数据表配置 ---------- */}

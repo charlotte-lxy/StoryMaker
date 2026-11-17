@@ -3,9 +3,8 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { HostApi, UnrealCatalogTable } from '../../core/host';
+import type { UnrealCatalogTable } from '../../core/host';
 import { createEmptyProject } from '../../state/operations';
-import { DEFAULT_UNREAL_PREFS } from '../../state/prefs';
 import type { Project } from '../../core/types';
 import type { UnrealConnection } from '../use-unreal-connection';
 import { ImportSettingsPage } from './ImportSettingsPage';
@@ -42,9 +41,6 @@ function makeConnection(overrides: Partial<UnrealConnection> = {}): UnrealConnec
 
 const OFFLINE = makeConnection({ status: 'offline', node: null, catalog: null, message: '没连上' });
 
-function makeHost(): HostApi {
-  return { kind: 'desktop', unreal: { pickUproject: vi.fn(async () => null) } } as unknown as HostApi;
-}
 
 /** 受控组件：要真的能改 project */
 function Harness({ connection }: { connection: UnrealConnection }) {
@@ -61,10 +57,7 @@ function Harness({ connection }: { connection: UnrealConnection }) {
     <ImportSettingsPage
       project={project}
       onChange={setProject}
-      prefs={DEFAULT_UNREAL_PREFS}
-      onChangePrefs={() => undefined}
       connection={connection}
-      host={makeHost()}
     />
   );
 }
@@ -135,10 +128,7 @@ describe('Unreal 导入设置页', () => {
         <ImportSettingsPage
           project={project}
           onChange={() => undefined}
-          prefs={DEFAULT_UNREAL_PREFS}
-          onChangePrefs={() => undefined}
           connection={makeConnection()}
-          host={makeHost()}
         />
       );
     }

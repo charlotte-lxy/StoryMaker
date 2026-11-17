@@ -359,9 +359,12 @@ function pickNode(nodes, uprojectPath) {
 const NO_EDITOR_MESSAGE =
   '没有发现在线的 Unreal 编辑器。请先打开工程，并确认 Editor Preferences → Python → Enable Remote Execution 已勾上。';
 
-ipcMain.handle('unreal:discover', async () => {
+ipcMain.handle('unreal:discover', async (_event, _uprojectPath, timeoutMs) => {
   try {
-    const nodes = await getUnrealSession().discover(3000);
+    const wait = Number(timeoutMs);
+    const nodes = await getUnrealSession().discover(
+      Number.isFinite(wait) && wait > 0 ? wait : 3000,
+    );
     return nodes.length === 0 ? { nodes: [], error: NO_EDITOR_MESSAGE } : { nodes };
   } catch (error) {
     return { nodes: [], error: error instanceof Error ? error.message : String(error) };

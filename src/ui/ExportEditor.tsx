@@ -1,12 +1,10 @@
 import { useMemo } from 'react';
 
 import { buildAllSheets } from '../core/export';
-import type { HostApi } from '../core/host';
 import type { Project } from '../core/types';
-import type { UnrealPrefs } from '../state/prefs';
-import type { UnrealConnection } from './use-unreal-connection';
 import { ExportPreviewPage } from './export/ExportPreviewPage';
 import { ImportSettingsPage } from './export/ImportSettingsPage';
+import type { UnrealConnection } from './use-unreal-connection';
 import { useRememberedChoice } from './view-memory';
 
 type ExportPage = 'settings' | 'preview';
@@ -16,11 +14,10 @@ interface Props {
   onChange: (next: Project) => void;
   /** 导出 Excel：按钮在工具列表最下面 */
   onExport: () => void;
+  /** 打开「导出到 UE」弹窗 */
+  onExportToUe: () => void;
   /** 「Unreal 导入设置」页要连编辑器，连接状态由上层持有 */
   connection: UnrealConnection;
-  host: HostApi | undefined;
-  prefs: UnrealPrefs;
-  onChangePrefs: (patch: Partial<UnrealPrefs>) => void;
 }
 
 /**
@@ -28,7 +25,8 @@ interface Props {
  *
  * 左边一条窄栏分两段：
  *   上面是导出的全部子表（垂直排列，点哪个右边就显示哪张子表的内容）；
- *   最下面是工具列表——「Unreal导入设置」打开设置页，「导出 Excel」直接导出。
+ *   最下面是工具列表——「Unreal导入设置」打开设置页，「导出到 UE」打开导入弹窗，
+ *   「导出 Excel」直接导出。
  *
  * 工具列表靠 margin-top:auto 贴在侧边栏最下面，新增的工具按钮加在「导出 Excel」上面，
  * 列表就从下往上长，最常用的那个始终贴在手边。
@@ -37,10 +35,8 @@ export function ExportEditor({
   project,
   onChange,
   onExport,
+  onExportToUe,
   connection,
-  host,
-  prefs,
-  onChangePrefs,
 }: Props) {
   const sheets = useMemo(() => buildAllSheets(project), [project]);
   const [page, setPage] = useRememberedChoice<ExportPage>('export:page', 'settings');
@@ -83,6 +79,19 @@ export function ExportEditor({
           >
             Unreal导入设置
           </button>
+          <button
+            type="button"
+            className="export-tool"
+            disabled={connection.status !== 'online'}
+            title={
+              connection.status === 'online'
+                ? '把数据表和素材导入到打开着的编辑器'
+                : '还没连上编辑器：去「设置 → Unreal 连接」里检测'
+            }
+            onClick={onExportToUe}
+          >
+            导出到 UE
+          </button>
           <button type="button" className="primary export-tool" onClick={onExport}>
             导出 Excel
           </button>
@@ -91,14 +100,7 @@ export function ExportEditor({
 
       <div className="export-main">
         {page === 'settings' ? (
-          <ImportSettingsPage
-            project={project}
-            onChange={onChange}
-            prefs={prefs}
-            onChangePrefs={onChangePrefs}
-            connection={connection}
-            host={host}
-          />
+          <ImportSettingsPage project={project} onChange={onChange} connection={connection} />
         ) : (
           <ExportPreviewPage project={project} name={current} />
         )}

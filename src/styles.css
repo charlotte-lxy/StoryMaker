@@ -4307,24 +4307,6 @@ tr.locale-form-note td {
   background: var(--ok-soft);
   color: var(--ok);
 }
-/* ---------- 工具栏的「导出到 UE」 ---------- */
-
-.toolbar-ue {
-  padding: 5px 12px;
-  border: 1px solid var(--accent);
-  border-radius: 8px;
-  background: var(--accent-soft);
-  color: var(--accent-dark);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.toolbar-ue:hover {
-  background: var(--accent);
-  color: var(--on-accent);
-}
 
 /* ---------- 「导出到 UE」弹窗 ---------- */
 
@@ -4409,4 +4391,34 @@ tr.locale-form-note td {
   flex: 1 1 auto;
   min-width: 0;
   color: var(--text-dim);
+}
+/* ---------- UE 状态标签（沿用协作徽章的配色） ---------- */
+
+.ue-badge {
+  margin-left: -2px;
+}
+
+/* ---------- 设置页的连接区 ---------- */
+
+.settings-connect-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.settings-inline-label {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.settings-interval-row input[type='number'] {
+  width: 90px;
+}
+
+/* ---------- 导入设置页顶部的连接状态提示 ---------- */
+
+.import-connect-note {
+  margin: 0 0 10px;
+  font-size: 12px;
 }
