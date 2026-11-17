@@ -60,32 +60,45 @@ export interface UnrealImportItem {
   detail: string;
 }
 
+/** 要导的一个素材：ID 给界面显示，sourcePath 是本地文件 */
+export interface UnrealImportAsset {
+  id: string;
+  assetPath: string;
+  sourcePath: string;
+}
+
 export interface UnrealImportRequest {
   /** 目标 Unreal 项目的 .uproject 路径 */
   uprojectPath: string;
-  /** 素材文件夹；空串表示这次只导数据表 */
-  assetFolder: string;
-  /** 要导什么，由界面上的勾选决定 */
-  scope: { tables: boolean; images: boolean; sounds: boolean };
+  /** 这个请求里给什么就导什么；增量时界面只放变化项 */
   plan: {
     tables: Array<{ label: string; assetPath: string; csvText: string }>;
-    images: Array<{ id: string; assetPath: string }>;
-    sounds: Array<{ id: string; assetPath: string }>;
+    images: UnrealImportAsset[];
+    sounds: UnrealImportAsset[];
   };
 }
 
 export interface UnrealImportReport {
   ok: boolean;
-  /** UE 那边脚本整体跑成功没有；ok 只代表「流程走通了」 */
-  success?: boolean;
   message?: string;
-  /** UE 的原始日志，出错时给策划看 */
-  output?: string[];
-  counts?: { tables: number; images: number; sounds: number };
-  missing?: { images: string[]; sounds: string[] };
-  unused?: { images: string[]; sounds: string[] };
-  /** 素材对不上文件名、被跳过的数量 */
-  skipped?: { images: number; sounds: number };
+  /** 素材阶段有失败、因而没导数据表 */
+  stopped: boolean;
+  /** 逐项结果 */
+  items: UnrealImportItem[];
+  /** 素材阶段成功导入的本地文件路径，用来更新「已导入」标记 */
+  importedPaths: string[];
+  counts: { tables: number; images: number; sounds: number };
+}
+
+/** 导入进度：界面按它画进度条 */
+export interface UnrealImportProgress {
+  phase: 'assets' | 'tables';
+  /** 当前第几项（从 1 开始） */
+  current: number;
+  total: number;
+  /** 正在导的文件名 / 表名 */
+  label: string;
+  status: 'running' | 'ok' | 'failed';
 }
 
 /**
@@ -98,6 +111,10 @@ export interface AssetFileInfo {
   fileName: string;
   baseName: string;
   kind: 'image' | 'sound';
+  /** 字节数，增量判定用 */
+  size: number;
+  /** 修改时间（毫秒），增量判定用 */
+  mtimeMs: number;
 }
 
 export interface AssetListResult {
@@ -130,6 +147,8 @@ export interface UnrealApi {
   discover: (uprojectPath: string) => Promise<{ nodes: UnrealNodeInfo[]; error?: string }>;
   /** 真正导入：连上编辑器、跑脚本、把结果拿回来 */
   runImport: (request: UnrealImportRequest) => Promise<UnrealImportReport>;
+  /** 订阅导入进度；返回取消订阅的函数 */
+  onImportProgress: (listener: (progress: UnrealImportProgress) => void) => () => void;
   /** 挑 .uproject 文件；取消返回 null */
   pickUproject: () => Promise<string | null>;
   /** 挑素材文件夹；取消返回 null */
@@ -208,6 +227,9 @@ export interface DesktopBridge {
   /** 导入到 Unreal；老版本 preload 没有这一组 */
   unrealDiscover?: (uprojectPath: string) => Promise<{ nodes: UnrealNodeInfo[]; error?: string }>;
   unrealImport?: (request: UnrealImportRequest) => Promise<UnrealImportReport>;
+  unrealImportProgress?: (
+    listener: (progress: UnrealImportProgress) => void,
+  ) => () => void;
   unrealPickUproject?: () => Promise<string | null>;
   unrealPickAssetFolder?: () => Promise<string | null>;
   unrealListAssets?: (folder: string) => Promise<AssetListResult>;
@@ -385,6 +407,7 @@ function desktopHost(bridge: DesktopBridge): HostApi {
   const unreal: UnrealApi | undefined =
     bridge.unrealDiscover !== undefined &&
     bridge.unrealImport !== undefined &&
+    bridge.unrealImportProgress !== undefined &&
     bridge.unrealPickUproject !== undefined &&
     bridge.unrealPickAssetFolder !== undefined &&
     bridge.unrealListAssets !== undefined &&
@@ -394,6 +417,7 @@ function desktopHost(bridge: DesktopBridge): HostApi {
       ? {
           discover: (uprojectPath) => bridge.unrealDiscover!(uprojectPath),
           runImport: (request) => bridge.unrealImport!(request),
+          onImportProgress: (listener) => bridge.unrealImportProgress!(listener),
           pickUproject: () => bridge.unrealPickUproject!(),
           pickAssetFolder: () => bridge.unrealPickAssetFolder!(),
           listAssets: (folder) => bridge.unrealListAssets!(folder),

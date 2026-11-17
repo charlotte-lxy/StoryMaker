@@ -10,7 +10,7 @@
  * 的规则保持一致，放哪一层都认，但新传的都在最外层，好找。
  */
 
-const { copyFile, readFile, readdir, rm } = require('node:fs/promises');
+const { copyFile, readFile, readdir, rm, stat } = require('node:fs/promises');
 const path = require('node:path');
 
 /** 上传时允许的格式：都是 UE 能直接导进去的 */
@@ -65,11 +65,16 @@ async function listAssetFiles(folder) {
       }
       const kind = kindOfFile(entry.name);
       if (kind === null) continue;
+      // 大小与修改时间给「增量导入」判断用：文件被覆盖后这两个会变
+      const info = await stat(full).catch(() => null);
+      if (info === null) continue;
       files.push({
         filePath: full,
         fileName: entry.name,
         baseName: baseNameOf(entry.name),
         kind,
+        size: info.size,
+        mtimeMs: info.mtimeMs,
       });
     }
   }

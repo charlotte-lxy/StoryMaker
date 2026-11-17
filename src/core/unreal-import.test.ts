@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildUnrealImportPlan,
   packagePathOf,
-  parseImportResult,
+  resolveImportAssets,
 } from './unreal-import';
 import { createEmptyProject } from '../state/operations';
 import type { Project } from './types';
@@ -87,30 +87,60 @@ describe('导入计划', () => {
   });
 });
 
-describe('解析 UE 回传的导入结果', () => {
-  it('从一堆 UE 日志里挑出那一行结果 JSON', () => {
-    const output = [
-      'LogPython: 别的日志',
-      'LogPython: SMK_IMPORT_RESULT [{"kind":"table","label":"TB_Image","ok":true,"detail":"已导入"}]',
-      'LogPython: SMK_IMPORT_DONE',
-    ];
-    expect(parseImportResult(output)).toEqual([
-      { kind: 'table', label: 'TB_Image', ok: true, detail: '已导入' },
-    ]);
+describe('把素材对到实际文件上', () => {
+  const file = (filePath: string, size = 100, mtimeMs = 1000) => ({
+    filePath,
+    fileName: filePath.split('\\').pop() ?? filePath,
+    size,
+    mtimeMs,
   });
 
-  it('没有结果行、JSON 坏了、或字段不对都返回 null', () => {
-    expect(parseImportResult(['只有日志'])).toBeNull();
-    expect(parseImportResult(['SMK_IMPORT_RESULT 这不是 JSON'])).toBeNull();
-    expect(parseImportResult(['SMK_IMPORT_RESULT {"kind":"table"}'])).toBeNull();
+  it('找得到文件就带上路径与指纹，找不到进 missing', () => {
+    const byId = new Map([['SCE_Black', [file('C:\\素材\\SCE_Black.png')]]]);
+    const result = resolveImportAssets(
+      [
+        { id: 'SCE_Black', assetPath: '/Game/a/SCE_Black' },
+        { id: 'SCE_White', assetPath: '/Game/a/SCE_White' },
+      ],
+      byId,
+    );
+
+    expect(result.ready).toEqual([
+      {
+        id: 'SCE_Black',
+        assetPath: '/Game/a/SCE_Black',
+        filePath: 'C:\\素材\\SCE_Black.png',
+        fileName: 'SCE_Black.png',
+        size: 100,
+        mtimeMs: 1000,
+      },
+    ]);
+    expect(result.missing).toEqual(['SCE_White']);
+    expect(result.duplicates).toEqual([]);
   });
 
-  it('丢掉不认识 kind 的条目，其余照收', () => {
-    const output = [
-      'SMK_IMPORT_RESULT [{"kind":"unknown","label":"x","ok":true,"detail":""},{"kind":"image","label":"SCE_Black","ok":false,"detail":"导入没有产出资产"}]',
-    ];
-    expect(parseImportResult(output)).toEqual([
-      { kind: 'image', label: 'SCE_Black', ok: false, detail: '导入没有产出资产' },
+  it('同一个 ID 多个文件时用第一个并记进 duplicates', () => {
+    const byId = new Map([
+      ['SCE_Black', [file('C:\\素材\\SCE_Black.jpg'), file('C:\\素材\\SCE_Black.png')]],
     ]);
+    const result = resolveImportAssets([{ id: 'SCE_Black', assetPath: '/Game/a/SCE_Black' }], byId);
+
+    expect(result.ready[0].fileName).toBe('SCE_Black.jpg');
+    expect(result.duplicates).toEqual(['SCE_Black']);
+  });
+
+  it('结果按计划顺序，不受素材文件夹扫描顺序影响', () => {
+    const byId = new Map([
+      ['B', [file('C:\\素材\\B.png')]],
+      ['A', [file('C:\\素材\\A.png')]],
+    ]);
+    const result = resolveImportAssets(
+      [
+        { id: 'A', assetPath: '/Game/A' },
+        { id: 'B', assetPath: '/Game/B' },
+      ],
+      byId,
+    );
+    expect(result.ready.map((item) => item.id)).toEqual(['A', 'B']);
   });
 });

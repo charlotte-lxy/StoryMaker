@@ -3,83 +3,25 @@
 /**
  * 「导入到 Unreal」的执行端。
  *
- * 渲染进程把计划（哪些表、哪些图、哪些音效）交过来，这里负责：
- *   1. 把每张表的 CSV 写到临时目录（UE 只认文件，不认内存里的字符串）
- *   2. 扫素材文件夹，按「文件名 = ID」把 png/wav 对到计划上
- *   3. 生成一段 UE Python 脚本，交给 Remote Execution 在编辑器里跑
- *   4. 解析脚本回传的结果
+ * 一条命令通道上逐项跑：先素材、后数据表，每一项单独发一段 Python，
+ * 这样主进程能立刻把「正在导哪个文件、到第几个了」推给界面。
  *
- * 脚本生成是纯函数（buildImportScript），单独测；扫描和写文件要碰磁盘，走集成验证。
+ * 阶段顺序是有讲究的：**素材导完并全部成功之后才导数据表**。数据表里存的是
+ * 资源引用，素材没进去就灌表的话，引用会指向不存在的资产。
  */
 
-const { mkdtemp, readdir, rm, writeFile } = require('node:fs/promises');
+const { mkdtemp, rm, writeFile } = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 
-const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.tga']);
-const SOUND_EXTENSIONS = new Set(['.wav', '.ogg', '.flac']);
+/** 单项结果行前缀：Python 脚本最后打一行 JSON，这里按前缀取 */
+const ITEM_RESULT_PREFIX = 'SMK_ITEM_RESULT ';
 
-/** 结果行前缀；脚本最后用 json 打一行，主进程按这个前缀找 */
-const RESULT_PREFIX = 'SMK_IMPORT_RESULT ';
-const DONE_MARKER = 'SMK_IMPORT_DONE';
+/** 单张图 / 单条音效的导入超时（毫秒） */
+const ASSET_TIMEOUT_MS = 120_000;
 
-/** 按扩展名判断是图还是音效；不认识的返回 null */
-function materialKindOfFile(fileName) {
-  const extension = path.extname(fileName).toLowerCase();
-  if (IMAGE_EXTENSIONS.has(extension)) return 'image';
-  if (SOUND_EXTENSIONS.has(extension)) return 'sound';
-  return null;
-}
-
-/** 递归扫素材文件夹，只收指定类别的文件 */
-async function scanMaterialFolder(folder, kind) {
-  const files = [];
-  async function walk(dir) {
-    let entries;
-    try {
-      entries = await readdir(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      if (entry.name.startsWith('.')) continue;
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        await walk(full);
-        continue;
-      }
-      if (materialKindOfFile(entry.name) !== kind) continue;
-      files.push({
-        filePath: full,
-        baseName: path.basename(entry.name, path.extname(entry.name)),
-      });
-    }
-  }
-  await walk(folder);
-  return files;
-}
-
-/**
- * 按「文件名 = ID」把文件对到计划上。
- *
- * 只做精确匹配：大小写不同也算没对上，宁可报错让人改文件名，也不猜着导错资源。
- */
-function matchMaterialFiles(files, expected) {
-  const wanted = new Set(expected.map((task) => task.id));
-  const matched = new Map();
-  const unused = [];
-
-  for (const file of files) {
-    if (!wanted.has(file.baseName) || matched.has(file.baseName)) {
-      unused.push(file.filePath);
-      continue;
-    }
-    matched.set(file.baseName, file.filePath);
-  }
-
-  const missing = expected.map((task) => task.id).filter((id) => !matched.has(id));
-  return { matched, missing, unused };
-}
+/** 单张数据表的超时（毫秒）：大表灌 CSV 可能要一会 */
+const TABLE_TIMEOUT_MS = 180_000;
 
 /** 文件名里不能出现的字符换成下划线，免得写 CSV 时出错 */
 function safeFileName(text) {
@@ -99,78 +41,107 @@ async function writeCsvFiles(tables, directory) {
   return written;
 }
 
-/**
- * 生成在编辑器里跑的 Python 脚本。
- *
- * 设计上刻意「一项失败不影响别的」：每张表、每张图各自 try/except，
- * 最后统一回传一份结果清单，界面按条显示成功与失败原因。
- */
-function buildImportScript(payload) {
-  const dataLiteral = JSON.stringify(JSON.stringify(payload));
+/** 把 Python 里要用的数据嵌进脚本：转两次 JSON，既安全又保留中文 */
+function embedData(value) {
+  return JSON.stringify(JSON.stringify(value));
+}
 
+/**
+ * 导入一张图 / 一条音效的脚本。
+ *
+ * 用 AssetImportTask 走导入管线（等价于在内容浏览器里拖进去），
+ * 目标路径和资产名直接取导出表里那个完整引用，和策划看到的表永远一致。
+ */
+function buildAssetScript(item) {
   return [
     '# -*- coding: utf-8 -*-',
-    '# 由 StoryMaker 生成：把 CSV 灌进数据表，把 png/wav 导成纹理和音效',
     'import unreal',
     'import json',
     '',
-    `DATA = json.loads(${dataLiteral})`,
-    '',
-    'results = []',
-    '',
-    'def add(kind, label, ok, detail):',
-    '    results.append({"kind": kind, "label": label, "ok": bool(ok), "detail": detail})',
-    '',
-    'def split_package(package_path):',
-    '    index = package_path.rfind("/")',
+    `item = json.loads(${embedData(item)})`,
+    'result = {"ok": False, "detail": ""}',
+    'try:',
+    '    asset_path = item["assetPath"]',
+    '    index = asset_path.rfind("/")',
     '    if index <= 0:',
-    '        return "", package_path',
-    '    return package_path[:index], package_path[index + 1:]',
+    '        result["detail"] = "资源路径不合法：" + asset_path',
+    '    else:',
+    '        folder = asset_path[:index]',
+    '        name = asset_path[index + 1:]',
+    '        task = unreal.AssetImportTask()',
+    '        task.set_editor_property("filename", item["sourcePath"])',
+    '        task.set_editor_property("destination_path", folder)',
+    '        task.set_editor_property("destination_name", name)',
+    '        task.set_editor_property("replace_existing", True)',
+    '        task.set_editor_property("automated", True)',
+    '        task.set_editor_property("save", True)',
+    '        unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([task])',
+    '        imported = list(task.get_editor_property("imported_object_paths"))',
+    '        result["ok"] = len(imported) > 0',
+    '        result["detail"] = "已导入" if imported else "导入没有产出资产"',
+    'except Exception as error:',
+    '    result["detail"] = str(error)',
     '',
-    'def import_asset(kind, item, folder, name):',
-    '    task = unreal.AssetImportTask()',
-    '    task.set_editor_property("filename", item["sourcePath"])',
-    '    task.set_editor_property("destination_path", folder)',
-    '    task.set_editor_property("destination_name", name)',
-    '    task.set_editor_property("replace_existing", True)',
-    '    task.set_editor_property("automated", True)',
-    '    task.set_editor_property("save", True)',
-    '    asset_tools.import_asset_tasks([task])',
-    '    imported = list(task.get_editor_property("imported_object_paths"))',
-    '    add(kind, item["id"], len(imported) > 0, "已导入" if imported else "导入没有产出资产")',
-    '',
-    'asset_tools = unreal.AssetToolsHelpers.get_asset_tools()',
-    '',
-    '# ---------- 数据表：CSV 直接灌进去 ----------',
-    'for table in DATA["tables"]:',
-    '    try:',
-    '        asset = unreal.load_asset(table["assetPath"])',
-    '        if asset is None:',
-    '            add("table", table["label"], False, "找不到数据表资产：" + table["assetPath"])',
-    '            continue',
-    '        filled = unreal.DataTableFunctionLibrary.fill_data_table_from_csv_file(asset, table["csvPath"])',
-    '        if filled:',
-    '            unreal.EditorAssetLibrary.save_loaded_asset(asset)',
-    '        add("table", table["label"], filled, "已导入" if filled else "CSV 与数据表结构不匹配，详见上方日志")',
-    '    except Exception as error:',
-    '        add("table", table["label"], False, str(error))',
-    '',
-    '# ---------- 图片 / 音效：走资源导入管线 ----------',
-    'for kind, key in (("image", "images"), ("sound", "sounds")):',
-    '    for item in DATA[key]:',
-    '        try:',
-    '            folder, name = split_package(item["assetPath"])',
-    '            if folder == "":',
-    '                add(kind, item["id"], False, "资源路径不合法：" + item["assetPath"])',
-    '                continue',
-    '            import_asset(kind, item, folder, name)',
-    '        except Exception as error:',
-    '            add(kind, item["id"], False, str(error))',
-    '',
-    `unreal.log("${RESULT_PREFIX}" + json.dumps(results, ensure_ascii=False))`,
-    `unreal.log("${DONE_MARKER}")`,
+    `unreal.log("${ITEM_RESULT_PREFIX}" + json.dumps(result, ensure_ascii=False))`,
     '',
   ].join('\n');
+}
+
+/** 把一段 CSV 灌进一张已存在的数据表 */
+function buildTableScript(table) {
+  return [
+    '# -*- coding: utf-8 -*-',
+    'import unreal',
+    'import json',
+    '',
+    `item = json.loads(${embedData(table)})`,
+    'result = {"ok": False, "detail": ""}',
+    'try:',
+    '    asset = unreal.load_asset(item["assetPath"])',
+    '    if asset is None:',
+    '        result["detail"] = "找不到数据表资产：" + item["assetPath"]',
+    '    else:',
+    '        filled = unreal.DataTableFunctionLibrary.fill_data_table_from_csv_file(',
+    '            asset, item["csvPath"])',
+    '        if filled:',
+    '            unreal.EditorAssetLibrary.save_loaded_asset(asset)',
+    '        result["ok"] = bool(filled)',
+    '        result["detail"] = "已导入" if filled else "CSV 与数据表结构不匹配"',
+    'except Exception as error:',
+    '    result["detail"] = str(error)',
+    '',
+    `unreal.log("${ITEM_RESULT_PREFIX}" + json.dumps(result, ensure_ascii=False))`,
+    '',
+  ].join('\n');
+}
+
+/** 从脚本输出里取那一行结果 JSON；没有就当失败（脚本没跑到最后） */
+function readItemResult(output) {
+  for (const line of output) {
+    const index = line.indexOf(ITEM_RESULT_PREFIX);
+    if (index < 0) continue;
+    try {
+      const parsed = JSON.parse(line.slice(index + ITEM_RESULT_PREFIX.length));
+      if (parsed === null || typeof parsed !== 'object') continue;
+      return {
+        ok: parsed.ok === true,
+        detail: typeof parsed.detail === 'string' ? parsed.detail : '',
+      };
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+/** 进度回调出错不能把导入带崩 */
+function report(onProgress, event) {
+  if (typeof onProgress !== 'function') return;
+  try {
+    onProgress(event);
+  } catch {
+    // 界面没了就不推了
+  }
 }
 
 /**
@@ -180,59 +151,105 @@ function buildImportScript(payload) {
  * @param {object} options.session UnrealRemoteSession
  * @param {string} options.nodeId 目标编辑器节点
  * @param {{tables: Array, images: Array, sounds: Array}} options.plan
- * @param {string} options.assetFolder 素材文件夹；空串表示这次不导素材
- * @param {number} [options.timeoutMs]
+ *   images / sounds 的每一项必须带 `sourcePath`（要导哪个本地文件）
+ * @param {(event: object) => void} [options.onProgress]
  */
-async function runImport({ session, nodeId, plan, assetFolder, timeoutMs }) {
+async function runImport({ session, nodeId, plan, onProgress }) {
+  const tables = plan.tables ?? [];
+  const assets = [
+    ...(plan.images ?? []).map((item) => ({ kind: 'image', ...item })),
+    ...(plan.sounds ?? []).map((item) => ({ kind: 'sound', ...item })),
+  ];
+
+  const items = [];
+  const importedPaths = [];
+  const counts = {
+    tables: tables.length,
+    images: plan.images?.length ?? 0,
+    sounds: plan.sounds?.length ?? 0,
+  };
+
   const tempDir = await mkdtemp(path.join(os.tmpdir(), 'storymaker-ue-'));
+  const channel = await session.openCommand(nodeId);
+
   try {
-    const tables = await writeCsvFiles(plan.tables ?? [], tempDir);
+    // ---------- 阶段 1：素材 ----------
+    const assetTotal = assets.length;
+    for (let index = 0; index < assets.length; index += 1) {
+      const task = assets[index];
+      const position = { phase: 'assets', current: index + 1, total: assetTotal };
 
-    const imageFiles = assetFolder === '' ? [] : await scanMaterialFolder(assetFolder, 'image');
-    const soundFiles = assetFolder === '' ? [] : await scanMaterialFolder(assetFolder, 'sound');
-    const imageMatch = matchMaterialFiles(imageFiles, plan.images ?? []);
-    const soundMatch = matchMaterialFiles(soundFiles, plan.sounds ?? []);
+      report(onProgress, { ...position, label: task.id, status: 'running' });
+      let outcome;
+      try {
+        const response = await channel.run(buildAssetScript(task), { timeoutMs: ASSET_TIMEOUT_MS });
+        outcome = readItemResult(response.output);
+      } catch (error) {
+        outcome = { ok: false, detail: error instanceof Error ? error.message : String(error) };
+      }
 
-    const images = (plan.images ?? [])
-      .filter((task) => imageMatch.matched.has(task.id))
-      .map((task) => ({
-        id: task.id,
-        assetPath: task.assetPath,
-        sourcePath: imageMatch.matched.get(task.id),
-      }));
-    const sounds = (plan.sounds ?? [])
-      .filter((task) => soundMatch.matched.has(task.id))
-      .map((task) => ({
-        id: task.id,
-        assetPath: task.assetPath,
-        sourcePath: soundMatch.matched.get(task.id),
-      }));
+      const ok = outcome !== null && outcome.ok;
+      items.push({
+        kind: task.kind,
+        label: task.id,
+        ok,
+        detail: outcome === null ? '脚本没有回传结果' : outcome.detail,
+      });
+      if (ok) importedPaths.push(task.sourcePath);
+      report(onProgress, { ...position, label: task.id, status: ok ? 'ok' : 'failed' });
+    }
 
-    const script = buildImportScript({ tables, images, sounds });
-    const outcome = await session.runScript(nodeId, script, { timeoutMs });
+    const failedAssets = items.filter((item) => !item.ok).length;
+    if (failedAssets > 0) {
+      return {
+        stopped: true,
+        items,
+        importedPaths,
+        counts,
+        message: `有 ${failedAssets} 个素材没导成功，数据表先不导——素材没进去就灌表会让引用指向不存在的资产。`,
+      };
+    }
 
-    return {
-      outcome,
-      counts: { tables: tables.length, images: images.length, sounds: sounds.length },
-      missing: { images: imageMatch.missing, sounds: soundMatch.missing },
-      unused: { images: imageMatch.unused, sounds: soundMatch.unused },
-      skipped: {
-        images: (plan.images ?? []).length - images.length,
-        sounds: (plan.sounds ?? []).length - sounds.length,
-      },
-    };
+    // ---------- 阶段 2：数据表 ----------
+    const written = await writeCsvFiles(tables, tempDir);
+    const tableTotal = written.length;
+    for (let index = 0; index < written.length; index += 1) {
+      const table = written[index];
+      const position = { phase: 'tables', current: index + 1, total: tableTotal };
+
+      report(onProgress, { ...position, label: table.label, status: 'running' });
+      let outcome;
+      try {
+        const response = await channel.run(buildTableScript(table), { timeoutMs: TABLE_TIMEOUT_MS });
+        outcome = readItemResult(response.output);
+      } catch (error) {
+        outcome = { ok: false, detail: error instanceof Error ? error.message : String(error) };
+      }
+
+      const ok = outcome !== null && outcome.ok;
+      items.push({
+        kind: 'table',
+        label: table.label,
+        ok,
+        detail: outcome === null ? '脚本没有回传结果' : outcome.detail,
+      });
+      report(onProgress, { ...position, label: table.label, status: ok ? 'ok' : 'failed' });
+    }
+
+    return { stopped: false, items, importedPaths, counts };
   } finally {
+    channel.close();
     await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
   }
 }
 
 module.exports = {
-  DONE_MARKER,
-  RESULT_PREFIX,
-  buildImportScript,
-  matchMaterialFiles,
-  materialKindOfFile,
+  ASSET_TIMEOUT_MS,
+  ITEM_RESULT_PREFIX,
+  TABLE_TIMEOUT_MS,
+  buildAssetScript,
+  buildTableScript,
+  readItemResult,
   runImport,
-  scanMaterialFolder,
   writeCsvFiles,
 };

@@ -339,7 +339,7 @@ ipcMain.handle('unreal:discover', async () => {
   }
 });
 
-ipcMain.handle('unreal:import', async (_event, request) => {
+ipcMain.handle('unreal:import', async (event, request) => {
   try {
     const session = getUnrealSession();
     const nodes = await session.discover(3000);
@@ -356,29 +356,27 @@ ipcMain.handle('unreal:import', async (_event, request) => {
       return { ok: false, message: `在线的编辑器里没有 ${expected || '目标工程'}，发现的是：${found}` };
     }
 
-    const scope = request.scope ?? { tables: true, images: true, sounds: true };
+    // 渲染进程已经把「要导哪些」筛好了（增量时只给变化项），这里照单执行
     const plan = {
-      tables: scope.tables ? request.plan.tables : [],
-      images: scope.images ? request.plan.images : [],
-      sounds: scope.sounds ? request.plan.sounds : [],
+      tables: request.plan.tables ?? [],
+      images: request.plan.images ?? [],
+      sounds: request.plan.sounds ?? [],
     };
 
-    const result = await runImport({
-      session,
-      nodeId: node.id,
-      plan,
-      assetFolder: typeof request.assetFolder === 'string' ? request.assetFolder : '',
-      timeoutMs: 600_000,
-    });
+    const onProgress = (progress) => {
+      if (event.sender.isDestroyed()) return;
+      event.sender.send('unreal:import-progress', progress);
+    };
+
+    const result = await runImport({ session, nodeId: node.id, plan, onProgress });
 
     return {
       ok: true,
-      success: result.outcome.success,
-      output: result.outcome.output,
+      stopped: result.stopped,
+      items: result.items,
+      importedPaths: result.importedPaths,
       counts: result.counts,
-      missing: result.missing,
-      unused: result.unused,
-      skipped: result.skipped,
+      message: result.message,
     };
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : String(error) };

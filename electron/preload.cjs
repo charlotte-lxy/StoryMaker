@@ -48,6 +48,13 @@ contextBridge.exposeInMainWorld('storymakerDesktop', {
   /** 导入到 Unreal：数据表 / 图片 / 音效 */
   unrealImport: (request) => ipcRenderer.invoke('unreal:import', request),
 
+  /** 导入进度（主进程逐项推进来）；返回取消订阅的函数 */
+  unrealImportProgress: (callback) => {
+    const listener = (_event, progress) => callback(progress);
+    ipcRenderer.on('unreal:import-progress', listener);
+    return () => ipcRenderer.removeListener('unreal:import-progress', listener);
+  },
+
   /** 挑 .uproject 文件；取消返回 null */
   unrealPickUproject: () => ipcRenderer.invoke('unreal:pick-uproject'),
 

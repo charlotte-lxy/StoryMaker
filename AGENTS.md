@@ -123,7 +123,7 @@ Vite + React 19 + TypeScript，导出用 ExcelJS。三种产物共用同一套�
 | `pnpm dev` | 开发服务器 :5180 | 开发（`/api` 自动转给同一个本地服务） |
 | `pnpm build` | `dist/` 多文件 | 内网服务器 |
 | `pnpm build:app` | `app-release/win-unpacked/` + `app-update/` | Electron 桌面版（**唯一交付方式**） |
-| `pnpm test` | — | 627 个测试 |
+| `pnpm test` | — | 634 个测试 |
 | `pnpm verify:app-update` | — | 自动更新自检（版本比较 / 清单校验 / 双源兜底 / 哈希） |
 
 ## 打包（统一走 `pnpm build:app`）
@@ -241,11 +241,18 @@ UDP 组播 `239.0.0.1:6766` 发现节点（`pong` 带回 `project_name` / `engin
 
 - 协议客户端在 `electron/unreal-remote.cjs`，只做发现 / 开通道 / 跑脚本三件事。
   **必须绑 6766 并 `addMembership` 加入组播组**：只往 `127.0.0.1:6766` 发单播 ping 收不到任何回应（实测踩过）。
-- 导入编排在 `electron/unreal-import.cjs`：写临时 CSV → 扫素材文件夹 → 生成 Python → 交给远程执行。
-  生成脚本是纯函数 `buildImportScript()`，单独测；脚本里一项失败不影响别的项。
-- 界面侧的纯数据计划在 `src/core/unreal-import.ts`（`buildUnrealImportPlan`）。
-  图片 / 音效的包路径直接从导出表那一列解析（`packagePathOf`），**不要另按分类拼一份**——
-  否则表情立绘那种多一层子文件夹的会分叉。
+- 导入编排在 `electron/unreal-import.cjs`：**一条长连接上逐项跑**（`session.openCommand()` 拿通道，
+  再 `channel.run(script)` 一项一项来），这样界面能拿到「正在导哪个文件、第几个」。
+  不要退回「每次重新握手」或「一次性跑完再返回」——前者慢到没法用，后者没有进度。
+- **顺序固定：先素材、后数据表；素材有失败就停下不导表。** 数据表存的是资源引用，
+  素材没进去就灌表会让引用指向不存在的资产。
+- 增量导入：素材按「路径（小写）+ 大小 + 修改时间」跟本机记录比，只导新增和修改过的。
+  判定是纯函数 `src/core/imported-assets.ts` 的 `classifyAssets`，记录在
+  `src/state/import-markers.ts` 的 localStorage `storymaker.unreal.imported.v1`（按素材文件夹分组）。
+  「已移除」只提示，**绝不自动删 UE 资产**。数据表永远全量——表小，增量反而容易漏。
+- 界面侧的纯数据计划在 `src/core/unreal-import.ts`（`buildUnrealImportPlan`）与
+  `resolveImportAssets`（把计划对到素材文件上）。图片 / 音效的包路径直接从导出表那一列解析
+  （`packagePathOf`），**不要另按分类拼一份**——否则表情立绘那种多一层子文件夹的会分叉。
 - 数据表用 `DataTableFunctionLibrary.fill_data_table_from_csv_file` 灌，图片 / 音效用
   `AssetImportTask` + `replace_existing`。CSV 写成**不带 BOM**：UE 的 CSV 解析对 BOM 敏感，
   StoryMaker 自己生成的 CSV 也一直是不带 BOM 的。

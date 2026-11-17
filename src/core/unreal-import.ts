@@ -1,8 +1,10 @@
 /**
- * 閵嗗苯顕遍崗銉ュ煂 Unreal閵嗗秷顩︾€佃偐娈戞稉婊嗐偪閿涙矮绔存禒鐣屽嚱閺佺増宓侀惃鍕吀閸掓帇鈧? *
- * 鏉╂瑩鍣烽崣顏囩鐠愶絾濡告い鍦窗閺佸鎮婇幋鎰崲閸斺剝绔婚崡鏇椻偓鏂衡偓鏂挎憿娴?DataTable 鐎电懓绨查崫顏咁唽 CSV閵嗕礁鎽㈠鐘叉禈/閸濐亙閲滈棅铏櫏
- * 鐠囥儴鎯ら崚鏉挎憿娑擃亣绁┃鎰熅瀵板嫨鈧倻婀″锝囨畱缂冩垹绮堕柅姘繆閸滃苯鍟撻弬鍥︽閸︺劋瀵屾潻娑氣柤閿涘潒lectron/unreal-*.cjs閿涘绱?
- * 閻ｅ矂娼伴幏鍨煂鐠佲€冲灊閸氬簼姘︾紒娆忣問娑撶粯澧界悰灞烩偓鍌濈箹閺嶉攱婀板Ο鈥虫健閸忋劍妲哥痪顖氬毐閺佸府绱濋懗鐣屾纯閹恒儲绁撮妴? */
+ * 「导入到 Unreal」要导的东西：一份纯数据的计划。
+ *
+ * 这里只负责把项目整理成任务清单——哪些 DataTable 对应哪段 CSV、哪张图/哪个音效
+ * 该落到哪个资源路径。真正的网络通信和写文件在主进程（electron/unreal-*.cjs），
+ * 界面拿到计划后交给宿主执行。这样本模块全是纯函数，能直接测。
+ */
 
 import { toCsv } from './csv';
 import { buildAllSheets } from './export';
@@ -11,21 +13,21 @@ import { buildImageRows } from './image-export';
 import { buildSoundRows } from './sound-export';
 import type { Project } from './types';
 
-/** 娑撯偓瀵姾顩︾€电厧鍙嗛惃鍕殶閹诡喛銆?*/
+/** 一张要导入的数据表 */
 export interface TableImportTask {
-  /** 閻ｅ矂娼伴弰鍓с仛閻ㄥ嫬鎮曠€涙绱濈亸杈ㄦЦ閺佺増宓佺悰銊ユ倳 */
+  /** 界面显示的名字，就是数据表名 */
   label: string;
-  /** Unreal 閸栧懓鐭惧鍕剁礉婵?/Game/GameContent/BP/StorySystem/TB_Dialogue */
+  /** Unreal 包路径，如 /Game/GameContent/BP/StorySystem/TB_Dialogue */
   assetPath: string;
-  /** CSV 閺傚洦婀伴敍鍫滅瑝鐢?BOM閿涘E 閻?CSV 鐟欙絾鐎界€?BOM 閺佸繑鍔呴敍?*/
+  /** CSV 文本（不带 BOM，UE 的 CSV 解析对 BOM 敏感） */
   csvText: string;
 }
 
-/** 娑撯偓瀵姴娴?/ 娑撯偓閺夛繝鐓堕弫?*/
+/** 一张图 / 一条音效 */
 export interface AssetImportTask {
-  /** 閸ュ墽澧?ID 閹存牠鐓堕弫?ID閿涙稐绡冮弰顖滅閺夋劖鏋冩禒璺烘倳閿涘牅绗夐崥顐ｅ⒖鐏炴洖鎮曢敍澶庮洣閸栧綊鍘ら惃鍕鐟?*/
+  /** 图片 ID 或音效 ID；也是素材文件名（不含扩展名）要匹配的东西 */
   id: string;
-  /** Unreal 閸栧懓鐭惧鍕剁礉婵?/Game/GameContent/Asset/Image/StoryBackground/SCE_Black */
+  /** Unreal 包路径，如 /Game/GameContent/Asset/Image/StoryBackground/SCE_Black */
   assetPath: string;
 }
 
@@ -35,50 +37,37 @@ export interface UnrealImportPlan {
   sounds: AssetImportTask[];
 }
 
-/** UE 閼存碍婀伴崶鐐扮炊閻ㄥ嫪绔撮弶锛勭波閺?*/
-export interface ImportItemResult {
-  kind: 'table' | 'image' | 'sound';
-  label: string;
-  ok: boolean;
-  detail: string;
+/** 素材文件夹里的一个文件，只需要判定要用的那几项 */
+export interface MaterialFileRef {
+  filePath: string;
+  fileName: string;
+  size: number;
+  mtimeMs: number;
+}
+
+/** 解析出来的、真的可以导的一个素材 */
+export interface ResolvedImportAsset extends MaterialFileRef {
+  id: string;
+  assetPath: string;
+}
+
+export interface ResolvedAssets {
+  /** 素材文件夹里有对应文件的，按计划顺序 */
+  ready: ResolvedImportAsset[];
+  /** 计划里有、素材文件夹里找不到文件 */
+  missing: string[];
+  /** 同一个 ID 找到多个文件的（导入时用第一个） */
+  duplicates: string[];
 }
 
 const ASSET_REF_PATTERN = /^\/Script\/Engine\.\w+'(.+)'$/;
 
-/** 缂佹挻鐏夌悰宀€娈戦崜宥囩磻閿涘苯鎷?electron/unreal-import.cjs 闁插瞼娈戠敮鎼佸櫤鐎靛綊缍?*/
-const RESULT_PREFIX = 'SMK_IMPORT_RESULT ';
-
 /**
- * 娴?UE 閻ㄥ嫭妫╄箛妤勭翻閸戞椽鍣烽幍鎯у毉闁絼绔寸悰宀€绮ㄩ弸?JSON閵? *
- * 鏉堟挸鍤柌灞姐仚閻偓 UE 閼奉亜绻侀惃鍕）韫囨绱欑€电厧鍙嗙粻锛勫殠娴兼碍澧︽稉鈧崼鍡礆閿涘本瀵滈崜宥囩磻閹告垵鍤弶銉ㄐ掗弸鎰剁幢
- * 濞屸剝婀佺亸杈ㄦЦ閼存碍婀板▽陇绐囬崚鐗堟付閸氬函绱濇潻鏂挎礀 null 鐠佲晞鐨熼悽銊︽煙閹稿鈧苯銇戠拹銉ｂ偓宥咁槱閻炲棎鈧? */
-export function parseImportResult(output: readonly string[]): ImportItemResult[] | null {
-  for (const line of output) {
-    const index = line.indexOf(RESULT_PREFIX);
-    if (index < 0) continue;
-    try {
-      const parsed: unknown = JSON.parse(line.slice(index + RESULT_PREFIX.length));
-      if (!Array.isArray(parsed)) return null;
-      return parsed.filter((item): item is ImportItemResult => {
-        if (item === null || typeof item !== 'object') return false;
-        const record = item as Record<string, unknown>;
-        return (
-          (record.kind === 'table' || record.kind === 'image' || record.kind === 'sound') &&
-          typeof record.label === 'string' &&
-          typeof record.ok === 'boolean' &&
-          typeof record.detail === 'string'
-        );
-      });
-    } catch {
-      return null;
-    }
-  }
-  return null;
-}
-
-/**
- * 閹?`/Script/Engine.Texture2D'/Game/a/b.X.X'` 閹峰棙鍨氶崠鍛扮熅瀵?`/Game/a/b.X`閵? *
- * 鐎电厧鍤悰銊╁櫡閸愭瑧娈戦弰顖氱敨瀵洖褰块惃鍕暚閺佹潙绱╅悽顭掔礉鐎电厧鍙嗛弮鎯邦洣閻ㄥ嫭妲搁崠鍛扮熅瀵板嫨鈧? * 鐟欙絾鐎芥稉宥呭毉閺夈儴绻戦崶鐐碘敄娑撹绱濈拫鍐暏閺傝宓佸銈堢儲鏉╁浄绱欐稉宥堫嚉閹跺﹤鐣犺ぐ鎾村灇娑撯偓娑擃亜鎮庡▔鏇＄熅瀵板嫸绱氶妴? */
+ * 把 `/Script/Engine.Texture2D'/Game/a/b.X.X'` 拆成包路径 `/Game/a/b.X`。
+ *
+ * 导出表里写的是带引号的完整引用，导入时要的是包路径。
+ * 解析不出来返回空串，调用方据此跳过（不该把它当成一个合法路径）。
+ */
 export function packagePathOf(assetRef: string): string {
   const text = assetRef.trim();
   const match = ASSET_REF_PATTERN.exec(text);
@@ -89,8 +78,10 @@ export function packagePathOf(assetRef: string): string {
 }
 
 /**
- * 娴犲簼绔村鐘差嚤閸戝搫鐡欑悰銊ф畱閵嗗矁绁┃鎰灙閵嗗秹鍣烽弨?id + 閸栧懓鐭惧鍕┾偓? *
- * @param rows 閺佹潙绱剁€涙劘銆冮敍鍫㈩儑娑撯偓鐞涘本妲哥悰銊ャ仈閿? * @param column 鐠у嫭绨崚妤冩畱娑撳鐖?
+ * 从一张导出子表的「资源列」里收 id + 包路径。
+ *
+ * @param rows 整张子表（第一行是表头）
+ * @param column 资源列的下标
  */
 function collectAssets(rows: string[][], column: number): AssetImportTask[] {
   const tasks: AssetImportTask[] = [];
@@ -104,8 +95,11 @@ function collectAssets(rows: string[][], column: number): AssetImportTask[] {
 }
 
 /**
- * 閹跺﹪銆嶉惄顔芥殻閻炲棙鍨氭稉鈧禒钘夘嚤閸忋儴顓搁崚鎺嬧偓? *
- * 閺佺増宓佺悰銊や簰閵嗗nreal 鐎电厧鍙嗙拋鍓х枂閵嗗秹鍣烽柊宥囨畱闁絼绨虹悰灞艰礋閸戝棴绱板▽锟犲帳閻ㄥ嫯銆冩稉宥咁嚤閿涘牊鐦俊鍌滃⒖閸濅浇銆冪亸杈ㄧ梾闁板稄绱氶敍? * 閵嗗苯顕遍崗銉啎缂冾喓鈧秷鍤滃閬嶅亝瀵姴鐡欑悰銊ょ瘍娑撳秵妲?DataTable閿涘矁鐑︽潻鍥モ偓? */
+ * 把项目整理成一份导入计划。
+ *
+ * 数据表以「Unreal 导入设置」里配的那些行为准：没配的表不导（比如物品表就没配），
+ * 「导入设置」自己那张子表也不是 DataTable，跳过。
+ */
 export function buildUnrealImportPlan(project: Project): UnrealImportPlan {
   const sheets = new Map(buildAllSheets(project).map((sheet) => [sheet.name, sheet.rows]));
 
@@ -114,7 +108,7 @@ export function buildUnrealImportPlan(project: Project): UnrealImportPlan {
     const tableName = row.tableName.trim();
     const subTable = row.subTable.trim();
     if (tableName === '' || subTable === '') continue;
-    // 閵嗗苯顕遍崗銉啎缂冾喓鈧秴鐡欑悰銊︽Ц缂佹瑧鐡ラ崚鎺旀箙閻ㄥ嫰鍘ょ純顔裤€冮敍瀛禘 闁插本鐥呴張澶婎嚠鎼存梻娈?DataTable
+    // 「导入设置」子表是给策划看的配置表，UE 里没有对应的 DataTable
     if (subTable === IMPORT_SETTINGS_SHEET) continue;
     const rows = sheets.get(subTable);
     if (rows === undefined) continue;
@@ -130,4 +124,38 @@ export function buildUnrealImportPlan(project: Project): UnrealImportPlan {
     images: collectAssets(buildImageRows(project), 3),
     sounds: collectAssets(buildSoundRows(project), 1),
   };
+}
+
+/**
+ * 把计划里的素材对到素材文件夹里的实际文件上。
+ *
+ * 同一个 ID 有多个文件时用第一个（按文件名排序），并记进 `duplicates` 提示用户去删。
+ */
+export function resolveImportAssets(
+  tasks: readonly AssetImportTask[],
+  byId: ReadonlyMap<string, readonly MaterialFileRef[]>,
+): ResolvedAssets {
+  const ready: ResolvedImportAsset[] = [];
+  const missing: string[] = [];
+  const duplicates: string[] = [];
+
+  for (const task of tasks) {
+    const files = byId.get(task.id) ?? [];
+    if (files.length === 0) {
+      missing.push(task.id);
+      continue;
+    }
+    if (files.length > 1) duplicates.push(task.id);
+    const file = files[0];
+    ready.push({
+      id: task.id,
+      assetPath: task.assetPath,
+      filePath: file.filePath,
+      fileName: file.fileName,
+      size: file.size,
+      mtimeMs: file.mtimeMs,
+    });
+  }
+
+  return { ready, missing, duplicates };
 }

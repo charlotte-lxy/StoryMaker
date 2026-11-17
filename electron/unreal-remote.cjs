@@ -9,8 +9,8 @@
  *   2. 客户端在某个 TCP 端口上监听，发 open_connection 告诉编辑器连回来
  *   3. 编辑器连上后，客户端发 command，编辑器跑完 Python 回 command_result
  *
- * 这里只实现 StoryMaker 需要的部分：发现节点、在指定节点上跑一段 Python、拿回输出。
- * 不依赖引擎的 Python 运行时，所以桌面版（Electron 主进程）能直接用。
+ * 命令通道支持长连接：打开一次可以连着跑很多段脚本。逐文件导入素材时这一点很关键，
+ * 否则每个文件都要重新握手。
  */
 
 const dgram = require('node:dgram');
@@ -21,7 +21,6 @@ const PROTOCOL_VERSION = 1;
 const PROTOCOL_MAGIC = 'ue_py';
 const MULTICAST_GROUP = '239.0.0.1';
 const DISCOVERY_PORT = 6766;
-const RECEIVE_BUFFER_SIZE = 8192;
 
 /** 引擎要求的执行模式，与 EPythonCommandExecutionMode 对应 */
 const EXEC_MODE_FILE = 'ExecuteFile';
@@ -44,9 +43,7 @@ function encodeMessage(type, source, dest, data) {
   return Buffer.from(JSON.stringify(payload), 'utf8');
 }
 
-/**
- * 解析一条报文；字段不对就返回 null（当成噪声丢掉，不让它打断整轮通信）。
- */
+/** 解析一条报文；字段不对就返回 null（当成噪声丢掉，不让它打断整轮通信） */
 function decodeMessage(text) {
   let parsed;
   try {
@@ -96,6 +93,100 @@ class UnrealRemoteError extends Error {
     super(message);
     this.name = 'UnrealRemoteError';
     this.code = code ?? 'unreal-remote';
+  }
+}
+
+/**
+ * 一条已经打开的命令通道：可以连着跑多段脚本，不用每条都重新握手。
+ *
+ * 逐文件导入素材时这一步很关键——每个文件都重连一次的话，
+ * 几百个素材光握手就能耗掉好几分钟，进度条也没法细到单个文件。
+ */
+class UnrealCommandChannel {
+  constructor(socket, server, nodeId, remoteNodeId) {
+    this.socket = socket;
+    this.server = server;
+    this.nodeId = nodeId;
+    this.remoteNodeId = remoteNodeId;
+    this._buffer = '';
+    this._pending = null;
+    this._closed = false;
+
+    socket.on('data', (chunk) => this._onData(chunk));
+    socket.on('error', (error) => {
+      this._fail(new UnrealRemoteError(`命令通道出错：${error.message}`, 'socket-error'));
+    });
+    socket.on('close', () => {
+      this._fail(new UnrealRemoteError('编辑器断开了命令通道', 'socket-closed'));
+    });
+  }
+
+  _onData(chunk) {
+    this._buffer += chunk.toString('utf8');
+    // 引擎一条消息一次发完，但 TCP 会分片；能解析了才算收全
+    const message = decodeMessage(this._buffer);
+    if (message === null) return;
+    this._buffer = '';
+    if (this._pending === null || message.type !== 'command_result') return;
+    const { resolve, timer } = this._pending;
+    this._pending = null;
+    clearTimeout(timer);
+    resolve(readCommandOutput(message));
+  }
+
+  _fail(error) {
+    if (this._pending === null) return;
+    const { reject, timer } = this._pending;
+    this._pending = null;
+    clearTimeout(timer);
+    reject(error);
+  }
+
+  /**
+   * 在这条通道上跑一段 Python，等结果回来。
+   * @param {string} script
+   * @param {{ timeoutMs?: number, execMode?: string }} [options]
+   */
+  run(script, options = {}) {
+    if (this._closed) {
+      return Promise.reject(new UnrealRemoteError('命令通道已经关闭', 'channel-closed'));
+    }
+    if (this._pending !== null) {
+      return Promise.reject(new UnrealRemoteError('上一条命令还没跑完', 'channel-busy'));
+    }
+    const timeoutMs = options.timeoutMs ?? 600_000;
+    const execMode = options.execMode ?? EXEC_MODE_FILE;
+
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        if (this._pending === null) return;
+        this._pending = null;
+        reject(new UnrealRemoteError(`执行超时（${Math.round(timeoutMs / 1000)} 秒）`, 'timeout'));
+      }, timeoutMs);
+      this._pending = { resolve, reject, timer };
+      this.socket.write(
+        encodeMessage('command', this.nodeId, this.remoteNodeId, {
+          command: script,
+          unattended: true,
+          exec_mode: execMode,
+        }),
+      );
+    });
+  }
+
+  close() {
+    if (this._closed) return;
+    this._closed = true;
+    try {
+      this.socket.destroy();
+    } catch {
+      // 已经断了
+    }
+    try {
+      this.server.close();
+    } catch {
+      // 同上
+    }
   }
 }
 
@@ -185,23 +276,16 @@ class UnrealRemoteSession {
   }
 
   /**
-   * 在指定节点上跑一段 Python，等它跑完把输出拿回来。
+   * 打开一条命令通道，调用方负责 close()。
    *
-   * 编辑器是在自己主线程上同步执行这段脚本的，导入大量资源时编辑器会卡住，
-   * 所以超时要给足（默认 10 分钟）。
-   *
-   * @param {string} nodeId
-   * @param {string} script
-   * @param {{ timeoutMs?: number, execMode?: string }} [options]
+   * 通道建立后可以连着跑很多段脚本，省掉每次握手的开销——逐文件导素材就靠它。
    */
-  async runScript(nodeId, script, options = {}) {
+  async openCommand(nodeId) {
     await this.start();
     if (!this.nodes.has(nodeId)) {
       throw new UnrealRemoteError('目标 Unreal 节点已经掉线', 'node-missing');
     }
 
-    const timeoutMs = options.timeoutMs ?? 600_000;
-    const execMode = options.execMode ?? EXEC_MODE_FILE;
     const server = net.createServer();
     const connection = new Promise((resolve, reject) => {
       server.once('connection', resolve);
@@ -220,68 +304,41 @@ class UnrealRemoteSession {
         command_port: commandPort,
       });
       // 引擎只重试 6 次、每次 5 秒，这边也按同样的节奏发
-      const socket = await this._awaitConnection(server, connection, open, timeoutMs);
-      return await this._exchange(socket, nodeId, script, execMode, timeoutMs);
-    } finally {
+      const socket = await this._awaitConnection(server, connection, open);
+      return new UnrealCommandChannel(socket, server, this.nodeId, nodeId);
+    } catch (error) {
       await new Promise((resolve) => server.close(() => resolve()));
+      throw error;
     }
   }
 
-  async _awaitConnection(server, connection, openMessage, timeoutMs) {
+  /**
+   * 在指定节点上跑一段 Python，等它跑完把输出拿回来。
+   *
+   * 编辑器是在自己主线程上同步执行这段脚本的，导入大量资源时编辑器中会卡住，
+   * 所以超时要给足（默认 10 分钟）。
+   */
+  async runScript(nodeId, script, options = {}) {
+    const channel = await this.openCommand(nodeId);
+    try {
+      return await channel.run(script, options);
+    } finally {
+      channel.close();
+    }
+  }
+
+  async _awaitConnection(server, connection, openMessage) {
     const attempts = 6;
     const perAttempt = 5000;
     for (let index = 0; index < attempts; index += 1) {
       this._send(openMessage);
-      const race = await Promise.race([
-        connection,
-        sleep(perAttempt).then(() => null),
-      ]);
+      const race = await Promise.race([connection, sleep(perAttempt).then(() => null)]);
       if (race !== null) return race;
     }
     throw new UnrealRemoteError(
       'Unreal 没有连回来：编辑器可能没开这个项目，或远程执行被关掉了',
       'connect-failed',
     );
-  }
-
-  _exchange(socket, nodeId, script, execMode, timeoutMs) {
-    return new Promise((resolve, reject) => {
-      let accumulated = '';
-      let settled = false;
-      const finish = (fn, value) => {
-        if (settled) return;
-        settled = true;
-        socket.removeListener('data', onData);
-        socket.removeListener('error', onError);
-        socket.destroy();
-        fn(value);
-      };
-
-      const onError = (error) => {
-        finish(reject, new UnrealRemoteError(`命令通道出错：${error.message}`, 'socket-error'));
-      };
-      const onData = (chunk) => {
-        accumulated += chunk.toString('utf8');
-        // 引擎一条消息一次发完，但 TCP 可能分片；能解析了才算收全
-        const message = decodeMessage(accumulated);
-        if (message === null) return;
-        if (message.type !== 'command_result') return;
-        finish(resolve, readCommandOutput(message));
-      };
-
-      socket.on('data', onData);
-      socket.on('error', onError);
-      socket.write(encodeMessage('command', this.nodeId, nodeId, {
-        command: script,
-        unattended: true,
-        exec_mode: execMode,
-      }));
-
-      const timer = setTimeout(() => {
-        finish(reject, new UnrealRemoteError(`执行超时（${Math.round(timeoutMs / 1000)} 秒）`, 'timeout'));
-      }, timeoutMs);
-      socket.once('close', () => clearTimeout(timer));
-    });
   }
 
   _send(message) {
@@ -325,6 +382,7 @@ module.exports = {
   MULTICAST_GROUP,
   PROTOCOL_MAGIC,
   PROTOCOL_VERSION,
+  UnrealCommandChannel,
   UnrealRemoteError,
   UnrealRemoteSession,
   decodeMessage,

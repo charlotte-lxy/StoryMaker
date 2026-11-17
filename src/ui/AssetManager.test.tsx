@@ -35,9 +35,16 @@ function makeLibrary(overrides: Partial<AssetLibrary> = {}): AssetLibrary {
 function makeUnreal(overrides: Partial<UnrealApi> = {}): UnrealApi {
   return {
     discover: vi.fn(async () => ({ nodes: [] })),
-    runImport: vi.fn(async () => ({ ok: false })),
+    runImport: vi.fn(async () => ({
+      ok: false,
+      stopped: true,
+      items: [],
+      importedPaths: [],
+      counts: { tables: 0, images: 0, sounds: 0 },
+    })),
     pickUproject: vi.fn(async () => null),
     pickAssetFolder: vi.fn(async () => null),
+    onImportProgress: vi.fn(() => () => undefined),
     listAssets: vi.fn(async () => ({ ok: true, files: [] })),
     uploadAsset: vi.fn(async () => ({ ok: true })),
     removeAsset: vi.fn(async () => ({ ok: true })),
@@ -57,6 +64,8 @@ function fileOf(fileName: string, kind: 'image' | 'sound' = 'image') {
     fileName,
     baseName,
     kind,
+    size: 1024,
+    mtimeMs: 1_700_000_000_000,
   };
 }
 

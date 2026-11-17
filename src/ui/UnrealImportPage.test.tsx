@@ -1,14 +1,26 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { HostApi, UnrealApi, UnrealNodeInfo } from '../core/host';
+import type {
+  HostApi,
+  UnrealApi,
+  UnrealNodeInfo,
+  UnrealImportProgress,
+  UnrealImportRequest,
+  UnrealImportReport,
+} from '../core/host';
 import { createEmptyProject } from '../state/operations';
 import { DEFAULT_UNREAL_PREFS } from '../state/prefs';
 import type { Project } from '../core/types';
 import { UnrealImportPage } from './UnrealImportPage';
+import type { AssetLibrary } from './use-asset-library';
 
 afterEach(cleanup);
+
+beforeEach(() => {
+  window.localStorage.clear();
+});
 
 const NODE: UnrealNodeInfo = {
   id: 'UE1',
@@ -20,39 +32,101 @@ const NODE: UnrealNodeInfo = {
   projectName: 'BulletShootGame',
 };
 
-/** 只带 unreal 能力的假宿主：页面只用到这一块 */
 function makeHost(unreal: UnrealApi | undefined): HostApi {
   return { kind: 'desktop', unreal } as unknown as HostApi;
 }
 
+/** 一张图 + 一条音效，都配好分类 */
 function makeProject(): Project {
   const project = createEmptyProject();
   project.exportSettings = [
     { uid: 'x1', tableName: 'TB_Sound', folder: 'GameContent/BP/Sound', subTable: '音频' },
+    { uid: 'x2', tableName: 'TB_Image', folder: 'GameContent/BP/Image', subTable: '图片' },
   ];
+  project.imageCategories = [
+    { uid: 'cat-bg', name: '对话背景', path: '/Game/GameContent/Asset/Image/StoryBackground' },
+  ];
+  project.images = [{ uid: 'img', id: 'SCE_Black', name: '黑', categoryUid: 'cat-bg' }];
   project.soundCategories = [
-    { uid: 'cat', name: '音效', path: '/Game/GameContent/Asset/Sound/BackgroundSound' },
+    { uid: 'cat-sfx', name: '音效', path: '/Game/GameContent/Asset/Sound/BackgroundSound' },
   ];
-  project.sounds = [{ uid: 'snd', id: 'S_dididi', name: '滴滴滴', categoryUid: 'cat' }];
+  project.sounds = [{ uid: 'snd', id: 'S_dididi', name: '滴滴', categoryUid: 'cat-sfx' }];
   return project;
 }
 
-const PREFS = { ...DEFAULT_UNREAL_PREFS, uprojectPath: 'E:/UE/BulletShootGame.uproject' };
+const PREFS = {
+  ...DEFAULT_UNREAL_PREFS,
+  uprojectPath: 'E:/UE/BulletShootGame.uproject',
+  assetFolder: 'C:\\素材',
+};
+
+function assetFile(fileName: string, kind: 'image' | 'sound') {
+  return {
+    filePath: `C:\\素材\\${fileName}`,
+    fileName,
+    baseName: fileName.slice(0, fileName.lastIndexOf('.')),
+    kind,
+    size: 1024,
+    mtimeMs: 1_700_000_000_000,
+  };
+}
+
+function makeLibrary(files: ReturnType<typeof assetFile>[] = []): AssetLibrary {
+  const byId = new Map<string, ReturnType<typeof assetFile>[]>();
+  for (const file of files) {
+    const list = byId.get(file.baseName) ?? [];
+    list.push(file);
+    byId.set(file.baseName, list);
+  }
+  return {
+    available: true,
+    folder: 'C:\\素材',
+    loading: false,
+    error: '',
+    byId,
+    refresh: () => undefined,
+    upload: vi.fn(async () => ({ ok: true })),
+    remove: vi.fn(async () => ({ ok: true })),
+  };
+}
 
 function makeUnreal(overrides: Partial<UnrealApi> = {}): UnrealApi {
   return {
     discover: vi.fn(async () => ({ nodes: [NODE] })),
-    runImport: vi.fn(async () => ({
+    runImport: vi.fn(async (request: UnrealImportRequest) => ({
       ok: true,
-      success: true,
-      counts: { tables: 1, images: 0, sounds: 1 },
-      missing: { images: [], sounds: [] },
-      unused: { images: [], sounds: [] },
-      skipped: { images: 0, sounds: 0 },
-      output: [
-        'SMK_IMPORT_RESULT [{"kind":"table","label":"TB_Sound","ok":true,"detail":"已导入"},{"kind":"sound","label":"S_dididi","ok":true,"detail":"已导入"}]',
+      stopped: false,
+      items: [
+        ...request.plan.images.map((item) => ({
+          kind: 'image' as const,
+          label: item.id,
+          ok: true,
+          detail: '已导入',
+        })),
+        ...request.plan.sounds.map((item) => ({
+          kind: 'sound' as const,
+          label: item.id,
+          ok: true,
+          detail: '已导入',
+        })),
+        ...request.plan.tables.map((item) => ({
+          kind: 'table' as const,
+          label: item.label,
+          ok: true,
+          detail: '已导入',
+        })),
       ],
+      importedPaths: [
+        ...request.plan.images.map((item) => item.sourcePath),
+        ...request.plan.sounds.map((item) => item.sourcePath),
+      ],
+      counts: {
+        tables: request.plan.tables.length,
+        images: request.plan.images.length,
+        sounds: request.plan.sounds.length,
+      },
     })),
+    onImportProgress: vi.fn(() => () => undefined),
     pickUproject: vi.fn(async () => null),
     pickAssetFolder: vi.fn(async () => null),
     listAssets: vi.fn(async () => ({ ok: true, files: [] })),
@@ -63,91 +137,140 @@ function makeUnreal(overrides: Partial<UnrealApi> = {}): UnrealApi {
   };
 }
 
+function renderPage(unreal: UnrealApi | undefined, library = makeLibrary()) {
+  return render(
+    <UnrealImportPage
+      project={makeProject()}
+      prefs={PREFS}
+      onChangePrefs={() => undefined}
+      host={makeHost(unreal)}
+      library={library}
+    />,
+  );
+}
+
 describe('导入到 Unreal 页', () => {
   it('没有桌面能力的宿主上说明清楚，并禁用检查按钮', () => {
-    render(
-      <UnrealImportPage
-        project={makeProject()}
-        prefs={PREFS}
-        onChangePrefs={() => undefined}
-        host={makeHost(undefined)}
-      />,
-    );
+    renderPage(undefined);
     expect(screen.getByText(/只有桌面版（StoryMaker.exe）支持/)).toBeTruthy();
     expect((screen.getByRole('button', { name: '检测连接' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('检测连接后显示工程名和引擎版本', async () => {
     const unreal = makeUnreal();
-    render(
-      <UnrealImportPage
-        project={makeProject()}
-        prefs={PREFS}
-        onChangePrefs={() => undefined}
-        host={makeHost(unreal)}
-      />,
-    );
+    renderPage(unreal);
 
     fireEvent.click(screen.getByRole('button', { name: '检测连接' }));
     expect(await screen.findByText(/已连接 BulletShootGame（引擎 5\.6\.1/)).toBeTruthy();
     expect(unreal.discover).toHaveBeenCalledWith(PREFS.uprojectPath);
   });
 
-  it('导完把每条结果摊出来', async () => {
+  it('素材文件夹里有文件时，导入变动会把它们都算成新增', async () => {
     const unreal = makeUnreal();
-    render(
-      <UnrealImportPage
-        project={makeProject()}
-        prefs={PREFS}
-        onChangePrefs={() => undefined}
-        host={makeHost(unreal)}
-      />,
-    );
+    const library = makeLibrary([
+      assetFile('SCE_Black.png', 'image'),
+      assetFile('S_dididi.wav', 'sound'),
+    ]);
+    renderPage(unreal, library);
 
-    fireEvent.click(screen.getByRole('button', { name: '开始导入' }));
-    expect(await screen.findByText('TB_Sound')).toBeTruthy();
-    // 一条表、一条音效，都显示「成功」
-    expect(screen.getAllByText('成功')).toHaveLength(2);
-    expect(unreal.runImport).toHaveBeenCalledOnce();
+    expect(screen.getAllByText(/新增 1 \/ 修改 0/).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: '导入变动' }));
+
+    await waitFor(() => expect(unreal.runImport).toHaveBeenCalledOnce());
+    const request = (unreal.runImport as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(request.plan.images).toEqual([
+      { id: 'SCE_Black', assetPath: '/Game/GameContent/Asset/Image/StoryBackground/SCE_Black', sourcePath: 'C:\\素材\\SCE_Black.png' },
+    ]);
+    expect(request.plan.sounds).toHaveLength(1);
+    // 数据表永远全量
+    expect(request.plan.tables.map((table: { label: string }) => table.label)).toEqual([
+      'TB_Sound',
+      'TB_Image',
+    ]);
   });
 
-  it('失败条目单列出来，并提示缺了哪些素材文件', async () => {
+  it('导入成功后把素材记成已导入，再点变动就没有可导的了', async () => {
+    const unreal = makeUnreal();
+    renderPage(
+      unreal,
+      makeLibrary([assetFile('SCE_Black.png', 'image'), assetFile('S_dididi.wav', 'sound')]),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '导入变动' }));
+    await waitFor(() => expect(unreal.runImport).toHaveBeenCalledOnce());
+
+    // 标记写进 localStorage 后，两个素材都算「未变」，变动按钮变灰
+    await waitFor(() =>
+      expect((screen.getByRole('button', { name: '导入变动' }) as HTMLButtonElement).disabled).toBe(true),
+    );
+    expect(screen.getAllByText(/未变 1/).length).toBeGreaterThan(0);
+  });
+
+  it('素材导入失败时停下，不导数据表', async () => {
     const unreal = makeUnreal({
       runImport: vi.fn(async () => ({
         ok: true,
-        success: true,
-        counts: { tables: 0, images: 1, sounds: 0 },
-        missing: { images: ['SCE_Black'], sounds: [] },
-        unused: { images: [], sounds: [] },
-        skipped: { images: 1, sounds: 0 },
-        output: [
-          'SMK_IMPORT_RESULT [{"kind":"image","label":"SCE_Black","ok":false,"detail":"导入没有产出资产"}]',
-        ],
+        stopped: true,
+        message: '有 1 个素材没导成功，数据表先不导',
+        items: [{ kind: 'image' as const, label: 'SCE_Black', ok: false, detail: '导入没有产出资产' }],
+        importedPaths: [],
+        counts: { tables: 1, images: 1, sounds: 0 },
       })),
     });
-    render(
-      <UnrealImportPage
-        project={makeProject()}
-        prefs={PREFS}
-        onChangePrefs={() => undefined}
-        host={makeHost(unreal)}
-      />,
-    );
+    renderPage(unreal, makeLibrary([assetFile('SCE_Black.png', 'image')]));
 
-    fireEvent.click(screen.getByRole('button', { name: '开始导入' }));
-    expect(await screen.findByText('导入没有产出资产')).toBeTruthy();
-    expect(screen.getByText(/找不到这些文件名/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '导入变动' }));
+    expect(await screen.findByText(/导入没有产出资产/)).toBeTruthy();
+    expect(screen.getByText(/有 1 个素材没导成功/)).toBeTruthy();
   });
 
-  it('没配工程路径时不让点开始导入', () => {
+  it('没配工程路径时两个按钮都不能点', () => {
     render(
       <UnrealImportPage
         project={makeProject()}
         prefs={DEFAULT_UNREAL_PREFS}
         onChangePrefs={() => undefined}
         host={makeHost(makeUnreal())}
+        library={makeLibrary()}
       />,
     );
-    expect((screen.getByRole('button', { name: '开始导入' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: '导入变动' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: '全量导入' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('导入过程中把进度事件画成进度条', async () => {
+    let push: ((progress: UnrealImportProgress) => void) | null = null;
+    const unreal = makeUnreal({
+      onImportProgress: (listener) => {
+        push = listener;
+        return () => undefined;
+      },
+      runImport: vi.fn(
+        (): Promise<UnrealImportReport> =>
+          new Promise((resolve) => {
+            // 让界面先收到进度事件，再完成
+            setTimeout(
+              () =>
+                resolve({
+                  ok: true,
+                  stopped: false,
+                  items: [],
+                  importedPaths: [],
+                  counts: { tables: 1, images: 1, sounds: 0 },
+                }),
+              30,
+            );
+          }),
+      ),
+    });
+    renderPage(unreal, makeLibrary([assetFile('SCE_Black.png', 'image')]));
+
+    fireEvent.click(screen.getByRole('button', { name: '导入变动' }));
+    await waitFor(() => expect(push).not.toBeNull());
+
+    push!({ phase: 'assets', current: 1, total: 2, label: 'SCE_Black', status: 'running' });
+    expect(await screen.findByText(/导入素材/)).toBeTruthy();
+    expect(screen.getByText('1 / 2')).toBeTruthy();
+    expect(screen.getByText(/正在导入：SCE_Black/)).toBeTruthy();
   });
 });

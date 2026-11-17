@@ -22,22 +22,21 @@ interface RemoteCore {
 }
 
 interface ImportCore {
-  DONE_MARKER: string;
-  RESULT_PREFIX: string;
-  buildImportScript: (payload: {
-    tables: Array<{ label: string; assetPath: string; csvPath: string }>;
-    images: Array<{ id: string; assetPath: string; sourcePath: string }>;
-    sounds: Array<{ id: string; assetPath: string; sourcePath: string }>;
-  }) => string;
-  matchMaterialFiles: (
-    files: Array<{ filePath: string; baseName: string }>,
-    expected: Array<{ id: string; assetPath: string }>,
-  ) => { matched: Map<string, string>; missing: string[]; unused: string[] };
-  materialKindOfFile: (fileName: string) => 'image' | 'sound' | null;
+  ITEM_RESULT_PREFIX: string;
+  buildAssetScript: (item: { id: string; assetPath: string; sourcePath: string }) => string;
+  buildTableScript: (table: { label: string; assetPath: string; csvPath: string }) => string;
+  readItemResult: (output: readonly string[]) => { ok: boolean; detail: string } | null;
 }
 
 const remote = require('../../electron/unreal-remote.cjs') as RemoteCore;
 const importer = require('../../electron/unreal-import.cjs') as ImportCore;
+
+/** 从生成的 Python 脚本里把 `item = json.loads("…")` 那段还原成对象 */
+function embeddedItem(script: string): unknown {
+  const match = /item = json\.loads\(("(?:[^"\\]|\\.)*")\)/.exec(script);
+  expect(match).not.toBeNull();
+  return JSON.parse(JSON.parse(match![1]) as string);
+}
 
 describe('远程执行报文', () => {
   it('编码出来带版本、magic、来源，收件人和数据可选', () => {
@@ -106,79 +105,55 @@ describe('远程执行报文', () => {
   });
 });
 
-describe('导入脚本', () => {
-  const payload = {
-    tables: [
-      { label: 'TB_Dialogue', assetPath: '/Game/GameContent/BP/StorySystem/TB_Dialogue', csvPath: 'C:\\tmp\\01.csv' },
-    ],
-    images: [
-      {
-        id: 'SCE_Black',
-        assetPath: '/Game/GameContent/Asset/Image/StoryBackground/SCE_Black',
-        sourcePath: 'C:\\素材\\SCE_Black.png',
-      },
-    ],
-    sounds: [
-      {
-        id: 'S_dididi',
-        assetPath: '/Game/GameContent/Asset/Sound/BackgroundSound/S_dididi',
-        sourcePath: 'C:\\素材\\S_dididi.wav',
-      },
-    ],
-  };
+describe('单项导入脚本', () => {
+  it('图片脚本里嵌的数据和传进去的一模一样（中文路径也不丢）', () => {
+    const item = {
+      id: 'SCE_Black',
+      assetPath: '/Game/GameContent/Asset/Image/StoryBackground/SCE_Black',
+      sourcePath: 'C:\\素材\\SCE_Black.png',
+    };
+    const script = importer.buildAssetScript(item);
 
-  it('里面嵌的数据和传进去的一模一样（中文路径也不丢）', () => {
-    const script = importer.buildImportScript(payload);
-    const match = /DATA = json\.loads\(("(?:[^"\\]|\\.)*")\)/.exec(script);
-    expect(match).not.toBeNull();
-    // Python 的字符串字面量和 JSON 字符串兼容，转两次就回到对象
-    const decoded = JSON.parse(JSON.parse(match![1]) as string);
-    expect(decoded).toEqual(payload);
+    expect(embeddedItem(script)).toEqual(item);
     expect(script).toContain('素材');
   });
 
-  it('数据表走 CSV 灌入，图片音效走资源导入管线，最后打结果行', () => {
-    const script = importer.buildImportScript(payload);
-    expect(script).toContain('fill_data_table_from_csv_file');
+  it('图片脚本走资源导入管线，并按 ID 定资产名', () => {
+    const script = importer.buildAssetScript({
+      id: 'SCE_Black',
+      assetPath: '/Game/GameContent/Asset/Image/Bg/SCE_Black',
+      sourcePath: 'C:\\素材\\SCE_Black.png',
+    });
+
     expect(script).toContain('AssetImportTask');
     expect(script).toContain('import_asset_tasks');
     expect(script).toContain('replace_existing');
-    expect(script).toContain(importer.RESULT_PREFIX);
-    expect(script).toContain(importer.DONE_MARKER);
-  });
-});
-
-describe('素材匹配', () => {
-  it('按文件名对 ID，大小写不同算没对上', () => {
-    const files = [
-      { filePath: 'C:\\素材\\SCE_Black.png', baseName: 'SCE_Black' },
-      { filePath: 'C:\\素材\\sce_white.png', baseName: 'sce_white' },
-      { filePath: 'C:\\素材\\没用到的.png', baseName: '没用到的' },
-    ];
-    const expected = [
-      { id: 'SCE_Black', assetPath: '/Game/a/SCE_Black' },
-      { id: 'SCE_White', assetPath: '/Game/a/SCE_White' },
-    ];
-    const result = importer.matchMaterialFiles(files, expected);
-    expect([...result.matched.entries()]).toEqual([['SCE_Black', 'C:\\素材\\SCE_Black.png']]);
-    expect(result.missing).toEqual(['SCE_White']);
-    expect(result.unused).toEqual(['C:\\素材\\sce_white.png', 'C:\\素材\\没用到的.png']);
+    expect(script).toContain('destination_name');
+    expect(script).toContain(importer.ITEM_RESULT_PREFIX);
   });
 
-  it('同一个 ID 有两个文件时先到的算数，另一个报成多余', () => {
-    const files = [
-      { filePath: 'a.png', baseName: 'X' },
-      { filePath: 'b.png', baseName: 'X' },
-    ];
-    const result = importer.matchMaterialFiles(files, [{ id: 'X', assetPath: '/Game/X' }]);
-    expect(result.matched.get('X')).toBe('a.png');
-    expect(result.unused).toEqual(['b.png']);
+  it('数据表脚本走 CSV 灌入并保存', () => {
+    const table = { label: 'TB_Sound', assetPath: '/Game/a/TB_Sound', csvPath: 'C:\\tmp\\01.csv' };
+    const script = importer.buildTableScript(table);
+
+    expect(embeddedItem(script)).toEqual(table);
+    expect(script).toContain('fill_data_table_from_csv_file');
+    expect(script).toContain('save_loaded_asset');
+    expect(script).toContain(importer.ITEM_RESULT_PREFIX);
   });
 
-  it('按扩展名分图片和音效，不认识的不收', () => {
-    expect(importer.materialKindOfFile('a.PNG')).toBe('image');
-    expect(importer.materialKindOfFile('a.wav')).toBe('sound');
-    expect(importer.materialKindOfFile('a.txt')).toBeNull();
-    expect(importer.materialKindOfFile('没有扩展名')).toBeNull();
+  it('从输出里取结果行，没有或坏了都返回 null', () => {
+    expect(
+      importer.readItemResult(['LogPython: SMK_ITEM_RESULT {"ok": true, "detail": "已导入"}']),
+    ).toEqual({ ok: true, detail: '已导入' });
+    expect(importer.readItemResult(['只有日志'])).toBeNull();
+    expect(importer.readItemResult(['SMK_ITEM_RESULT 这不是 JSON'])).toBeNull();
+  });
+
+  it('结果行缺 ok 字段时按失败处理', () => {
+    expect(importer.readItemResult(['SMK_ITEM_RESULT {"detail":"怪怪的"}'])).toEqual({
+      ok: false,
+      detail: '怪怪的',
+    });
   });
 });

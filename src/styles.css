@@ -4171,3 +4171,57 @@ tr.locale-form-note td {
   flex: 1 1 auto;
   min-width: 0;
 }
+/* ---------- 导入进度与范围 ---------- */
+
+.import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.import-actions .hint {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.import-scope td strong {
+  font-size: 13px;
+}
+
+.import-progress {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--head-bg);
+}
+
+.import-progress-head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.progress-track {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.18s ease;
+}
+
+.progress-fill.failed {
+  background: var(--danger);
+}
+
+.import-progress-label {
+  margin-top: 8px;
+}

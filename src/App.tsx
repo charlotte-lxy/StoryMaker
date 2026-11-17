@@ -1376,6 +1376,7 @@ export default function App() {
                   prefs={unrealPrefs}
                   onChangePrefs={(patch) => setUnrealPrefs((prev) => ({ ...prev, ...patch }))}
                   host={host}
+                  library={assetLibrary}
                 />
               )}
 
