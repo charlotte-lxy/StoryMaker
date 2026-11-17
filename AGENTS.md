@@ -126,11 +126,38 @@ Vite + React 19 + TypeScript，导出用 ExcelJS。三种产物共用同一套�
 | `pnpm dev` | 开发服务器 :5180 | 开发（`/api` 自动转给同一个本地服务） |
 | `pnpm build` | `dist/` 多文件 | 内网服务器 |
 | `pnpm build:single` | `release/`：`index.html` + `启动StoryMaker.bat` + `storymaker-server.ps1` + `version.json` | 策划双击即用 |
-| `pnpm build:app` | `app-release/win-unpacked/` | Electron 桌面版（绿包目录，不再打单文件 exe） |
+| `pnpm build:app` | `app-release/win-unpacked/` | Electron 桌面版（**对外打包统一走这条**） |
 | `pnpm test` | — | 164 个测试 |
 | `pnpm verify:release` | — | 单文件产物自检 |
 | `pnpm verify:server` | — | 本地服务自检（真起进程、真发 HTTP、真落盘） |
 | `pnpm verify:update` | — | 自动更新自检（本地 HTTP 冒充远端，不碰真实网络） |
+
+## 打包（统一走 `pnpm build:app`）
+
+对外交付一律用 `pnpm build:app`，产物是 `app-release/win-unpacked/`，双击 `StoryMaker.exe` 即用。
+`build` / `build:single` 只在需要内网部署或单文件分发时才用。
+
+固定流程：
+
+1. **对齐依赖**：看 `node_modules/.modules.yaml` 里的 `packageManager` 是否与当前 pnpm 大版本一致。
+   不一致时 pnpm 会在每个脚本前试图删掉 `node_modules` 重装（打包会奇慢）。有空就先跑一次
+   `pnpm install` 对齐（会重新链接、按需下载，几百 MB）；赶时间可以不管，它会中止重装并继续，
+   只是每条命令都多花几秒。
+2. **清缓存**：删 `app-release/`、`dist/`、`tsconfig.tsbuildinfo`、`node_modules/.vite`。
+   **不要清** `%LOCALAPPDATA%\electron-builder\Cache`：electron、7zip、winCodeSign 都在里面，
+   清了会重新走 GitHub 下载，只会更慢。
+3. **执行**：`pnpm build:app`（`tsc -b` → `vite build` → `electron-builder --win`），本机干净构建约 30 秒。
+4. **验证产物**：`resources/app.asar` 约 1.4 MB / 11 个条目；exe 的 `FileVersion` 等于 `package.json`
+   的 `version`；`app-release` 总量约 370 MB（electron.exe 独占 246 MB）。
+5. **启动自检**：起 `win-unpacked/StoryMaker.exe`，等主窗口出现：冷启动 2–3 秒、热启动 0.4 秒内算正常。
+
+注意事项：
+
+- `build.files` 里有 `!node_modules/**/*`：前端依赖全由 Vite 打进 `dist/` 的 bundle，
+  **不要把 node_modules 打回 asar**（会白涨 37 MB）。
+- electron-builder 在 Windows 上通过 PowerShell 调 `pnpm list --json` 收集依赖，所以 PATH 里必须有
+  `pnpm` 可执行入口；只有 `pnpm.mjs` 时它会拿到空输出，报 `No JSON content found in output`。
+- 终端里若注入了 `ELECTRON_RUN_AS_NODE=1`，启动 Electron 会退化成 Node、开窗即退；自检前先清掉它。
 
 ## 项目文件与数据存放（不要改回去）
 
