@@ -1120,8 +1120,12 @@ export default function App() {
           onRecolor={collab.setMyColor}
         />
 
-        {/* UE 连接状态：和「协作」一个样式，绿点=连上、灰点=没连 */}
-        <UnrealBadge connection={unrealConnection} onOpenSettings={() => setModule('settings')} />
+        {/* UE 连接状态：和「协作」一个样式，绿点=连上（点一下直接导出）、灰点=没连（点一下去设置） */}
+        <UnrealBadge
+          connection={unrealConnection}
+          onExportToUe={() => setUeDialogOpen(true)}
+          onOpenSettings={() => setModule('settings')}
+        />
 
         <div className="check-summary">
           <button

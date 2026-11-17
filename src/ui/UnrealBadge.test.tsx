@@ -35,7 +35,13 @@ function makeConnection(overrides: Partial<UnrealConnection> = {}): UnrealConnec
 
 describe('顶部 UE 状态标签', () => {
   it('连上时是绿色的 on，带项目名和引擎版本', () => {
-    render(<UnrealBadge connection={makeConnection({ status: 'online', node: NODE })} onOpenSettings={() => undefined} />);
+    render(
+      <UnrealBadge
+        connection={makeConnection({ status: 'online', node: NODE })}
+        onExportToUe={() => undefined}
+        onOpenSettings={() => undefined}
+      />,
+    );
 
     const badge = document.querySelector('.ue-badge') as HTMLElement;
     expect(badge.classList.contains('on')).toBe(true);
@@ -48,6 +54,7 @@ describe('顶部 UE 状态标签', () => {
     render(
       <UnrealBadge
         connection={makeConnection({ status: 'offline', message: '没发现在线编辑器' })}
+        onExportToUe={() => undefined}
         onOpenSettings={() => undefined}
       />,
     );
@@ -58,14 +65,45 @@ describe('顶部 UE 状态标签', () => {
   });
 
   it('正在检测时是黄色的 wait', () => {
-    render(<UnrealBadge connection={makeConnection({ status: 'checking' })} onOpenSettings={() => undefined} />);
+    render(
+      <UnrealBadge
+        connection={makeConnection({ status: 'checking' })}
+        onExportToUe={() => undefined}
+        onOpenSettings={() => undefined}
+      />,
+    );
     expect(document.querySelector('.ue-badge.wait')).toBeTruthy();
   });
 
-  it('点一下跳到设置页', () => {
+  it('连上时点一下直接开导出弹窗，不去设置页', () => {
+    const onExportToUe = vi.fn();
     const onOpenSettings = vi.fn();
-    render(<UnrealBadge connection={makeConnection()} onOpenSettings={onOpenSettings} />);
+    render(
+      <UnrealBadge
+        connection={makeConnection({ status: 'online', node: NODE })}
+        onExportToUe={onExportToUe}
+        onOpenSettings={onOpenSettings}
+      />,
+    );
+
+    fireEvent.click(document.querySelector('.ue-badge') as HTMLElement);
+    expect(onExportToUe).toHaveBeenCalledOnce();
+    expect(onOpenSettings).not.toHaveBeenCalled();
+  });
+
+  it('没连上时点一下跳设置页，不弹导出', () => {
+    const onExportToUe = vi.fn();
+    const onOpenSettings = vi.fn();
+    render(
+      <UnrealBadge
+        connection={makeConnection({ status: 'offline' })}
+        onExportToUe={onExportToUe}
+        onOpenSettings={onOpenSettings}
+      />,
+    );
+
     fireEvent.click(document.querySelector('.ue-badge') as HTMLElement);
     expect(onOpenSettings).toHaveBeenCalledOnce();
+    expect(onExportToUe).not.toHaveBeenCalled();
   });
 });
