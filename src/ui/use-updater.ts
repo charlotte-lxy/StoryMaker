@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import type { UpdateApi, UpdateNotice } from '../core/host';
+import type { UpdateApi, UpdateNote, UpdateNotice } from '../core/host';
 
 /**
  * 自动更新的界面状态。
@@ -24,6 +24,8 @@ export interface Updater {
   phase: UpdaterPhase;
   latest: string;
   size: number;
+  /** 从当前版本到最新版本的更新日志（新→旧） */
+  notes: UpdateNote[];
   message: string;
   /** 启动时后台检查到的新版；非 null 时弹出提示 */
   notice: UpdateNotice | null;
@@ -37,17 +39,20 @@ export function useUpdater(update: UpdateApi | undefined): Updater {
   const [phase, setPhase] = useState<UpdaterPhase>(update === undefined ? 'unsupported' : 'idle');
   const [latest, setLatest] = useState('');
   const [size, setSize] = useState(0);
+  const [notes, setNotes] = useState<UpdateNote[]>([]);
   const [message, setMessage] = useState('');
   const [notice, setNotice] = useState<UpdateNotice | null>(null);
 
   useEffect(() => {
     setPhase(update === undefined ? 'unsupported' : 'idle');
     setNotice(null);
+    setNotes([]);
     if (update === undefined) return undefined;
 
     return update.onAvailable((incoming) => {
       setLatest(incoming.latest);
       setSize(incoming.size);
+      setNotes(incoming.notes ?? []);
       setPhase('available');
       setNotice(incoming);
     });
@@ -63,13 +68,17 @@ export function useUpdater(update: UpdateApi | undefined): Updater {
         if (result.status === 'available') {
           setLatest(result.latest ?? '');
           setSize(result.size ?? 0);
+          setNotes(result.notes ?? []);
           setPhase('available');
         } else if (result.status === 'latest') {
           setLatest(result.latest ?? result.current);
+          setNotes([]);
           setPhase('latest');
         } else if (result.status === 'unsupported') {
+          setNotes([]);
           setPhase('unsupported');
         } else {
+          setNotes([]);
           setMessage(result.message ?? '连不上更新源');
           setPhase('error');
         }
@@ -126,6 +135,7 @@ export function useUpdater(update: UpdateApi | undefined): Updater {
     phase,
     latest,
     size,
+    notes,
     message,
     notice,
     check,

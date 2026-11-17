@@ -19,6 +19,12 @@ export interface PickedProject {
   content: string;
 }
 
+/** 某一版的更新日志 */
+export interface UpdateNote {
+  version: string;
+  items: string[];
+}
+
 /** 自动更新的检查结果 */
 export interface UpdateCheckResult {
   status: 'latest' | 'available' | 'error' | 'unsupported';
@@ -26,6 +32,8 @@ export interface UpdateCheckResult {
   latest?: string;
   /** 新版本 app.asar 的字节数，用来在界面上显示下载大小 */
   size?: number;
+  /** 当前版本之后、最新版本之前的更新日志（新→旧） */
+  notes?: UpdateNote[];
   message?: string;
 }
 
@@ -38,6 +46,8 @@ export interface UpdateNotice {
   current: string;
   latest: string;
   size: number;
+  /** 从当前版本到最新版本的更新日志；没取到时是空数组 */
+  notes?: UpdateNote[];
 }
 
 /** 一个在线的 Unreal 编辑器（Remote Execution 发现到的节点） */

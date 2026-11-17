@@ -99,8 +99,8 @@
   `(Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings').ProxyServer`
 - **推送失败不要静默跳过**：凭据失效或代理没起时，把原始报错贴出来告诉用户，
   不要谎称已上传。
-- `pnpm build:app` 会重写 `app-update/version.json` 和 `app-update/app.asar`，这是**预期的**——
-  这两个文件按仓库约定纳入版本控制，必须随版本一起提交；漏了客户端就拉不到新版。
+- `pnpm build:app` 会重写 `app-update/version.json`、`app-update/app.asar` 和 `app-update/changelog.json`，
+  这是**预期的**——这三个文件按仓库约定纳入版本控制，必须随版本一起提交；漏了客户端就拉不到新版或看不到更新内容。
 
 ---
 
@@ -141,10 +141,12 @@ Vite + React 19 + TypeScript，导出用 ExcelJS。三种产物共用同一套�
    **不要清** `%LOCALAPPDATA%\electron-builder\Cache`：electron、7zip、winCodeSign 都在里面，
    清了会重新走 GitHub 下载，只会更慢。
 3. **执行**：`pnpm build:app`（`tsc -b` → `vite build` → `electron-builder --win` →
-   `tools/make-app-update.mts`），本机干净构建约 30 秒。
+   `tools/make-app-update.mts`），本机干净构建约 30 秒。**打之前先在 `CHANGELOG.md` 给当前版本写条目**：
+   脚本会把它转成 `app-update/changelog.json`，当前版本没写会直接失败。
 4. **验证产物**：`resources/app.asar` 约 1.4 MB / 11 个条目；exe 的 `FileVersion` 等于 `package.json`
    的 `version`；`app-release` 总量约 370 MB（electron.exe 独占 246 MB）；
-   `app-update/version.json` 的 `version` 与 `package.json` 一致、`sha256` 与 `app-update/app.asar` 对得上。
+   `app-update/version.json` 的 `version` 与 `package.json` 一致、`sha256` 与 `app-update/app.asar` 对得上；
+   `app-update/changelog.json` 里能找到当前版本那一节。
 5. **启动自检**：起 `win-unpacked/StoryMaker.exe`，等主窗口出现：冷启动 2–3 秒、热启动 0.4 秒内算正常。
 
 注意事项：
@@ -154,8 +156,8 @@ Vite + React 19 + TypeScript，导出用 ExcelJS。三种产物共用同一套�
 - electron-builder 在 Windows 上通过 PowerShell 调 `pnpm list --json` 收集依赖，所以 PATH 里必须有
   `pnpm` 可执行入口；只有 `pnpm.mjs` 时它会拿到空输出，报 `No JSON content found in output`。
 - 终端里若注入了 `ELECTRON_RUN_AS_NODE=1`，启动 Electron 会退化成 Node、开窗即退；自检前先清掉它。
-- **发版必须把 `app-update/version.json` 和 `app-update/app.asar` 一起提交**，漏了客户端就拉不到新版。
-  `app-update/` 纳入版本控制。
+- **发版必须把 `app-update/version.json`、`app-update/app.asar`、`app-update/changelog.json` 一起提交**，
+  漏了客户端就拉不到新版或看不到更新内容。`app-update/` 纳入版本控制。
 
 ### Electron 自动更新（只换 app.asar）
 
@@ -166,6 +168,10 @@ Vite + React 19 + TypeScript，导出用 ExcelJS。三种产物共用同一套�
 - 更新源：`raw.githubusercontent.com/.../main/app-update`，失败再试 `cdn.jsdelivr.net/gh/...@main/app-update`。
   仓库必须保持 **public**（私库要 token，不能放进客户端）。可用 `STORYMAKER_APP_UPDATE_BASE`（逗号分隔）覆盖。
 - 清单 `app-update/version.json`：`version` / `file`（只认 `app.asar`）/ `sha256` / `size`。
+- 更新日志 `app-update/changelog.json`：由根目录 `CHANGELOG.md` 生成（`## 版本号` + `- 条目`）。
+  客户端只取「当前版本之后、最新版本之前」的条目，弹窗和设置页按版本从新到旧展示；
+  跨好几个版本时会全部列出，日志取不到就显示「这次更新没有附带更新说明」，不影响更新本身。
+  **改了 CHANGELOG 要重新 `build:app`**，否则 changelog.json 还是旧的；当前版本没写条目会直接打包失败。
 - 下载到 `resources/app.asar.new`，核对大小与 SHA-256；通过后由一个小 bat 在进程退出后替换 `app.asar` 并重启。
 - **exe 不参与更新**：所以 `build.disableAsarIntegrity` 已关掉，避免 exe 里写死的 asar 哈希跟替换后的文件对不上。
   代价是 exe 的 `FileVersion` 会停在安装时那一版，界面里显示的版本来自 asar 的 `package.json`。

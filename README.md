@@ -39,9 +39,13 @@ pnpm dev          # 开发服务器 http://localhost:5180
 | `pnpm test` | — | 634 个测试 |
 | `pnpm verify:app-update` | — | Electron 自动更新自检（双源 / 清单 / 哈希） |
 
-`pnpm build:app` 会同时生成 `app-update/`（`version.json` + `app.asar`）。桌面版设置页里能看
-当前版本、手动检查更新；启动 3 秒后也会在后台查一次，有新版就提示下载。更新只替换
-`resources/app.asar`（约 1.4 MB），exe 不动，所以这两个文件也要随版本提交。
+`pnpm build:app` 会同时生成 `app-update/`（`version.json` + `app.asar` + `changelog.json`）。桌面版设置页里能看
+当前版本、手动检查更新；启动 3 秒后也会在后台查一次，有新版就提示下载，并按版本列出
+「从当前版本到最新版本」的更新内容。更新只替换 `resources/app.asar`（约 1.5 MB），exe 不动，
+所以这几个文件也要随版本提交。
+
+更新内容写在根目录的 `CHANGELOG.md`：每个版本一节（`## 0.6.6` + 一行一条 `- 改动`），
+打包时会转成 `app-update/changelog.json`；当前版本没写条目会直接打包失败。
 
 单文件产物（`build:single`）已弃用，脚本已删除；`release/` 下只是历史产物，不再更新。
 

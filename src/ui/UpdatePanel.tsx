@@ -1,3 +1,4 @@
+import type { UpdateNote } from '../core/host';
 import { formatSize, type Updater } from './use-updater';
 
 /** 设置页里的「版本与更新」卡片 */
@@ -36,6 +37,9 @@ export function UpdateCard({ updater }: { updater: Updater }) {
       {updater.phase === 'ready' && (
         <p className="update-hint">更新已下载，点「重启并安装」会关闭软件并自动重启。</p>
       )}
+      {(updater.phase === 'available' || updater.phase === 'ready') && (
+        <UpdateNotes notes={updater.notes} />
+      )}
       {updater.phase === 'available' && (
         <p className="update-hint">下载只包含变动的 app.asar（约 {formatSize(updater.size)}），重启后生效。</p>
       )}
@@ -61,6 +65,7 @@ export function UpdatePrompt({ updater }: { updater: Updater }) {
             {'\n'}
             下载只包含变动的程序文件（约 {formatSize(notice.size)}），重启后生效。
           </p>
+          <UpdateNotes notes={notice.notes ?? updater.notes} />
           {updater.phase === 'downloading' && <p className="update-hint">正在下载，请稍候…</p>}
           {updater.phase === 'ready' && (
             <p className="update-hint">下载完成，点「重启并安装」立即更新。</p>
@@ -95,6 +100,28 @@ export function UpdatePrompt({ updater }: { updater: Updater }) {
           )}
         </footer>
       </div>
+    </div>
+  );
+}
+
+/** 从当前版本到最新版本的更新内容，按版本分组 */
+function UpdateNotes({ notes }: { notes: UpdateNote[] }) {
+  if (notes.length === 0) {
+    return <p className="update-hint">这次更新没有附带更新说明。</p>;
+  }
+
+  return (
+    <div className="update-notes">
+      {notes.map((note) => (
+        <section key={note.version} className="update-note">
+          <h4>v{note.version}</h4>
+          <ul>
+            {note.items.map((item, index) => (
+              <li key={index}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      ))}
     </div>
   );
 }

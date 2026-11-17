@@ -39,6 +39,19 @@ async function fetchText(url) {
 }
 
 /**
+ * 拉更新日志，只保留「当前版本之后、最新版本之前」的条目。
+ * 日志拿不到就当作没有，绝不能因此挡住更新本身。
+ */
+async function loadUpdateNotes(base, current, latest) {
+  try {
+    const parsed = updateCore.parseChangelog(await fetchText(`${base}/changelog.json`));
+    return parsed === null ? [] : updateCore.collectNotes(parsed, current, latest);
+  } catch {
+    return [];
+  }
+}
+
+/**
  * 问两个更新源要 version.json，取版本号最大的那份清单。
  * 任何一个源连不上都只是少一个候选，不影响另一个。
  */
@@ -78,6 +91,7 @@ async function checkForUpdate() {
     current,
     latest: newest.manifest.version,
     size: newest.manifest.size,
+    notes: await loadUpdateNotes(newest.base, current, newest.manifest.version),
   };
 }
 
@@ -211,6 +225,7 @@ function createWindow() {
               current: result.current,
               latest: result.latest,
               size: result.size,
+              notes: result.notes ?? [],
             });
           })
           .catch(() => undefined);

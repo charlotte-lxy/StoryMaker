@@ -3600,6 +3600,37 @@ tr.locale-form-note td {
   line-height: 1.6;
 }
 
+.update-notes {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  max-height: 260px;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.update-note + .update-note {
+  margin-top: 10px;
+}
+
+.update-note h4 {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.update-note ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.update-note li {
+  font-size: 13px;
+  line-height: 1.65;
+  margin-bottom: 2px;
+}
+
 /* 开关和主题选择都靠右，和左边的说明文字拉开距离 */
 .settings-item > .switch,
 .settings-item > .theme-picker {

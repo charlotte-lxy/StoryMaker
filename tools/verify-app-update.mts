@@ -21,6 +21,10 @@ interface Manifest {
   size: number;
 }
 
+interface Changelog {
+  versions: { version: string; items: string[] }[];
+}
+
 interface DownloadOptions {
   urls: string[];
   target: string;
@@ -36,6 +40,8 @@ interface UpdateCore {
   compareVersions(a: string, b: string): number;
   parseManifest(text: string): Manifest | null;
   newestManifest(entries: { manifest: Manifest }[]): { manifest: Manifest } | null;
+  parseChangelog(text: string): Changelog | null;
+  collectNotes(changelog: Changelog | null, current: string, latest: string): { version: string; items: string[] }[];
   downloadVerified(options: DownloadOptions): Promise<{ ok: boolean; message?: string; url?: string }>;
 }
 
@@ -82,6 +88,31 @@ async function main(): Promise<void> {
     '版本号不是纯数字段时被拒',
   );
   check(core.parseManifest('{ 坏掉的 json') === null, '坏 JSON 被拒');
+
+  // ---------- 更新日志 ----------
+  const changelog = core.parseChangelog(
+    JSON.stringify({
+      versions: [
+        { version: '0.6.7', items: ['比最新还新的内容不该出现'] },
+        { version: '0.6.6', items: ['检查更新时显示更新内容'] },
+        { version: '0.6.5', items: ['导入按钮改名'] },
+        { version: '0.6.4', items: [] },
+        { version: '0.6.3', items: ['素材管理'] },
+      ],
+    }),
+  );
+  check(changelog !== null, '更新日志能解析');
+  const notes = core.collectNotes(changelog, '0.6.3', '0.6.6');
+  check(
+    notes.length === 2 && notes[0]?.version === '0.6.6' && notes[1]?.version === '0.6.5',
+    '只取当前版本之后、最新版本之前的条目，按新→旧排列',
+  );
+  check(
+    notes.every((note) => note.items.length > 0),
+    '没有条目的版本不进更新日志',
+  );
+  check(core.collectNotes(changelog, '0.6.6', '0.6.6').length === 0, '已经是最新版时没有更新日志');
+  check(core.parseChangelog('不是 json') === null, '坏掉的更新日志被拒');
 
   // ---------- 更新源 ----------
   const defaults = core.updateBases('');

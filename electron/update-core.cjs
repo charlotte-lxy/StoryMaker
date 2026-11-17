@@ -94,6 +94,44 @@ function newestManifest(entries) {
   return best;
 }
 
+/**
+ * 更新日志清单（由 tools/make-app-update.mts 从 CHANGELOG.md 生成）：
+ * { "versions": [ { "version": "0.6.6", "items": ["…", "…"] }, … ] }
+ */
+function parseChangelog(text) {
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (data === null || typeof data !== 'object' || !Array.isArray(data.versions)) return null;
+  return data;
+}
+
+/**
+ * 取「当前版本之后、最新版本之前」的全部条目，按版本从新到旧排。
+ * 客户端跳了好几个版本时，这里会把中间每一版的内容都带上。
+ */
+function collectNotes(changelog, current, latest) {
+  if (changelog === null || changelog === undefined || !Array.isArray(changelog.versions)) return [];
+  const notes = [];
+  for (const entry of changelog.versions) {
+    if (entry === null || typeof entry !== 'object') continue;
+    const version = String(entry.version ?? '').trim();
+    if (!/^\d+(\.\d+)*$/.test(version)) continue;
+    const afterCurrent = compareVersions(version, current) > 0;
+    const upToLatest = compareVersions(version, latest) <= 0;
+    if (!afterCurrent || !upToLatest) continue;
+    const items = Array.isArray(entry.items)
+      ? entry.items.map((item) => String(item).trim()).filter((item) => item !== '')
+      : [];
+    if (items.length === 0) continue;
+    notes.push({ version, items });
+  }
+  return notes.sort((left, right) => compareVersions(right.version, left.version));
+}
+
 function sha256Of(buffer) {
   return createHash('sha256').update(buffer).digest('hex');
 }
@@ -145,6 +183,8 @@ module.exports = {
   compareVersions,
   parseManifest,
   newestManifest,
+  parseChangelog,
+  collectNotes,
   sha256Of,
   downloadVerified,
 };

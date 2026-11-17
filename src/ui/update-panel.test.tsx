@@ -78,6 +78,42 @@ describe('版本与更新', () => {
     expect(api.download).toHaveBeenCalledOnce();
   });
 
+  it('弹窗里按版本展示更新内容', async () => {
+    const { api, emit } = makeApi();
+    render(<Harness api={api} />);
+
+    act(() => {
+      emit({
+        current: '0.6.5',
+        latest: '0.6.6',
+        size: 1_500_000,
+        notes: [
+          { version: '0.6.6', items: ['检查更新时显示更新内容', '设置页也能看到说明'] },
+          { version: '0.6.5', items: ['导入按钮改名为「导入」'] },
+        ],
+      });
+    });
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('v0.6.6')).toBeTruthy();
+    expect(within(dialog).getByText('检查更新时显示更新内容')).toBeTruthy();
+    expect(within(dialog).getByText('设置页也能看到说明')).toBeTruthy();
+    expect(within(dialog).getByText('v0.6.5')).toBeTruthy();
+    expect(within(dialog).getByText('导入按钮改名为「导入」')).toBeTruthy();
+  });
+
+  it('没有更新说明时给出提示', async () => {
+    const { api, emit } = makeApi();
+    render(<Harness api={api} />);
+
+    act(() => {
+      emit({ current: '0.6.5', latest: '0.6.6', size: 1_500_000, notes: [] });
+    });
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/没有附带更新说明/)).toBeTruthy();
+  });
+
   it('点稍后关掉提示，不触发下载', async () => {
     const { api, emit } = makeApi();
     render(<Harness api={api} />);
