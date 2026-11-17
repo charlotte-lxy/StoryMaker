@@ -70,6 +70,9 @@ contextBridge.exposeInMainWorld('storymakerDesktop', {
   /** 删掉一个素材文件 */
   unrealRemoveAsset: (filePath) => ipcRenderer.invoke('unreal:remove-asset', filePath),
 
+  /** 条目改了 ID：把素材文件跟着改名 */
+  unrealRenameAsset: (request) => ipcRenderer.invoke('unreal:rename-asset', request),
+
   /** 读素材内容（预览图 / 播放音频） */
   unrealReadAsset: (filePath) => ipcRenderer.invoke('unreal:read-asset', filePath),
 });

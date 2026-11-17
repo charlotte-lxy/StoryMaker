@@ -1297,6 +1297,12 @@ export default function App() {
                     setProject((prev) => updateAssetCategory(prev, kind, uid, patch))
                   }
                   assets={module === 'sounds' ? { library: assetLibrary, host } : undefined}
+                  onRenameAsset={(_uid, oldId, newId, kind) => {
+                    // 素材跟条目走：ID 改完把文件也改名，导入时才认得出是同一个素材
+                    void assetLibrary.rename(oldId, newId, kind).then((result) => {
+                      if (!result.ok && result.message !== undefined) setToast(result.message);
+                    });
+                  }}
                 />
               )}
 
@@ -1306,6 +1312,11 @@ export default function App() {
                   project={project}
                   focusUid={focusRowUid}
                   assets={{ library: assetLibrary, host }}
+                  onRenameAsset={(_uid, oldId, newId, kind) => {
+                    void assetLibrary.rename(oldId, newId, kind).then((result) => {
+                      if (!result.ok && result.message !== undefined) setToast(result.message);
+                    });
+                  }}
                   onAdd={() => handleLookup.add('images')}
                   onRemove={(kind, uid) => handleLookup.remove(kind, uid)}
                   onUpdate={(kind, uid, patch) => handleLookup.update(kind, uid, patch)}

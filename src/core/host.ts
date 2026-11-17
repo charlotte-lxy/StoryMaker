@@ -72,9 +72,16 @@ export interface UnrealImportItem {
 
 /** 要导的一个素材：ID 给界面显示，sourcePath 是本地文件 */
 export interface UnrealImportAsset {
+  /** 条目 uid，导入成功后在记录里按它登记 */
+  ownerUid: string;
   id: string;
   assetPath: string;
   sourcePath: string;
+  /**
+   * 条目改过 ID 时 UE 里旧资产的路径：导入前先把它改名到新路径，
+   * 否则会变成「新建一个 + 旧资产残留」。
+   */
+  previousAssetPath?: string;
 }
 
 export interface UnrealImportRequest {
@@ -95,8 +102,8 @@ export interface UnrealImportReport {
   stopped: boolean;
   /** 逐项结果 */
   items: UnrealImportItem[];
-  /** 素材阶段成功导入的本地文件路径，用来更新「已导入」标记 */
-  importedPaths: string[];
+  /** 素材阶段成功导入的条目 uid，用来更新「已导入」标记 */
+  importedOwnerUids: string[];
   counts: { tables: number; images: number; sounds: number };
 }
 
@@ -174,6 +181,13 @@ export interface UnrealApi {
   }) => Promise<AssetUploadResult>;
   /** 删掉一个素材文件 */
   removeAsset: (filePath: string) => Promise<{ ok: boolean; message?: string }>;
+  /** 条目改了 ID：把素材文件跟着改名 */
+  renameAsset: (request: {
+    folder: string;
+    oldId: string;
+    newId: string;
+    kind: 'image' | 'sound';
+  }) => Promise<{ ok: boolean; filePath?: string; message?: string }>;
   /** 读素材内容，用于预览图和音频播放 */
   readAsset: (filePath: string) => Promise<AssetReadResult>;
 }
@@ -250,6 +264,12 @@ export interface DesktopBridge {
     replace?: boolean;
   }) => Promise<AssetUploadResult>;
   unrealRemoveAsset?: (filePath: string) => Promise<{ ok: boolean; message?: string }>;
+  unrealRenameAsset?: (request: {
+    folder: string;
+    oldId: string;
+    newId: string;
+    kind: 'image' | 'sound';
+  }) => Promise<{ ok: boolean; filePath?: string; message?: string }>;
   unrealReadAsset?: (filePath: string) => Promise<AssetReadResult>;
 }
 
@@ -423,6 +443,7 @@ function desktopHost(bridge: DesktopBridge): HostApi {
     bridge.unrealListAssets !== undefined &&
     bridge.unrealUploadAsset !== undefined &&
     bridge.unrealRemoveAsset !== undefined &&
+    bridge.unrealRenameAsset !== undefined &&
     bridge.unrealReadAsset !== undefined
       ? {
           discover: (uprojectPath) => bridge.unrealDiscover!(uprojectPath),
@@ -433,6 +454,7 @@ function desktopHost(bridge: DesktopBridge): HostApi {
           listAssets: (folder) => bridge.unrealListAssets!(folder),
           uploadAsset: (request) => bridge.unrealUploadAsset!(request),
           removeAsset: (filePath) => bridge.unrealRemoveAsset!(filePath),
+          renameAsset: (request) => bridge.unrealRenameAsset!(request),
           readAsset: (filePath) => bridge.unrealReadAsset!(filePath),
         }
       : undefined;

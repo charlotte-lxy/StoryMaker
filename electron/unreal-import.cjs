@@ -51,6 +51,9 @@ function embedData(value) {
  *
  * 用 AssetImportTask 走导入管线（等价于在内容浏览器里拖进去），
  * 目标路径和资产名直接取导出表里那个完整引用，和策划看到的表永远一致。
+ *
+ * 条目改过 ID 时（`previousAssetPath`），先把 UE 里的旧资产改名过去再导，
+ * 这样改 ID 不会留下一份旧资产。
  */
 function buildAssetScript(item) {
   return [
@@ -66,6 +69,10 @@ function buildAssetScript(item) {
     '    if index <= 0:',
     '        result["detail"] = "资源路径不合法：" + asset_path',
     '    else:',
+    '        previous = item.get("previousAssetPath")',
+    '        if previous and previous != asset_path:',
+    '            if unreal.EditorAssetLibrary.does_asset_exist(previous):',
+    '                unreal.EditorAssetLibrary.rename_asset(previous, asset_path)',
     '        folder = asset_path[:index]',
     '        name = asset_path[index + 1:]',
     '        task = unreal.AssetImportTask()',
@@ -162,7 +169,7 @@ async function runImport({ session, nodeId, plan, onProgress }) {
   ];
 
   const items = [];
-  const importedPaths = [];
+  const importedOwnerUids = [];
   const counts = {
     tables: tables.length,
     images: plan.images?.length ?? 0,
@@ -195,7 +202,7 @@ async function runImport({ session, nodeId, plan, onProgress }) {
         ok,
         detail: outcome === null ? '脚本没有回传结果' : outcome.detail,
       });
-      if (ok) importedPaths.push(task.sourcePath);
+      if (ok) importedOwnerUids.push(task.ownerUid);
       report(onProgress, { ...position, label: task.id, status: ok ? 'ok' : 'failed' });
     }
 
@@ -204,7 +211,7 @@ async function runImport({ session, nodeId, plan, onProgress }) {
       return {
         stopped: true,
         items,
-        importedPaths,
+        importedOwnerUids,
         counts,
         message: `有 ${failedAssets} 个素材没导成功，数据表先不导——素材没进去就灌表会让引用指向不存在的资产。`,
       };
@@ -236,7 +243,7 @@ async function runImport({ session, nodeId, plan, onProgress }) {
       report(onProgress, { ...position, label: table.label, status: ok ? 'ok' : 'failed' });
     }
 
-    return { stopped: false, items, importedPaths, counts };
+    return { stopped: false, items, importedOwnerUids, counts };
   } finally {
     channel.close();
     await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);

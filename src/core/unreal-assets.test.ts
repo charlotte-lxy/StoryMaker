@@ -16,6 +16,12 @@ interface AssetCore {
     folder: string,
   ) => Promise<Array<{ filePath: string; fileName: string; baseName: string; kind: string }>>;
   removeAssetFile: (filePath: string) => Promise<{ ok: boolean; message?: string }>;
+  renameAssetFile: (options: {
+    folder: string;
+    oldId: string;
+    newId: string;
+    kind: 'image' | 'sound';
+  }) => Promise<{ ok: boolean; filePath?: string; message?: string }>;
   uploadAssetFile: (options: {
     folder: string;
     id: string;
@@ -214,5 +220,78 @@ describe('删除素材', () => {
     expect(await assets.removeAssetFile(file)).toEqual({ ok: true });
     expect(existsSync(file)).toBe(false);
     expect((await assets.removeAssetFile(file)).ok).toBe(true);
+  });
+});
+
+describe('素材改名', () => {
+  it('条目改了 ID，文件跟着改名，内容不动', async () => {
+    const dir = tempDir();
+    writeFileSync(join(dir, 'SCE_Old.png'), '图');
+
+    const result = await assets.renameAssetFile({
+      folder: dir,
+      oldId: 'SCE_Old',
+      newId: 'SCE_New',
+      kind: 'image',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(existsSync(join(dir, 'SCE_New.png'))).toBe(true);
+    expect(existsSync(join(dir, 'SCE_Old.png'))).toBe(false);
+  });
+
+  it('目标文件名已经被占用时拒绝，不覆盖别人的文件', async () => {
+    const dir = tempDir();
+    writeFileSync(join(dir, 'SCE_Old.png'), '旧');
+    writeFileSync(join(dir, 'SCE_New.png'), '别人的');
+
+    const result = await assets.renameAssetFile({
+      folder: dir,
+      oldId: 'SCE_Old',
+      newId: 'SCE_New',
+      kind: 'image',
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('SCE_New.png');
+    expect(existsSync(join(dir, 'SCE_Old.png'))).toBe(true);
+  });
+
+  it('没有对应文件时什么也不做，也算成功', async () => {
+    const dir = tempDir();
+    const result = await assets.renameAssetFile({
+      folder: dir,
+      oldId: '不存在',
+      newId: '随便',
+      kind: 'image',
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it('只动同一类文件：改图片名不会碰同名的音频', async () => {
+    const dir = tempDir();
+    writeFileSync(join(dir, 'X.wav'), '音频');
+
+    const result = await assets.renameAssetFile({
+      folder: dir,
+      oldId: 'X',
+      newId: 'Y',
+      kind: 'image',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(existsSync(join(dir, 'X.wav'))).toBe(true);
+  });
+
+  it('ID 空着时拒绝', async () => {
+    const dir = tempDir();
+    writeFileSync(join(dir, 'X.png'), '图');
+    const result = await assets.renameAssetFile({
+      folder: dir,
+      oldId: 'X',
+      newId: '  ',
+      kind: 'image',
+    });
+    expect(result.ok).toBe(false);
   });
 });

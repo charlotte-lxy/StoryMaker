@@ -123,7 +123,7 @@ Vite + React 19 + TypeScript，导出用 ExcelJS。三种产物共用同一套�
 | `pnpm dev` | 开发服务器 :5180 | 开发（`/api` 自动转给同一个本地服务） |
 | `pnpm build` | `dist/` 多文件 | 内网服务器 |
 | `pnpm build:app` | `app-release/win-unpacked/` + `app-update/` | Electron 桌面版（**唯一交付方式**） |
-| `pnpm test` | — | 634 个测试 |
+| `pnpm test` | — | 657 个测试 |
 | `pnpm verify:app-update` | — | 自动更新自检（版本比较 / 清单校验 / 双源兜底 / 哈希） |
 
 ## 打包（统一走 `pnpm build:app`）
@@ -252,10 +252,13 @@ UDP 组播 `239.0.0.1:6766` 发现节点（`pong` 带回 `project_name` / `engin
   不要退回「每次重新握手」或「一次性跑完再返回」——前者慢到没法用，后者没有进度。
 - **顺序固定：先素材、后数据表；素材有失败就停下不导表。** 数据表存的是资源引用，
   素材没进去就灌表会让引用指向不存在的资产。
-- 增量导入：素材按「路径（小写）+ 大小 + 修改时间」跟本机记录比，只导新增和修改过的。
-  判定是纯函数 `src/core/imported-assets.ts` 的 `classifyAssets`，记录在
-  `src/state/import-markers.ts` 的 localStorage `storymaker.unreal.imported.v1`（按素材文件夹分组）。
+- 增量导入：**素材跟条目 uid 绑定，不跟文件名绑定**（`src/core/imported-assets.ts` 的
+  `classifyAssets` 按 ownerUid 索引）。条目 ID 改名时：本地文件跟着改名（`renameAssetFile`）、
+  记录判成「改名」、导入时先在 UE 里 `rename_asset` 再导，**不能变成「新建一个 + 旧资产残留」**。
+  没改 ID 时才按「路径 + 大小 + 修改时间」判修改/未变。
+  记录在 `src/state/import-markers.ts` 的 localStorage `storymaker.unreal.imported.v2`（按素材文件夹分组）。
   「已移除」只提示，**绝不自动删 UE 资产**。数据表永远全量——表小，增量反而容易漏。
+  表情立绘的 ownerUid 是「角色 uid + 表情行 uid」，武器图标用武器 uid——**别用 ID 当键**，改 ID 就断。
 - 界面侧的纯数据计划在 `src/core/unreal-import.ts`（`buildUnrealImportPlan`）与
   `resolveImportAssets`（把计划对到素材文件上）。图片 / 音效的包路径直接从导出表那一列解析
   （`packagePathOf`），**不要另按分类拼一份**——否则表情立绘那种多一层子文件夹的会分叉。
@@ -273,6 +276,7 @@ UDP 组播 `239.0.0.1:6766` 发现节点（`pong` 带回 `project_name` / `engin
   格式收 `png/jpg/jpeg/tga` 与 `wav/ogg/flac`，别的一律拒绝。
 - 预览图和音频播放**不走 file://**：主进程把文件读成二进制回来，渲染进程包 Blob。
   tga 浏览器显示不了，「预览」按钮要禁用并说明去 UE 里看。
+  **音频一次只播一个**（`src/ui/audio-exclusive.ts`）：播新的先把正在放的 pause 掉。
 - 自动收集的「表情立绘 / 武器图标」两张表跟自定义图片同构（ID / 图片分类 / 说明 / 素材管理），
   只读输入框，**没有拖拽**；导出路径不再单独成列，改看「素材管理」。
 

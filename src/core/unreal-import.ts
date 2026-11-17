@@ -4,13 +4,17 @@
  * 这里只负责把项目整理成任务清单——哪些 DataTable 对应哪段 CSV、哪张图/哪个音效
  * 该落到哪个资源路径。真正的网络通信和写文件在主进程（electron/unreal-*.cjs），
  * 界面拿到计划后交给宿主执行。这样本模块全是纯函数，能直接测。
+ *
+ * 每个素材都带 `ownerUid`（条目的 uid）：素材跟条目走，不跟文件名走。
  */
 
 import { toCsv } from './csv';
 import { buildAllSheets } from './export';
 import { IMPORT_SETTINGS_SHEET, dataTableRef } from './export-settings';
-import { buildImageRows } from './image-export';
-import { buildSoundRows } from './sound-export';
+import { collectExpressionImages } from './expression-images';
+import { imageAssetPath } from './image-export';
+import { soundAssetPath } from './sound-export';
+import { collectWeaponIcons } from './weapon-icons';
 import type { Project } from './types';
 
 /** 一张要导入的数据表 */
@@ -25,7 +29,9 @@ export interface TableImportTask {
 
 /** 一张图 / 一条音效 */
 export interface AssetImportTask {
-  /** 图片 ID 或音效 ID；也是素材文件名（不含扩展名）要匹配的东西 */
+  /** 条目 uid：改 ID 之后素材还能靠它认回来 */
+  ownerUid: string;
+  /** 素材名（= 文件名不含扩展名），也是 UE 里的资产名 */
   id: string;
   /** Unreal 包路径，如 /Game/GameContent/Asset/Image/StoryBackground/SCE_Black */
   assetPath: string;
@@ -47,8 +53,10 @@ export interface MaterialFileRef {
 
 /** 解析出来的、真的可以导的一个素材 */
 export interface ResolvedImportAsset extends MaterialFileRef {
+  ownerUid: string;
   id: string;
   assetPath: string;
+  kind: 'image' | 'sound';
 }
 
 export interface ResolvedAssets {
@@ -78,19 +86,58 @@ export function packagePathOf(assetRef: string): string {
 }
 
 /**
- * 从一张导出子表的「资源列」里收 id + 包路径。
- *
- * @param rows 整张子表（第一行是表头）
- * @param column 资源列的下标
+ * 图片：手填的在前，表情立绘、武器图标接在后面——顺序和导出「图片」子表一致，
+ * 同 ID 的手填行优先（和导出时的去重规则一样）。
  */
-function collectAssets(rows: string[][], column: number): AssetImportTask[] {
+function collectImageTasks(project: Project): AssetImportTask[] {
+  const categories = new Map(project.imageCategories.map((row) => [row.uid, row]));
   const tasks: AssetImportTask[] = [];
-  for (const row of rows.slice(1)) {
-    const id = (row[0] ?? '').trim();
-    const assetPath = packagePathOf(row[column] ?? '');
-    if (id === '' || assetPath === '') continue;
-    tasks.push({ id, assetPath });
+  const taken = new Set<string>();
+
+  for (const row of project.images) {
+    const id = row.id.trim();
+    if (id === '') continue;
+    const category = categories.get(row.categoryUid ?? '');
+    const assetPath = packagePathOf(imageAssetPath(category?.path ?? '', id));
+    if (assetPath === '') continue;
+    tasks.push({ ownerUid: row.uid, id, assetPath });
+    taken.add(id);
   }
+
+  for (const image of collectExpressionImages(project)) {
+    if (taken.has(image.id)) continue;
+    taken.add(image.id);
+    const assetPath = packagePathOf(image.path);
+    if (assetPath === '') continue;
+    tasks.push({ ownerUid: image.ownerUid, id: image.id, assetPath });
+  }
+
+  for (const icon of collectWeaponIcons(project)) {
+    if (taken.has(icon.id)) continue;
+    taken.add(icon.id);
+    const assetPath = packagePathOf(icon.path);
+    if (assetPath === '') continue;
+    // 武器图标跟武器行绑定：改武器 ID 时图标跟着改名
+    tasks.push({ ownerUid: icon.weaponUid, id: icon.id, assetPath });
+  }
+
+  return tasks;
+}
+
+/** 音效：一行一条，id 空着或没选类型的跳过（和导出一致） */
+function collectSoundTasks(project: Project): AssetImportTask[] {
+  const categories = new Map(project.soundCategories.map((row) => [row.uid, row]));
+  const tasks: AssetImportTask[] = [];
+
+  for (const row of project.sounds) {
+    const id = row.id.trim();
+    if (id === '') continue;
+    const category = categories.get(row.categoryUid ?? '');
+    const assetPath = packagePathOf(soundAssetPath(category?.path ?? '', id));
+    if (assetPath === '') continue;
+    tasks.push({ ownerUid: row.uid, id, assetPath });
+  }
+
   return tasks;
 }
 
@@ -121,8 +168,8 @@ export function buildUnrealImportPlan(project: Project): UnrealImportPlan {
 
   return {
     tables,
-    images: collectAssets(buildImageRows(project), 3),
-    sounds: collectAssets(buildSoundRows(project), 1),
+    images: collectImageTasks(project),
+    sounds: collectSoundTasks(project),
   };
 }
 
@@ -134,6 +181,7 @@ export function buildUnrealImportPlan(project: Project): UnrealImportPlan {
 export function resolveImportAssets(
   tasks: readonly AssetImportTask[],
   byId: ReadonlyMap<string, readonly MaterialFileRef[]>,
+  kind: 'image' | 'sound',
 ): ResolvedAssets {
   const ready: ResolvedImportAsset[] = [];
   const missing: string[] = [];
@@ -148,8 +196,10 @@ export function resolveImportAssets(
     if (files.length > 1) duplicates.push(task.id);
     const file = files[0];
     ready.push({
+      ownerUid: task.ownerUid,
       id: task.id,
       assetPath: task.assetPath,
+      kind,
       filePath: file.filePath,
       fileName: file.fileName,
       size: file.size,

@@ -4256,3 +4256,54 @@ tr.locale-form-note td {
 .import-progress-label {
   margin-top: 8px;
 }
+/* ---------- 导入范围里的素材统计 ---------- */
+
+.import-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.import-summary-total {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.import-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.75;
+  white-space: nowrap;
+}
+
+.import-chip.fresh {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
+.import-chip.modified {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.import-chip.unchanged {
+  background: var(--head-bg);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+}
+
+.import-chip.removed,
+.import-chip.error {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.import-chip.renamed {
+  background: var(--ok-soft);
+  color: var(--ok);
+}

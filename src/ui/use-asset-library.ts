@@ -33,6 +33,8 @@ export interface AssetLibrary {
   upload: (id: string, kind: 'image' | 'sound', replace: boolean) => Promise<AssetActionResult>;
   /** 删素材文件 */
   remove: (file: AssetFileInfo) => Promise<AssetActionResult>;
+  /** 条目改了 ID：把素材文件跟着改名；没有对应文件时什么也不做 */
+  rename: (oldId: string, newId: string, kind: 'image' | 'sound') => Promise<AssetActionResult>;
 }
 
 export function useAssetLibrary(host: HostApi | undefined, folder: string): AssetLibrary {
@@ -113,6 +115,19 @@ export function useAssetLibrary(host: HostApi | undefined, folder: string): Asse
     [unreal, refresh],
   );
 
+  const rename = useCallback(
+    async (oldId: string, newId: string, kind: 'image' | 'sound'): Promise<AssetActionResult> => {
+      if (unreal === undefined) return { ok: false, message: '当前环境不能读写素材文件' };
+      const result = await unreal.renameAsset({ folder, oldId, newId, kind });
+      if (result.ok) {
+        refresh();
+        return { ok: true };
+      }
+      return { ok: false, message: result.message ?? '重命名失败' };
+    },
+    [unreal, folder, refresh],
+  );
+
   return {
     available: unreal !== undefined,
     folder,
@@ -122,5 +137,6 @@ export function useAssetLibrary(host: HostApi | undefined, folder: string): Asse
     refresh,
     upload,
     remove,
+    rename,
   };
 }

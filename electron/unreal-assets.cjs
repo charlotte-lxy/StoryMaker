@@ -10,7 +10,7 @@
  * 的规则保持一致，放哪一层都认，但新传的都在最外层，好找。
  */
 
-const { copyFile, readFile, readdir, rm, stat } = require('node:fs/promises');
+const { copyFile, readFile, readdir, rename, rm, stat } = require('node:fs/promises');
 const path = require('node:path');
 
 /** 上传时允许的格式：都是 UE 能直接导进去的 */
@@ -141,6 +141,45 @@ async function removeAssetFile(filePath) {
   }
 }
 
+/**
+ * 条目改了 ID 之后，把素材文件跟着改名。
+ *
+ * 只改文件名，内容不动，所以修改时间也不变——这正是「改名」和「修改」要分开判的原因。
+ * 没有对应文件时算成功（本来就没什么可改的）。
+ */
+async function renameAssetFile({ folder, oldId, newId, kind }) {
+  const targetFolder = typeof folder === 'string' ? folder.trim() : '';
+  if (targetFolder === '') return { ok: false, message: '还没有在设置里选素材文件夹' };
+
+  const from = safeFileName(oldId);
+  const to = safeFileName(newId);
+  if (from === '' || to === '') return { ok: false, message: 'ID 不能为空' };
+  if (from === to) return { ok: true };
+
+  const files = await listAssetFiles(targetFolder);
+  const source = files.find((file) => file.baseName === from && file.kind === kind);
+  if (source === undefined) return { ok: true };
+
+  const extension = path.extname(source.filePath);
+  const targetPath = path.join(targetFolder, `${to}${extension}`);
+
+  const occupied = await stat(targetPath).catch(() => null);
+  if (occupied !== null) {
+    return {
+      ok: false,
+      message: `素材文件夹里已经有 ${path.basename(targetPath)} 了，先把它删掉或换个 ID`,
+    };
+  }
+
+  try {
+    await rename(source.filePath, targetPath);
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : String(error) };
+  }
+
+  return { ok: true, filePath: targetPath };
+}
+
 /** 读素材文件内容，给界面做预览图和音频播放 */
 async function readAssetFile(filePath) {
   return readFile(filePath);
@@ -155,5 +194,6 @@ module.exports = {
   listAssetFiles,
   readAssetFile,
   removeAssetFile,
+  renameAssetFile,
   uploadAssetFile,
 };

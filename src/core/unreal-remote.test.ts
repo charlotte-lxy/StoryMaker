@@ -23,7 +23,13 @@ interface RemoteCore {
 
 interface ImportCore {
   ITEM_RESULT_PREFIX: string;
-  buildAssetScript: (item: { id: string; assetPath: string; sourcePath: string }) => string;
+  buildAssetScript: (item: {
+    ownerUid: string;
+    id: string;
+    assetPath: string;
+    sourcePath: string;
+    previousAssetPath?: string;
+  }) => string;
   buildTableScript: (table: { label: string; assetPath: string; csvPath: string }) => string;
   readItemResult: (output: readonly string[]) => { ok: boolean; detail: string } | null;
 }
@@ -108,6 +114,7 @@ describe('远程执行报文', () => {
 describe('单项导入脚本', () => {
   it('图片脚本里嵌的数据和传进去的一模一样（中文路径也不丢）', () => {
     const item = {
+      ownerUid: 'u1',
       id: 'SCE_Black',
       assetPath: '/Game/GameContent/Asset/Image/StoryBackground/SCE_Black',
       sourcePath: 'C:\\素材\\SCE_Black.png',
@@ -120,6 +127,7 @@ describe('单项导入脚本', () => {
 
   it('图片脚本走资源导入管线，并按 ID 定资产名', () => {
     const script = importer.buildAssetScript({
+      ownerUid: 'u1',
       id: 'SCE_Black',
       assetPath: '/Game/GameContent/Asset/Image/Bg/SCE_Black',
       sourcePath: 'C:\\素材\\SCE_Black.png',
@@ -130,6 +138,33 @@ describe('单项导入脚本', () => {
     expect(script).toContain('replace_existing');
     expect(script).toContain('destination_name');
     expect(script).toContain(importer.ITEM_RESULT_PREFIX);
+  });
+
+  it('条目改过 ID 时，脚本先把 UE 里的旧资产改名再导', () => {
+    const script = importer.buildAssetScript({
+      ownerUid: 'u1',
+      id: 'SCE_New',
+      assetPath: '/Game/a/SCE_New',
+      sourcePath: 'C:\\素材\\SCE_New.png',
+      previousAssetPath: '/Game/a/SCE_Old',
+    });
+
+    expect(script).toContain('rename_asset');
+    expect(script).toContain('does_asset_exist');
+    // 改名必须发生在 import 之前
+    expect(script.indexOf('rename_asset')).toBeLessThan(script.indexOf('import_asset_tasks'));
+    expect(embeddedItem(script)).toMatchObject({ previousAssetPath: '/Game/a/SCE_Old' });
+  });
+
+  it('没改过 ID 的脚本里不出现改名逻辑', () => {
+    const script = importer.buildAssetScript({
+      ownerUid: 'u1',
+      id: 'SCE_Black',
+      assetPath: '/Game/a/SCE_Black',
+      sourcePath: 'C:\\素材\\SCE_Black.png',
+    });
+    // 只是条件判断在，不会真的调 rename（previous 为空）
+    expect(embeddedItem(script)).not.toHaveProperty('previousAssetPath');
   });
 
   it('数据表脚本走 CSV 灌入并保存', () => {

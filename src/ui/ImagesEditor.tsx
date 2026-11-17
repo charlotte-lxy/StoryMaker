@@ -35,6 +35,8 @@ interface Props {
   focusUid?: string | null;
   /** 传了才显示「素材管理」列 */
   assets?: AssetColumnProps;
+  /** 条目 ID 改完后把素材文件跟着改名 */
+  onRenameAsset?: (uid: string, oldId: string, newId: string, kind: 'image' | 'sound') => void;
 }
 
 /**
@@ -59,6 +61,7 @@ export function ImagesEditor({
   onUpdateCategory,
   focusUid = null,
   assets,
+  onRenameAsset,
 }: Props) {
   const [page, setPage] = useRememberedChoice<ImagesPage>('images:page', 'images');
   const editorRef = useScrollMemory(`lookup:images:${page}`);
@@ -135,6 +138,7 @@ export function ImagesEditor({
                 onReorder={onReorder}
                 focusUid={focusUid}
                 assets={assets}
+                onRenameAsset={onRenameAsset}
               />
             )}
           </div>

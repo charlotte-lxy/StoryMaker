@@ -63,16 +63,18 @@ describe('导入计划', () => {
     expect(dialogue.csvText.split('\r\n')[0]).toContain('文本类型');
   });
 
-  it('图片和音效各按自己的分类路径拼出包路径', () => {
+  it('图片和音效各按自己的分类路径拼出包路径，并带上条目 uid', () => {
     const plan = buildUnrealImportPlan(makeProject());
     expect(plan.images).toEqual([
       {
+        ownerUid: 'img-1',
         id: 'SCE_Black',
         assetPath: '/Game/GameContent/Asset/Image/StoryBackground/SCE_Black',
       },
     ]);
     expect(plan.sounds).toEqual([
       {
+        ownerUid: 'snd-1',
         id: 'S_dididi',
         assetPath: '/Game/GameContent/Asset/Sound/BackgroundSound/S_dididi',
       },
@@ -99,16 +101,19 @@ describe('把素材对到实际文件上', () => {
     const byId = new Map([['SCE_Black', [file('C:\\素材\\SCE_Black.png')]]]);
     const result = resolveImportAssets(
       [
-        { id: 'SCE_Black', assetPath: '/Game/a/SCE_Black' },
-        { id: 'SCE_White', assetPath: '/Game/a/SCE_White' },
+        { ownerUid: 'u1', id: 'SCE_Black', assetPath: '/Game/a/SCE_Black' },
+        { ownerUid: 'u2', id: 'SCE_White', assetPath: '/Game/a/SCE_White' },
       ],
       byId,
+      'image',
     );
 
     expect(result.ready).toEqual([
       {
+        ownerUid: 'u1',
         id: 'SCE_Black',
         assetPath: '/Game/a/SCE_Black',
+        kind: 'image',
         filePath: 'C:\\素材\\SCE_Black.png',
         fileName: 'SCE_Black.png',
         size: 100,
@@ -123,7 +128,7 @@ describe('把素材对到实际文件上', () => {
     const byId = new Map([
       ['SCE_Black', [file('C:\\素材\\SCE_Black.jpg'), file('C:\\素材\\SCE_Black.png')]],
     ]);
-    const result = resolveImportAssets([{ id: 'SCE_Black', assetPath: '/Game/a/SCE_Black' }], byId);
+    const result = resolveImportAssets([{ ownerUid: 'u1', id: 'SCE_Black', assetPath: '/Game/a/SCE_Black' }], byId, 'image');
 
     expect(result.ready[0].fileName).toBe('SCE_Black.jpg');
     expect(result.duplicates).toEqual(['SCE_Black']);
@@ -136,10 +141,11 @@ describe('把素材对到实际文件上', () => {
     ]);
     const result = resolveImportAssets(
       [
-        { id: 'A', assetPath: '/Game/A' },
-        { id: 'B', assetPath: '/Game/B' },
+        { ownerUid: 'uA', id: 'A', assetPath: '/Game/A' },
+        { ownerUid: 'uB', id: 'B', assetPath: '/Game/B' },
       ],
       byId,
+      'image',
     );
     expect(result.ready.map((item) => item.id)).toEqual(['A', 'B']);
   });

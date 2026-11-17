@@ -1,3 +1,5 @@
+import { useRef } from 'react';
+
 import type { AssetCategoryRow, LookupRow, Project } from '../core/types';
 import type { HostApi } from '../core/host';
 import { collectExpressionImages } from '../core/expression-images';
@@ -140,6 +142,7 @@ export function LookupRowsTable({
   onReorder,
   focusUid = null,
   assets,
+  onRenameAsset,
 }: {
   kind: LookupKind;
   project: Project;
@@ -153,11 +156,16 @@ export function LookupRowsTable({
   focusUid?: string | null;
   /** 传了就多一列「素材管理」（立绘 / 音效用），不传就是普通表 */
   assets?: AssetColumnProps;
+  /** 条目 ID 改完后把素材文件跟着改名（只有立绘 / 音效有） */
+  onRenameAsset?: (uid: string, oldId: string, newId: string, kind: 'image' | 'sound') => void;
 }) {
   const meta = TITLES[kind];
   /** 物品表多一列物品描述，名称那一列也改叫「物品名称」 */
   const isItem = kind === 'items';
   const hasAssets = assets !== undefined;
+  /** ID 输入框聚焦时记下原值，失焦时比一次——只在真正改过名时通知上层 */
+  const idAtFocus = useRef(new Map<string, string>());
+  const assetKind = kind === 'sounds' ? 'sound' : kind === 'images' ? 'image' : null;
   const categories: AssetCategoryRow[] =
     categoryKind === undefined ? [] : project[categoryKind];
   const categoryByUid = new Map(categories.map((row) => [row.uid, row]));
@@ -193,7 +201,21 @@ export function LookupRowsTable({
               <td>
                 <input
                   value={row.id}
+                  onFocus={() => idAtFocus.current.set(row.uid, row.id)}
                   onChange={(event) => onUpdate(kind, row.uid, { id: event.target.value })}
+                  onBlur={(event) => {
+                    // 只有真正改过名才通知：聚焦进来又原样出去不算
+                    const previous = idAtFocus.current.get(row.uid);
+                    idAtFocus.current.delete(row.uid);
+                    if (previous === undefined || assetKind === null || onRenameAsset === undefined) {
+                      return;
+                    }
+                    const next = event.currentTarget.value;
+                    if (previous === next) return;
+                    // 空 ID 拼不出素材名，先不动文件
+                    if (previous.trim() === '' || next.trim() === '') return;
+                    onRenameAsset(row.uid, previous, next, assetKind);
+                  }}
                 />
                 {(idCounts.get(row.id) ?? 0) > 1 && <div className="field-error">ID 重复</div>}
               </td>
@@ -404,6 +426,8 @@ interface Props {
   focusUid?: string | null;
   /** 传了就多一列「素材管理」（音效页用） */
   assets?: AssetColumnProps;
+  /** 条目 ID 改完后把素材文件跟着改名 */
+  onRenameAsset?: (uid: string, oldId: string, newId: string, kind: 'image' | 'sound') => void;
 }
 
 export function LookupEditor({
@@ -418,6 +442,7 @@ export function LookupEditor({
   onUpdateCategory,
   focusUid = null,
   assets,
+  onRenameAsset,
 }: Props) {
   const editorRef = useScrollMemory(`lookup:${kind}`);
   const rows = project[kind];
@@ -461,6 +486,7 @@ export function LookupEditor({
           onReorder={onReorder}
           focusUid={focusUid}
           assets={assets}
+          onRenameAsset={onRenameAsset}
         />
       )}
     </div>

@@ -1,10 +1,16 @@
 /**
  * 「这个素材已经导入过」的判定。
  *
- * 素材是磁盘上的文件，导入过一遍之后没必要每次都重传——按「路径 + 大小 + 修改时间」
- * 打指纹，指纹没变就算没动过。素材被整个文件夹覆盖时大小和时间都会变，能认出来。
+ * 素材跟**条目 uid** 绑定，而不是跟文件名绑定：策划把条目的 ID 改名之后，
+ * 素材还是它的素材（文件跟着改名，UE 里的资产也跟着改名），不会变成「找不到素材」。
  *
- * 这里只做纯计算，记录的存取在 `state/import-markers`（本机 localStorage）。
+ * 判定分四种：
+ *   新增   —— 这个条目还没有导入记录
+ *   改名   —— 条目 ID 变了（记录里的 id 和现在的不一样）
+ *   修改   —— ID 没变，但文件被换过了（大小或修改时间变了）
+ *   未变   —— 以上都不是
+ *
+ * 「已移除」是记录里有、现在条目没了的——只提示，不删 UE 资产。
  */
 
 /** 一个素材文件的指纹 */
@@ -14,28 +20,42 @@ export interface AssetFingerprint {
   mtimeMs: number;
 }
 
+/** 现在要导的一个素材 */
+export interface AssetCandidate extends AssetFingerprint {
+  /** 条目 uid，素材靠它认主人 */
+  ownerUid: string;
+  /** 当前素材名（= 文件名不含扩展名） */
+  id: string;
+  /** 现在要导入到的 UE 资产路径 */
+  assetPath: string;
+  kind: 'image' | 'sound';
+}
+
 /** 导入成功后记下来的一条 */
 export interface ImportedAssetRecord extends AssetFingerprint {
-  /** 图片还是音效：两类各算各的，不能互相算成「已移除」 */
+  ownerUid: string;
+  /** 上次导入时的素材名 */
+  id: string;
+  /** 上次导入到的 UE 资产路径 */
+  assetPath: string;
   kind: 'image' | 'sound';
-  /** 导入时间，ISO 字符串；只在界面上显示，不参与判定 */
+  /** 导入时间，ISO 字符串；只在界面上显示 */
   importedAt: string;
 }
 
-export interface AssetChanges {
-  /** 没导入过的 */
-  fresh: AssetFingerprint[];
-  /** 导入过、但文件被换过了 */
-  modified: AssetFingerprint[];
-  /** 跟上次一模一样，可以跳过 */
-  unchanged: AssetFingerprint[];
-  /** 记录里有、文件夹里已经没有的（不删 UE 资产，只提示） */
-  removed: ImportedAssetRecord[];
+/** 一条「ID 改过名」的记录：导入时要先把 UE 里的旧资产改名 */
+export interface RenamedAsset {
+  candidate: AssetCandidate;
+  previous: ImportedAssetRecord;
 }
 
-/** 判定要用「变化了的」那些：新增 + 修改 */
-export function changedFingerprints(changes: AssetChanges): AssetFingerprint[] {
-  return [...changes.fresh, ...changes.modified];
+export interface AssetChanges {
+  fresh: AssetCandidate[];
+  modified: AssetCandidate[];
+  renamed: RenamedAsset[];
+  unchanged: AssetCandidate[];
+  /** 记录里有、现在没有的条目 */
+  removed: ImportedAssetRecord[];
 }
 
 /** 路径统一成小写做键：Windows 路径不区分大小写 */
@@ -44,39 +64,63 @@ export function assetKey(filePath: string): string {
 }
 
 /**
- * 把当前文件列表和导入记录比一遍，分出新增 / 修改 / 未变 / 已移除。
+ * 把当前素材和导入记录比一遍。
  *
- * 记录里那些**不属于当前素材文件夹**的条目会被忽略——换素材文件夹时不应该
- * 把上一个文件夹的记录算成「已移除」。
+ * 记录按 ownerUid 索引；同一份素材换了 ID，靠 uid 仍然能认出来。
  */
 export function classifyAssets(
-  files: readonly AssetFingerprint[],
+  candidates: readonly AssetCandidate[],
   records: ReadonlyMap<string, ImportedAssetRecord>,
 ): AssetChanges {
-  const fresh: AssetFingerprint[] = [];
-  const modified: AssetFingerprint[] = [];
-  const unchanged: AssetFingerprint[] = [];
+  const fresh: AssetCandidate[] = [];
+  const modified: AssetCandidate[] = [];
+  const renamed: RenamedAsset[] = [];
+  const unchanged: AssetCandidate[] = [];
   const seen = new Set<string>();
 
-  for (const file of files) {
-    const key = assetKey(file.filePath);
-    seen.add(key);
-    const record = records.get(key);
+  for (const candidate of candidates) {
+    seen.add(candidate.ownerUid);
+    const record = records.get(candidate.ownerUid);
+
     if (record === undefined) {
-      fresh.push(file);
+      fresh.push(candidate);
       continue;
     }
-    if (record.size !== file.size || record.mtimeMs !== file.mtimeMs) {
-      modified.push(file);
+    // 改名优先：哪怕文件内容也换了，也得先把 UE 里的旧资产改过来
+    if (record.id !== candidate.id || record.assetPath !== candidate.assetPath) {
+      renamed.push({ candidate, previous: record });
       continue;
     }
-    unchanged.push(file);
+    if (record.filePath !== candidate.filePath) {
+      // 同一个 ID 但换了个文件（比如素材文件夹挪了位置）——重新导一遍最省事
+      modified.push(candidate);
+      continue;
+    }
+    if (record.size !== candidate.size || record.mtimeMs !== candidate.mtimeMs) {
+      modified.push(candidate);
+      continue;
+    }
+    unchanged.push(candidate);
   }
 
   const removed: ImportedAssetRecord[] = [];
-  for (const [key, record] of records) {
-    if (!seen.has(key)) removed.push(record);
+  for (const [ownerUid, record] of records) {
+    if (!seen.has(ownerUid)) removed.push(record);
   }
 
-  return { fresh, modified, unchanged, removed };
+  return { fresh, modified, renamed, unchanged, removed };
+}
+
+/** 这轮真正要导的素材：新增 + 修改 + 改名 */
+export function candidatesToImport(changes: AssetChanges): AssetCandidate[] {
+  return [...changes.fresh, ...changes.modified, ...changes.renamed.map((item) => item.candidate)];
+}
+
+/** 改名项的「旧资产路径」查询表，导入时带着它走 */
+export function previousPathsOf(changes: AssetChanges): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const item of changes.renamed) {
+    map.set(item.candidate.ownerUid, item.previous.assetPath);
+  }
+  return map;
 }

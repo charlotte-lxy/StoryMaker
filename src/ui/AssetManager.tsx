@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import type { AssetFileInfo, HostApi } from '../core/host';
+import { playExclusive, releaseAudio } from './audio-exclusive';
 import { ConfirmDialog } from './ConfirmDialog';
 import type { AssetLibrary } from './use-asset-library';
 
@@ -308,6 +309,17 @@ export function SoundAssetCell({ id, library, host }: CellProps) {
 
   const file = files[0];
 
+  // 卸载时把还在响的停掉，别让声音跟着跑到别的模块去
+  useEffect(() => {
+    return () => {
+      const audio = audioRef.current;
+      if (audio !== null) {
+        audio.pause();
+        releaseAudio(audio);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (file === undefined || host?.unreal === undefined) return;
     let created = '';
@@ -361,9 +373,12 @@ export function SoundAssetCell({ id, library, host }: CellProps) {
     const audio = audioRef.current;
     if (audio === null || url === '') return;
     if (audio.paused) {
+      // 同一时刻只放一个：别的播放器还响着就先停掉它
+      playExclusive(audio);
       void audio.play().catch(() => setPlayError('播放失败，文件可能损坏'));
     } else {
       audio.pause();
+      releaseAudio(audio);
     }
   };
 
@@ -421,10 +436,14 @@ export function SoundAssetCell({ id, library, host }: CellProps) {
         ref={audioRef}
         src={url === '' ? undefined : url}
         onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onEnded={() => {
+        onPause={(event) => {
+          setPlaying(false);
+          releaseAudio(event.currentTarget);
+        }}
+        onEnded={(event) => {
           setPlaying(false);
           setCurrent(0);
+          releaseAudio(event.currentTarget);
         }}
         onTimeUpdate={(event) => setCurrent(event.currentTarget.currentTime)}
         onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)}

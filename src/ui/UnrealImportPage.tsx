@@ -8,9 +8,10 @@ import type {
   UnrealNodeInfo,
 } from '../core/host';
 import {
-  assetKey,
+  candidatesToImport,
   classifyAssets,
-  changedFingerprints,
+  previousPathsOf,
+  type AssetCandidate,
   type AssetChanges,
   type ImportedAssetRecord,
 } from '../core/imported-assets';
@@ -47,12 +48,21 @@ const KIND_LABELS: Record<'table' | 'image' | 'sound', string> = {
   sound: '音效',
 };
 
-/** 把解析好的素材转成请求里要的形状 */
-function toRequestAssets(items: readonly ResolvedImportAsset[]): UnrealImportAsset[] {
+/**
+ * 把解析好的素材转成请求里要的形状。
+ *
+ * `previousPaths` 是「改过名的条目 → UE 里旧资产路径」，导入时先改名再导。
+ */
+function toRequestAssets(
+  items: readonly AssetCandidate[],
+  previousPaths: ReadonlyMap<string, string>,
+): UnrealImportAsset[] {
   return items.map((item) => ({
+    ownerUid: item.ownerUid,
     id: item.id,
     assetPath: item.assetPath,
     sourcePath: item.filePath,
+    previousAssetPath: previousPaths.get(item.ownerUid),
   }));
 }
 
@@ -77,11 +87,11 @@ export function UnrealImportPage({ project, prefs, onChangePrefs, host, library 
 
   const folder = prefs.assetFolder.trim();
   const imageResolved = useMemo(
-    () => resolveImportAssets(plan.images, library.byId),
+    () => resolveImportAssets(plan.images, library.byId, 'image'),
     [plan.images, library.byId],
   );
   const soundResolved = useMemo(
-    () => resolveImportAssets(plan.sounds, library.byId),
+    () => resolveImportAssets(plan.sounds, library.byId, 'sound'),
     [plan.sounds, library.byId],
   );
 
@@ -135,10 +145,11 @@ export function UnrealImportPage({ project, prefs, onChangePrefs, host, library 
 
   const start = async (mode: ImportMode): Promise<void> => {
     if (unreal === undefined) return;
-    const images =
-      mode === 'all' ? imageResolved.ready : filterChanged(imageResolved.ready, imageChanges);
-    const sounds =
-      mode === 'all' ? soundResolved.ready : filterChanged(soundResolved.ready, soundChanges);
+    // 「全量」也照样带上改名信息：改过 ID 的素材，UE 里的旧资产仍要先改名再导
+    const images = mode === 'all' ? imageResolved.ready : candidatesToImport(imageChanges);
+    const sounds = mode === 'all' ? soundResolved.ready : candidatesToImport(soundChanges);
+    const imagePrevious = previousPathsOf(imageChanges);
+    const soundPrevious = previousPathsOf(soundChanges);
 
     setRunning(true);
     setReport(null);
@@ -152,23 +163,26 @@ export function UnrealImportPage({ project, prefs, onChangePrefs, host, library 
             assetPath: table.assetPath,
             csvText: table.csvText,
           })),
-          images: toRequestAssets(images),
-          sounds: toRequestAssets(sounds),
+          images: toRequestAssets(images, imagePrevious),
+          sounds: toRequestAssets(sounds, soundPrevious),
         },
       });
       setReport(response);
 
       // 记住这次导成功的素材，下次增量就跳过它们
-      const byPath = resolvedFiles(imageResolved.ready, soundResolved.ready);
+      const byOwner = resolvedByOwner(imageResolved.ready, soundResolved.ready);
       const records: ImportedAssetRecord[] = [];
-      for (const path of response.importedPaths) {
-        const file = byPath.get(assetKey(path));
+      for (const ownerUid of response.importedOwnerUids) {
+        const file = byOwner.get(ownerUid);
         if (file === undefined) continue;
         records.push({
+          ownerUid: file.ownerUid,
+          id: file.id,
+          assetPath: file.assetPath,
+          kind: file.kind,
           filePath: file.filePath,
           size: file.size,
           mtimeMs: file.mtimeMs,
-          kind: file.kind,
           importedAt: new Date().toISOString(),
         });
       }
@@ -179,7 +193,7 @@ export function UnrealImportPage({ project, prefs, onChangePrefs, host, library 
         ok: false,
         stopped: true,
         items: [],
-        importedPaths: [],
+        importedOwnerUids: [],
         counts: { tables: 0, images: 0, sounds: 0 },
         message: error instanceof Error ? error.message : String(error),
       });
@@ -191,7 +205,7 @@ export function UnrealImportPage({ project, prefs, onChangePrefs, host, library 
 
   const failures = report === null ? [] : report.items.filter((item) => !item.ok);
   const hasChanges =
-    changedFingerprints(imageChanges).length + changedFingerprints(soundChanges).length > 0;
+    candidatesToImport(imageChanges).length + candidatesToImport(soundChanges).length > 0;
 
   return (
     <div className="editor">
@@ -406,7 +420,7 @@ function ImportProgressBar({ progress }: { progress: UnrealImportProgress | null
   );
 }
 
-/** 素材的增量小计 */
+/** 素材的增量小计：总数和各项统计各占一块，别糊成一串 */
 function MaterialSummary({
   total,
   missing,
@@ -419,19 +433,38 @@ function MaterialSummary({
   changes: AssetChanges;
 }) {
   return (
-    <>
-      <strong>{total} 个</strong>
-      <span className="hint">
-        　新增 {changes.fresh.length} / 修改 {changes.modified.length} / 未变 {changes.unchanged.length}
-      </span>
-      {changes.removed.length > 0 && (
-        <span className="hint">
-          　已移除 {changes.removed.length}（UE 里的资产不会自动删）
+    <div className="import-summary">
+      <span className="import-summary-total">{total} 个</span>
+      <span className="import-chip fresh">新增 {changes.fresh.length}</span>
+      <span className="import-chip modified">修改 {changes.modified.length}</span>
+      {changes.renamed.length > 0 && (
+        <span
+          className="import-chip renamed"
+          title="条目改了 ID：导入时会把素材文件和 UE 里的资产一起改名"
+        >
+          改名 {changes.renamed.length}
         </span>
       )}
-      {missing > 0 && <span className="field-error">　{missing} 个找不到素材文件</span>}
-      {duplicates > 0 && <span className="field-error">　{duplicates} 个有重复文件</span>}
-    </>
+      <span className="import-chip unchanged">未变 {changes.unchanged.length}</span>
+      {changes.removed.length > 0 && (
+        <span
+          className="import-chip removed"
+          title="素材文件夹里已经没有这些文件；UE 里的资产不会被自动删除"
+        >
+          已移除 {changes.removed.length}
+        </span>
+      )}
+      {missing > 0 && (
+        <span className="import-chip error" title="这些 ID 在素材文件夹里找不到对应文件">
+          缺文件 {missing}
+        </span>
+      )}
+      {duplicates > 0 && (
+        <span className="import-chip error" title="同一个 ID 有多个文件，导入时用第一个">
+          重复 {duplicates}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -447,23 +480,14 @@ function pickKind(
   return out;
 }
 
-/** 把 ready 里属于「新增 + 修改」的那些挑出来 */
-function filterChanged(
-  items: readonly ResolvedImportAsset[],
-  changes: AssetChanges,
-): ResolvedImportAsset[] {
-  const keys = new Set(changedFingerprints(changes).map((file) => assetKey(file.filePath)));
-  return items.filter((item) => keys.has(assetKey(item.filePath)));
-}
-
-/** 按路径索引，导入成功后照着它补记录 */
-function resolvedFiles(
+/** 按条目 uid 索引，导入成功后照着它补记录 */
+function resolvedByOwner(
   images: readonly ResolvedImportAsset[],
   sounds: readonly ResolvedImportAsset[],
-): Map<string, ResolvedImportAsset & { kind: 'image' | 'sound' }> {
-  const map = new Map<string, ResolvedImportAsset & { kind: 'image' | 'sound' }>();
-  for (const item of images) map.set(assetKey(item.filePath), { ...item, kind: 'image' });
-  for (const item of sounds) map.set(assetKey(item.filePath), { ...item, kind: 'sound' });
+): Map<string, ResolvedImportAsset> {
+  const map = new Map<string, ResolvedImportAsset>();
+  for (const item of images) map.set(item.ownerUid, item);
+  for (const item of sounds) map.set(item.ownerUid, item);
   return map;
 }
 

@@ -389,7 +389,7 @@ ipcMain.handle('unreal:import', async (event, request) => {
       ok: true,
       stopped: result.stopped,
       items: result.items,
-      importedPaths: result.importedPaths,
+      importedOwnerUids: result.importedOwnerUids,
       counts: result.counts,
       message: result.message,
     };
@@ -443,6 +443,15 @@ ipcMain.handle('unreal:upload-asset', async (_event, request) => {
     kind,
     sourceFile: picked.filePaths[0],
     replace: request.replace === true,
+  });
+});
+
+ipcMain.handle('unreal:rename-asset', async (_event, request) => {
+  return unrealAssets.renameAssetFile({
+    folder: request.folder,
+    oldId: request.oldId,
+    newId: request.newId,
+    kind: request.kind === 'sound' ? 'sound' : 'image',
   });
 });
 

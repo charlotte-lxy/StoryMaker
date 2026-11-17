@@ -24,6 +24,13 @@ export const EXPRESSION_IMAGE_ROOT = '/Game/GameContent/Asset/Image/CharacterIll
 export interface ExpressionImage {
   /** 图片 ID，也是导出「图片」子表的行名 */
   id: string;
+  /**
+   * 素材绑定的稳定键：角色 uid + 表情行 uid。
+   *
+   * 角色 ID 或表情标识改了之后，图片 ID 会跟着变，但 ownerUid 不变——
+   * 已经导入过的素材靠它认出来，然后改名，而不是当成新素材重导一遍。
+   */
+  ownerUid: string;
   characterUid: string;
   characterId: string;
   characterName: string;
@@ -87,6 +94,8 @@ export function collectExpressionImages(project: Project): ExpressionImage[] {
       if (id === '') continue;
       out.push({
         id,
+        // 表情表里找不到这一条时退回用名字——总比没有稳定键强
+        ownerUid: `${character.uid}::${row?.uid ?? `name:${name}`}`,
         characterUid: character.uid,
         characterId,
         characterName: character.name.trim() === '' ? characterId : character.name.trim(),

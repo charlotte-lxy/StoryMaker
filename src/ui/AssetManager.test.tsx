@@ -28,6 +28,7 @@ function makeLibrary(overrides: Partial<AssetLibrary> = {}): AssetLibrary {
     refresh: () => undefined,
     upload: vi.fn(async () => ({ ok: true })),
     remove: vi.fn(async () => ({ ok: true })),
+    rename: vi.fn(async () => ({ ok: true })),
     ...overrides,
   };
 }
@@ -39,7 +40,7 @@ function makeUnreal(overrides: Partial<UnrealApi> = {}): UnrealApi {
       ok: false,
       stopped: true,
       items: [],
-      importedPaths: [],
+      importedOwnerUids: [],
       counts: { tables: 0, images: 0, sounds: 0 },
     })),
     pickUproject: vi.fn(async () => null),
@@ -48,6 +49,7 @@ function makeUnreal(overrides: Partial<UnrealApi> = {}): UnrealApi {
     listAssets: vi.fn(async () => ({ ok: true, files: [] })),
     uploadAsset: vi.fn(async () => ({ ok: true })),
     removeAsset: vi.fn(async () => ({ ok: true })),
+    renameAsset: vi.fn(async () => ({ ok: true })),
     readAsset: vi.fn(async () => ({ ok: true, data: new Uint8Array([1, 2, 3]) })),
     ...overrides,
   };

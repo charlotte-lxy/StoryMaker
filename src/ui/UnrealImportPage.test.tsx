@@ -87,6 +87,7 @@ function makeLibrary(files: ReturnType<typeof assetFile>[] = []): AssetLibrary {
     refresh: () => undefined,
     upload: vi.fn(async () => ({ ok: true })),
     remove: vi.fn(async () => ({ ok: true })),
+    rename: vi.fn(async () => ({ ok: true })),
   };
 }
 
@@ -116,9 +117,9 @@ function makeUnreal(overrides: Partial<UnrealApi> = {}): UnrealApi {
           detail: '已导入',
         })),
       ],
-      importedPaths: [
-        ...request.plan.images.map((item) => item.sourcePath),
-        ...request.plan.sounds.map((item) => item.sourcePath),
+      importedOwnerUids: [
+        ...request.plan.images.map((item) => item.ownerUid),
+        ...request.plan.sounds.map((item) => item.ownerUid),
       ],
       counts: {
         tables: request.plan.tables.length,
@@ -132,6 +133,7 @@ function makeUnreal(overrides: Partial<UnrealApi> = {}): UnrealApi {
     listAssets: vi.fn(async () => ({ ok: true, files: [] })),
     uploadAsset: vi.fn(async () => ({ ok: false, canceled: true })),
     removeAsset: vi.fn(async () => ({ ok: true })),
+    renameAsset: vi.fn(async () => ({ ok: true })),
     readAsset: vi.fn(async () => ({ ok: true, data: new Uint8Array() })),
     ...overrides,
   };
@@ -173,15 +175,23 @@ describe('导入到 Unreal 页', () => {
     ]);
     renderPage(unreal, library);
 
-    expect(screen.getAllByText(/新增 1 \/ 修改 0/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('新增 1').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('修改 0').length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('button', { name: '导入' }));
 
     await waitFor(() => expect(unreal.runImport).toHaveBeenCalledOnce());
     const request = (unreal.runImport as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(request.plan.images).toEqual([
-      { id: 'SCE_Black', assetPath: '/Game/GameContent/Asset/Image/StoryBackground/SCE_Black', sourcePath: 'C:\\素材\\SCE_Black.png' },
+      {
+        ownerUid: 'img',
+        id: 'SCE_Black',
+        assetPath: '/Game/GameContent/Asset/Image/StoryBackground/SCE_Black',
+        sourcePath: 'C:\\素材\\SCE_Black.png',
+        previousAssetPath: undefined,
+      },
     ]);
     expect(request.plan.sounds).toHaveLength(1);
+    expect(request.plan.sounds[0].ownerUid).toBe('snd');
     // 数据表永远全量
     expect(request.plan.tables.map((table: { label: string }) => table.label)).toEqual([
       'TB_Sound',
@@ -214,6 +224,51 @@ describe('导入到 Unreal 页', () => {
     expect(second.plan.tables).toHaveLength(2);
   });
 
+  it('条目改了 ID：靠 uid 认出来，导入时带上旧资产路径去改名', async () => {
+    const unreal = makeUnreal();
+    const base = makeProject();
+    const before = makeLibrary([assetFile('SCE_Black.png', 'image')]);
+
+    const view = render(
+      <UnrealImportPage
+        project={base}
+        prefs={PREFS}
+        onChangePrefs={() => undefined}
+        host={makeHost(unreal)}
+        library={before}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '导入' }));
+    await waitFor(() => expect(unreal.runImport).toHaveBeenCalledOnce());
+
+    // 改 ID，素材文件也跟着改名（这里直接换成改好名的素材列表）
+    const renamed = {
+      ...base,
+      images: base.images.map((row) => ({ ...row, id: 'SCE_New' })),
+    };
+    view.rerender(
+      <UnrealImportPage
+        project={renamed}
+        prefs={PREFS}
+        onChangePrefs={() => undefined}
+        host={makeHost(unreal)}
+        library={makeLibrary([assetFile('SCE_New.png', 'image')])}
+      />,
+    );
+
+    expect(await screen.findByText('改名 1')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: '导入' }));
+    await waitFor(() => expect(unreal.runImport).toHaveBeenCalledTimes(2));
+    const second = (unreal.runImport as ReturnType<typeof vi.fn>).mock.calls[1][0];
+    expect(second.plan.images[0]).toMatchObject({
+      ownerUid: 'img',
+      id: 'SCE_New',
+      previousAssetPath: '/Game/GameContent/Asset/Image/StoryBackground/SCE_Black',
+    });
+  });
+
   it('素材导入失败时停下，不导数据表', async () => {
     const unreal = makeUnreal({
       runImport: vi.fn(async () => ({
@@ -221,7 +276,7 @@ describe('导入到 Unreal 页', () => {
         stopped: true,
         message: '有 1 个素材没导成功，数据表先不导',
         items: [{ kind: 'image' as const, label: 'SCE_Black', ok: false, detail: '导入没有产出资产' }],
-        importedPaths: [],
+        importedOwnerUids: [],
         counts: { tables: 1, images: 1, sounds: 0 },
       })),
     });
@@ -263,7 +318,7 @@ describe('导入到 Unreal 页', () => {
                   ok: true,
                   stopped: false,
                   items: [],
-                  importedPaths: [],
+                  importedOwnerUids: [],
                   counts: { tables: 1, images: 1, sounds: 0 },
                 }),
               30,
