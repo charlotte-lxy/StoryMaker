@@ -198,7 +198,8 @@ export function UnrealImportPage({ project, prefs, onChangePrefs, host, library 
       <div className="editor-head">
         <h2>导入到 Unreal</h2>
         <span className="hint">
-          打开着 Unreal 编辑器时直接导入。素材按「新增 / 修改」增量导，数据表每次全量。
+          打开着 Unreal 编辑器时直接导入。素材按「新增 / 修改」增量导，数据表每次全量；
+          没有素材变更也能点「导入」，这时只灌数据表。
         </span>
       </div>
 
@@ -313,11 +314,15 @@ export function UnrealImportPage({ project, prefs, onChangePrefs, host, library 
           <button
             type="button"
             className="primary"
-            disabled={!ready || !hasChanges}
+            disabled={!ready}
             onClick={() => void start('changes')}
-            title={hasChanges ? '只导新增和修改过的素材' : '没有新素材要导'}
+            title={
+              hasChanges
+                ? '只导新增和修改过的素材，然后导数据表'
+                : '没有素材变更，直接导数据表'
+            }
           >
-            导入变动
+            导入
           </button>
           <button type="button" disabled={!ready} onClick={() => void start('all')}>
             全量导入

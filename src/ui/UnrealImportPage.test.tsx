@@ -165,7 +165,7 @@ describe('导入到 Unreal 页', () => {
     expect(unreal.discover).toHaveBeenCalledWith(PREFS.uprojectPath);
   });
 
-  it('素材文件夹里有文件时，导入变动会把它们都算成新增', async () => {
+  it('素材文件夹里有文件时，导入会把它们都算成新增', async () => {
     const unreal = makeUnreal();
     const library = makeLibrary([
       assetFile('SCE_Black.png', 'image'),
@@ -174,7 +174,7 @@ describe('导入到 Unreal 页', () => {
     renderPage(unreal, library);
 
     expect(screen.getAllByText(/新增 1 \/ 修改 0/).length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole('button', { name: '导入变动' }));
+    fireEvent.click(screen.getByRole('button', { name: '导入' }));
 
     await waitFor(() => expect(unreal.runImport).toHaveBeenCalledOnce());
     const request = (unreal.runImport as ReturnType<typeof vi.fn>).mock.calls[0][0];
@@ -189,21 +189,29 @@ describe('导入到 Unreal 页', () => {
     ]);
   });
 
-  it('导入成功后把素材记成已导入，再点变动就没有可导的了', async () => {
+  it('导入成功后素材记成已导入，但按钮仍可点——再点就只导数据表', async () => {
     const unreal = makeUnreal();
     renderPage(
       unreal,
       makeLibrary([assetFile('SCE_Black.png', 'image'), assetFile('S_dididi.wav', 'sound')]),
     );
 
-    fireEvent.click(screen.getByRole('button', { name: '导入变动' }));
+    fireEvent.click(screen.getByRole('button', { name: '导入' }));
     await waitFor(() => expect(unreal.runImport).toHaveBeenCalledOnce());
 
-    // 标记写进 localStorage 后，两个素材都算「未变」，变动按钮变灰
-    await waitFor(() =>
-      expect((screen.getByRole('button', { name: '导入变动' }) as HTMLButtonElement).disabled).toBe(true),
-    );
-    expect(screen.getAllByText(/未变 1/).length).toBeGreaterThan(0);
+    // 标记写进 localStorage 后，两个素材都算「未变」
+    await waitFor(() => expect(screen.getAllByText(/未变 1/).length).toBeGreaterThan(0));
+
+    // 按钮不能因为「没有素材变更」而变灰：改完数据表还得能导
+    const button = screen.getByRole('button', { name: '导入' }) as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+
+    fireEvent.click(button);
+    await waitFor(() => expect(unreal.runImport).toHaveBeenCalledTimes(2));
+    const second = (unreal.runImport as ReturnType<typeof vi.fn>).mock.calls[1][0];
+    expect(second.plan.images).toEqual([]);
+    expect(second.plan.sounds).toEqual([]);
+    expect(second.plan.tables).toHaveLength(2);
   });
 
   it('素材导入失败时停下，不导数据表', async () => {
@@ -219,7 +227,7 @@ describe('导入到 Unreal 页', () => {
     });
     renderPage(unreal, makeLibrary([assetFile('SCE_Black.png', 'image')]));
 
-    fireEvent.click(screen.getByRole('button', { name: '导入变动' }));
+    fireEvent.click(screen.getByRole('button', { name: '导入' }));
     expect(await screen.findByText(/导入没有产出资产/)).toBeTruthy();
     expect(screen.getByText(/有 1 个素材没导成功/)).toBeTruthy();
   });
@@ -234,7 +242,7 @@ describe('导入到 Unreal 页', () => {
         library={makeLibrary()}
       />,
     );
-    expect((screen.getByRole('button', { name: '导入变动' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: '导入' }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole('button', { name: '全量导入' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
@@ -265,7 +273,7 @@ describe('导入到 Unreal 页', () => {
     });
     renderPage(unreal, makeLibrary([assetFile('SCE_Black.png', 'image')]));
 
-    fireEvent.click(screen.getByRole('button', { name: '导入变动' }));
+    fireEvent.click(screen.getByRole('button', { name: '导入' }));
     await waitFor(() => expect(push).not.toBeNull());
 
     push!({ phase: 'assets', current: 1, total: 2, label: 'SCE_Black', status: 'running' });
