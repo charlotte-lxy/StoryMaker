@@ -1,10 +1,13 @@
+import { useState } from 'react';
+
 import type { Project } from '../../core/types';
+import type { HostApi } from '../../core/host';
 import {
   DEFAULT_ATTRIBUTE_CLASS_NAME,
   classPath,
   weaponClassName,
 } from '../../core/battle';
-import { EXPORT_SUBTABLES, csvFileName, dataTableRef } from '../../core/export-settings';
+import { EXPORT_SUBTABLES, folderFromAssetPath } from '../../core/export-settings';
 import { specialCommandClassName } from '../../core/special-commands';
 import { updateClassPrefix } from '../../state/battle-operations';
 import {
@@ -13,26 +16,70 @@ import {
   updateExportSetting,
   updateSpecialCommandClassPrefix,
 } from '../../state/operations';
+import type { UnrealPrefs } from '../../state/prefs';
+import type { UnrealConnection } from '../use-unreal-connection';
 import { useScrollMemory } from '../view-memory';
+import { FolderTreeDialog } from './FolderTreeDialog';
 
 interface Props {
   project: Project;
   onChange: (next: Project) => void;
+  prefs: UnrealPrefs;
+  onChangePrefs: (patch: Partial<UnrealPrefs>) => void;
+  connection: UnrealConnection;
+  /** 挑 .uproject 文件的能力（桌面版才有） */
+  host: HostApi | undefined;
+}
+
+/** 前缀配置的五行：键、标题、示例类名 */
+interface PrefixRow {
+  key: 'skillClassPrefix' | 'effectClassPrefix' | 'attributeClassPrefix' | 'weaponClassPrefix';
+  label: string;
+  sample: string;
+}
+
+const PREFIX_ROWS: readonly PrefixRow[] = [
+  { key: 'skillClassPrefix', label: '技能表的 GA类', sample: 'BP_GA_Heal' },
+  { key: 'effectClassPrefix', label: '效果表的 GE类', sample: 'BP_GE_Poison' },
+  { key: 'attributeClassPrefix', label: '属性表的 属性类', sample: DEFAULT_ATTRIBUTE_CLASS_NAME },
+  { key: 'weaponClassPrefix', label: '武器表的 武器类', sample: weaponClassName('WEA_Test_Sniper') },
+];
+
+/** 从已有前缀里把 /Game 那一段抠出来，用来在目录树里默认选中 */
+export function folderOfPrefix(prefix: string): string {
+  const match = /\/Game\/[^']*/.exec(prefix);
+  return match === null ? '' : match[0].replace(/\/+$/, '');
+}
+
+/** 选中的文件夹 → 前缀（前缀以 ' 开头、以 / 结尾，classPath 会接类名和 .类名_C'） */
+export function prefixFromFolder(folder: string): string {
+  const trimmed = folder.trim().replace(/\/+$/, '');
+  return trimmed === '' ? '' : `/Script/Engine.BlueprintGeneratedClass'${trimmed}/`;
 }
 
 /**
  * Unreal 导入设置。
  *
- * 一行 = 一张 DataTable：叫什么、放在哪个文件夹、内容来自哪个子表。
- * 「数据表引用」和「csv 文件路径」是导出时按前三个字段算出来的（原来 Excel 里的公式列），
- * 所以这里不显示、也不用手填——鼠标停在行上能看到算出来的结果。
- *
- * 数据表之后是「前缀配置」：每种导出类名（GA类 / GE类 / 属性类 / 武器类 / Command类）
- * 各一条，只在导出时才拼上去，别的表里不重复摆这些前缀。
+ * 一页三块：
+ *   连接   —— 填 .uproject、连上编辑器；连上之后下面两块才可配
+ *   数据表 —— 一行一张 DataTable：从编辑器里选，自动带出表名和文件夹，再选内容来自哪个子表
+ *   前缀   —— 每种「类名」一条前缀，从编辑器目录树里选文件夹自动拼出来
  */
-export function ImportSettingsPage({ project, onChange }: Props) {
+export function ImportSettingsPage({
+  project,
+  onChange,
+  prefs,
+  onChangePrefs,
+  connection,
+  host,
+}: Props) {
   const editorRef = useScrollMemory('export:settings');
   const rows = project.exportSettings;
+  const connected = connection.status === 'online';
+  const tables = connection.catalog?.dataTables ?? [];
+
+  /** 正在为哪条前缀选文件夹；null 表示弹窗关着 */
+  const [pickingPrefix, setPickingPrefix] = useState<PrefixRow | 'specialCommand' | null>(null);
 
   const counts = new Map<string, number>();
   for (const row of rows) {
@@ -40,14 +87,139 @@ export function ImportSettingsPage({ project, onChange }: Props) {
     counts.set(name, (counts.get(name) ?? 0) + 1);
   }
 
+  /** 数据表那一格显示的值：/Game/<folder>/<name> */
+  const assetPathOf = (folder: string, tableName: string): string => {
+    const id = tableName.trim();
+    if (id === '') return '';
+    const trimmed = folder.trim().replace(/^\/+|\/+$/g, '');
+    return trimmed === '' ? `/Game/${id}` : `/Game/${trimmed}/${id}`;
+  };
+
+  const prefixValueOf = (row: PrefixRow): string => project.battle[row.key];
+  const prefixValueOfSpecialCommand = (): string => project.specialCommandClassPrefix;
+
+  const applyPrefix = (folder: string): void => {
+    const prefix = prefixFromFolder(folder);
+    if (pickingPrefix === 'specialCommand') {
+      onChange(updateSpecialCommandClassPrefix(project, prefix));
+    } else if (pickingPrefix !== null) {
+      onChange(updateClassPrefix(project, pickingPrefix.key, prefix));
+    }
+    setPickingPrefix(null);
+  };
+
+  const currentPickFolder =
+    pickingPrefix === 'specialCommand'
+      ? folderOfPrefix(prefixValueOfSpecialCommand())
+      : pickingPrefix === null
+        ? ''
+        : folderOfPrefix(prefixValueOf(pickingPrefix));
+
+  const renderPrefixRow = (label: string, value: string, sample: string, onPick: () => void) => (
+    <tr key={label}>
+      <td className="prefix-name">{label}</td>
+      <td>
+        <div className="prefix-cell">
+          <input readOnly value={value} placeholder="（还没选文件夹）" title={value} />
+          <button type="button" className="mini" disabled={!connected} onClick={onPick}>
+            选择文件夹…
+          </button>
+        </div>
+        {!connected && <div className="hint">连接编辑器后才能选</div>}
+      </td>
+      <td className="prefix-sample" title="导出时拼出来的样子">
+        {classPath(value, sample) || '（前缀为空）'}
+      </td>
+    </tr>
+  );
+
   return (
     <div className="editor" ref={editorRef}>
       <div className="editor-head">
         <h2>Unreal 导入设置</h2>
         <span className="hint">
-          一行一张数据表。导出的「导入设置」子表里，行名是数据表名，另外两列
-          「数据表引用」「csv文件路径」会自动算出来：引用 = /Script/Engine.DataTable'/Game/文件夹/表名.表名'，
-          文件名 = TB_BSGame_子表名.csv。
+          先连编辑器，再配「哪张子表导到哪个数据表」。连不上的时候只能看，不能改。
+        </span>
+      </div>
+
+      {/* ---------- 连接 ---------- */}
+      <div className="battle-table-wrap">
+        <table className="lines battle-table">
+          <tbody>
+            <tr>
+              <th style={{ width: 110 }}>Unreal 项目文件</th>
+              <td>
+                <input
+                  value={prefs.uprojectPath}
+                  placeholder="E:\Unreal\UnrealProject\BulletShoot\BulletShootGame\BulletShootGame.uproject"
+                  onChange={(event) => onChangePrefs({ uprojectPath: event.target.value })}
+                />
+              </td>
+              <td style={{ width: 90 }}>
+                <button
+                  type="button"
+                  className="mini"
+                  disabled={host?.unreal === undefined}
+                  onClick={() => {
+                    void host?.unreal?.pickUproject().then((picked) => {
+                      if (picked !== null) onChangePrefs({ uprojectPath: picked });
+                    });
+                  }}
+                >
+                  选择…
+                </button>
+              </td>
+            </tr>
+            <tr>
+              <th>连接</th>
+              <td colSpan={2}>
+                <button
+                  type="button"
+                  className="mini"
+                  disabled={!connection.available || connection.status === 'checking'}
+                  onClick={() => void connection.connect()}
+                >
+                  {connection.status === 'checking' ? '检测中…' : '检测连接'}
+                </button>{' '}
+                {connection.status === 'online' && (
+                  <span className="hint">
+                    已连接 {connection.node?.projectName}（引擎 {connection.node?.engineVersion}）·{' '}
+                    {connection.catalogLoading
+                      ? '正在读取数据表…'
+                      : `找到 ${tables.length} 张数据表、${connection.catalog?.folders.length ?? 0} 个文件夹`}
+                    {connection.catalogError !== '' && (
+                      <span className="field-error">　{connection.catalogError}</span>
+                    )}
+                  </span>
+                )}
+                {connection.status === 'offline' && (
+                  <span className="field-error">{connection.message}</span>
+                )}
+                {connection.status === 'idle' && <span className="hint">还没检测</span>}
+                {!connection.available && <span className="hint">只有桌面版能连编辑器</span>}
+                {connected && !connection.catalogLoading && (
+                  <>
+                    {' '}
+                    <button
+                      type="button"
+                      className="mini"
+                      onClick={() => void connection.refreshCatalog()}
+                    >
+                      重新读取
+                    </button>
+                  </>
+                )}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* ---------- 数据表配置 ---------- */}
+      <div className="editor-head import-prefix-head">
+        <h2>数据表配置</h2>
+        <span className="hint">
+          一行一张 DataTable：从编辑器里选表，再选它的内容来自哪个子表。换了工程要重新选。
         </span>
         <button type="button" className="primary" onClick={() => onChange(addExportSetting(project))}>
           ＋ 新增数据表
@@ -55,164 +227,136 @@ export function ImportSettingsPage({ project, onChange }: Props) {
       </div>
 
       {rows.length === 0 ? (
-        <div className="empty-state">还没有数据表。点右上角「＋ 新增数据表」，写上表名、文件夹，再选它来自哪个子表。</div>
+        <div className="empty-state">
+          还没配数据表。点右上角「＋ 新增数据表」，连上编辑器后从下拉里选。
+        </div>
       ) : (
         <div className="battle-table-wrap">
           <table className="lines battle-table">
             <thead>
               <tr>
-                <th style={{ width: 260 }}>数据表名</th>
-                <th style={{ width: 320 }}>数据表文件夹路径</th>
+                <th style={{ width: 360 }}>数据表</th>
                 <th style={{ width: 200 }}>子表</th>
                 <th style={{ width: 74 }}>操作</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
-                <tr
-                  className="line-row"
-                  key={row.uid}
-                  data-export-uid={row.uid}
-                  title={`${dataTableRef(row.folder, row.tableName)}\n${csvFileName(row.subTable)}`}
-                >
-                  <td>
-                    <input
-                      value={row.tableName}
-                      placeholder="TB_"
-                      onChange={(event) =>
-                        onChange(updateExportSetting(project, row.uid, { tableName: event.target.value }))
-                      }
-                    />
-                    {(counts.get(row.tableName.trim()) ?? 0) > 1 && (
-                      <div className="field-error">数据表名重复</div>
-                    )}
-                  </td>
-                  <td>
-                    <input
-                      value={row.folder}
-                      placeholder="GameContent/BP/…"
-                      onChange={(event) =>
-                        onChange(updateExportSetting(project, row.uid, { folder: event.target.value }))
-                      }
-                    />
-                  </td>
-                  <td>
-                    <select
-                      value={row.subTable}
-                      title="这张数据表的内容来自哪个子表"
-                      onChange={(event) =>
-                        onChange(updateExportSetting(project, row.uid, { subTable: event.target.value }))
-                      }
-                    >
-                      <option value="">（未选）</option>
-                      {EXPORT_SUBTABLES.map((name) => (
-                        <option key={name} value={name}>
-                          {name}
-                        </option>
-                      ))}
-                      {/* 手改过的项目文件里可能是别的名字，原样列出来免得静默改成第一个 */}
-                      {row.subTable !== '' && !EXPORT_SUBTABLES.includes(row.subTable as never) && (
-                        <option value={row.subTable}>{row.subTable}（不在清单里）</option>
+              {rows.map((row) => {
+                const current = assetPathOf(row.folder, row.tableName);
+                const known = tables.some((table) => table.path === current);
+                return (
+                  <tr
+                    className="line-row"
+                    key={row.uid}
+                    data-export-uid={row.uid}
+                    title={current}
+                  >
+                    <td>
+                      <select
+                        value={current}
+                        disabled={!connected}
+                        title={connected ? '选编辑器里的哪张 DataTable' : '连接编辑器后才能选'}
+                        onChange={(event) => {
+                          const picked = tables.find((table) => table.path === event.target.value);
+                          if (picked === undefined) return;
+                          onChange(
+                            updateExportSetting(project, row.uid, {
+                              tableName: picked.name,
+                              folder: folderFromAssetPath(picked.path),
+                            }),
+                          );
+                        }}
+                      >
+                        <option value="">（未选）</option>
+                        {tables.map((table) => (
+                          <option key={table.path} value={table.path}>
+                            {table.name}　—　{table.folder}
+                          </option>
+                        ))}
+                        {/* 项目里配过、但编辑器里已经没有了：原样列出来，别静默丢掉 */}
+                        {current !== '' && !known && (
+                          <option value={current}>{current}（编辑器里找不到）</option>
+                        )}
+                      </select>
+                      {(counts.get(row.tableName.trim()) ?? 0) > 1 && (
+                        <div className="field-error">数据表重复</div>
                       )}
-                    </select>
-                  </td>
-                  <td>
-                    <button type="button" onClick={() => onChange(removeExportSetting(project, row.uid))}>
-                      删除
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td>
+                      <select
+                        value={row.subTable}
+                        title="这张数据表的内容来自哪个子表"
+                        onChange={(event) =>
+                          onChange(updateExportSetting(project, row.uid, { subTable: event.target.value }))
+                        }
+                      >
+                        <option value="">（未选）</option>
+                        {EXPORT_SUBTABLES.map((name) => (
+                          <option key={name} value={name}>
+                            {name}
+                          </option>
+                        ))}
+                        {/* 手改过的项目文件里可能是别的名字，原样列出来免得静默改成第一个 */}
+                        {row.subTable !== '' && !EXPORT_SUBTABLES.includes(row.subTable as never) && (
+                          <option value={row.subTable}>{row.subTable}（不在清单里）</option>
+                        )}
+                      </select>
+                    </td>
+                    <td>
+                      <button type="button" onClick={() => onChange(removeExportSetting(project, row.uid))}>
+                        删除
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
 
-      {/* 数据表之后：每种「类名」各一条前缀，导出时才拼上去 */}
+      {/* ---------- 前缀配置 ---------- */}
       <div className="editor-head import-prefix-head">
         <h2>前缀配置</h2>
         <span className="hint">
-          导出的某一列是「前缀 + 类名」时，前缀在这里统一配：数据表里只填类名，后缀
-          {` .<类名>_C' `}
-          和前缀都自动补上。换项目只改这一处。
+          导出的某一列是「前缀 + 类名」时，前缀在这里统一配：从编辑器的 Content 目录树里选文件夹，
+          后缀 {` .<类名>_C' `}自动补上。换项目只改这一处。
         </span>
       </div>
 
-      {/* 数据表之后：每种「类名」各一条前缀，表格一行一条，最后列出拼出来的样子 */}
       <div className="battle-table-wrap import-prefix-wrap">
         <table className="lines battle-table">
           <thead>
             <tr>
               <th style={{ width: 200 }}>前缀配置</th>
-              <th>前缀</th>
+              <th>文件夹</th>
               <th style={{ width: 360 }} title="导出时拼出来的完整类路径">
                 拼出来的样子
               </th>
             </tr>
           </thead>
           <tbody>
-              <tr key="技能表的 GA类">
-                <td className="prefix-name">技能表的 GA类</td>
-                <td>
-                  <input
-                    value={project.battle.skillClassPrefix}
-                    onChange={(event) => onChange(updateClassPrefix(project, 'skillClassPrefix', event.target.value))}
-                  />
-                </td>
-                <td className="prefix-sample" title="导出时拼出来的样子">
-                  {classPath(project.battle.skillClassPrefix, 'BP_GA_Heal') || '（前缀为空）'}
-                </td>
-              </tr>
-              <tr key="效果表的 GE类">
-                <td className="prefix-name">效果表的 GE类</td>
-                <td>
-                  <input
-                    value={project.battle.effectClassPrefix}
-                    onChange={(event) => onChange(updateClassPrefix(project, 'effectClassPrefix', event.target.value))}
-                  />
-                </td>
-                <td className="prefix-sample" title="导出时拼出来的样子">
-                  {classPath(project.battle.effectClassPrefix, 'BP_GE_Poison') || '（前缀为空）'}
-                </td>
-              </tr>
-              <tr key="属性表的 属性类">
-                <td className="prefix-name">属性表的 属性类</td>
-                <td>
-                  <input
-                    value={project.battle.attributeClassPrefix}
-                    onChange={(event) => onChange(updateClassPrefix(project, 'attributeClassPrefix', event.target.value))}
-                  />
-                </td>
-                <td className="prefix-sample" title="导出时拼出来的样子">
-                  {classPath(project.battle.attributeClassPrefix, DEFAULT_ATTRIBUTE_CLASS_NAME) || '（前缀为空）'}
-                </td>
-              </tr>
-              <tr key="武器表的 武器类">
-                <td className="prefix-name">武器表的 武器类</td>
-                <td>
-                  <input
-                    value={project.battle.weaponClassPrefix}
-                    onChange={(event) => onChange(updateClassPrefix(project, 'weaponClassPrefix', event.target.value))}
-                  />
-                </td>
-                <td className="prefix-sample" title="导出时拼出来的样子">
-                  {classPath(project.battle.weaponClassPrefix, weaponClassName('WEA_Test_Sniper')) || '（前缀为空）'}
-                </td>
-              </tr>
-              <tr key="特殊指令表的 Command类">
-                <td className="prefix-name">特殊指令表的 Command类</td>
-                <td>
-                  <input
-                    value={project.specialCommandClassPrefix}
-                    onChange={(event) => onChange(updateSpecialCommandClassPrefix(project, event.target.value))}
-                  />
-                </td>
-                <td className="prefix-sample" title="导出时拼出来的样子">
-                  {classPath(project.specialCommandClassPrefix, specialCommandClassName('SP_001')) || '（前缀为空）'}
-                </td>
-              </tr>
+            {PREFIX_ROWS.map((row) =>
+              renderPrefixRow(row.label, prefixValueOf(row), row.sample, () => setPickingPrefix(row)),
+            )}
+            {renderPrefixRow(
+              '特殊指令表的 Command类',
+              prefixValueOfSpecialCommand(),
+              specialCommandClassName('SP_001'),
+              () => setPickingPrefix('specialCommand'),
+            )}
           </tbody>
         </table>
-      </div>    </div>
+      </div>
+
+      {pickingPrefix !== null && (
+        <FolderTreeDialog
+          folders={connection.catalog?.folders ?? []}
+          initialPath={currentPickFolder}
+          onPick={applyPrefix}
+          onCancel={() => setPickingPrefix(null)}
+        />
+      )}
+    </div>
   );
 }

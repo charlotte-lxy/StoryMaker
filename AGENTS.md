@@ -123,7 +123,7 @@ Vite + React 19 + TypeScript，导出用 ExcelJS。三种产物共用同一套�
 | `pnpm dev` | 开发服务器 :5180 | 开发（`/api` 自动转给同一个本地服务） |
 | `pnpm build` | `dist/` 多文件 | 内网服务器 |
 | `pnpm build:app` | `app-release/win-unpacked/` + `app-update/` | Electron 桌面版（**唯一交付方式**） |
-| `pnpm test` | — | 657 个测试 |
+| `pnpm test` | — | 665 个测试 |
 | `pnpm verify:app-update` | — | 自动更新自检（版本比较 / 清单校验 / 双源兜底 / 哈希） |
 
 ## 打包（统一走 `pnpm build:app`）
@@ -242,7 +242,8 @@ Vite + React 19 + TypeScript，导出用 ExcelJS。三种产物共用同一套�
 
 ## 导入到 Unreal（桌面版）
 
-侧边栏「Unreal」页把导出内容直接灌进打开着的编辑器，走引擎自带的 **Python Remote Execution**：
+**导出模块**的「Unreal导入设置」页负责连接与配置，工具栏的「导出到 UE」弹窗负责导入操作。
+走引擎自带的 **Python Remote Execution**：
 UDP 组播 `239.0.0.1:6766` 发现节点（`pong` 带回 `project_name` / `engine_root`），TCP 回连后跑一段 Python 拿结果。
 
 - 协议客户端在 `electron/unreal-remote.cjs`，只做发现 / 开通道 / 跑脚本三件事。
@@ -250,6 +251,14 @@ UDP 组播 `239.0.0.1:6766` 发现节点（`pong` 带回 `project_name` / `engin
 - 导入编排在 `electron/unreal-import.cjs`：**一条长连接上逐项跑**（`session.openCommand()` 拿通道，
   再 `channel.run(script)` 一项一项来），这样界面能拿到「正在导哪个文件、第几个」。
   不要退回「每次重新握手」或「一次性跑完再返回」——前者慢到没法用，后者没有进度。
+- 连接状态在 `src/ui/use-unreal-connection.ts`：导入设置页和「导出到 UE」弹窗共用一份，
+  连上后自动拉一次清单，避免两处各查一次。清单查询在 `electron/unreal-query.cjs`：
+  DataTable 走 AssetRegistry 按类过滤（不加载资产，几百毫秒），文件夹用
+  `list_assets(include_folder=True)` 里没有扩展名的那些。
+- 数据表和前缀**只能从编辑器里选**：数据表是下拉（只列已存在的 DataTable），前缀是 Content 目录树
+  （`FolderTreeDialog`）。未连接时一律只读——**别退回手填输入框**，手填路径写错了要到导入时才报错。
+- **「导入设置」不再是子表**：`buildAllSheets` 里没有它、`EXPORT_SUBTABLES` 里也没有。
+  `project.exportSettings` 只用于导入，不再导出一遍。
 - **顺序固定：先素材、后数据表；素材有失败就停下不导表。** 数据表存的是资源引用，
   素材没进去就灌表会让引用指向不存在的资产。
 - 增量导入：**素材跟条目 uid 绑定，不跟文件名绑定**（`src/core/imported-assets.ts` 的
@@ -296,9 +305,9 @@ UDP 组播 `239.0.0.1:6766` 发现节点（`pong` 带回 `project_name` / `engin
 
 ## 导出格式（已和需求方逐列确认）
 
-**类名前缀只在「Unreal 导入设置」里配一处**：设置页先列数据表（表名 / 文件夹 / 子表），
-再用一张小表列前缀：一行一条（前缀配置 / 前缀 / 拼出来的样子）——技能表 GA类、
-效果表 GE类、属性表 属性类、武器表 武器类、特殊指令表 Command类。
+**类名前缀只在「Unreal 导入设置」里配一处**：设置页先配数据表（从编辑器里选 DataTable + 选子表），
+再用一张小表列前缀：一行一条（前缀配置 / 文件夹 / 拼出来的样子）——技能表 GA类、
+效果表 GE类、属性表 属性类、武器表 武器类、特殊指令表 Command类。前缀从目录树里选文件夹自动拼成。
 各业务表（战斗的技能页 / 效果页等）只填类名，不再摆前缀输入框；换项目只改设置页这一处。
 
 - 对话表：对话ID / 文本类型 / 角色ID / 角色显示名称 / 强制自动播放 / 文本ID / 选项列表 / 指令 /

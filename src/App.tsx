@@ -138,8 +138,9 @@ import { SettingsEditor } from './ui/SettingsEditor';
 import { ScriptPalette } from './ui/ScriptPalette';
 import { Sidebar } from './ui/Sidebar';
 import { UpdatePrompt } from './ui/UpdatePanel';
-import { UnrealImportPage } from './ui/UnrealImportPage';
+import { ExportToUeDialog } from './ui/export/ExportToUeDialog';
 import { useAssetLibrary } from './ui/use-asset-library';
+import { useUnrealConnection } from './ui/use-unreal-connection';
 import { useCollab } from './ui/useCollab';
 import { useUpdater } from './ui/use-updater';
 import { useScrollMemory } from './ui/view-memory';
@@ -170,7 +171,6 @@ type Module =
   | 'battle'
   | 'locale'
   | 'export'
-  | 'unreal'
   | 'settings';
 
 /**
@@ -210,6 +210,10 @@ export default function App() {
   const [unrealPrefs, setUnrealPrefs] = useState<UnrealPrefs>(loadUnrealPrefs);
   /** 素材文件夹里的文件：立绘和音效的「素材管理」列共用这一份 */
   const assetLibrary = useAssetLibrary(host, unrealPrefs.assetFolder);
+  /** 和 Unreal 编辑器的连接：导入设置页和「导出到 UE」弹窗共用 */
+  const unrealConnection = useUnrealConnection(host, unrealPrefs.uprojectPath);
+  /** 「导出到 UE」弹窗开着没有 */
+  const [ueDialogOpen, setUeDialogOpen] = useState(false);
   const [module, setModule] = useState<Module>('story');
   const [activeGroupUid, setActiveGroupUid] = useState<string>('');
   /** 各模块底部的校验结果列表是否展开；平时收起，只在这条上显示条数 */
@@ -1093,6 +1097,15 @@ export default function App() {
 
         <span className="spacer" />
 
+        <button
+          type="button"
+          className="toolbar-ue"
+          title="把数据表和素材导入到打开着的 Unreal 编辑器"
+          onClick={() => setUeDialogOpen(true)}
+        >
+          导出到 UE
+        </button>
+
         {/* 当前项目文件名：和协作状态、校验结果一样是「现在什么情况」，因此归到右边一组，
             中间那块地方留给全局搜索框 */}
         <span className="file-chip" title={projectPath ?? '还没有项目文件'}>
@@ -1180,7 +1193,6 @@ export default function App() {
             组内从上往下排（导出在设置上面）。以后再加置底按钮，加在这两个前面。
           */}
           {railButton('export', '⤓', '导出', 'rail-item-bottom')}
-          {railButton('unreal', '◈', 'Unreal')}
           {railButton('settings', '⚙', '设置')}
         </nav>
 
@@ -1378,16 +1390,10 @@ export default function App() {
                   project={project}
                   onChange={setProject}
                   onExport={() => void handleExport()}
-                />
-              )}
-
-              {module === 'unreal' && (
-                <UnrealImportPage
-                  project={project}
+                  connection={unrealConnection}
+                  host={host}
                   prefs={unrealPrefs}
                   onChangePrefs={(patch) => setUnrealPrefs((prev) => ({ ...prev, ...patch }))}
-                  host={host}
-                  library={assetLibrary}
                 />
               )}
 
@@ -1537,6 +1543,17 @@ export default function App() {
       </div>
 
       {toast !== '' && <div className="toast">{toast}</div>}
+
+      {ueDialogOpen && (
+        <ExportToUeDialog
+          project={project}
+          prefs={unrealPrefs}
+          host={host}
+          library={assetLibrary}
+          connection={unrealConnection}
+          onClose={() => setUeDialogOpen(false)}
+        />
+      )}
 
       <UpdatePrompt updater={updater} />
 

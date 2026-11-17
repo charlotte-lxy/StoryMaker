@@ -155,6 +155,24 @@ export interface AssetReadResult {
   message?: string;
 }
 
+/** 编辑器里的一张数据表 */
+export interface UnrealCatalogTable {
+  /** 资产名，如 TB_Dialogue */
+  name: string;
+  /** 完整包路径，如 /Game/GameContent/BP/StorySystem/TB_Dialogue */
+  path: string;
+  /** 所在文件夹，如 /Game/GameContent/BP/StorySystem */
+  folder: string;
+}
+
+export interface UnrealCatalogResult {
+  ok: boolean;
+  message?: string;
+  dataTables?: UnrealCatalogTable[];
+  /** /Game 下的所有文件夹，给前缀配置的目录树用 */
+  folders?: string[];
+}
+
 /**
  * 「导入到 Unreal」能力：只有桌面版有（要开本机 UDP/TCP 去连编辑器）。
  * 网页版 / 本地服务版拿不到，界面显示成不支持。
@@ -162,6 +180,8 @@ export interface AssetReadResult {
 export interface UnrealApi {
   /** 找在线的编辑器；连不上时返回空列表并带一条 error */
   discover: (uprojectPath: string) => Promise<{ nodes: UnrealNodeInfo[]; error?: string }>;
+  /** 查编辑器里的数据表与文件夹清单（导入设置的下拉 / 目录树用） */
+  queryCatalog: (uprojectPath: string) => Promise<UnrealCatalogResult>;
   /** 真正导入：连上编辑器、跑脚本、把结果拿回来 */
   runImport: (request: UnrealImportRequest) => Promise<UnrealImportReport>;
   /** 订阅导入进度；返回取消订阅的函数 */
@@ -250,6 +270,7 @@ export interface DesktopBridge {
   onUpdateAvailable?: (listener: (notice: UpdateNotice) => void) => () => void;
   /** 导入到 Unreal；老版本 preload 没有这一组 */
   unrealDiscover?: (uprojectPath: string) => Promise<{ nodes: UnrealNodeInfo[]; error?: string }>;
+  unrealQueryCatalog?: (uprojectPath: string) => Promise<UnrealCatalogResult>;
   unrealImport?: (request: UnrealImportRequest) => Promise<UnrealImportReport>;
   unrealImportProgress?: (
     listener: (progress: UnrealImportProgress) => void,
@@ -436,6 +457,7 @@ function desktopHost(bridge: DesktopBridge): HostApi {
 
   const unreal: UnrealApi | undefined =
     bridge.unrealDiscover !== undefined &&
+    bridge.unrealQueryCatalog !== undefined &&
     bridge.unrealImport !== undefined &&
     bridge.unrealImportProgress !== undefined &&
     bridge.unrealPickUproject !== undefined &&
@@ -447,6 +469,7 @@ function desktopHost(bridge: DesktopBridge): HostApi {
     bridge.unrealReadAsset !== undefined
       ? {
           discover: (uprojectPath) => bridge.unrealDiscover!(uprojectPath),
+          queryCatalog: (uprojectPath) => bridge.unrealQueryCatalog!(uprojectPath),
           runImport: (request) => bridge.unrealImport!(request),
           onImportProgress: (listener) => bridge.unrealImportProgress!(listener),
           pickUproject: () => bridge.unrealPickUproject!(),

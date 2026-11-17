@@ -324,6 +324,19 @@ export function SoundAssetCell({ id, library, host }: CellProps) {
     if (file === undefined || host?.unreal === undefined) return;
     let created = '';
     let canceled = false;
+
+    // 换了素材（哪怕文件名没变）就把旧声音停掉、进度归零，重新读文件
+    const audio = audioRef.current;
+    if (audio !== null) {
+      audio.pause();
+      releaseAudio(audio);
+    }
+    setUrl('');
+    setPlaying(false);
+    setCurrent(0);
+    setDuration(0);
+    setPlayError('');
+
     void host.unreal
       .readAsset(file.filePath)
       .then((result) => {
@@ -343,7 +356,8 @@ export function SoundAssetCell({ id, library, host }: CellProps) {
       canceled = true;
       if (created !== '') URL.revokeObjectURL(created);
     };
-  }, [file?.filePath, host]);
+    // 指纹也算依赖：同一个 ID 重新选了素材，文件名可能不变，但大小/时间会变
+  }, [file?.filePath, file?.size, file?.mtimeMs, host]);
 
   const disabled = disabledNote(library);
   if (disabled !== null) return disabled;

@@ -2321,7 +2321,6 @@ describe('导出模块', () => {
       'GAS事件',
       'GAS角色',
       'GAS武器',
-      '导入设置',
     ]);
 
     // 工具列表在子表列表下面：「Unreal导入设置」在「导出 Excel」上方
@@ -2343,26 +2342,27 @@ describe('导出模块', () => {
     await waitFor(() => expect(host.bridge.exportFile).toHaveBeenCalled());
   });
 
-  it('导入设置里能改「武器类」前缀，示例路径跟着变', async () => {
+  it('前缀不能手填：没连编辑器时是只读的，示例路径按当前前缀拼出来', async () => {
     await openExport();
 
     const input = screen.getByDisplayValue(
       "/Script/Engine.BlueprintGeneratedClass'/Game/GameContent/BP/Weapon/WeaponActors/",
-    );
+    ) as HTMLInputElement;
+    expect(input.readOnly).toBe(true);
     expect(screen.getByText(/BP_Weapon_Test_Sniper\.BP_Weapon_Test_Sniper_C/)).toBeTruthy();
 
-    fireEvent.change(input, { target: { value: '/Game/BP/Weapon/' } });
-    expect(screen.getByText(/\/Game\/BP\/Weapon\/BP_Weapon_Test_Sniper/)).toBeTruthy();
+    // 每一项前缀都有「选择文件夹…」，但没连编辑器时点不了
+    const pickers = screen.getAllByRole('button', { name: '选择文件夹…' }) as HTMLButtonElement[];
+    expect(pickers).toHaveLength(5);
+    for (const button of pickers) expect(button.disabled).toBe(true);
   });
 
-  it('导入设置能新增一行：三列都在，子表下拉列出所有参与导出的子表', async () => {
+  it('数据表配置只能选编辑器里的表：没连编辑器时下拉是禁用的', async () => {
     await openExport();
     fireEvent.click(screen.getByText('＋ 新增数据表'));
 
-    fireEvent.change(screen.getByPlaceholderText('TB_'), { target: { value: 'TB_GAS_Ability' } });
-    fireEvent.change(screen.getByPlaceholderText('GameContent/BP/…'), {
-      target: { value: 'GameContent/BP/GAS/GA' },
-    });
+    const tablePicker = screen.getByTitle('连接编辑器后才能选') as HTMLSelectElement;
+    expect(tablePicker.disabled).toBe(true);
 
     const subTable = screen.getByTitle('这张数据表的内容来自哪个子表') as HTMLSelectElement;
     expect([...subTable.options].map((option) => option.value)).toEqual([
@@ -2382,7 +2382,6 @@ describe('导出模块', () => {
       'GAS事件',
       'GAS角色',
       'GAS武器',
-      '导入设置',
     ]);
     fireEvent.change(subTable, { target: { value: 'GAS技能' } });
     expect(subTable.value).toBe('GAS技能');
@@ -2411,7 +2410,6 @@ describe('导出模块', () => {
       'GAS事件',
       'GAS角色',
       'GAS武器',
-      '导入设置',
     ]);
 
     // 默认停在第一张：对话表，表头就是导出用的那一行
@@ -2428,13 +2426,9 @@ describe('导出模块', () => {
       '指令',
       '可用条件列表',
     ]);
-
-    // 切到导入设置：表头换成算出来的两列
-    fireEvent.click(screen.getByText('导入设置'));
-    expect(headers()).toEqual(['（行名）', '数据表引用', 'csv文件路径']);
   });
 
-  it('「特殊指令」子表：收集剧情里用到的特殊指令，前缀改了类名跟着变', async () => {
+  it('「特殊指令」子表：收集剧情里用到的特殊指令，类名按前缀拼出来', async () => {
     const project = createEmptyProject();
     project.chapters[0].groups[0].lines = [
       {
@@ -2444,6 +2438,8 @@ describe('导出模块', () => {
         specialContent: '屏幕震一下',
       },
     ];
+    // 前缀现在只能从编辑器目录树里选，这里直接在项目文件里给它一个值
+    project.specialCommandClassPrefix = "/Script/Engine.BlueprintGeneratedClass'/Game/BP/Cmd/";
     seedProjectFile(JSON.stringify(project));
 
     await openExport();
@@ -2462,28 +2458,9 @@ describe('导出模块', () => {
     openSheet('特殊指令');
     expect(firstRow()).toEqual([
       'SP_001',
-      "/Script/Engine.BlueprintGeneratedClass'/Game/GameContent/BP/ComponentBase/Command/SpeciesCommand/BP_Command_SP_001.BP_Command_SP_001_C'",
+      "/Script/Engine.BlueprintGeneratedClass'/Game/BP/Cmd/BP_Command_SP_001.BP_Command_SP_001_C'",
       '屏幕震一下',
     ]);
-
-    // 前缀在「Unreal 导入设置」里改，类名跟着变
-    fireEvent.click(screen.getByText('Unreal导入设置'));
-    /** 按表里那一行的名字找前缀输入框 */
-    const prefixInput = (label: string): HTMLInputElement => {
-      const row = [...document.querySelectorAll('.import-prefix-wrap tbody tr')].find((node) =>
-        node.querySelector('.prefix-name')?.textContent === label,
-      ) as HTMLElement;
-      return row.querySelector('input') as HTMLInputElement;
-    };
-
-    fireEvent.change(prefixInput('特殊指令表的 Command类'), {
-      target: { value: "/Script/Engine.BlueprintGeneratedClass'/Game/BP/Cmd/" },
-    });
-
-    openSheet('特殊指令');
-    expect(firstRow()[1]).toBe(
-      "/Script/Engine.BlueprintGeneratedClass'/Game/BP/Cmd/BP_Command_SP_001.BP_Command_SP_001_C'",
-    );
   });
 });
 

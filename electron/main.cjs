@@ -15,6 +15,7 @@ const updateCore = require('./update-core.cjs');
 const { UnrealRemoteSession } = require('./unreal-remote.cjs');
 const { runImport } = require('./unreal-import.cjs');
 const unrealAssets = require('./unreal-assets.cjs');
+const { queryUnrealCatalog } = require('./unreal-query.cjs');
 
 /** 开发模式直接连 Vite，正式模式读打包进来的 dist */
 const isDev = !app.isPackaged;
@@ -342,6 +343,19 @@ function projectNameOf(uprojectPath) {
   return base.toLowerCase().endsWith('.uproject') ? base.slice(0, -'.uproject'.length) : base;
 }
 
+/**
+ * 在发现的节点里挑目标编辑器。
+ *
+ * 优先按项目名对齐；只有一个编辑器在线时也接受，免得策划还得核对一遍名字。
+ */
+function pickNode(nodes, uprojectPath) {
+  const expected = projectNameOf(uprojectPath);
+  const sameName = nodes.filter(
+    (node) => node.projectName.toLowerCase() === expected.toLowerCase(),
+  );
+  return sameName[0] ?? (nodes.length === 1 ? nodes[0] : undefined);
+}
+
 const NO_EDITOR_MESSAGE =
   '没有发现在线的 Unreal 编辑器。请先打开工程，并确认 Editor Preferences → Python → Enable Remote Execution 已勾上。';
 
@@ -354,6 +368,27 @@ ipcMain.handle('unreal:discover', async () => {
   }
 });
 
+/** 连上编辑器查一次「有哪些数据表 / 有哪些文件夹」，给导入设置的下拉和目录树用 */
+ipcMain.handle('unreal:query-catalog', async (_event, request) => {
+  try {
+    const session = getUnrealSession();
+    const nodes = await session.discover(3000);
+    if (nodes.length === 0) return { ok: false, message: NO_EDITOR_MESSAGE };
+
+    const node = pickNode(nodes, request.uprojectPath);
+    if (node === undefined) {
+      const found = nodes.map((item) => item.projectName || '（未命名）').join('、');
+      return { ok: false, message: `在线的编辑器里没有目标工程，发现的是：${found}` };
+    }
+
+    const catalog = await queryUnrealCatalog(session, node.id);
+    if (catalog === null) return { ok: false, message: '编辑器没有回传数据表清单' };
+    return { ok: true, dataTables: catalog.dataTables, folders: catalog.folders };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : String(error) };
+  }
+});
+
 ipcMain.handle('unreal:import', async (event, request) => {
   try {
     const session = getUnrealSession();
@@ -361,14 +396,13 @@ ipcMain.handle('unreal:import', async (event, request) => {
     if (nodes.length === 0) return { ok: false, message: NO_EDITOR_MESSAGE };
 
     // 按项目名认目标；只有一个编辑器在线时也接受，免得策划还是得核对一遍名字
-    const expected = projectNameOf(request.uprojectPath);
-    const sameName = nodes.filter(
-      (node) => node.projectName.toLowerCase() === expected.toLowerCase(),
-    );
-    const node = sameName[0] ?? (nodes.length === 1 ? nodes[0] : undefined);
+    const node = pickNode(nodes, request.uprojectPath);
     if (node === undefined) {
       const found = nodes.map((item) => item.projectName || '（未命名）').join('、');
-      return { ok: false, message: `在线的编辑器里没有 ${expected || '目标工程'}，发现的是：${found}` };
+      return {
+        ok: false,
+        message: `在线的编辑器里没有 ${projectNameOf(request.uprojectPath) || '目标工程'}，发现的是：${found}`,
+      };
     }
 
     // 渲染进程已经把「要导哪些」筛好了（增量时只给变化项），这里照单执行

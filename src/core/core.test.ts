@@ -943,7 +943,6 @@ describe('导出三张表', () => {
       'GAS事件',
       'GAS角色',
       'GAS武器',
-      '导入设置',
     ]);
 
     const dialogue = workbook.getWorksheet('对话');

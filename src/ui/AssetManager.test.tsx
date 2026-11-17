@@ -36,6 +36,7 @@ function makeLibrary(overrides: Partial<AssetLibrary> = {}): AssetLibrary {
 function makeUnreal(overrides: Partial<UnrealApi> = {}): UnrealApi {
   return {
     discover: vi.fn(async () => ({ nodes: [] })),
+    queryCatalog: vi.fn(async () => ({ ok: true, dataTables: [], folders: [] })),
     runImport: vi.fn(async () => ({
       ok: false,
       stopped: true,

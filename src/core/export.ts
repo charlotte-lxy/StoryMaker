@@ -43,7 +43,6 @@ import {
   PLAY_DIALOGUE_BRANCH,
   PLAY_DIALOGUE_HEAD,
 } from './command-build';
-import { IMPORT_SETTINGS_SHEET, buildImportSettingRows } from './export-settings';
 import { IMAGE_SHEET, buildImageRows } from './image-export';
 import { SPECIAL_COMMAND_SHEET, buildSpecialCommandRows } from './special-commands';
 import { SOUND_SHEET, buildSoundRows } from './sound-export';
@@ -464,8 +463,6 @@ export function buildAllSheets(project: Project): ExportedSheet[] {
     { name: EVENT_SHEET, rows: battle.events },
     { name: CHARACTER_SHEET, rows: battle.characters },
     { name: WEAPON_SHEET, rows: battle.weapons },
-    // 导入设置
-    { name: IMPORT_SETTINGS_SHEET, rows: buildImportSettingRows(project) },
   ];
 }
 

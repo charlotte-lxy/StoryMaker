@@ -36,7 +36,7 @@ pnpm dev          # 开发服务器 http://localhost:5180
 | `pnpm dev` | 开发服务器 :5180 | 开发（`/api` 自动转给本地服务） |
 | `pnpm build` | `dist/` 多文件 | 内网服务器 |
 | `pnpm build:app` | `app-release/win-unpacked/` + `app-update/` | Electron 桌面版（唯一交付方式） |
-| `pnpm test` | — | 657 个测试 |
+| `pnpm test` | — | 665 个测试 |
 | `pnpm verify:app-update` | — | Electron 自动更新自检（双源 / 清单 / 哈希） |
 
 `pnpm build:app` 会同时生成 `app-update/`（`version.json` + `app.asar` + `changelog.json`）。桌面版设置页里能看
@@ -86,17 +86,18 @@ pnpm dev          # 开发服务器 http://localhost:5180
     插槽 `("a","b")`、武器图标 `PIC_武器ID`、
     武器类 `前缀 + BP_Weapon_<武器ID去WEA_>`（拼不出来写 None））
 
-导出 / Unreal导入设置（一行一张 DataTable：表名 + 文件夹 + 子表；
-  → 导入设置（数据表引用、csv 文件名两列算出来）
-  数据表之后是五条竖排的前缀配置（GA类 / GE类 / 属性类 / 武器类 / Command类）
+导出 / Unreal导入设置（一行一张 DataTable：从编辑器里选表 + 选子表；
+  数据表之后是五条竖排的前缀配置（GA类 / GE类 / 属性类 / 武器类 / Command类），
+  前缀也是从编辑器的 Content 目录树里选文件夹拼出来的）
 ```
 
 导出与界面上的「导出预览」用的是同一处 `buildAllSheets`，预览里看到的就是导出去的内容。
+**「导入设置」不再是子表**：配置直接就是导入时用的那份数据，不用再导出一次。
 
 ## 导入到 Unreal（桌面版）
 
-侧边栏的「Unreal」页可以把导出内容**直接灌进打开着的 Unreal 编辑器**，不用再手工拆 CSV、
-逐个点 reimport、拖图片。走的是引擎自带的 **Python Remote Execution**：
+导出模块的「Unreal导入设置」页可以把导出内容**直接灌进打开着的 Unreal 编辑器**，
+不用再手工拆 CSV、逐个点 reimport、拖图片。走的是引擎自带的 **Python Remote Execution**：
 
 ```
 StoryMaker（Electron 主进程）
@@ -111,8 +112,11 @@ StoryMaker（Electron 主进程）
 1. 工程开着，且 `.uproject` 里启用了 `PythonScriptPlugin`（BulletShootGame 已经启用）
 2. 编辑器里 `Editor Preferences → Python → Enable Remote Execution` 勾上
 
-然后在「设置」页选**素材文件夹**，在「Unreal」页填 **Unreal 项目文件**（`.uproject`）。
-这两项都是本机配置，存在 localStorage，不进项目文件——换台机器路径本来就该不一样。
+然后在「设置」页选**素材文件夹**，在「导出 → Unreal导入设置」里填 **Unreal 项目文件**（`.uproject`）
+并点「检测连接」。这两项都是本机配置，存在 localStorage，不进项目文件——换台机器路径本来就该不一样。
+
+**连上之后才能配数据表和前缀**：数据表从编辑器里检索出来的 DataTable 下拉里选，
+前缀从 Content 目录树里选文件夹。没连上时只能看，不能改。
 
 导入分两类：
 
@@ -120,7 +124,9 @@ StoryMaker（Electron 主进程）
   目标路径直接取导出表里那一列的完整引用，所以和策划看到的表永远一致。
 - **数据表**：按「Unreal 导入设置」里配的那些行，把对应子表转成 CSV 写进临时目录，
   用 `DataTableFunctionLibrary.fill_data_table_from_csv_file` 灌进去。
-  没配的表不导（比如物品表就没配），「导入设置」自己那张子表也不是 DataTable，跳过。
+
+配好之后点工具栏的 **「导出到 UE」**：弹窗里是导入范围、`导入 / 全量导入` 两个按钮、
+实时进度条和逐条结果，导完点「完成」关掉。
 
 **素材跟条目 uid 绑定，不跟文件名绑定**：条目 ID 改名后，素材文件会跟着改名
 （比如 `SCE_Black.png` → `SCE_New.png`），导入时也会把 UE 里的旧资产重命名，

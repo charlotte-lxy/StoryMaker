@@ -45,6 +45,9 @@ contextBridge.exposeInMainWorld('storymakerDesktop', {
   /** 找在线的 Unreal 编辑器；返回 { nodes, error? } */
   unrealDiscover: (uprojectPath) => ipcRenderer.invoke('unreal:discover', uprojectPath),
 
+  /** 查编辑器里的数据表与文件夹清单 */
+  unrealQueryCatalog: (uprojectPath) => ipcRenderer.invoke('unreal:query-catalog', uprojectPath),
+
   /** 导入到 Unreal：数据表 / 图片 / 音效 */
   unrealImport: (request) => ipcRenderer.invoke('unreal:import', request),
 

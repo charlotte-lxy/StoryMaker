@@ -10,7 +10,7 @@
 
 import { toCsv } from './csv';
 import { buildAllSheets } from './export';
-import { IMPORT_SETTINGS_SHEET, dataTableRef } from './export-settings';
+import { dataTableRef } from './export-settings';
 import { collectExpressionImages } from './expression-images';
 import { imageAssetPath } from './image-export';
 import { soundAssetPath } from './sound-export';
@@ -155,8 +155,6 @@ export function buildUnrealImportPlan(project: Project): UnrealImportPlan {
     const tableName = row.tableName.trim();
     const subTable = row.subTable.trim();
     if (tableName === '' || subTable === '') continue;
-    // 「导入设置」子表是给策划看的配置表，UE 里没有对应的 DataTable
-    if (subTable === IMPORT_SETTINGS_SHEET) continue;
     const rows = sheets.get(subTable);
     if (rows === undefined) continue;
     tables.push({
