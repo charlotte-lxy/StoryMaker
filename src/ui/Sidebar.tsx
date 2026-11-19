@@ -10,6 +10,8 @@ interface Props {
   activeGroupUid: string;
   onSelectChapter: (chapterUid: string) => void;
   onSelectGroup: (groupUid: string) => void;
+  /** 从这一段第一句开始预览（会同时打开它的对话列表） */
+  onPreviewGroup: (groupUid: string) => void;
   onRenameChapter: (chapterUid: string, title: string) => void;
   onRenameGroup: (groupUid: string, title: string) => void;
   onAddChapter: () => void;
@@ -154,6 +156,17 @@ export function Sidebar(props: Props) {
                       <span className="group-title">{group.title}</span>
                     )}
                     <span className="count">{group.lines.length}</span>
+                    <button
+                      type="button"
+                      className="mini preview-group"
+                      title={`从「${group.title || group.id}」的第一句开始预览`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        props.onPreviewGroup(group.uid);
+                      }}
+                    >
+                      ▶
+                    </button>
                     {!renamingGroup && renameButton('group', group.uid, group.title)}
                     <button
                       type="button"

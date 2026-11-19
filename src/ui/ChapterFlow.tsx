@@ -30,13 +30,14 @@ interface Props {
   chapterUid: string;
   /** 当前选中的段落，在图上高亮 */
   activeGroupUid: string;
-  /** 对话列表是否展开 */
-  listOpen: boolean;
+  /** 预览面板是否展开 */
+  previewOpen: boolean;
   onOpenGroup: (groupUid: string) => void;
   onJumpToOption: (optionUid: string) => void;
   /** 点「跳转到段落」那条线，跳到它所在的那一行 */
   onJumpToLine: (lineUid: string) => void;
-  onToggleList: () => void;
+  /** 收起 / 展开右侧的预览面板 */
+  onTogglePreview: () => void;
   onRenameGroup: (groupUid: string, title: string) => void;
   onSetGroupNote: (groupUid: string, note: string) => void;
   /** 批量编辑里把勾中的行拖到某个段落块上：视为「移动至」那个段落 */
@@ -200,8 +201,8 @@ export function ChapterFlow(props: Props) {
           {flow.edges.length > 0 ? ` · ${flow.edges.length} 条选项跳转` : ''}
         </span>
         <span className="spacer" />
-        <button type="button" className="mini" onClick={props.onToggleList}>
-          {props.listOpen ? '收起对话列表 ▶' : '◀ 展开对话列表'}
+        <button type="button" className="mini" onClick={props.onTogglePreview}>
+          {props.previewOpen ? '收起预览 ▶' : '◀ 展开预览'}
         </button>
       </div>
 

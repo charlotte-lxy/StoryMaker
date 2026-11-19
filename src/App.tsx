@@ -103,12 +103,12 @@ import {
   type LookupKind,
 } from './state/operations';
 import {
-  clampStorySplit,
+  clampPreviewRatio,
   loadSettings,
-  loadStorySplit,
+  loadStoryLayout,
   loadUnrealPrefs,
   saveSettings,
-  saveStorySplit,
+  saveStoryLayout,
   saveUnrealPrefs,
   type Settings,
   type UnrealPrefs,
@@ -133,10 +133,12 @@ import { ImagesEditor } from './ui/ImagesEditor';
 import { LookupEditor } from './ui/LookupEditor';
 import { MoveLinesDialog } from './ui/MoveLinesDialog';
 import { MergeSummaryDialog } from './ui/MergeSummaryDialog';
+import { PreviewPlayer } from './ui/PreviewPlayer';
 import { ProjectGate } from './ui/ProjectGate';
 import { SettingsEditor } from './ui/SettingsEditor';
 import { ScriptPalette } from './ui/ScriptPalette';
 import { Sidebar } from './ui/Sidebar';
+import { StoryOutline } from './ui/StoryOutline';
 import { UnrealBadge } from './ui/UnrealBadge';
 import { UpdatePrompt } from './ui/UpdatePanel';
 import { ExportToUeDialog } from './ui/export/ExportToUeDialog';
@@ -241,11 +243,16 @@ export default function App() {
   const [flashOptionUid, setFlashOptionUid] = useState<string | null>(null);
   /** 正在看流程图的章节；空串表示用第一章 */
   const [activeChapterUid, setActiveChapterUid] = useState('');
-  /** 对话列表是否收起（只看整章流程图的时候收起） */
-  const [listCollapsed, setListCollapsed] = useState(false);
-  /** 流程图 / 对话列表的分栏比例，默认各一半 */
-  const [splitRatio, setSplitRatio] = useState(loadStorySplit);
-  const [splitDragging, setSplitDragging] = useState(false);
+  /** 剧情模块的布局：合并面板宽度 + 预览面板占比（本机记住，不进项目文件） */
+  const [storyLayout, setStoryLayout] = useState(loadStoryLayout);
+  /** 预览面板是否展开；收起后对话列表独占整片 */
+  const [previewOpen, setPreviewOpen] = useState(true);
+  /** 预览的起点；null 表示还没开始播，面板显示空态 */
+  const [previewStart, setPreviewStart] = useState<{
+    chapterUid: string;
+    groupUid: string;
+    lineUid?: string;
+  } | null>(null);
   /** 当前项目对应的磁盘文件；还没确定时为 null */
   const [projectPath, setProjectPath] = useState<string | null>(null);
   /** 待确认的危险操作 */
@@ -437,7 +444,6 @@ export default function App() {
   const storyListRef = useScrollMemory(`story:list:${activeUid}`);
   const location = locateGroup(project, activeUid);
   const group = location?.group;
-  const listOpen = !listCollapsed;
 
   // 换段落之后，原来勾中的行已经不在跟前的列表里，把勾选和连选起点一起清掉
   useEffect(() => {
@@ -621,7 +627,7 @@ export default function App() {
     );
   };
 
-  /** 打开某个段落的对话列表（会自动切到它所在的章节并把列表展开） */
+  /** 打开某个段落的对话列表（会自动切到它所在的章节） */
   const openGroup = (groupUid: string): void => {
     for (const chapter of project.chapters) {
       if (chapter.groups.some((item) => item.uid === groupUid)) {
@@ -630,7 +636,18 @@ export default function App() {
       }
     }
     setActiveGroupUid(groupUid);
-    setListCollapsed(false);
+  };
+
+  /**
+   * 从一个段落开始预览：打开它的对话列表，把预览起点设成这段（或指定行），
+   * 预览面板是收起状态时一并展开。
+   */
+  const handlePreviewGroup = (groupUid: string, lineUid?: string): void => {
+    const target = locateGroup(project, groupUid);
+    if (target === undefined) return;
+    openGroup(groupUid);
+    setPreviewStart({ chapterUid: target.chapter.uid, groupUid, lineUid });
+    setPreviewOpen(true);
   };
 
   /** 点侧边栏的章节：看这一章的流程图；列表里的段落不属于本章就切到本章第一段 */
@@ -639,7 +656,6 @@ export default function App() {
     const chapter = project.chapters.find((item) => item.uid === targetChapterUid);
     const inChapter = chapter?.groups.some((item) => item.uid === activeUid) ?? false;
     if (!inChapter) setActiveGroupUid(chapter?.groups[0]?.uid ?? '');
-    setListCollapsed(false);
   };
 
   /** 点流程图上的选项标签：跳到那个选项 */
@@ -779,24 +795,23 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [focusRowUid]);
 
-  // 拖动分隔线时不要每动一下都写盘，松手后再记住宽度
+  // 布局尺寸不用每动一下就写：防抖 300ms，松手后再记
   useEffect(() => {
-    if (splitDragging) return;
-    saveStorySplit(splitRatio);
-  }, [splitRatio, splitDragging]);
+    const timer = window.setTimeout(() => saveStoryLayout(storyLayout), 300);
+    return () => window.clearTimeout(timer);
+  }, [storyLayout]);
 
-  /** 拖动中间那条分隔线，改变流程图与对话列表的宽度比例 */
+  /** 拖动对话列表与预览之间的分隔线，改变预览的宽度占比 */
   const startSplitDrag = (event: ReactPointerEvent<HTMLDivElement>): void => {
     event.preventDefault();
-    setSplitDragging(true);
 
     const move = (moveEvent: PointerEvent): void => {
       const box = splitBoxRef.current?.getBoundingClientRect();
       if (box === undefined || box.width === 0) return;
-      setSplitRatio(clampStorySplit((moveEvent.clientX - box.left) / box.width));
+      const ratio = 1 - (moveEvent.clientX - box.left) / box.width;
+      setStoryLayout((prev) => ({ ...prev, previewRatio: clampPreviewRatio(ratio) }));
     };
     const end = (): void => {
-      setSplitDragging(false);
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', end);
     };
@@ -1205,24 +1220,52 @@ export default function App() {
         <div className="workspace">
           <div className="workspace-row">
             {module === 'story' && (
-              <Sidebar
-                project={project}
-                activeChapterUid={chapterUid}
-                activeGroupUid={activeUid}
-                onSelectChapter={handleOpenChapter}
-                onSelectGroup={openGroup}
-                onRenameChapter={(chapterUid, title) =>
-                  setProject((prev) => renameChapter(prev, chapterUid, title))
+              <StoryOutline
+                width={storyLayout.outlineWidth}
+                onResize={(width) =>
+                  setStoryLayout((prev) => ({ ...prev, outlineWidth: width }))
                 }
-                onRenameGroup={(groupUid, title) =>
-                  setProject((prev) => renameGroup(prev, groupUid, title))
+                tree={
+                  <Sidebar
+                    project={project}
+                    activeChapterUid={chapterUid}
+                    activeGroupUid={activeUid}
+                    onSelectChapter={handleOpenChapter}
+                    onSelectGroup={openGroup}
+                    onPreviewGroup={handlePreviewGroup}
+                    onRenameChapter={(chapterUid, title) =>
+                      setProject((prev) => renameChapter(prev, chapterUid, title))
+                    }
+                    onRenameGroup={(groupUid, title) =>
+                      setProject((prev) => renameGroup(prev, groupUid, title))
+                    }
+                    onAddChapter={() => setProject((prev) => addChapter(prev))}
+                    onAddGroup={(targetChapterUid) =>
+                      setProject((prev) => addGroup(prev, targetChapterUid))
+                    }
+                    onRemoveChapter={handleRemoveChapter}
+                    onRemoveGroup={handleRemoveGroup}
+                  />
                 }
-                onAddChapter={() => setProject((prev) => addChapter(prev))}
-                onAddGroup={(targetChapterUid) =>
-                  setProject((prev) => addGroup(prev, targetChapterUid))
+                flow={
+                  <ChapterFlow
+                    project={project}
+                    chapterUid={chapterUid}
+                    activeGroupUid={activeUid}
+                    previewOpen={previewOpen}
+                    onOpenGroup={openGroup}
+                    onJumpToOption={handleJumpToOption}
+                    onJumpToLine={handleJumpToLine}
+                    onTogglePreview={() => setPreviewOpen((current) => !current)}
+                    onRenameGroup={(groupUid, title) =>
+                      setProject((prev) => renameGroup(prev, groupUid, title))
+                    }
+                    onSetGroupNote={(groupUid, note) =>
+                      setProject((prev) => setGroupNote(prev, groupUid, note))
+                    }
+                    onDropLines={handleDropLinesOnGroup}
+                  />
                 }
-                onRemoveChapter={handleRemoveChapter}
-                onRemoveGroup={handleRemoveGroup}
               />
             )}
 
@@ -1418,41 +1461,19 @@ export default function App() {
               )}
 
               {module === 'story' && (
-                <>
-                  <div className="story-split" ref={splitBoxRef}>
-                    <div
-                      className="flow-pane"
-                      style={listOpen ? { flexBasis: `${splitRatio * 100}%` } : { flex: '1 1 auto' }}
-                    >
-                      <ChapterFlow
-                        project={project}
-                        chapterUid={chapterUid}
-                        activeGroupUid={activeUid}
-                        listOpen={listOpen}
-                        onOpenGroup={openGroup}
-                        onJumpToOption={handleJumpToOption}
-                        onJumpToLine={handleJumpToLine}
-                        onToggleList={() => setListCollapsed((current) => !current)}
-                        onRenameGroup={(groupUid, title) =>
-                          setProject((prev) => renameGroup(prev, groupUid, title))
-                        }
-                        onSetGroupNote={(groupUid, note) =>
-                          setProject((prev) => setGroupNote(prev, groupUid, note))
-                        }
-                        onDropLines={handleDropLinesOnGroup}
-                      />
-                    </div>
-
-                    {listOpen && (
-                      <>
-                        <div
-                          className={`split-handle${splitDragging ? ' dragging' : ''}`}
-                          title="按住左右拖动，调整流程图与对话列表的宽度"
-                          onPointerDown={startSplitDrag}
-                        />
-
-                        <div className="list-pane">
-                          <div className="editor" ref={storyListRef}>
+                <div className="story-split" ref={splitBoxRef}>
+                  <div
+                    className="list-pane"
+                    style={
+                      previewOpen
+                        ? {
+                            flex: '0 0 auto',
+                            flexBasis: `${(1 - storyLayout.previewRatio) * 100}%`,
+                          }
+                        : { flex: '1 1 auto' }
+                    }
+                  >
+                    <div className="editor" ref={storyListRef}>
                             {group === undefined ? (
                               <div className="empty-state">
                                 这一章还没有段落，点章节名旁边的「＋」新增段落。
@@ -1518,15 +1539,32 @@ export default function App() {
                                 />
                               </>
                             )}
-                          </div>
+                    </div>
 
-                          {/* 脚本块固定在对话列表最下方，横向排布 */}
-                          <ScriptPalette onPick={handlePickBlock} />
-                        </div>
-                      </>
-                    )}
+                    {/* 脚本块固定在对话列表最下方，横向排布 */}
+                    <ScriptPalette onPick={handlePickBlock} />
                   </div>
-                </>
+
+                  {previewOpen && (
+                    <>
+                      <div
+                        className="split-handle"
+                        title="按住左右拖动，调整对话列表与预览的宽度"
+                        onPointerDown={startSplitDrag}
+                      />
+                      <div className="preview-column">
+                        <PreviewPlayer
+                          project={project}
+                          start={previewStart}
+                          activeGroupUid={activeUid}
+                          assets={{ library: assetLibrary, host }}
+                          onPickStart={handlePreviewGroup}
+                          onCollapse={() => setPreviewOpen(false)}
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
               )}
             </main>
           </div>

@@ -3,14 +3,15 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_SETTINGS,
-  DEFAULT_STORY_SPLIT,
-  clampStorySplit,
+  DEFAULT_STORY_LAYOUT,
+  clampOutlineWidth,
+  clampPreviewRatio,
   loadSessionPath,
   loadSettings,
-  loadStorySplit,
+  loadStoryLayout,
   saveSessionPath,
   saveSettings,
-  saveStorySplit,
+  saveStoryLayout,
 } from './prefs';
 
 beforeEach(() => {
@@ -46,22 +47,26 @@ describe('设置与「上次打开的项目」的记忆', () => {
     expect(loadSessionPath()).toBeNull();
   });
 
-  it('分栏宽度默认各一半，拖过之后记住', () => {
-    expect(loadStorySplit()).toBe(DEFAULT_STORY_SPLIT);
+  it('剧情模块布局默认 440px + 45%，拖过之后记住', () => {
+    expect(loadStoryLayout()).toEqual(DEFAULT_STORY_LAYOUT);
 
-    saveStorySplit(0.3);
-    expect(loadStorySplit()).toBe(0.3);
+    saveStoryLayout({ outlineWidth: 520, previewRatio: 0.5 });
+    expect(loadStoryLayout()).toEqual({ outlineWidth: 520, previewRatio: 0.5 });
   });
 
-  it('分栏宽度会被夹在 15%~85% 之间，坏数据退回默认值', () => {
-    expect(clampStorySplit(0.01)).toBe(0.15);
-    expect(clampStorySplit(0.99)).toBe(0.85);
-    expect(clampStorySplit(Number.NaN)).toBe(DEFAULT_STORY_SPLIT);
+  it('布局尺寸会被夹在合理区间，坏数据退回默认值', () => {
+    expect(clampOutlineWidth(1)).toBe(280);
+    expect(clampOutlineWidth(9999)).toBe(720);
+    expect(clampOutlineWidth(Number.NaN)).toBe(DEFAULT_STORY_LAYOUT.outlineWidth);
 
-    saveStorySplit(5);
-    expect(loadStorySplit()).toBe(0.85);
+    expect(clampPreviewRatio(0.01)).toBe(0.2);
+    expect(clampPreviewRatio(0.99)).toBe(0.6);
+    expect(clampPreviewRatio(Number.NaN)).toBe(DEFAULT_STORY_LAYOUT.previewRatio);
 
-    window.localStorage.setItem('storymaker.story-split.v1', '不是 JSON');
-    expect(loadStorySplit()).toBe(DEFAULT_STORY_SPLIT);
+    saveStoryLayout({ outlineWidth: 9999, previewRatio: 0.99 });
+    expect(loadStoryLayout()).toEqual({ outlineWidth: 720, previewRatio: 0.6 });
+
+    window.localStorage.setItem('storymaker.story-layout.v1', '不是 JSON');
+    expect(loadStoryLayout()).toEqual(DEFAULT_STORY_LAYOUT);
   });
 });

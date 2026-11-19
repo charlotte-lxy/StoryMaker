@@ -43,6 +43,16 @@ afterEach(() => {
 /** 左侧模块导航 */
 const rail = () => screen.getByRole('navigation');
 
+/** 合并面板默认停在「章节 / 段落」；要看流程图得先点页签 */
+function openFlowTab(): void {
+  fireEvent.click(screen.getByRole('tab', { name: '流程图' }));
+}
+
+/** 切回「章节 / 段落」页签 */
+function openTreeTab(): void {
+  fireEvent.click(screen.getByRole('tab', { name: '章节 / 段落' }));
+}
+
 /** 选项跳转目标第二级下拉的 title：好几条用例都要按它找 */
 const LINE_SELECT_TITLE = '第二级：该段落内的对话；选「跳转到首句对话」表示跟着该段落的第一句走';
 
@@ -1095,6 +1105,7 @@ describe('章节流程图与分栏', () => {
   it('每个段落一个块，选项跳转连成一条带标签的线', async () => {
     seedJumpProject();
     const { container } = await renderApp();
+    openFlowTab();
 
     const blocks = [...container.querySelectorAll('.flow-block-title')].map((el) => el.textContent);
     expect(blocks).toEqual(['开场', '码头']);
@@ -1106,6 +1117,7 @@ describe('章节流程图与分栏', () => {
   it('点流程图上的选项标签跳到那个选项', async () => {
     seedJumpProject();
     const { container } = await renderApp();
+    openFlowTab();
 
     // 先切到段落 002，让列表停在别处
     fireEvent.click(screen.getByTitle('打开「码头」的对话列表'));
@@ -1116,7 +1128,7 @@ describe('章节流程图与分栏', () => {
     expect(container.querySelector('.option-item.flash')).toBeTruthy();
   });
 
-  it('拖中间的分隔线改变左右宽度', async () => {
+  it('拖分隔线改变对话列表与预览的宽度', async () => {
     seedJumpProject();
     const { container } = await renderApp();
 
@@ -1125,30 +1137,32 @@ describe('章节流程图与分栏', () => {
       ({ left: 0, width: 1000, top: 0, height: 600, right: 1000, bottom: 600, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
 
     const handle = container.querySelector('.split-handle') as HTMLElement;
-    fireEvent.pointerDown(handle, { clientX: 500 });
+    fireEvent.pointerDown(handle, { clientX: 550 });
     fireEvent.pointerMove(window, { clientX: 300 });
     fireEvent.pointerUp(window);
 
-    expect((container.querySelector('.flow-pane') as HTMLElement).style.flexBasis).toBe('30%');
+    // 指针在 30% 处：预览占 70%，但夹在上限 60%，对话列表剩 40%
+    expect((container.querySelector('.list-pane') as HTMLElement).style.flexBasis).toBe('40%');
+    expect(container.querySelector('.preview-column')).not.toBeNull();
   });
 
-  it('可以收起对话列表，点段落块再展开', async () => {
+  it('可以收起预览，点段落行的 ▶ 再展开并开始播', async () => {
     seedJumpProject();
     const { container } = await renderApp();
-    expect(container.querySelector('.list-pane')).not.toBeNull();
+    expect(container.querySelector('.preview-column')).not.toBeNull();
 
-    fireEvent.click(screen.getByText('收起对话列表 ▶'));
-    expect(container.querySelector('.list-pane')).toBeNull();
+    fireEvent.click(screen.getByTitle('收起预览面板，给对话列表让出地方'));
+    expect(container.querySelector('.preview-column')).toBeNull();
     expect(container.querySelector('.split-handle')).toBeNull();
 
-    fireEvent.click(screen.getByTitle('打开「码头」的对话列表'));
-    expect(container.querySelector('.list-pane')).not.toBeNull();
+    fireEvent.click(screen.getByTitle('从「码头」的第一句开始预览'));
+    expect(container.querySelector('.preview-column')).not.toBeNull();
+    expect(container.querySelector('.preview-text')?.textContent).toBe('海风很大');
   });
 
   it('点 ✎ 能改章节名和段落名（侧边栏）', async () => {
     seedJumpProject();
     const { container } = await renderApp();
-    const sidebar = within(container.querySelector('.sidebar') as HTMLElement);
 
     fireEvent.click(screen.getByTitle('重命名章节「序章」'));
     const chapterInput = container.querySelector('.tree-chapter .rename-input') as HTMLInputElement;
@@ -1156,34 +1170,43 @@ describe('章节流程图与分栏', () => {
     fireEvent.keyDown(chapterInput, { key: 'Enter' });
 
     expect(container.querySelector('.tree-chapter .chapter-title')?.textContent).toBe('序章改名');
-    // 流程图标题跟着一起变
+    // 流程图标题跟着一起变（切过去看）
+    openFlowTab();
     expect(screen.getByText('序章改名 · 段落流程')).toBeTruthy();
+    openTreeTab();
 
-    fireEvent.click(sidebar.getByTitle('重命名段落「开场」'));
+    // 页签切回来时侧边栏是重新挂载的，要重新取
+    const tree = within(container.querySelector('.sidebar') as HTMLElement);
+    fireEvent.click(tree.getByTitle('重命名段落「开场」'));
     const groupInput = container.querySelector('.tree-group .rename-input') as HTMLInputElement;
     fireEvent.change(groupInput, { target: { value: '开场改名' } });
     fireEvent.keyDown(groupInput, { key: 'Enter' });
 
     expect(container.querySelector('.tree-group .group-title')?.textContent).toBe('开场改名');
+    openFlowTab();
     expect(container.querySelector('.flow-block-title')?.textContent).toBe('开场改名');
   });
 
   it('流程图块里也能改名、写段落注释', async () => {
     seedJumpProject();
     const { container } = await renderApp();
+    openFlowTab();
     const block = container.querySelectorAll('.flow-block')[0] as HTMLElement;
-    const inBlock = within(block);
 
-    // 改名：回车生效，侧边栏同步
-    fireEvent.click(inBlock.getByTitle('重命名段落「开场」'));
+    // 改名：回车生效
+    fireEvent.click(within(block).getByTitle('重命名段落「开场」'));
     const nameInput = container.querySelector('.flow-block .rename-input') as HTMLInputElement;
     fireEvent.change(nameInput, { target: { value: '开场（图上改的）' } });
     fireEvent.keyDown(nameInput, { key: 'Enter' });
     expect(container.querySelector('.flow-block-title')?.textContent).toBe('开场（图上改的）');
+
+    // 侧边栏（另一个页签）也同步
+    openTreeTab();
     expect(container.querySelector('.tree-group .group-title')?.textContent).toBe('开场（图上改的）');
 
     // 写注释：失焦保存，块上直接显示出来
-    fireEvent.click(inBlock.getByTitle('加段落注释'));
+    openFlowTab();
+    fireEvent.click(within(container.querySelectorAll('.flow-block')[0] as HTMLElement).getByTitle('加段落注释'));
     const noteInput = container.querySelector('.flow-block-note-input') as HTMLTextAreaElement;
     fireEvent.change(noteInput, { target: { value: '这里要接一场雨戏' } });
     fireEvent.blur(noteInput);
@@ -1192,6 +1215,7 @@ describe('章节流程图与分栏', () => {
 
   it('段落注释写长了，块会跟着变高', async () => {
     const { container } = await renderApp();
+    openFlowTab();
     const block = container.querySelector('.flow-block') as HTMLElement;
     const baseHeight = Number.parseInt(block.style.minHeight, 10);
 
@@ -1230,6 +1254,7 @@ describe('章节流程图与分栏', () => {
   it('鼠标悬浮某条选项线时它加粗，其他线淡化，两端段落块保持清楚', async () => {
     seedJumpProject();
     const { container } = await renderApp();
+    openFlowTab();
 
     const board = () => container.querySelector('.flow-board') as HTMLElement;
     const label = container.querySelector('.flow-edge-label') as HTMLElement;
@@ -1253,6 +1278,7 @@ describe('章节流程图与分栏', () => {
   it('鼠标悬浮段落块时，与它有关的选项线高亮', async () => {
     seedJumpProject();
     const { container } = await renderApp();
+    openFlowTab();
 
     // 悬停「码头」（只有一条线指向它）
     const target = container.querySelectorAll('.flow-block')[1] as HTMLElement;
@@ -1409,6 +1435,7 @@ describe('对话列表的批量编辑', () => {
     ).toEqual(['对话 ID：Dia_ch01_001-1', '对话 ID：Dia_ch01_001-2']);
 
     // 切到「码头」：插到了开头，ID 按新段落重排
+    openFlowTab();
     fireEvent.click(screen.getByTitle('打开「码头」的对话列表'));
     expect(
       [...document.querySelectorAll('.list-pane .line-card textarea')].map(
@@ -1432,6 +1459,7 @@ describe('对话列表的批量编辑', () => {
     fireEvent.change(groupSelect, { target: { value: dock?.value ?? '' } });
     fireEvent.click(screen.getByText('插入到末尾'));
 
+    openFlowTab();
     fireEvent.click(screen.getByTitle('打开「码头」的对话列表'));
     expect(
       [...document.querySelectorAll('.list-pane .line-card textarea')].map(
@@ -1557,6 +1585,7 @@ describe('对话列表的批量编辑', () => {
     const pane = await openBatch();
 
     fireEvent.click(pane.querySelectorAll('.line-select')[0]);
+    openFlowTab();
     const block = [...document.querySelectorAll('.flow-block')].find(
       (item) => item.getAttribute('data-block-uid') === 'g2',
     ) as HTMLElement;
@@ -1676,6 +1705,7 @@ describe('「跳转到段落」脚本块', () => {
     seedProjectFile(JSON.stringify(project));
 
     const { container } = await renderApp();
+    openFlowTab();
 
     // 线的标签是那条指令的段内序号
     const labels = [...container.querySelectorAll('.flow-edge-label')];
