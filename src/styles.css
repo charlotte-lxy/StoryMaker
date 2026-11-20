@@ -3592,7 +3592,50 @@ tr.locale-form-note td {
 /* ---------- 设置 ---------- */
 
 .settings {
-  max-width: 720px;
+  max-width: 860px;
+}
+
+/* 左侧分类：引擎连接 / 通用 */
+.settings-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.settings-nav {
+  display: flex;
+  flex: 0 0 132px;
+  flex-direction: column;
+  gap: 2px;
+  position: sticky;
+  top: 8px;
+}
+
+.settings-nav-item {
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+  text-align: left;
+}
+
+.settings-nav-item:hover {
+  background: var(--row-hover);
+  color: var(--text);
+}
+
+.settings-nav-item.active {
+  background: var(--panel);
+  border-color: var(--border);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.settings-sections {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .settings-card {
@@ -4499,6 +4542,18 @@ tr.locale-form-note td {
 
 .settings-interval-row input[type='number'] {
   width: 90px;
+}
+
+/* Godot 插件那一行：左边说明、右边按钮 */
+.settings-plugin-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.settings-plugin-row .hint {
+  flex: 1 1 auto;
 }
 
 /* ---------- 导入设置页顶部的连接状态提示 ---------- */

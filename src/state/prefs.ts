@@ -178,15 +178,23 @@ export function saveCollabPrefs(prefs: CollabPrefs): void {
 
 const UNREAL_KEY = 'storymaker.unreal.v1';
 
+/** 引擎连接的目标；顶部标签、自动探测、导出入口都看它 */
+export type EngineKind = 'unreal' | 'godot';
+
 /**
- * 「导入到 Unreal」的本机配置。
+ * 「连接引擎」的本机配置。
  *
  * 存的是这台机器的路径与连接习惯，不是项目内容，所以放 localStorage：
  * 换台机器打开同一个项目，路径本来就该不一样。
+ * 名字沿用了 UnrealPrefs，但它现在同时管 Unreal 和 Godot。
  */
 export interface UnrealPrefs {
+  /** 当前选中的引擎 */
+  engine: EngineKind;
   /** Unreal 项目文件（.uproject）的完整路径；空串表示还没配 */
   uprojectPath: string;
+  /** Godot 工程文件（project.godot）的完整路径；空串表示还没配 */
+  godotProjectPath: string;
   /** 本地素材文件夹：png / wav 丢在里面，文件名就是图片 / 音效 ID */
   assetFolder: string;
   /** 打开软件后自动定时探测编辑器；关掉就只能手动点「检测连接」 */
@@ -199,7 +207,9 @@ export interface UnrealPrefs {
 export const DEFAULT_CONNECT_INTERVAL_SEC = 5;
 
 export const DEFAULT_UNREAL_PREFS: UnrealPrefs = {
+  engine: 'unreal',
   uprojectPath: '',
+  godotProjectPath: '',
   assetFolder: '',
   autoConnect: true,
   connectIntervalSec: DEFAULT_CONNECT_INTERVAL_SEC,
@@ -212,7 +222,9 @@ export function loadUnrealPrefs(): UnrealPrefs {
   const raw = parsed as Partial<UnrealPrefs>;
   const interval = Number(raw.connectIntervalSec);
   return {
+    engine: raw.engine === 'godot' ? 'godot' : 'unreal',
     uprojectPath: typeof raw.uprojectPath === 'string' ? raw.uprojectPath : '',
+    godotProjectPath: typeof raw.godotProjectPath === 'string' ? raw.godotProjectPath : '',
     assetFolder: typeof raw.assetFolder === 'string' ? raw.assetFolder : '',
     autoConnect: typeof raw.autoConnect === 'boolean' ? raw.autoConnect : DEFAULT_UNREAL_PREFS.autoConnect,
     connectIntervalSec:
@@ -224,7 +236,9 @@ export function loadUnrealPrefs(): UnrealPrefs {
 
 export function saveUnrealPrefs(prefs: UnrealPrefs): void {
   writeJson(UNREAL_KEY, {
+    engine: prefs.engine,
     uprojectPath: prefs.uprojectPath,
+    godotProjectPath: prefs.godotProjectPath,
     assetFolder: prefs.assetFolder,
     autoConnect: prefs.autoConnect,
     connectIntervalSec: prefs.connectIntervalSec,

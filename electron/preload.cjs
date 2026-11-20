@@ -82,4 +82,16 @@ contextBridge.exposeInMainWorld('storymakerDesktop', {
 
   /** 把界面转好的图片写进素材文件夹（webp → PNG） */
   unrealWriteAsset: (request) => ipcRenderer.invoke('unreal:write-asset', request),
+
+  /** 挑 Godot 工程（project.godot）；取消返回 null */
+  godotPickProject: () => ipcRenderer.invoke('godot:pick-project'),
+
+  /** 插件装没装、启没启用、有没有配对文件 */
+  godotPluginState: (projectPath) => ipcRenderer.invoke('godot:plugin-state', projectPath),
+
+  /** 把插件复制进工程并在 project.godot 里启用 */
+  godotInstallPlugin: (projectPath) => ipcRenderer.invoke('godot:install-plugin', projectPath),
+
+  /** 连 Godot 编辑器；返回 { ok, editor?, message? } */
+  godotPing: (projectPath, timeoutMs) => ipcRenderer.invoke('godot:ping', projectPath, timeoutMs),
 });

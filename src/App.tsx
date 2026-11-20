@@ -113,6 +113,7 @@ import { CollabBadge } from './ui/CollabBadge';
 import { CommandEditor } from './ui/CommandEditor';
 import { ConflictPanel } from './ui/ConflictPanel';
 import { ConfirmDialog } from './ui/ConfirmDialog';
+import { EngineBadge } from './ui/EngineBadge';
 import { ExportEditor } from './ui/ExportEditor';
 import { FileMenu } from './ui/FileMenu';
 import { FirstContactDialog } from './ui/FirstContactDialog';
@@ -132,10 +133,10 @@ import { ScriptPalette } from './ui/ScriptPalette';
 import { Sidebar } from './ui/Sidebar';
 import { StoryOutline } from './ui/StoryOutline';
 import { TextBoxEditor } from './ui/TextBoxEditor';
-import { UnrealBadge } from './ui/UnrealBadge';
 import { UpdatePrompt } from './ui/UpdatePanel';
 import { ExportToUeDialog } from './ui/export/ExportToUeDialog';
 import { useAssetLibrary } from './ui/use-asset-library';
+import { useGodotConnection } from './ui/use-godot-connection';
 import { useUnrealConnection } from './ui/use-unreal-connection';
 import { useCollab } from './ui/useCollab';
 import { useUpdater } from './ui/use-updater';
@@ -211,13 +212,19 @@ export default function App() {
   const [phase, setPhase] = useState<Phase>('loading');
   const [project, setProject] = useState<Project>(createEmptyProject);
   const [settings, setSettings] = useState<Settings>(loadSettings);
-  /** 「导入到 Unreal」的本机配置：工程路径、素材文件夹（都是这台机器的路径，不进项目文件） */
+  /** 引擎连接的本机配置：Unreal / Godot 的工程路径、自动连接参数（都不进项目文件） */
   const [unrealPrefs, setUnrealPrefs] = useState<UnrealPrefs>(loadUnrealPrefs);
   /** 素材文件夹里的文件：立绘和音效的「素材管理」列共用这一份 */
   const assetLibrary = useAssetLibrary(host, unrealPrefs.assetFolder);
   /** 和 Unreal 编辑器的连接：导入设置页和「导出到 UE」弹窗共用 */
   const unrealConnection = useUnrealConnection(host, unrealPrefs.uprojectPath, {
-    autoConnect: unrealPrefs.autoConnect,
+    // 只有选中 Unreal 时才自动探测，别让两个引擎同时 ping
+    autoConnect: unrealPrefs.autoConnect && unrealPrefs.engine === 'unreal',
+    intervalSec: unrealPrefs.connectIntervalSec,
+  });
+  /** 和 Godot 编辑器的连接：设置页的插件安装与顶部标签共用 */
+  const godotConnection = useGodotConnection(host, unrealPrefs.godotProjectPath, {
+    autoConnect: unrealPrefs.autoConnect && unrealPrefs.engine === 'godot',
     intervalSec: unrealPrefs.connectIntervalSec,
   });
   /** 「导出到 UE」弹窗开着没有 */
@@ -1158,9 +1165,12 @@ export default function App() {
           onRecolor={collab.setMyColor}
         />
 
-        {/* UE 连接状态：和「协作」一个样式，绿点=连上（点一下直接导出）、灰点=没连（点一下去设置） */}
-        <UnrealBadge
+        {/* 编辑器连接状态：和「协作」一个样式。选 Unreal 时绿点=连上（点一下直接导出），
+            选 Godot 时只显示连接状态（点一下去设置） */}
+        <EngineBadge
+          engine={unrealPrefs.engine}
           connection={unrealConnection}
+          godotConnection={godotConnection}
           onExportToUe={() => setUeDialogOpen(true)}
           onOpenSettings={() => setModule('settings')}
         />
@@ -1509,7 +1519,9 @@ export default function App() {
                   onChangeUnrealPrefs={(patch) => setUnrealPrefs((prev) => ({ ...prev, ...patch }))}
                   pickAssetFolder={host?.unreal?.pickAssetFolder}
                   pickUproject={host?.unreal?.pickUproject}
+                  pickGodotProject={host?.godot?.pickProject}
                   connection={unrealConnection}
+                  godotConnection={godotConnection}
                   onChange={(patch) => {
                     setSettings((prev) => ({ ...prev, ...patch }));
                     // 主题跟着项目文件走：换台机器打开还是同一个颜色

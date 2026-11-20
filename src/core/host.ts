@@ -232,6 +232,49 @@ export interface UnrealApi {
   }) => Promise<{ ok: boolean; filePath?: string; message?: string }>;
 }
 
+/** 连上的 Godot 编辑器（插件 ping 回来的信息） */
+export interface GodotEditorInfo {
+  pluginVersion: string;
+  projectName: string;
+  projectPath: string;
+  engineVersion: string;
+  pid: number;
+}
+
+/** Godot 工程里的插件状态：装没装、启没启用、编辑器写过配对文件没有 */
+export interface GodotPluginState {
+  ok: boolean;
+  message?: string;
+  projectDir?: string;
+  installed?: boolean;
+  enabled?: boolean;
+  version?: string;
+  pairing?: boolean;
+}
+
+export interface GodotPingResult {
+  ok: boolean;
+  editor?: GodotEditorInfo;
+  message?: string;
+}
+
+/**
+ * 「连接 Godot」能力：只有桌面版有。
+ *
+ * 连接靠 EditorPlugin 在 127.0.0.1 上开的一个端口，令牌写在工程的
+ * `.godot/storymaker_bridge.json` 里，所以必须先知道工程路径。
+ */
+export interface GodotApi {
+  /** 挑 project.godot；取消返回 null */
+  pickProject: () => Promise<string | null>;
+  /** 查插件状态（也用来在设置页决定显示「安装插件」还是「已安装」） */
+  pluginState: (projectPath: string) => Promise<GodotPluginState>;
+  /** 把插件复制进工程并在 project.godot 里启用 */
+  installPlugin: (projectPath: string) => Promise<{ ok: boolean; message?: string }>;
+  /** 发一次 ping；timeoutMs 给自动探测用短超时 */
+  ping: (projectPath: string, timeoutMs?: number) => Promise<GodotPingResult>;
+}
+
 /**
  * 自动更新能力：只有打包后的桌面版有。
  * 网页版 / 本地服务版拿不到它，界面上显示成「当前环境不支持」。
@@ -273,6 +316,8 @@ export interface HostApi {
   update?: UpdateApi;
   /** 导入到 Unreal；没有这个能力的宿主（网页版 / 本地服务版）是 undefined */
   unreal?: UnrealApi;
+  /** 连接 Godot；没有这个能力的宿主（网页版 / 本地服务版）是 undefined */
+  godot?: GodotApi;
 }
 
 /** Electron 主进程通过 preload 暴露的接口 */
@@ -323,6 +368,11 @@ export interface DesktopBridge {
     data: Uint8Array;
     replace?: boolean;
   }) => Promise<{ ok: boolean; filePath?: string; message?: string }>;
+  /** 连接 Godot；老版本 preload 没有这一组 */
+  godotPickProject?: () => Promise<string | null>;
+  godotPluginState?: (projectPath: string) => Promise<GodotPluginState>;
+  godotInstallPlugin?: (projectPath: string) => Promise<{ ok: boolean; message?: string }>;
+  godotPing?: (projectPath: string, timeoutMs?: number) => Promise<GodotPingResult>;
 }
 
 /** 本地服务版：由服务端注入的一次性令牌，防止别的网页乱调本地接口 */
@@ -515,6 +565,19 @@ function desktopHost(bridge: DesktopBridge): HostApi {
         }
       : undefined;
 
+  const godot: GodotApi | undefined =
+    bridge.godotPickProject !== undefined &&
+    bridge.godotPluginState !== undefined &&
+    bridge.godotInstallPlugin !== undefined &&
+    bridge.godotPing !== undefined
+      ? {
+          pickProject: () => bridge.godotPickProject!(),
+          pluginState: (projectPath) => bridge.godotPluginState!(projectPath),
+          installPlugin: (projectPath) => bridge.godotInstallPlugin!(projectPath),
+          ping: (projectPath, timeoutMs) => bridge.godotPing!(projectPath, timeoutMs),
+        }
+      : undefined;
+
   return {
     kind: 'desktop',
     // 桌面版把"上次的项目路径"记在本机 localStorage 里，只记路径，不记项目内容
@@ -532,6 +595,7 @@ function desktopHost(bridge: DesktopBridge): HostApi {
     revealFile: (filePath) => bridge.revealFile(filePath),
     update,
     unreal,
+    godot,
   };
 }
 

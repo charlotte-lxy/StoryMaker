@@ -777,6 +777,36 @@ describe('设置、自动保存与自动加载', () => {
     expect(screen.getByText('深色')).toBeTruthy();
   });
 
+  it('设置页分「引擎连接 / 通用」两栏；选 Godot 后顶部标签变 Godot 并多出装插件的条目', async () => {
+    await renderApp();
+    fireEvent.click(within(rail()).getByText('设置'));
+
+    // 默认停在「通用」：自动保存、主题这些老条目还在原处
+    expect(screen.getByText('自动保存')).toBeTruthy();
+    expect(document.querySelector('.ue-badge')?.textContent).toBe('UE');
+
+    fireEvent.click(screen.getByRole('button', { name: '引擎连接' }));
+    expect(screen.getByText('Unreal 连接')).toBeTruthy();
+
+    const select = document.querySelector('.settings-sections select') as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: 'godot' } });
+
+    // 顶部那个 UE 标签跟着换成 Godot
+    expect(document.querySelector('.ue-badge')?.textContent).toBe('Godot');
+    // Godot 那一栏：工程路径、连接按钮、安装插件
+    expect(screen.getByText('Godot 连接')).toBeTruthy();
+    expect(screen.getByRole('button', { name: '安装插件' })).toBeTruthy();
+    // 自动连接还在这一栏，并且文案跟着引擎走
+    expect(screen.getByText(/定时探测 Godot 编辑器/)).toBeTruthy();
+
+    await waitFor(() => {
+      const saved = JSON.parse(window.localStorage.getItem('storymaker.unreal.v1') ?? '{}') as {
+        engine?: string;
+      };
+      expect(saved.engine).toBe('godot');
+    });
+  });
+
   it('自动保存默认开启：编辑后自动写回项目文件', async () => {
     await renderApp();
     fireEvent.change(nameInput(), { target: { value: '序章改名' } });

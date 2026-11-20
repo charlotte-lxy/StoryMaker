@@ -1,7 +1,7 @@
 {
   "name": "storymaker",
   "private": true,
-  "version": "0.7.9",
+  "version": "0.7.10",
   "type": "module",
   "description": "剧情对话编辑器",
   "main": "electron/main.cjs",
@@ -44,7 +44,14 @@
     },
     "electronDist": "node_modules/electron/dist",
     "disableAsarIntegrity": true,
-    "files": ["dist/**/*", "electron/**/*", "build/icon.ico", "package.json", "!node_modules/**/*"],
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "godot-plugin/**/*",
+      "build/icon.ico",
+      "package.json",
+      "!node_modules/**/*"
+    ],
     "win": {
       "icon": "build/icon.ico",
       "target": [

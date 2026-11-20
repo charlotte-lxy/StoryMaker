@@ -16,6 +16,7 @@ const { UnrealRemoteSession } = require('./unreal-remote.cjs');
 const { runImport } = require('./unreal-import.cjs');
 const unrealAssets = require('./unreal-assets.cjs');
 const { queryUnrealCatalog } = require('./unreal-query.cjs');
+const godotBridge = require('./godot-bridge.cjs');
 
 /** 开发模式直接连 Vite，正式模式读打包进来的 dist */
 const isDev = !app.isPackaged;
@@ -516,6 +517,35 @@ ipcMain.handle('unreal:write-asset', async (_event, request) => {
     replace: request.replace === true,
   });
 });
+
+/** ---------- Godot：插件安装与连接 ---------- */
+
+/** 插件源码跟着安装包走；开发时就是仓库里的 godot-plugin/ */
+function godotPluginSourceDir() {
+  return path.join(app.getAppPath(), 'godot-plugin', 'addons', 'storymaker_bridge');
+}
+
+ipcMain.handle('godot:pick-project', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: '选择 Godot 工程（project.godot）',
+    properties: ['openFile'],
+    filters: [{ name: 'Godot 工程', extensions: ['godot'] }],
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return result.filePaths[0];
+});
+
+ipcMain.handle('godot:plugin-state', async (_event, projectPath) =>
+  godotBridge.pluginState(projectPath),
+);
+
+ipcMain.handle('godot:install-plugin', async (_event, projectPath) =>
+  godotBridge.installPlugin({ projectPath, sourceDir: godotPluginSourceDir() }),
+);
+
+ipcMain.handle('godot:ping', async (_event, projectPath, timeoutMs) =>
+  godotBridge.ping(projectPath, timeoutMs),
+);
 
 app.whenReady().then(() => {
   createWindow();
