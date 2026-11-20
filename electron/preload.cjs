@@ -79,4 +79,7 @@ contextBridge.exposeInMainWorld('storymakerDesktop', {
 
   /** 读素材内容（预览图 / 播放音频） */
   unrealReadAsset: (filePath) => ipcRenderer.invoke('unreal:read-asset', filePath),
+
+  /** 把界面转好的图片写进素材文件夹（webp → PNG） */
+  unrealWriteAsset: (request) => ipcRenderer.invoke('unreal:write-asset', request),
 });

@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -9,6 +9,7 @@ const require = createRequire(import.meta.url);
 interface AssetCore {
   IMAGE_EXTENSIONS: string[];
   SOUND_EXTENSIONS: string[];
+  UPLOAD_IMAGE_EXTENSIONS: string[];
   allowedExtensions: (kind: 'image' | 'sound') => string[];
   baseNameOf: (fileName: string) => string;
   kindOfFile: (fileName: string) => 'image' | 'sound' | null;
@@ -27,6 +28,20 @@ interface AssetCore {
     id: string;
     kind: 'image' | 'sound';
     sourceFile: string;
+    replace?: boolean;
+  }) => Promise<{
+    ok: boolean;
+    filePath?: string;
+    message?: string;
+    requiresConversion?: boolean;
+    sourcePath?: string;
+  }>;
+  writeAssetFile: (options: {
+    folder: string;
+    id: string;
+    kind: 'image' | 'sound';
+    extension: string;
+    data: Uint8Array;
     replace?: boolean;
   }) => Promise<{ ok: boolean; filePath?: string; message?: string }>;
 }
@@ -53,13 +68,15 @@ describe('素材文件的格式判断', () => {
     expect(assets.kindOfFile('a.jpg')).toBe('image');
     expect(assets.kindOfFile('a.wav')).toBe('sound');
     expect(assets.kindOfFile('a.ogg')).toBe('sound');
+    // webp 只在「上传时可选」，素材文件夹里不算合法格式
+    expect(assets.kindOfFile('a.webp')).toBeNull();
     expect(assets.kindOfFile('a.mp3')).toBeNull();
     expect(assets.kindOfFile('a.txt')).toBeNull();
     expect(assets.kindOfFile('没有扩展名')).toBeNull();
   });
 
-  it('给文件选择框的扩展名列表不带点', () => {
-    expect(assets.allowedExtensions('image')).toEqual(['png', 'jpg', 'jpeg', 'tga']);
+  it('给文件选择框的扩展名列表不带点，图片多一个 webp', () => {
+    expect(assets.allowedExtensions('image')).toEqual(['png', 'jpg', 'jpeg', 'tga', 'webp']);
     expect(assets.allowedExtensions('sound')).toEqual(['wav', 'ogg', 'flac']);
   });
 
@@ -208,6 +225,98 @@ describe('上传素材', () => {
 
     expect(existsSync(join(dir, 'SCE_Black.png'))).toBe(true);
     expect(existsSync(join(dir, 'SCE_Black.jpg'))).toBe(true);
+  });
+});
+
+describe('webp 上传与写入 PNG', () => {
+  it('选到 webp 时不复制，交回源路径让界面转 PNG', async () => {
+    const dir = tempDir();
+    const source = join(dir, 'a.webp');
+    writeFileSync(source, 'RIFF....WEBP');
+
+    const result = await assets.uploadAssetFile({
+      folder: dir,
+      id: 'PIC_X',
+      kind: 'image',
+      sourceFile: source,
+    });
+
+    expect(result).toMatchObject({ ok: false, requiresConversion: true, sourcePath: source });
+    expect(existsSync(join(dir, 'PIC_X.webp'))).toBe(false);
+  });
+
+  it('界面转好的 PNG 字节能写进素材文件夹', async () => {
+    const dir = tempDir();
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+
+    const result = await assets.writeAssetFile({
+      folder: dir,
+      id: 'PIC_X',
+      kind: 'image',
+      extension: 'png',
+      data: png,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.filePath).toBe(join(dir, 'PIC_X.png'));
+    expect([...readFileSync(join(dir, 'PIC_X.png'))]).toEqual([...png]);
+  });
+
+  it('replace 时把同一 ID 的旧扩展名清掉', async () => {
+    const dir = tempDir();
+    writeFileSync(join(dir, 'PIC_X.jpg'), '旧的');
+
+    await assets.writeAssetFile({
+      folder: dir,
+      id: 'PIC_X',
+      kind: 'image',
+      extension: '.png',
+      data: new Uint8Array([1, 2, 3]),
+      replace: true,
+    });
+
+    expect(existsSync(join(dir, 'PIC_X.jpg'))).toBe(false);
+    expect(existsSync(join(dir, 'PIC_X.png'))).toBe(true);
+  });
+
+  it('不允许写 webp、空内容、空 ID', async () => {
+    const dir = tempDir();
+
+    expect(
+      (
+        await assets.writeAssetFile({
+          folder: dir,
+          id: 'PIC_X',
+          kind: 'image',
+          extension: 'webp',
+          data: new Uint8Array([1]),
+        })
+      ).ok,
+    ).toBe(false);
+
+    expect(
+      (
+        await assets.writeAssetFile({
+          folder: dir,
+          id: 'PIC_X',
+          kind: 'image',
+          extension: 'png',
+          data: new Uint8Array(),
+        })
+      ).ok,
+    ).toBe(false);
+
+    expect(
+      (
+        await assets.writeAssetFile({
+          folder: dir,
+          id: '  ',
+          kind: 'image',
+          extension: 'png',
+          data: new Uint8Array([1]),
+        })
+      ).ok,
+    ).toBe(false);
   });
 });
 

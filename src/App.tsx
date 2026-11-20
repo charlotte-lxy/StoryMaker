@@ -655,6 +655,12 @@ export default function App() {
     setPreviewLineUid(null);
   };
 
+  /** 收起 / 展开预览：收起时只留标题栏，顺手清掉列表上的描边 */
+  const handleTogglePreview = (): void => {
+    if (previewOpen) setPreviewLineUid(null);
+    setPreviewOpen(!previewOpen);
+  };
+
   /** 点侧边栏的章节：看这一章的流程图；列表里的段落不属于本章就切到本章第一段 */
   const handleOpenChapter = (targetChapterUid: string): void => {
     setActiveChapterUid(targetChapterUid);
@@ -1212,23 +1218,19 @@ export default function App() {
                   setStoryLayout((prev) => ({ ...prev, outlineWidth: width }))
                 }
                 preview={
-                  previewOpen ? (
-                    <PreviewPlayer
-                      project={project}
-                      start={previewStart}
-                      activeGroupUid={activeUid}
-                      assets={{ library: assetLibrary, host }}
-                      onPickStart={handlePreviewGroup}
-                      onCollapse={() => {
-                        setPreviewOpen(false);
-                        setPreviewLineUid(null);
-                      }}
-                      onStop={handlePreviewStop}
-                      locked={lockToLine}
-                      onToggleLocked={setLockToLine}
-                      onActiveLine={handlePreviewActiveLine}
-                    />
-                  ) : null
+                  <PreviewPlayer
+                    project={project}
+                    start={previewStart}
+                    activeGroupUid={activeUid}
+                    assets={{ library: assetLibrary, host }}
+                    onPickStart={handlePreviewGroup}
+                    collapsed={!previewOpen}
+                    onToggleCollapsed={handleTogglePreview}
+                    onStop={handlePreviewStop}
+                    locked={lockToLine}
+                    onToggleLocked={setLockToLine}
+                    onActiveLine={handlePreviewActiveLine}
+                  />
                 }
                 tree={
                   <Sidebar

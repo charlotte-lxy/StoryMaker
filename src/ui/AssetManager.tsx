@@ -9,7 +9,7 @@
  * 这样打包后的 file:// 页面也能预览和播放。
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { AssetFileInfo, HostApi } from '../core/host';
 import {
@@ -21,20 +21,11 @@ import {
   soundVolumeOf,
 } from '../core/sound-export';
 import type { LookupRow } from '../core/types';
-import { playExclusive, releaseAudio } from './audio-exclusive';
 import { blobOf, canPreviewImage, mimeOf } from './asset-blob';
+import { registerAudioStopper, stopAllAudio } from './audio-registry';
 import { ConfirmDialog } from './ConfirmDialog';
 import { SoundPlayer } from './sound-player';
 import type { AssetLibrary } from './use-asset-library';
-
-/** 秒数 → mm:ss；不是有限数就显示 00:00 */
-function formatTime(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds < 0) return '00:00';
-  const total = Math.floor(seconds);
-  const minutes = Math.floor(total / 60);
-  const rest = total % 60;
-  return `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`;
-}
 
 interface CellProps {
   /** 图片 ID / 音效 ID，也是素材文件名要匹配的东西 */
@@ -153,32 +144,34 @@ export function ImageAssetCell({ id, library, host }: CellProps) {
       <span className="asset-name" title={file.filePath}>
         {file.fileName}
       </span>
-      <button
-        type="button"
-        className="mini"
-        disabled={!previewable}
-        title={previewable ? '弹窗查看这张图' : 'tga 在界面里显示不了，导入后在 UE 里看'}
-        onClick={() => setPreviewFile(file)}
-      >
-        预览
-      </button>
-      <button
-        type="button"
-        className="mini"
-        disabled={actions.busy}
-        title="重新选择素材（会替换掉同名的那张）"
-        onClick={() => void actions.upload(true)}
-      >
-        …
-      </button>
-      <button
-        type="button"
-        className="mini danger"
-        disabled={actions.busy}
-        onClick={() => actions.setPendingRemove(file)}
-      >
-        删除
-      </button>
+      <div className="asset-actions">
+        <button
+          type="button"
+          className="mini"
+          disabled={!previewable}
+          title={previewable ? '弹窗查看这张图' : 'tga 在界面里显示不了，导入后在 UE 里看'}
+          onClick={() => setPreviewFile(file)}
+        >
+          预览
+        </button>
+        <button
+          type="button"
+          className="mini"
+          disabled={actions.busy}
+          title="重新选择素材（会替换掉同名的那张）"
+          onClick={() => void actions.upload(true)}
+        >
+          …
+        </button>
+        <button
+          type="button"
+          className="mini danger"
+          disabled={actions.busy}
+          onClick={() => actions.setPendingRemove(file)}
+        >
+          删除
+        </button>
+      </div>
       {note()}
 
       {previewFile !== null && (
@@ -295,6 +288,8 @@ function AudioEditDialog({
   const pitch = soundPitchOf(row);
   const playerRef = useRef<SoundPlayer | null>(null);
   const [auditioning, setAuditioning] = useState(false);
+  /** 每次试听 / 重播换一个号：旧的那条播完后不会把新的状态带回去 */
+  const tokenRef = useRef(0);
 
   // 关掉弹窗时把试听停掉
   useEffect(() => {
@@ -303,13 +298,32 @@ function AudioEditDialog({
     };
   }, []);
 
+  /** 别处要播 / 自己关掉试听时，停掉这一声并收起状态 */
+  const stopAudition = useCallback((): void => {
+    tokenRef.current += 1;
+    playerRef.current?.stopAll();
+    setAuditioning(false);
+  }, []);
+  useEffect(() => registerAudioStopper(stopAudition), [stopAudition]);
+
   // 勾上「试听」后按当前参数播；参数一变就停了重播（音量 / 音调立刻听得到）
   useEffect(() => {
     if (!auditioning || file === undefined) return;
+
+    // 试听期间不跟别处的播放叠在一起：先把素材管理 / 预览里正在响的停掉（自己除外）
+    stopAllAudio(stopAudition);
     const player = playerRef.current ?? (playerRef.current = new SoundPlayer());
-    void player.play(host, file, volume, pitch);
+    const token = ++tokenRef.current;
+    void player
+      .play(host, file, volume, pitch, () => {
+        if (tokenRef.current === token) setAuditioning(false);
+      })
+      .then((ok) => {
+        if (!ok && tokenRef.current === token) setAuditioning(false);
+      });
+
     return () => player.stopAll();
-  }, [auditioning, file, volume, pitch, host]);
+  }, [auditioning, file, volume, pitch, host, stopAudition]);
 
   return (
     <div className="modal-mask" onClick={onClose}>
@@ -400,65 +414,23 @@ export function SoundAssetCell({
   const id = row.id;
   const files = library.byId.get(id) ?? [];
   const actions = useAssetActions(id, 'sound', library);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [url, setUrl] = useState('');
   const [playError, setPlayError] = useState('');
   const [playing, setPlaying] = useState(false);
-  const [current, setCurrent] = useState(0);
-  const [duration, setDuration] = useState(0);
   const [editing, setEditing] = useState(false);
+  const playerRef = useRef<SoundPlayer | null>(null);
+  /** 每次播放换一个号：旧的那条播完后不会把新的状态带回去 */
+  const tokenRef = useRef(0);
 
   const file = files[0];
 
-  // 卸载时把还在响的停掉，别让声音跟着跑到别的模块去
-  useEffect(() => {
-    return () => {
-      const audio = audioRef.current;
-      if (audio !== null) {
-        audio.pause();
-        releaseAudio(audio);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (file === undefined || host?.unreal === undefined) return;
-    let created = '';
-    let canceled = false;
-
-    // 换了素材（哪怕文件名没变）就把旧声音停掉、进度归零，重新读文件
-    const audio = audioRef.current;
-    if (audio !== null) {
-      audio.pause();
-      releaseAudio(audio);
-    }
-    setUrl('');
+  /** 停掉这一行正在响的音频（别处开始播时会被调到） */
+  const stop = useCallback((): void => {
+    tokenRef.current += 1;
+    playerRef.current?.stopAll();
     setPlaying(false);
-    setCurrent(0);
-    setDuration(0);
-    setPlayError('');
-
-    void host.unreal
-      .readAsset(file.filePath)
-      .then((result) => {
-        if (canceled) return;
-        if (!result.ok || result.data === undefined) {
-          setPlayError(result.message ?? '读不了这条音频');
-          return;
-        }
-        created = URL.createObjectURL(blobOf(result.data, mimeOf(file.fileName)));
-        setUrl(created);
-      })
-      .catch((reason: unknown) => {
-        if (!canceled) setPlayError(reason instanceof Error ? reason.message : String(reason));
-      });
-
-    return () => {
-      canceled = true;
-      if (created !== '') URL.revokeObjectURL(created);
-    };
-    // 指纹也算依赖：同一个 ID 重新选了素材，文件名可能不变，但大小/时间会变
-  }, [file?.filePath, file?.size, file?.mtimeMs, host]);
+  }, []);
+  useEffect(() => registerAudioStopper(stop), [stop]);
+  useEffect(() => () => { playerRef.current?.stopAll(); }, []);
 
   const disabled = disabledNote(library);
   if (disabled !== null) return disabled;
@@ -466,22 +438,24 @@ export function SoundAssetCell({
   if (file === undefined) {
     return (
       <div className="asset-cell">
-        <button
-          type="button"
-          className="mini"
-          disabled={actions.busy}
-          onClick={() => void actions.upload(false)}
-        >
-          {actions.busy ? '上传中…' : '上传素材'}
-        </button>
-        <button
-          type="button"
-          className="mini"
-          title="音量 / 音调（没有素材也能先设好，导入时一起生效）"
-          onClick={() => setEditing(true)}
-        >
-          编辑
-        </button>
+        <div className="asset-actions">
+          <button
+            type="button"
+            className="mini"
+            disabled={actions.busy}
+            onClick={() => void actions.upload(false)}
+          >
+            {actions.busy ? '上传中…' : '上传素材'}
+          </button>
+          <button
+            type="button"
+            className="mini"
+            title="音量 / 音调（没有素材也能先设好，导入时一起生效）"
+            onClick={() => setEditing(true)}
+          >
+            编辑
+          </button>
+        </div>
         {actions.error !== '' && <div className="field-error">{actions.error}</div>}
         <RemoveConfirm
           file={actions.pendingRemove}
@@ -502,92 +476,75 @@ export function SoundAssetCell({
   }
 
   const toggle = (): void => {
-    const audio = audioRef.current;
-    if (audio === null || url === '') return;
-    if (audio.paused) {
-      // 同一时刻只放一个：别的播放器还响着就先停掉它
-      playExclusive(audio);
-      void audio.play().catch(() => setPlayError('播放失败，文件可能损坏'));
-    } else {
-      audio.pause();
-      releaseAudio(audio);
+    if (playing) {
+      stop();
+      return;
     }
-  };
+    if (host?.unreal === undefined) return;
 
-  const seek = (value: number): void => {
-    const audio = audioRef.current;
-    if (audio === null) return;
-    audio.currentTime = value;
-    setCurrent(value);
+    // 同一时刻只放一个：预览里的音效、别的行都先停掉
+    stopAllAudio(stop);
+    const player = playerRef.current ?? (playerRef.current = new SoundPlayer());
+    const token = ++tokenRef.current;
+    setPlayError('');
+    setPlaying(true);
+    void player
+      .play(host, file, soundVolumeOf(row), soundPitchOf(row), () => {
+        if (tokenRef.current === token) setPlaying(false);
+      })
+      .then((ok) => {
+        if (!ok && tokenRef.current === token) {
+          setPlaying(false);
+          setPlayError('播放失败，文件可能损坏或格式不支持');
+        }
+      });
   };
 
   return (
     <div className="asset-cell sound-cell">
-      <button
-        type="button"
-        className="mini play-toggle"
-        disabled={url === ''}
-        title={url === '' ? '正在读取音频…' : playing ? '暂停' : '播放'}
-        onClick={toggle}
-      >
-        {playing ? '⏸' : '▶'}
-      </button>
-      <input
-        className="sound-progress"
-        type="range"
-        min={0}
-        max={Number.isFinite(duration) && duration > 0 ? duration : 0}
-        step={0.01}
-        value={Math.min(current, duration || 0)}
-        disabled={url === ''}
-        onChange={(event) => seek(Number(event.target.value))}
-        title="拖动跳转"
-      />
-      <span className="sound-time">
-        {formatTime(current)} / {formatTime(duration)}
-      </span>
-      <button
-        type="button"
-        className="mini"
-        title={`音量 x${soundVolumeOf(row).toFixed(2)} / 音调 x${soundPitchOf(row).toFixed(2)}`}
-        onClick={() => setEditing(true)}
-      >
-        编辑
-      </button>
-      <button
-        type="button"
-        className="mini"
-        disabled={actions.busy}
-        title="重新选择素材（会替换掉同名的那条）"
-        onClick={() => void actions.upload(true)}
-      >
-        …
-      </button>
-      <button
-        type="button"
-        className="mini danger"
-        disabled={actions.busy}
-        onClick={() => actions.setPendingRemove(file)}
-      >
-        删除
-      </button>
+      <div className="asset-actions">
+        <button
+          type="button"
+          className="mini play-toggle"
+          disabled={host?.unreal === undefined}
+          title={
+            host?.unreal === undefined
+              ? '桌面版才能播放素材'
+              : playing
+                ? '停止'
+                : '播放（按这一行的音量 / 音调）'
+          }
+          onClick={toggle}
+        >
+          {playing ? '⏸' : '▶'}
+        </button>
+        <button
+          type="button"
+          className="mini"
+          title={`音量 x${soundVolumeOf(row).toFixed(2)} / 音调 x${soundPitchOf(row).toFixed(2)}`}
+          onClick={() => setEditing(true)}
+        >
+          编辑
+        </button>
+        <button
+          type="button"
+          className="mini"
+          disabled={actions.busy}
+          title="重新选择素材（会替换掉同名的那条）"
+          onClick={() => void actions.upload(true)}
+        >
+          …
+        </button>
+        <button
+          type="button"
+          className="mini danger"
+          disabled={actions.busy}
+          onClick={() => actions.setPendingRemove(file)}
+        >
+          删除
+        </button>
+      </div>
 
-      <audio
-        ref={audioRef}
-        src={url === '' ? undefined : url}
-        onPlay={() => setPlaying(true)}
-        onPause={(event) => {
-          setPlaying(false);
-          releaseAudio(event.currentTarget);
-        }}
-        onEnded={(event) => {
-          setPlaying(false);
-          setCurrent(0);
-          releaseAudio(event.currentTarget);
-        }}
-        onTimeUpdate={(event) => setCurrent(event.currentTarget.currentTime)}
-        onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)}
-      />
       {files.length > 1 && (
         <div className="field-error">有 {files.length} 个重复文件，导入时用第一个</div>
       )}

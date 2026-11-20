@@ -114,7 +114,8 @@ function renderPlayer(
     start?: { groupUid: string; lineUid?: string } | null;
     activeGroupUid?: string;
     onPickStart?: (groupUid: string, lineUid?: string) => void;
-    onCollapse?: () => void;
+    collapsed?: boolean;
+    onToggleCollapsed?: () => void;
     onStop?: () => void;
     locked?: boolean;
     onToggleLocked?: (locked: boolean) => void;
@@ -123,7 +124,7 @@ function renderPlayer(
 ) {
   const project = options.project ?? makeProject();
   const onPickStart = options.onPickStart ?? vi.fn();
-  const onCollapse = options.onCollapse ?? vi.fn();
+  const onToggleCollapsed = options.onToggleCollapsed ?? vi.fn();
   const onStop = options.onStop ?? vi.fn();
   const onToggleLocked = options.onToggleLocked ?? vi.fn();
   const onActiveLine = options.onActiveLine ?? vi.fn();
@@ -134,7 +135,8 @@ function renderPlayer(
       activeGroupUid={options.activeGroupUid ?? 'g1'}
       assets={{ library: emptyLibrary(), host: undefined }}
       onPickStart={onPickStart}
-      onCollapse={onCollapse}
+      collapsed={options.collapsed ?? false}
+      onToggleCollapsed={onToggleCollapsed}
       onStop={onStop}
       locked={options.locked ?? true}
       onToggleLocked={onToggleLocked}
@@ -145,7 +147,7 @@ function renderPlayer(
     ...view,
     project,
     onPickStart,
-    onCollapse,
+    onToggleCollapsed,
     onStop,
     onToggleLocked,
     onActiveLine,
@@ -235,9 +237,19 @@ describe('PreviewPlayer 选项', () => {
 
 describe('PreviewPlayer 键盘与收起', () => {
   it('点收起按钮通知 App', () => {
-    const { onCollapse } = renderPlayer();
+    const { onToggleCollapsed } = renderPlayer();
     fireEvent.click(screen.getByTitle('收起预览面板，把地方让给流程图'));
-    expect(onCollapse).toHaveBeenCalled();
+    expect(onToggleCollapsed).toHaveBeenCalled();
+  });
+
+  it('收起时只留标题栏，标题栏里有展开按钮', () => {
+    renderPlayer({ collapsed: true });
+
+    expect(screen.getByText('剧情预览')).toBeTruthy();
+    expect(screen.getByText('展开 ⏷')).toBeTruthy();
+    // 结束预览、控制条这些都在收起时隐藏
+    expect(screen.queryByText('结束预览')).toBeNull();
+    expect(screen.queryByText('继续 ▶')).toBeNull();
   });
 
   it('点「结束预览」：通知 App 并回到空态', () => {
@@ -250,14 +262,14 @@ describe('PreviewPlayer 键盘与收起', () => {
   });
 
   it('面板聚焦时空格继续、Esc 收起', () => {
-    const { container, onCollapse } = renderPlayer();
+    const { container, onToggleCollapsed } = renderPlayer();
     const panel = screen.getByLabelText('剧情预览');
 
     fireEvent.keyDown(panel, { key: ' ' });
     expect(container.querySelector('.preview-text')?.textContent).toBe('第二句');
 
     fireEvent.keyDown(panel, { key: 'Escape' });
-    expect(onCollapse).toHaveBeenCalled();
+    expect(onToggleCollapsed).toHaveBeenCalled();
   });
 
   it('按钮里的键盘操作不会被面板抢走', () => {

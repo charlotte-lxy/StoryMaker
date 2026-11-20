@@ -149,6 +149,10 @@ export interface AssetUploadResult {
   canceled?: boolean;
   filePath?: string;
   message?: string;
+  /** 选中的是 webp：主进程不复制，由界面转成 PNG 再调 writeAsset 写回去 */
+  requiresConversion?: boolean;
+  /** 需要转换时的源文件路径 */
+  sourcePath?: string;
 }
 
 export interface AssetReadResult {
@@ -216,6 +220,16 @@ export interface UnrealApi {
   }) => Promise<{ ok: boolean; filePath?: string; message?: string }>;
   /** 读素材内容，用于预览图和音频播放 */
   readAsset: (filePath: string) => Promise<AssetReadResult>;
+  /** 把界面转好的图片字节写进素材文件夹（webp → PNG 用） */
+  writeAsset: (request: {
+    folder: string;
+    id: string;
+    kind: 'image' | 'sound';
+    /** 要写入的扩展名（不带点也行），只收素材文件夹里合法的格式 */
+    extension: string;
+    data: Uint8Array;
+    replace?: boolean;
+  }) => Promise<{ ok: boolean; filePath?: string; message?: string }>;
 }
 
 /**
@@ -301,6 +315,14 @@ export interface DesktopBridge {
     kind: 'image' | 'sound';
   }) => Promise<{ ok: boolean; filePath?: string; message?: string }>;
   unrealReadAsset?: (filePath: string) => Promise<AssetReadResult>;
+  unrealWriteAsset?: (request: {
+    folder: string;
+    id: string;
+    kind: 'image' | 'sound';
+    extension: string;
+    data: Uint8Array;
+    replace?: boolean;
+  }) => Promise<{ ok: boolean; filePath?: string; message?: string }>;
 }
 
 /** 本地服务版：由服务端注入的一次性令牌，防止别的网页乱调本地接口 */
@@ -475,7 +497,8 @@ function desktopHost(bridge: DesktopBridge): HostApi {
     bridge.unrealUploadAsset !== undefined &&
     bridge.unrealRemoveAsset !== undefined &&
     bridge.unrealRenameAsset !== undefined &&
-    bridge.unrealReadAsset !== undefined
+    bridge.unrealReadAsset !== undefined &&
+    bridge.unrealWriteAsset !== undefined
       ? {
           discover: (uprojectPath, timeoutMs) => bridge.unrealDiscover!(uprojectPath, timeoutMs),
           queryCatalog: (uprojectPath) => bridge.unrealQueryCatalog!(uprojectPath),
@@ -488,6 +511,7 @@ function desktopHost(bridge: DesktopBridge): HostApi {
           removeAsset: (filePath) => bridge.unrealRemoveAsset!(filePath),
           renameAsset: (request) => bridge.unrealRenameAsset!(request),
           readAsset: (filePath) => bridge.unrealReadAsset!(filePath),
+          writeAsset: (request) => bridge.unrealWriteAsset!(request),
         }
       : undefined;
 

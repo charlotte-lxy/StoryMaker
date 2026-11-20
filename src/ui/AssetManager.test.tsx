@@ -53,6 +53,7 @@ function makeUnreal(overrides: Partial<UnrealApi> = {}): UnrealApi {
     removeAsset: vi.fn(async () => ({ ok: true })),
     renameAsset: vi.fn(async () => ({ ok: true })),
     readAsset: vi.fn(async () => ({ ok: true, data: new Uint8Array([1, 2, 3]) })),
+    writeAsset: vi.fn(async () => ({ ok: true })),
     ...overrides,
   };
 }
@@ -144,7 +145,7 @@ describe('素材管理单元格', () => {
     );
   });
 
-  it('音效有文件时给播放器：播放按钮、进度条、当前 / 总时长', () => {
+  it('音效有文件时给播放器：播放 / 编辑 / 重选 / 删除都在一行', () => {
     const library = makeLibrary({ byId: new Map([['S_dididi', [fileOf('S_dididi.wav', 'sound')]]]) });
     render(
       <SoundAssetCell
@@ -156,11 +157,26 @@ describe('素材管理单元格', () => {
     );
 
     expect(screen.getByRole('button', { name: '▶' })).toBeTruthy();
-    expect(screen.getByTitle('拖动跳转')).toBeTruthy();
-    expect(screen.getByText('00:00 / 00:00')).toBeTruthy();
     expect(screen.getByRole('button', { name: '编辑' })).toBeTruthy();
     expect(screen.getByRole('button', { name: '…' })).toBeTruthy();
     expect(screen.getByRole('button', { name: '删除' })).toBeTruthy();
+    // 不再有进度条 / 时长：播放按钮直接按这一行的音量 / 音调播
+    expect(screen.queryByTitle('拖动跳转')).toBeNull();
+  });
+
+  it('点播放会按这一行的音量 / 音调播（jsdom 没有 AudioContext，给出失败提示而不是卡住）', async () => {
+    const library = makeLibrary({ byId: new Map([['S_dididi', [fileOf('S_dididi.wav', 'sound')]]]) });
+    render(
+      <SoundAssetCell
+        row={soundRow('S_dididi', 1.5, 0.8)}
+        library={library}
+        host={makeHost(makeUnreal())}
+        onUpdate={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '▶' }));
+    expect(await screen.findByText(/播放失败/)).toBeTruthy();
   });
 
   it('音效没文件时只有「上传素材」', () => {

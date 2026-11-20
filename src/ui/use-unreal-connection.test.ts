@@ -41,6 +41,7 @@ function makeUnreal(overrides: Partial<UnrealApi> = {}): UnrealApi {
     removeAsset: vi.fn(async () => ({ ok: true })),
     renameAsset: vi.fn(async () => ({ ok: true })),
     readAsset: vi.fn(async () => ({ ok: true, data: new Uint8Array() })),
+    writeAsset: vi.fn(async () => ({ ok: true })),
     ...overrides,
   };
 }

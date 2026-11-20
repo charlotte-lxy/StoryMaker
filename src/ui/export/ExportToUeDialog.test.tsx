@@ -146,6 +146,7 @@ function makeUnreal(overrides: Partial<UnrealApi> = {}): UnrealApi {
     removeAsset: vi.fn(async () => ({ ok: true })),
     renameAsset: vi.fn(async () => ({ ok: true })),
     readAsset: vi.fn(async () => ({ ok: true, data: new Uint8Array() })),
+    writeAsset: vi.fn(async () => ({ ok: true })),
     ...overrides,
   };
 }
@@ -244,20 +245,8 @@ describe('导出到 UE 弹窗', () => {
         return () => undefined;
       },
       runImport: vi.fn(
-        (): Promise<UnrealImportReport> =>
-          new Promise((resolve) => {
-            setTimeout(
-              () =>
-                resolve({
-                  ok: true,
-                  stopped: false,
-                  items: [],
-                  importedOwnerUids: [],
-                  counts: { tables: 1, images: 1, sounds: 0 },
-                }),
-              30,
-            );
-          }),
+        // 一直「导入中」：这样进度条不会因为导入结束而被收起来（并行跑测试时时间不稳定）
+        (): Promise<UnrealImportReport> => new Promise(() => undefined),
       ),
     });
     renderDialog({ unreal, library: makeLibrary([assetFile('SCE_Black.png', 'image')]) });

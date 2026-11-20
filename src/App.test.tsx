@@ -1142,16 +1142,23 @@ describe('章节流程图与分栏', () => {
     expect((container.querySelector('.story-outline') as HTMLElement).style.width).toBe('640px');
   });
 
-  it('可以收起预览，点段落行的 ▶ 再展开并开始播', async () => {
+  it('可以收起预览（标题栏保留），再展开接着看', async () => {
     seedJumpProject();
     const { container } = await renderApp();
     expect(container.querySelector('.outline-preview')).not.toBeNull();
 
-    fireEvent.click(screen.getByTitle('收起预览面板，把地方让给流程图'));
-    expect(container.querySelector('.outline-preview')).toBeNull();
-
+    // 先播一段
     fireEvent.click(screen.getByTitle('从「码头」的第一句开始预览'));
+    expect(container.querySelector('.preview-text')?.textContent).toBe('海风很大');
+
+    // 收起：面板和标题栏都在，只是画面 / 控制条藏起来
+    fireEvent.click(screen.getByTitle('收起预览面板，把地方让给流程图'));
     expect(container.querySelector('.outline-preview')).not.toBeNull();
+    expect(container.querySelector('.preview-text')).toBeNull();
+    expect(screen.getByText('展开 ⏷')).toBeTruthy();
+
+    // 展开后播放状态还在，能接着看
+    fireEvent.click(screen.getByText('展开 ⏷'));
     expect(container.querySelector('.preview-text')?.textContent).toBe('海风很大');
   });
 

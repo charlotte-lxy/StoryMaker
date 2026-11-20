@@ -37,28 +37,30 @@ export class SoundPlayer {
   /**
    * 播一条音频。
    *
-   * 找不到素材、宿主不支持、浏览器解不了这个格式，都只是「没声音」——不报错。
+   * 找不到素材、宿主不支持、浏览器解不了这个格式，都只是「没声音」——不报错，
+   * 返回 false 让调用方把「播放中」的状态收回去。
    */
   async play(
     host: HostApi | undefined,
     file: AssetFileInfo,
     volume: number,
     pitch: number,
-  ): Promise<void> {
+    onEnded?: () => void,
+  ): Promise<boolean> {
     const context = this.ensureContext();
-    if (context === null || host?.unreal === undefined) return;
+    if (context === null || host?.unreal === undefined) return false;
 
     if (context.state === 'suspended') {
       await context.resume().catch(() => undefined);
     }
 
     const result = await host.unreal.readAsset(file.filePath).catch(() => undefined);
-    if (result === undefined || !result.ok || result.data === undefined) return;
+    if (result === undefined || !result.ok || result.data === undefined) return false;
 
     const buffer = await context
       .decodeAudioData(result.data.slice().buffer)
       .catch(() => null);
-    if (buffer === null) return;
+    if (buffer === null) return false;
 
     const source = context.createBufferSource();
     source.buffer = buffer;
@@ -72,8 +74,10 @@ export class SoundPlayer {
     this.sources.add(source);
     source.onended = () => {
       this.sources.delete(source);
+      onEnded?.();
     };
     source.start();
+    return true;
   }
 
   /** 停掉所有正在响的音频（结束预览、重播、关弹窗都调它） */

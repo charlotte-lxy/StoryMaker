@@ -10,14 +10,17 @@
  * 的规则保持一致，放哪一层都认，但新传的都在最外层，好找。
  */
 
-const { copyFile, readFile, readdir, rename, rm, stat } = require('node:fs/promises');
+const { copyFile, readFile, readdir, rename, rm, stat, writeFile } = require('node:fs/promises');
 const path = require('node:path');
 
-/** 上传时允许的格式：都是 UE 能直接导进去的 */
+/** 素材文件夹里允许存在的图片格式：都是 UE 能直接导进去的 */
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.tga'];
+/** 上传时还能额外选 webp：会先转成 PNG 再放进素材文件夹，不直接落地 */
+const WEBP_EXTENSION = '.webp';
+const UPLOAD_IMAGE_EXTENSIONS = [...IMAGE_EXTENSIONS, WEBP_EXTENSION];
 const SOUND_EXTENSIONS = ['.wav', '.ogg', '.flac'];
 
-/** 文件属于哪一类；不认识的返回 null */
+/** 文件属于哪一类；不认识的返回 null（webp 不算素材格式，它只是上传来源） */
 function kindOfFile(fileName) {
   const extension = path.extname(fileName).toLowerCase();
   if (IMAGE_EXTENSIONS.includes(extension)) return 'image';
@@ -27,7 +30,8 @@ function kindOfFile(fileName) {
 
 /** 某个类别允许的扩展名，给文件选择框用（不带点） */
 function allowedExtensions(kind) {
-  return (kind === 'sound' ? SOUND_EXTENSIONS : IMAGE_EXTENSIONS).map((ext) => ext.slice(1));
+  const list = kind === 'sound' ? SOUND_EXTENSIONS : UPLOAD_IMAGE_EXTENSIONS;
+  return list.map((ext) => ext.slice(1));
 }
 
 /** 去掉扩展名的文件名 */
@@ -84,6 +88,20 @@ async function listAssetFiles(folder) {
 }
 
 /**
+ * 「重新选择素材」：同一个 ID 只留一份，把别的扩展名清掉。
+ *
+ * keepPath 是刚写进去的那一份，跳过它。
+ */
+async function removeOtherFilesWithBaseName(folder, baseName, keepPath) {
+  const existing = await listAssetFiles(folder);
+  for (const file of existing) {
+    if (file.baseName !== baseName) continue;
+    if (path.resolve(file.filePath) === path.resolve(keepPath)) continue;
+    await rm(file.filePath, { force: true }).catch(() => undefined);
+  }
+}
+
+/**
  * 把用户选中的文件复制进素材文件夹，并按 `<ID><原扩展名>` 重命名。
  *
  * @param {object} options
@@ -101,13 +119,19 @@ async function uploadAssetFile({ folder, id, kind, sourceFile, replace = false }
   if (name === '') return { ok: false, message: '这一行还没有 ID，先填 ID 再传素材' };
 
   const extension = path.extname(sourceFile).toLowerCase();
-  const fileKind = kindOfFile(sourceFile);
+  const isWebp = extension === WEBP_EXTENSION;
+  const fileKind = kindOfFile(sourceFile) ?? (isWebp ? 'image' : null);
   if (fileKind === null) {
     return { ok: false, message: `不支持的文件格式：${extension || '没有扩展名'}` };
   }
   if (fileKind !== kind) {
     const expected = allowedExtensions(kind).map((ext) => `.${ext}`).join('、');
     return { ok: false, message: `这里只收 ${expected}，你选的是 ${extension}` };
+  }
+
+  // webp 不能直接进素材文件夹（UE 不认）：交给界面转成 PNG 再写回来
+  if (isWebp) {
+    return { ok: false, requiresConversion: true, sourcePath: sourceFile };
   }
 
   const targetPath = path.join(targetFolder, `${name}${extension}`);
@@ -120,12 +144,47 @@ async function uploadAssetFile({ folder, id, kind, sourceFile, replace = false }
 
   // 「重新选择素材」：同一个 ID 只该留一份，把别的扩展名清掉
   if (replace) {
-    const existing = await listAssetFiles(targetFolder);
-    for (const file of existing) {
-      if (file.baseName !== name) continue;
-      if (path.resolve(file.filePath) === path.resolve(targetPath)) continue;
-      await rm(file.filePath, { force: true }).catch(() => undefined);
-    }
+    await removeOtherFilesWithBaseName(targetFolder, name, targetPath);
+  }
+
+  return { ok: true, filePath: targetPath };
+}
+
+/**
+ * 把界面转好的图片字节写进素材文件夹（webp → PNG 用）。
+ *
+ * 扩展名只收素材文件夹里合法的那些，所以这里不会写进 .webp。
+ */
+async function writeAssetFile({ folder, id, kind, extension, data, replace = false }) {
+  const targetFolder = typeof folder === 'string' ? folder.trim() : '';
+  if (targetFolder === '') return { ok: false, message: '还没有在设置里选素材文件夹' };
+
+  const name = safeFileName(id);
+  if (name === '') return { ok: false, message: '这一行还没有 ID，先填 ID 再传素材' };
+
+  const raw = String(extension ?? '').toLowerCase();
+  const ext = raw.startsWith('.') ? raw : `.${raw}`;
+  const allowed = kind === 'sound' ? SOUND_EXTENSIONS : IMAGE_EXTENSIONS;
+  if (!allowed.includes(ext)) {
+    return { ok: false, message: `不支持写入的格式：${ext === '.' ? '没有扩展名' : ext}` };
+  }
+
+  if (!(data instanceof Uint8Array) || data.length === 0) {
+    return { ok: false, message: '没有收到要写入的图片内容' };
+  }
+
+  const targetPath = path.join(targetFolder, `${name}${ext}`);
+  try {
+    await writeFile(targetPath, Buffer.from(data));
+  } catch (error) {
+    return {
+      ok: false,
+      message: `写入失败：${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+
+  if (replace) {
+    await removeOtherFilesWithBaseName(targetFolder, name, targetPath);
   }
 
   return { ok: true, filePath: targetPath };
@@ -188,6 +247,7 @@ async function readAssetFile(filePath) {
 module.exports = {
   IMAGE_EXTENSIONS,
   SOUND_EXTENSIONS,
+  UPLOAD_IMAGE_EXTENSIONS,
   allowedExtensions,
   baseNameOf,
   kindOfFile,
@@ -196,4 +256,5 @@ module.exports = {
   removeAssetFile,
   renameAssetFile,
   uploadAssetFile,
+  writeAssetFile,
 };

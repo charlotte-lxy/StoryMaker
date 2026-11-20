@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { AssetFileInfo, HostApi } from '../core/host';
+import { convertImageToPng } from './image-convert';
 
 export interface AssetActionResult {
   ok: boolean;
@@ -97,6 +98,31 @@ export function useAssetLibrary(host: HostApi | undefined, folder: string): Asse
         return { ok: true };
       }
       if (result.canceled === true) return { ok: false };
+
+      // 选的是 webp：主进程不复制，这里转成 PNG 再写进素材文件夹
+      if (result.requiresConversion === true && result.sourcePath !== undefined) {
+        const read = await unreal.readAsset(result.sourcePath).catch(() => undefined);
+        if (read === undefined || !read.ok || read.data === undefined) {
+          return { ok: false, message: read?.message ?? '读不了这个 webp 文件' };
+        }
+
+        const png = await convertImageToPng(read.data, 'image/webp');
+        if (png === null) return { ok: false, message: '这个 webp 转不成 PNG' };
+
+        const written = await unreal.writeAsset({
+          folder,
+          id,
+          kind,
+          extension: 'png',
+          data: png,
+          replace,
+        });
+        if (!written.ok) return { ok: false, message: written.message ?? '写入 PNG 失败' };
+
+        refresh();
+        return { ok: true };
+      }
+
       return { ok: false, message: result.message ?? '上传失败' };
     },
     [unreal, folder, refresh],

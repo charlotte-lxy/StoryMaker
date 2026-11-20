@@ -4200,6 +4200,15 @@ tr.locale-form-note td {
   min-width: 0;
 }
 
+/* 控件不许拆行：素材管理列窄，按钮掉到第二行就看不见了 */
+.asset-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
 .asset-name {
   max-width: 120px;
   overflow: hidden;
@@ -4211,20 +4220,6 @@ tr.locale-form-note td {
 
 .sound-cell {
   gap: 4px;
-}
-
-.sound-progress {
-  width: 92px;
-  min-width: 60px;
-  flex: 0 0 auto;
-  accent-color: var(--accent);
-}
-
-.sound-time {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--text-dim);
-  white-space: nowrap;
 }
 
 .play-toggle {

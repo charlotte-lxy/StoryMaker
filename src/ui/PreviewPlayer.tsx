@@ -38,6 +38,7 @@ import {
 import { characterAssetOf, imageAssetOf, soundAssetOf } from '../core/preview-assets';
 import type { Project } from '../core/types';
 import { blobOf, canPreviewImage, mimeOf } from './asset-blob';
+import { registerAudioStopper } from './audio-registry';
 import { SoundPlayer } from './sound-player';
 import type { AssetLibrary } from './use-asset-library';
 
@@ -53,7 +54,9 @@ interface Props {
   assets: { library: AssetLibrary; host: HostApi | undefined };
   /** 从当前段落开始播（空态按钮） */
   onPickStart: (groupUid: string, lineUid?: string) => void;
-  onCollapse: () => void;
+  /** 收起时只留标题栏，标题栏里还能再展开 */
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
   /** 结束预览：清空播放状态（音频由本组件停掉） */
   onStop: () => void;
   /** 锁定到对话：开的时候对话列表会跟着滚 */
@@ -170,7 +173,8 @@ export function PreviewPlayer({
   activeGroupUid,
   assets,
   onPickStart,
-  onCollapse,
+  collapsed,
+  onToggleCollapsed,
   onStop,
   locked,
   onToggleLocked,
@@ -194,6 +198,14 @@ export function PreviewPlayer({
   const stopAllSound = useCallback((): void => {
     playerRef.current?.stopAll();
   }, []);
+
+  // 别处开始试听 / 播放时，把预览里的音效一起停掉
+  useEffect(() => registerAudioStopper(stopAllSound), [stopAllSound]);
+
+  // 收起时看不见画面，声音也别继续响（进度保留，展开后接着播）
+  useEffect(() => {
+    if (collapsed) stopAllSound();
+  }, [collapsed, stopAllSound]);
 
   // 起点变了 = 开一场新的：拿这一刻的项目当快照，旧声音全停
   useEffect(() => {
@@ -330,7 +342,7 @@ export function PreviewPlayer({
     }
     if (event.key === 'Escape') {
       event.preventDefault();
-      onCollapse();
+      onToggleCollapsed();
     }
   };
 
@@ -361,26 +373,28 @@ export function PreviewPlayer({
       <div className="preview-head">
         <h3 className="preview-title">剧情预览</h3>
         <span className="spacer" />
+        {!collapsed && (
+          <button
+            type="button"
+            className="mini"
+            disabled={state === null}
+            title="停止播放、清空预览（所有正在响的音效一起停）"
+            onClick={stopPreview}
+          >
+            结束预览
+          </button>
+        )}
         <button
           type="button"
           className="mini"
-          disabled={state === null}
-          title="停止播放、清空预览（所有正在响的音效一起停）"
-          onClick={stopPreview}
+          title={collapsed ? '展开预览' : '收起预览面板，把地方让给流程图'}
+          onClick={onToggleCollapsed}
         >
-          结束预览
-        </button>
-        <button
-          type="button"
-          className="mini"
-          title="收起预览面板，把地方让给流程图"
-          onClick={onCollapse}
-        >
-          收起 ⏵
+          {collapsed ? '展开 ⏷' : '收起 ⏶'}
         </button>
       </div>
 
-      {state === null ? (
+      {!collapsed && (state === null ? (
         <div className="preview-empty">
           <p>还没有开始预览。</p>
           <p className="hint">点对话列表里某一行的「预览」，或从当前段落开始：</p>
@@ -553,7 +567,7 @@ export function PreviewPlayer({
             </div>
           )}
         </>
-      )}
+      ))}
     </div>
   );
 }

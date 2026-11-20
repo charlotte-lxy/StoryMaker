@@ -505,6 +505,18 @@ ipcMain.handle('unreal:read-asset', async (_event, filePath) => {
   }
 });
 
+/** 界面把 webp 转成 PNG 之后，写回素材文件夹（UE 不认 webp） */
+ipcMain.handle('unreal:write-asset', async (_event, request) => {
+  return unrealAssets.writeAssetFile({
+    folder: request.folder,
+    id: request.id,
+    kind: request.kind === 'sound' ? 'sound' : 'image',
+    extension: request.extension,
+    data: request.data,
+    replace: request.replace === true,
+  });
+});
+
 app.whenReady().then(() => {
   createWindow();
   app.on('activate', () => {
