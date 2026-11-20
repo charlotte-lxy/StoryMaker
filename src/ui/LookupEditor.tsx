@@ -183,7 +183,7 @@ export function LookupRowsTable({
           {column !== undefined && <th style={{ width: 170 }}>{column}</th>}
           <th>{isItem ? '物品名称' : '说明'}</th>
           {isItem && <th>物品描述</th>}
-          {hasAssets && <th style={{ width: 280 }}>素材管理</th>}
+          {hasAssets && <th style={{ width: 320 }}>素材管理</th>}
           <th style={{ width: 86 }}>操作</th>
         </tr>
       </thead>
@@ -322,7 +322,7 @@ export function ExpressionImageTable({
               <th style={{ width: '24%' }}>图片 ID</th>
               <th style={{ width: 170 }}>图片分类</th>
               <th>说明</th>
-              {assets !== undefined && <th style={{ width: 280 }}>素材管理</th>}
+              {assets !== undefined && <th style={{ width: 320 }}>素材管理</th>}
             </tr>
           </thead>
           <tbody>
@@ -386,7 +386,7 @@ export function WeaponIconTable({
               <th style={{ width: '24%' }}>图片 ID</th>
               <th style={{ width: 170 }}>图片分类</th>
               <th>说明</th>
-              {assets !== undefined && <th style={{ width: 280 }}>素材管理</th>}
+              {assets !== undefined && <th style={{ width: 320 }}>素材管理</th>}
             </tr>
           </thead>
           <tbody>

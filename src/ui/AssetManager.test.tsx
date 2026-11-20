@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { HostApi, UnrealApi } from '../core/host';
@@ -145,7 +145,7 @@ describe('素材管理单元格', () => {
     );
   });
 
-  it('音效有文件时给播放器：播放 / 编辑 / 重选 / 删除都在一行', () => {
+  it('音效有文件时给播放器：播放 / 进度条 / 时长 / 编辑 / 重选 / 删除', () => {
     const library = makeLibrary({ byId: new Map([['S_dididi', [fileOf('S_dididi.wav', 'sound')]]]) });
     render(
       <SoundAssetCell
@@ -157,16 +157,16 @@ describe('素材管理单元格', () => {
     );
 
     expect(screen.getByRole('button', { name: '▶' })).toBeTruthy();
+    expect(screen.getByTitle('拖动跳转')).toBeTruthy();
+    expect(screen.getByText('00:00 / 00:00')).toBeTruthy();
     expect(screen.getByRole('button', { name: '编辑' })).toBeTruthy();
     expect(screen.getByRole('button', { name: '…' })).toBeTruthy();
     expect(screen.getByRole('button', { name: '删除' })).toBeTruthy();
-    // 不再有进度条 / 时长：播放按钮直接按这一行的音量 / 音调播
-    expect(screen.queryByTitle('拖动跳转')).toBeNull();
   });
 
-  it('点播放会按这一行的音量 / 音调播（jsdom 没有 AudioContext，给出失败提示而不是卡住）', async () => {
+  it('点播放：按这一行的音量 / 音调设置元素', async () => {
     const library = makeLibrary({ byId: new Map([['S_dididi', [fileOf('S_dididi.wav', 'sound')]]]) });
-    render(
+    const { container } = render(
       <SoundAssetCell
         row={soundRow('S_dididi', 1.5, 0.8)}
         library={library}
@@ -175,8 +175,22 @@ describe('素材管理单元格', () => {
       />,
     );
 
+    const audio = container.querySelector('audio') as HTMLAudioElement;
+    // 素材读完、Blob URL 就位之后播放按钮才可点
+    await waitFor(() => expect(audio.getAttribute('src')).toBeTruthy());
+
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, 'play')
+      .mockImplementation(() => Promise.resolve());
+
     fireEvent.click(screen.getByRole('button', { name: '▶' }));
-    expect(await screen.findByText(/播放失败/)).toBeTruthy();
+
+    expect(play).toHaveBeenCalled();
+    expect(audio.playbackRate).toBe(0.8);
+    // jsdom 没有 AudioContext：音量退回元素自带的（上限 1）
+    expect(audio.volume).toBe(1);
+
+    play.mockRestore();
   });
 
   it('音效没文件时只有「上传素材」', () => {

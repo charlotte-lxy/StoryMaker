@@ -24,8 +24,18 @@ import type { LookupRow } from '../core/types';
 import { blobOf, canPreviewImage, mimeOf } from './asset-blob';
 import { registerAudioStopper, stopAllAudio } from './audio-registry';
 import { ConfirmDialog } from './ConfirmDialog';
+import { prepareAudioElement } from './media-audio';
 import { SoundPlayer } from './sound-player';
 import type { AssetLibrary } from './use-asset-library';
+
+/** 秒数 → mm:ss；不是有限数就显示 00:00 */
+function formatTime(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return '00:00';
+  const total = Math.floor(seconds);
+  const minutes = Math.floor(total / 60);
+  const rest = total % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`;
+}
 
 interface CellProps {
   /** 图片 ID / 音效 ID，也是素材文件名要匹配的东西 */
@@ -417,20 +427,63 @@ export function SoundAssetCell({
   const [playError, setPlayError] = useState('');
   const [playing, setPlaying] = useState(false);
   const [editing, setEditing] = useState(false);
-  const playerRef = useRef<SoundPlayer | null>(null);
-  /** 每次播放换一个号：旧的那条播完后不会把新的状态带回去 */
-  const tokenRef = useRef(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [url, setUrl] = useState('');
+  const [current, setCurrent] = useState(0);
+  const [duration, setDuration] = useState(0);
 
   const file = files[0];
 
   /** 停掉这一行正在响的音频（别处开始播时会被调到） */
   const stop = useCallback((): void => {
-    tokenRef.current += 1;
-    playerRef.current?.stopAll();
+    const audio = audioRef.current;
+    if (audio !== null && !audio.paused) audio.pause();
     setPlaying(false);
   }, []);
   useEffect(() => registerAudioStopper(stop), [stop]);
-  useEffect(() => () => { playerRef.current?.stopAll(); }, []);
+  useEffect(
+    () => () => {
+      const audio = audioRef.current;
+      if (audio !== null && !audio.paused) audio.pause();
+    },
+    [],
+  );
+
+  // 换了素材（哪怕文件名没变）就把旧声音停掉、进度归零，重新读文件
+  useEffect(() => {
+    if (file === undefined || host?.unreal === undefined) return;
+    let created = '';
+    let canceled = false;
+
+    const audio = audioRef.current;
+    if (audio !== null && !audio.paused) audio.pause();
+    setUrl('');
+    setPlaying(false);
+    setCurrent(0);
+    setDuration(0);
+    setPlayError('');
+
+    void host.unreal
+      .readAsset(file.filePath)
+      .then((result) => {
+        if (canceled) return;
+        if (!result.ok || result.data === undefined) {
+          setPlayError(result.message ?? '读不了这条音频');
+          return;
+        }
+        created = URL.createObjectURL(blobOf(result.data, mimeOf(file.fileName)));
+        setUrl(created);
+      })
+      .catch((reason: unknown) => {
+        if (!canceled) setPlayError(reason instanceof Error ? reason.message : String(reason));
+      });
+
+    return () => {
+      canceled = true;
+      if (created !== '') URL.revokeObjectURL(created);
+    };
+    // 指纹也算依赖：同一个 ID 重新选了素材，文件名可能不变，但大小/时间会变
+  }, [file?.filePath, file?.size, file?.mtimeMs, host]);
 
   const disabled = disabledNote(library);
   if (disabled !== null) return disabled;
@@ -476,28 +529,28 @@ export function SoundAssetCell({
   }
 
   const toggle = (): void => {
+    const audio = audioRef.current;
     if (playing) {
       stop();
       return;
     }
-    if (host?.unreal === undefined) return;
+    if (audio === null || url === '' || host?.unreal === undefined) return;
 
     // 同一时刻只放一个：预览里的音效、别的行都先停掉
     stopAllAudio(stop);
-    const player = playerRef.current ?? (playerRef.current = new SoundPlayer());
-    const token = ++tokenRef.current;
+    prepareAudioElement(audio, soundVolumeOf(row), soundPitchOf(row));
     setPlayError('');
-    setPlaying(true);
-    void player
-      .play(host, file, soundVolumeOf(row), soundPitchOf(row), () => {
-        if (tokenRef.current === token) setPlaying(false);
-      })
-      .then((ok) => {
-        if (!ok && tokenRef.current === token) {
-          setPlaying(false);
-          setPlayError('播放失败，文件可能损坏或格式不支持');
-        }
-      });
+    const started = audio.play() as Promise<void> | undefined;
+    if (started !== undefined) {
+      void started.catch(() => setPlayError('播放失败，文件可能损坏或格式不支持'));
+    }
+  };
+
+  const seek = (value: number): void => {
+    const audio = audioRef.current;
+    if (audio === null) return;
+    audio.currentTime = value;
+    setCurrent(value);
   };
 
   return (
@@ -506,18 +559,34 @@ export function SoundAssetCell({
         <button
           type="button"
           className="mini play-toggle"
-          disabled={host?.unreal === undefined}
+          disabled={url === '' || host?.unreal === undefined}
           title={
             host?.unreal === undefined
               ? '桌面版才能播放素材'
-              : playing
-                ? '停止'
-                : '播放（按这一行的音量 / 音调）'
+              : url === ''
+                ? '正在读取音频…'
+                : playing
+                  ? '停止'
+                  : '播放（按这一行的音量 / 音调）'
           }
           onClick={toggle}
         >
           {playing ? '⏸' : '▶'}
         </button>
+        <input
+          className="sound-progress"
+          type="range"
+          min={0}
+          max={Number.isFinite(duration) && duration > 0 ? duration : 0}
+          step={0.01}
+          value={Math.min(current, duration || 0)}
+          disabled={url === ''}
+          onChange={(event) => seek(Number(event.target.value))}
+          title="拖动跳转"
+        />
+        <span className="sound-time">
+          {formatTime(current)} / {formatTime(duration)}
+        </span>
         <button
           type="button"
           className="mini"
@@ -544,6 +613,19 @@ export function SoundAssetCell({
           删除
         </button>
       </div>
+
+      <audio
+        ref={audioRef}
+        src={url === '' ? undefined : url}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => {
+          setPlaying(false);
+          setCurrent(0);
+        }}
+        onTimeUpdate={(event) => setCurrent(event.currentTarget.currentTime)}
+        onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)}
+      />
 
       {files.length > 1 && (
         <div className="field-error">有 {files.length} 个重复文件，导入时用第一个</div>

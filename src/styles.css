@@ -4207,6 +4207,27 @@ tr.locale-form-note td {
   align-items: center;
   gap: 4px;
   min-width: 0;
+  flex: 1 1 auto;
+}
+
+/* 音效行的进度条可以伸缩：列窄时先压它，按钮不换行 */
+.asset-actions .sound-progress {
+  flex: 1 1 48px;
+  min-width: 0;
+  width: auto;
+  accent-color: var(--accent);
+}
+
+.asset-actions .sound-time {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.asset-actions button {
+  flex: 0 0 auto;
 }
 
 .asset-name {
