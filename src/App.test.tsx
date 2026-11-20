@@ -214,6 +214,21 @@ describe('界面冒烟测试', () => {
     expect(screen.getByText(/还没有角色/)).toBeTruthy();
   });
 
+  it('剧情模块的子模块栏有脚本 / 角色 / 文本框，文本框页能新建', async () => {
+    await renderApp();
+    const side = storySide();
+    expect([...side.querySelectorAll('button')].map((button) => button.textContent)).toEqual([
+      '脚本',
+      '角色',
+      '文本框',
+    ]);
+
+    fireEvent.click(within(side).getByText('文本框'));
+    expect(screen.getByText('＋ 新建文本框')).toBeTruthy();
+    fireEvent.click(screen.getByText('＋ 新建文本框'));
+    expect(screen.getAllByRole('tab')).toHaveLength(2);
+  });
+
   it('新增角色后出现默认的 ID 与名称', async () => {
     await renderApp();
     openCharacters();
