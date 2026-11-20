@@ -131,6 +131,7 @@ import { SettingsEditor } from './ui/SettingsEditor';
 import { ScriptPalette } from './ui/ScriptPalette';
 import { Sidebar } from './ui/Sidebar';
 import { StoryOutline } from './ui/StoryOutline';
+import { TextBoxEditor } from './ui/TextBoxEditor';
 import { UnrealBadge } from './ui/UnrealBadge';
 import { UpdatePrompt } from './ui/UpdatePanel';
 import { ExportToUeDialog } from './ui/export/ExportToUeDialog';
@@ -138,7 +139,7 @@ import { useAssetLibrary } from './ui/use-asset-library';
 import { useUnrealConnection } from './ui/use-unreal-connection';
 import { useCollab } from './ui/useCollab';
 import { useUpdater } from './ui/use-updater';
-import { useScrollMemory } from './ui/view-memory';
+import { useRememberedChoice, useScrollMemory } from './ui/view-memory';
 
 /** 一个模块的校验结果，右上角的总数弹层与模块底部的校验条都用它 */
 interface ModuleCheck {
@@ -167,6 +168,15 @@ type Module =
   | 'locale'
   | 'export'
   | 'settings';
+
+/** 剧情模块里的子模块：脚本（章节 / 段落 / 对话）/ 角色 / 文本框 */
+type StoryPage = 'script' | 'characters' | 'textbox';
+
+const STORY_PAGES: { key: StoryPage; label: string }[] = [
+  { key: 'script', label: '脚本' },
+  { key: 'characters', label: '角色' },
+  { key: 'textbox', label: '文本框' },
+];
 
 /**
  * 解析项目文件内容。
@@ -213,6 +223,8 @@ export default function App() {
   /** 「导出到 UE」弹窗开着没有 */
   const [ueDialogOpen, setUeDialogOpen] = useState(false);
   const [module, setModule] = useState<Module>('story');
+  /** 剧情模块的子模块；本机记住上次停在哪儿 */
+  const [storyPage, setStoryPage] = useRememberedChoice<StoryPage>('story:page', 'script');
   const [activeGroupUid, setActiveGroupUid] = useState<string>('');
   /** 各模块底部的校验结果列表是否展开；平时收起，只在这条上显示条数 */
   const [panelOpen, setPanelOpen] = useState<Record<string, boolean>>({});
@@ -745,7 +757,13 @@ export default function App() {
         setFocusLocaleUid(target.uid);
         return;
       case 'row':
-        setModule(target.module);
+        // 角色已经搬进剧情的子模块：搜索跳过去时先切到「剧情 → 角色」
+        if (target.module === 'character') {
+          setModule('story');
+          setStoryPage('characters');
+        } else {
+          setModule(target.module);
+        }
         setFocusRowUid(target.uid);
         return;
     }
@@ -1012,6 +1030,15 @@ export default function App() {
   /** 当前模块自己的那份校验结果；没有校验的模块不显示底部那条 */
   const activeCheck = checks.find((item) => item.key === module);
 
+  /**
+   * 剧情模块的子模块视图。
+   *
+   * 角色已经搬进剧情的子模块里，但搜索 / 旧跳转仍可能给出 'character'，
+   * 所以这里把它当成「剧情 → 角色」，下面的渲染只认这一对值。
+   */
+  const storyActive = module === 'story' || module === 'character';
+  const storySubPage: StoryPage = module === 'character' ? 'characters' : storyPage;
+
   const togglePanel = (key: Module): void =>
     setPanelOpen((prev) => ({ ...prev, [key]: !(prev[key] ?? false) }));
 
@@ -1047,7 +1074,11 @@ export default function App() {
           module === key ? ' active' : ''
         }`}
         title={title}
-        onClick={() => setModule(key)}
+        onClick={() => {
+          setModule(key);
+          // 点模块栏的「剧情」总是回到脚本页；角色 / 文本框只记在上次停留的子页面里
+          if (key === 'story') setStoryPage('script');
+        }}
       >
         <span className="rail-icon">{icon}</span>
         <span>{label}</span>
@@ -1188,7 +1219,6 @@ export default function App() {
       <div className="body">
         <nav className="rail">
           {railButton('story', '✎', '剧情')}
-          {railButton('character', '☺', '角色')}
           {railButton('sounds', '♪', '音效')}
           {railButton('items', '◆', '物品')}
           {railButton('quests', '✓', '任务')}
@@ -1211,7 +1241,25 @@ export default function App() {
         */}
         <div className="workspace">
           <div className="workspace-row">
-            {module === 'story' && (
+            {storyActive && (
+              <aside className="story-side" aria-label="剧情子模块">
+                {STORY_PAGES.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    className={storySubPage === item.key ? 'story-nav active' : 'story-nav'}
+                    onClick={() => {
+                      setModule('story');
+                      setStoryPage(item.key);
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </aside>
+            )}
+
+            {storyActive && storySubPage === 'script' && (
               <StoryOutline
                 width={storyLayout.outlineWidth}
                 onResize={(width) =>
@@ -1275,7 +1323,7 @@ export default function App() {
             )}
 
             <main className="main">
-              {module === 'character' && (
+              {storyActive && storySubPage === 'characters' && (
                 <CharacterEditor
                   project={project}
                   focusUid={focusRowUid}
@@ -1302,6 +1350,14 @@ export default function App() {
                     setProject((prev) => updateExpression(prev, uid, patch))
                   }
                   onReorder={(from, to) => setProject((prev) => reorderCharacter(prev, from, to))}
+                />
+              )}
+
+              {storyActive && storySubPage === 'textbox' && (
+                <TextBoxEditor
+                  project={project}
+                  assets={{ library: assetLibrary, host }}
+                  onChange={setProject}
                 />
               )}
 
@@ -1465,7 +1521,7 @@ export default function App() {
                 />
               )}
 
-              {module === 'story' && (
+              {storyActive && storySubPage === 'script' && (
                 <div className="list-pane">
                     <div className="editor" ref={storyListRef}>
                             {group === undefined ? (

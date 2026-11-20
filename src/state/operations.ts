@@ -27,6 +27,7 @@ import {
   type IdChange,
 } from '../core/ids';
 import { DEFAULT_SPECIAL_COMMAND_CLASS_PREFIX } from '../core/special-commands';
+import { createDefaultTextBox } from '../core/textbox';
 import {
   DEFAULT_PLAY_POSITION_NAMES,
   type AssetCategoryRow,
@@ -134,6 +135,7 @@ export function createEmptyProject(name = '未命名项目', theme: ThemeName | 
     uiTexts: [],
     battle: createEmptyBattle(),
     specialCommandClassPrefix: DEFAULT_SPECIAL_COMMAND_CLASS_PREFIX,
+    textBoxes: [createDefaultTextBox()],
     ui: { theme },
     exportSettings: [],
     chapters: [

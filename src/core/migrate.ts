@@ -38,6 +38,7 @@ import { WEAPON_ICON_CATEGORY, WEAPON_ICON_ROOT } from './weapon-icons';
 import { firstLineRef, groupUidOfFirstLine, makeLineId, newUid, renumberGroup, type IdChange } from './ids';
 import { collectRefMaps, collectRefUids } from './refs';
 import { DEFAULT_SPECIAL_COMMAND_CLASS_PREFIX } from './special-commands';
+import { normalizeTextBoxes } from './textbox';
 import {
   DEFAULT_PLAY_POSITION_NAMES,
   type BattleData,
@@ -221,7 +222,15 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
   const rawUi: unknown = project.ui;
   const rawTheme =
     isRecord(rawUi) && typeof rawUi.theme === 'string' ? rawUi.theme : '';
-  project.ui = { theme: rawTheme === 'dark' ? 'dark' : rawTheme === 'light' ? 'light' : '' };
+  const rawTextBoxUid =
+    isRecord(rawUi) && typeof rawUi.textBoxUid === 'string' ? rawUi.textBoxUid : '';
+  project.ui = {
+    theme: rawTheme === 'dark' ? 'dark' : rawTheme === 'light' ? 'light' : '',
+    ...(rawTextBoxUid === '' ? {} : { textBoxUid: rawTextBoxUid }),
+  };
+
+  // 预览文本框也是后加的：老项目里没有这一栏，补一条默认的
+  project.textBoxes = normalizeTextBoxes(project.textBoxes);
 
   // 导入设置同样是后加的：老项目里没有这栏
   const rawExportSettings: unknown = project.exportSettings;

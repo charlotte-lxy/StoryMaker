@@ -56,9 +56,14 @@ it.skipIf(!hasData)('导入数据里的「指令」行能渲染出指令下拉',
 it.skipIf(!hasData)('导入数据后逐个模块切换都不会崩', async () => {
   seed();
   await renderApp();
-  for (const label of ['角色', '音效', '物品', '任务', '立绘', '条件与指令', '本地化', '剧情']) {
+  for (const label of ['音效', '物品', '任务', '立绘', '条件与指令', '本地化', '剧情']) {
     expect(() => fireEvent.click(within(rail()).getByText(label))).not.toThrow();
   }
+  // 「角色」已经搬进剧情的子模块
+  fireEvent.click(within(rail()).getByText('剧情'));
+  expect(() =>
+    fireEvent.click(within(screen.getByLabelText('剧情子模块')).getByText('角色')),
+  ).not.toThrow();
 });
 
 it.skipIf(!hasData)('渲染期间不应有 React 警告或错误', async () => {

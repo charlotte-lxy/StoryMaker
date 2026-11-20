@@ -139,6 +139,44 @@ export interface PlayPositionRow {
 export const DEFAULT_PLAY_POSITION_NAMES = ['剧情对话框', '战斗对话框', '屏幕中间'] as const;
 
 /**
+ * 0–1 的相对矩形：x / y 是左上角，w / h 是宽高。
+ *
+ * 文本框相关的位置都存成这个形式，跟画面实际像素大小无关：
+ * 16:9 画面缩放到多宽，里面的框都按比例跟着走。
+ */
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * 文本框：预览时台词框长什么样。
+ *
+ * 目前只做编辑界面（剧情 → 文本框），还不参与导出；`box` 相对 16:9 画面，
+ * `nameRect` / `textRect` 相对文本框，所以整体换位置时名字和台词会跟着走。
+ */
+export interface TextBoxRow {
+  uid: string;
+  /** 列表里显示的名字 */
+  name: string;
+  /** 背景图：图片表那一行的 uid；空串 = 半透明黑底 */
+  imageUid: string;
+  /** 是否显示说话人名字 */
+  showName: boolean;
+  /** 编辑时的示例名字 / 台词（真正播放时来自剧情） */
+  sampleName: string;
+  sampleText: string;
+  box: Rect;
+  nameRect: Rect;
+  textRect: Rect;
+  align: 'left' | 'center' | 'right';
+  /** 行距倍数 */
+  lineHeight: number;
+}
+
+/**
  * 表情差分配置（全局一张表）。
  *
  * 角色行里勾选自己有哪些表情差分（存表情名）；
@@ -624,6 +662,10 @@ export interface Project {
    */
   specialCommandClassPrefix: string;
   /**
+   * 预览用的文本框。老项目里没有这一栏，读取时补一条默认的。
+   */
+  textBoxes?: TextBoxRow[];
+  /**
    * 界面配置，跟着项目文件走：换台机器、换个浏览器打开，看到的还是同样的界面。
    *
    * 老项目里没有这一栏（缺省 = 用本机设置）。
@@ -644,4 +686,6 @@ export type ThemeName = 'light' | 'dark';
 export interface ProjectUi {
   /** 主题；空串表示还没记录过（打开时用本机设置） */
   theme: ThemeName | '';
+  /** 上次在「文本框」页编辑的是哪一条（存 uid，不进导出） */
+  textBoxUid?: string;
 }

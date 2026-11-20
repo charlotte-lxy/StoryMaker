@@ -4885,3 +4885,269 @@ tr.locale-form-note td {
   align-items: center;
   gap: 10px;
 }
+/* ---------- 剧情子模块侧边栏（脚本 / 角色 / 文本框） ---------- */
+
+.story-side {
+  flex-shrink: 0;
+  width: 148px;
+  padding: 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  border-right: 1px solid var(--border);
+  background: var(--panel);
+  overflow-y: auto;
+}
+
+.story-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  border-color: transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-dim);
+  text-align: left;
+  font-size: 12px;
+}
+
+.story-nav:hover:not(.active) {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.story-nav.active,
+.story-nav.active:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+/* ---------- 文本框 ---------- */
+
+.textbox-page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.textbox-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.textbox-tabs {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.textbox-tab {
+  flex-shrink: 0;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border-color: var(--border);
+  background: var(--control-bg);
+  font-size: 12px;
+}
+
+.textbox-tab.active,
+.textbox-tab.active:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.textbox-add {
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.textbox-workspace {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.textbox-canvas-wrap {
+  flex: 1;
+  min-width: 0;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: auto;
+}
+
+.textbox-canvas {
+  position: relative;
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
+  aspect-ratio: 16 / 9;
+  flex-shrink: 0;
+  background: #3c414a;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.textbox-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.textbox-frame {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px dashed rgba(255, 255, 255, 0.45);
+  border-radius: 10px;
+  background: rgba(10, 12, 18, 0.82);
+  cursor: move;
+  touch-action: none;
+}
+
+.textbox-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.textbox-name {
+  position: absolute;
+  box-sizing: border-box;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 2px 4px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: move;
+}
+
+.textbox-text {
+  position: absolute;
+  box-sizing: border-box;
+  color: #e8eaf0;
+  font-size: 15px;
+  padding: 2px 4px;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
+  cursor: move;
+}
+
+.textbox-handle {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  background: #ffffff;
+  border: 1px solid var(--accent);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+  z-index: 2;
+}
+
+.resize-n,
+.resize-s {
+  cursor: ns-resize;
+}
+
+.resize-e,
+.resize-w {
+  cursor: ew-resize;
+}
+
+.resize-ne,
+.resize-sw {
+  cursor: nesw-resize;
+}
+
+.resize-nw,
+.resize-se {
+  cursor: nwse-resize;
+}
+
+.textbox-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.textbox-detail {
+  flex-shrink: 0;
+  width: 300px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-left: 1px solid var(--border);
+  background: var(--panel);
+  overflow-y: auto;
+}
+
+.textbox-detail h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.textbox-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.textbox-check input {
+  width: auto;
+}
+
+.textbox-aligns {
+  display: flex;
+  gap: 6px;
+}
+
+.textbox-aligns button {
+  flex: 1;
+  font-size: 12px;
+  padding: 5px 4px;
+  border-color: var(--border);
+  background: var(--control-bg);
+}
+
+.textbox-aligns button.active,
+.textbox-aligns button.active:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.textbox-remove {
+  margin-top: auto;
+  font-size: 12px;
+}

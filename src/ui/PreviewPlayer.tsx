@@ -67,7 +67,7 @@ interface Props {
 }
 
 /** 读一个素材文件，包成 Blob URL；读不到或浏览器显示不了时返回空串 */
-function useAssetUrl(host: HostApi | undefined, file: AssetFileInfo | undefined): string {
+export function useAssetUrl(host: HostApi | undefined, file: AssetFileInfo | undefined): string {
   const [url, setUrl] = useState('');
 
   useEffect(() => {

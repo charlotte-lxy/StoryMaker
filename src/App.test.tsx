@@ -43,6 +43,15 @@ afterEach(() => {
 /** 左侧模块导航 */
 const rail = () => screen.getByRole('navigation');
 
+/** 剧情模块左侧的子模块栏（脚本 / 角色 / 文本框） */
+const storySide = () => screen.getByLabelText('剧情子模块');
+
+/** 角色已经搬进剧情的子模块：先进剧情，再点子模块栏里的「角色」 */
+function openCharacters(): void {
+  fireEvent.click(within(rail()).getByText('剧情'));
+  fireEvent.click(within(storySide()).getByText('角色'));
+}
+
 /** 合并面板默认停在「章节 / 段落」；要看流程图得先点页签 */
 function openFlowTab(): void {
   fireEvent.click(screen.getByRole('tab', { name: '流程图' }));
@@ -151,7 +160,8 @@ describe('界面冒烟测试', () => {
     await renderApp();
     expect(screen.getByText(/StoryMaker/)).toBeTruthy();
     expect(within(rail()).getByText('剧情')).toBeTruthy();
-    expect(within(rail()).getByText('角色')).toBeTruthy();
+    expect(within(rail()).queryByText('角色')).toBeNull();
+    expect(within(storySide()).getByText('角色')).toBeTruthy();
     expect(within(rail()).getByText('本地化')).toBeTruthy();
   });
 
@@ -200,13 +210,13 @@ describe('界面冒烟测试', () => {
 
   it('能切换到角色模块', async () => {
     await renderApp();
-    fireEvent.click(within(rail()).getByText('角色'));
+    openCharacters();
     expect(screen.getByText(/还没有角色/)).toBeTruthy();
   });
 
   it('新增角色后出现默认的 ID 与名称', async () => {
     await renderApp();
-    fireEvent.click(within(rail()).getByText('角色'));
+    openCharacters();
     fireEvent.click(screen.getByText(/新增角色/));
     expect(screen.getByDisplayValue('CHA_角色1')).toBeTruthy();
     expect(screen.getByDisplayValue('角色1')).toBeTruthy();
@@ -214,7 +224,7 @@ describe('界面冒烟测试', () => {
 
   it('改角色 ID 之后，对话行里的角色引用不会断', async () => {
     await renderApp();
-    fireEvent.click(within(rail()).getByText('角色'));
+    openCharacters();
     fireEvent.click(screen.getByText(/新增角色/));
     fireEvent.click(within(rail()).getByText('剧情'));
 
@@ -226,7 +236,7 @@ describe('界面冒烟测试', () => {
     fireEvent.change(characterSelect(), { target: { value: pickedUid } });
 
     // 把角色表里那一行的 ID 改掉：引用按 uid 找，所以这一行不该跟着断
-    fireEvent.click(within(rail()).getByText('角色'));
+    openCharacters();
     fireEvent.change(screen.getByPlaceholderText('CHA_'), { target: { value: 'CHA_改过的' } });
 
     fireEvent.click(within(rail()).getByText('剧情'));
@@ -236,7 +246,7 @@ describe('界面冒烟测试', () => {
 
   it('角色表有「播放位置」一列，默认剧情对话框，可改成别的', async () => {
     await renderApp();
-    fireEvent.click(within(rail()).getByText('角色'));
+    openCharacters();
     fireEvent.click(screen.getByText(/新增角色/));
 
     const position = screen.getByTitle(/播放位置/) as HTMLSelectElement;
@@ -255,7 +265,7 @@ describe('界面冒烟测试', () => {
 
   it('对话列表里选好角色后，角色旁边标出这个角色的播放位置', async () => {
     await renderApp();
-    fireEvent.click(within(rail()).getByText('角色'));
+    openCharacters();
     fireEvent.click(screen.getByText(/新增角色/));
     const position = screen.getByTitle(/播放位置/) as HTMLSelectElement;
     const battle = [...position.options].find((option) => option.textContent === '战斗对话框');
@@ -273,7 +283,7 @@ describe('界面冒烟测试', () => {
 
   it('角色表的「显示名称」：一行默认名称，点「添加别名」加一行，能删', async () => {
     await renderApp();
-    fireEvent.click(within(rail()).getByText('角色'));
+    openCharacters();
     fireEvent.click(screen.getByText(/新增角色/));
 
     /** 显示名称那一格里各行的标签：默认名称 / 别名1 / 别名2… */
@@ -299,7 +309,7 @@ describe('界面冒烟测试', () => {
 
   it('对话行的显示名从角色的别名里挑，换角色就回到「（默认名称）」', async () => {
     await renderApp();
-    fireEvent.click(within(rail()).getByText('角色'));
+    openCharacters();
     fireEvent.click(screen.getByText(/新增角色/));
     fireEvent.click(screen.getByText('＋ 添加别名'));
     fireEvent.change(screen.getByPlaceholderText('这个角色的另一种写法'), {
@@ -667,7 +677,7 @@ describe('界面冒烟测试', () => {
       expect(saved.characters[0].aliases[0].text).toBe('Q版伊芙（新）');
 
       // 切到角色表核对：默认名称与别名都是刚改的
-      fireEvent.click(within(rail()).getByText('角色'));
+      openCharacters();
       expect(screen.getByDisplayValue('伊芙（新）')).toBeTruthy();
       expect(screen.getByDisplayValue('Q版伊芙（新）')).toBeTruthy();
     });
@@ -988,7 +998,7 @@ describe('脚本块与三种类型的行', () => {
     const { container } = await renderApp();
 
     // 先加个角色，参数里才有角色可选
-    fireEvent.click(within(rail()).getByText('角色'));
+    openCharacters();
     fireEvent.click(screen.getByText(/新增角色/));
     fireEvent.click(within(rail()).getByText('剧情'));
 
@@ -1015,7 +1025,7 @@ describe('脚本块与三种类型的行', () => {
     expect(roleSelect.selectedOptions[0].textContent).toContain('CHA_角色1');
 
     // 切走再回来：按指令文本重新解析出来
-    fireEvent.click(within(rail()).getByText('角色'));
+    openCharacters();
     fireEvent.click(within(rail()).getByText('剧情'));
 
     expect((screen.getByTitle('选择指令（主指令）') as HTMLSelectElement).value).toBe('剧情');
@@ -2816,7 +2826,7 @@ describe('滚动位置记忆', () => {
       editor.scrollTop = 320;
       fireEvent.scroll(editor);
 
-      fireEvent.click(within(rail()).getByText('角色'));
+      openCharacters();
       expect(container.querySelector('.list-pane')).toBeNull();
 
       fireEvent.click(within(rail()).getByText('剧情'));
@@ -2869,13 +2879,13 @@ describe('滚动位置记忆', () => {
     const restore = stubScrollTop();
 
     try {
-      fireEvent.click(within(rail()).getByText('角色'));
+      openCharacters();
       const table = container.querySelector('.editor') as HTMLElement;
       table.scrollTop = 180;
       fireEvent.scroll(table);
 
       fireEvent.click(within(rail()).getByText('剧情'));
-      fireEvent.click(within(rail()).getByText('角色'));
+      openCharacters();
 
       expect((container.querySelector('.editor') as HTMLElement).scrollTop).toBe(180);
     } finally {
@@ -2920,7 +2930,7 @@ describe('右上角的校验结果', () => {
 
   it('点列表里的一行跳到对应模块', async () => {
     await renderApp();
-    fireEvent.click(within(rail()).getByText('角色'));
+    openCharacters();
 
     fireEvent.click(badge());
     const rows = [...document.querySelectorAll('.check-row')];
@@ -2937,14 +2947,15 @@ describe('右上角的校验结果', () => {
 
 
 describe('角色页的配置区与表情图片', () => {
-  const openCharacters = async (): Promise<HTMLElement> => {
+  const openCharacterPage = async (): Promise<HTMLElement> => {
     const { container } = await renderApp();
-    fireEvent.click(within(rail()).getByText('角色'));
+    fireEvent.click(within(rail()).getByText('剧情'));
+    fireEvent.click(within(storySide()).getByText('角色'));
     return container;
   };
 
   it('播放位置配置表在角色表上方，能新增 / 改名，角色行下拉跟着变', async () => {
-    const container = await openCharacters();
+    const container = await openCharacterPage();
 
     const config = container.querySelector('.char-config') as HTMLElement;
     expect(config).toBeTruthy();
@@ -2973,7 +2984,7 @@ describe('角色页的配置区与表情图片', () => {
   });
 
   it('表情表新增表情后，角色行能加它，立绘页自动收出 PIC_ 图片', async () => {
-    const container = await openCharacters();
+    const container = await openCharacterPage();
 
     const config = container.querySelector('.char-config') as HTMLElement;
     const expressionPanel = ([...config.querySelectorAll('.config-panel')] as HTMLElement[])[1];
@@ -3011,7 +3022,7 @@ describe('角色页的配置区与表情图片', () => {
   });
 
   it('角色表、立绘表都能拖拽排序', async () => {
-    const container = await openCharacters();
+    const container = await openCharacterPage();
     fireEvent.click(screen.getByText(/新增角色/));
     fireEvent.click(screen.getByText(/新增角色/));
 
