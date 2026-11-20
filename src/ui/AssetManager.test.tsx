@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { HostApi, UnrealApi } from '../core/host';
+import type { LookupRow } from '../core/types';
 import { ImageAssetCell, SoundAssetCell } from './AssetManager';
 import type { AssetLibrary } from './use-asset-library';
 
@@ -58,6 +59,17 @@ function makeUnreal(overrides: Partial<UnrealApi> = {}): UnrealApi {
 
 function makeHost(unreal?: UnrealApi): HostApi {
   return { kind: 'desktop', unreal } as unknown as HostApi;
+}
+
+/** 一条音效行：默认音量 / 音调都不填（= 1.0） */
+function soundRow(id: string, volume?: number, pitch?: number): LookupRow {
+  return {
+    uid: `uid-${id}`,
+    id,
+    name: '',
+    ...(volume === undefined ? {} : { volume }),
+    ...(pitch === undefined ? {} : { pitch }),
+  };
 }
 
 function fileOf(fileName: string, kind: 'image' | 'sound' = 'image') {
@@ -134,18 +146,65 @@ describe('素材管理单元格', () => {
 
   it('音效有文件时给播放器：播放按钮、进度条、当前 / 总时长', () => {
     const library = makeLibrary({ byId: new Map([['S_dididi', [fileOf('S_dididi.wav', 'sound')]]]) });
-    render(<SoundAssetCell id="S_dididi" library={library} host={makeHost(makeUnreal())} />);
+    render(
+      <SoundAssetCell
+        row={soundRow('S_dididi')}
+        library={library}
+        host={makeHost(makeUnreal())}
+        onUpdate={vi.fn()}
+      />,
+    );
 
     expect(screen.getByRole('button', { name: '▶' })).toBeTruthy();
     expect(screen.getByTitle('拖动跳转')).toBeTruthy();
     expect(screen.getByText('00:00 / 00:00')).toBeTruthy();
+    expect(screen.getByRole('button', { name: '编辑' })).toBeTruthy();
     expect(screen.getByRole('button', { name: '…' })).toBeTruthy();
     expect(screen.getByRole('button', { name: '删除' })).toBeTruthy();
   });
 
   it('音效没文件时只有「上传素材」', () => {
     const library = makeLibrary();
-    render(<SoundAssetCell id="S_dididi" library={library} host={makeHost()} />);
+    render(
+      <SoundAssetCell
+        row={soundRow('S_dididi')}
+        library={library}
+        host={makeHost()}
+        onUpdate={vi.fn()}
+      />,
+    );
     expect(screen.getByRole('button', { name: '上传素材' })).toBeTruthy();
+    // 没素材也能先设音量 / 音调
+    expect(screen.getByRole('button', { name: '编辑' })).toBeTruthy();
+  });
+
+  it('音频编辑：调音量 / 音调写回音效行，恢复默认回到 1.0', () => {
+    const library = makeLibrary({ byId: new Map([['S_dididi', [fileOf('S_dididi.wav', 'sound')]]]) });
+    const onUpdate = vi.fn();
+    render(
+      <SoundAssetCell
+        row={soundRow('S_dididi')}
+        library={library}
+        host={makeHost(makeUnreal())}
+        onUpdate={onUpdate}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('音频编辑：S_dididi')).toBeTruthy();
+
+    const sliders = within(dialog).getAllByRole('slider') as HTMLInputElement[];
+    expect(sliders).toHaveLength(2);
+    expect(sliders[0].value).toBe('1');
+    expect(sliders[1].value).toBe('1');
+
+    fireEvent.change(sliders[0], { target: { value: '1.5' } });
+    expect(onUpdate).toHaveBeenCalledWith({ volume: 1.5 });
+    fireEvent.change(sliders[1], { target: { value: '0.8' } });
+    expect(onUpdate).toHaveBeenCalledWith({ pitch: 0.8 });
+
+    fireEvent.click(within(dialog).getByRole('button', { name: '恢复默认' }));
+    expect(onUpdate).toHaveBeenCalledWith({ volume: 1, pitch: 1 });
   });
 });

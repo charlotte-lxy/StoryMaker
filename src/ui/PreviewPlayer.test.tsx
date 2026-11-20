@@ -115,11 +115,18 @@ function renderPlayer(
     activeGroupUid?: string;
     onPickStart?: (groupUid: string, lineUid?: string) => void;
     onCollapse?: () => void;
+    onStop?: () => void;
+    locked?: boolean;
+    onToggleLocked?: (locked: boolean) => void;
+    onActiveLine?: (lineUid: string, groupUid: string) => void;
   } = {},
 ) {
   const project = options.project ?? makeProject();
   const onPickStart = options.onPickStart ?? vi.fn();
   const onCollapse = options.onCollapse ?? vi.fn();
+  const onStop = options.onStop ?? vi.fn();
+  const onToggleLocked = options.onToggleLocked ?? vi.fn();
+  const onActiveLine = options.onActiveLine ?? vi.fn();
   const view = render(
     <PreviewPlayer
       project={project}
@@ -128,9 +135,21 @@ function renderPlayer(
       assets={{ library: emptyLibrary(), host: undefined }}
       onPickStart={onPickStart}
       onCollapse={onCollapse}
+      onStop={onStop}
+      locked={options.locked ?? true}
+      onToggleLocked={onToggleLocked}
+      onActiveLine={onActiveLine}
     />,
   );
-  return { ...view, project, onPickStart, onCollapse };
+  return {
+    ...view,
+    project,
+    onPickStart,
+    onCollapse,
+    onStop,
+    onToggleLocked,
+    onActiveLine,
+  };
 }
 
 describe('PreviewPlayer 空态与入口', () => {
@@ -145,20 +164,6 @@ describe('PreviewPlayer 空态与入口', () => {
   it('当前没有段落时「从当前段落开始」禁用', () => {
     renderPlayer({ start: null, activeGroupUid: '' });
     expect((screen.getByText('▶ 从当前段落开始') as HTMLButtonElement).disabled).toBe(true);
-  });
-
-  it('起点下拉换段落会通知 App', () => {
-    const { onPickStart } = renderPlayer();
-    const select = screen.getByTitle('预览从哪个段落开始') as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: 'g2' } });
-    expect(onPickStart).toHaveBeenCalledWith('g2');
-  });
-
-  it('起点下拉可以指定从哪一行开始', () => {
-    const { onPickStart } = renderPlayer();
-    const select = screen.getByTitle('从这一行开始（默认第一行）') as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: 'd2' } });
-    expect(onPickStart).toHaveBeenCalledWith('g1', 'd2');
   });
 });
 
@@ -190,7 +195,7 @@ describe('PreviewPlayer 播放', () => {
     expect(container.querySelector('.preview-character-placeholder')?.textContent).toContain(
       '西园寺雪',
     );
-    expect(container.querySelector('.preview-hint')?.textContent).toContain('素材文件夹');
+    expect(container.querySelector('.preview-footer')?.textContent).toContain('素材文件夹');
   });
 
   it('上一句退回上一句台词', () => {
@@ -231,8 +236,17 @@ describe('PreviewPlayer 选项', () => {
 describe('PreviewPlayer 键盘与收起', () => {
   it('点收起按钮通知 App', () => {
     const { onCollapse } = renderPlayer();
-    fireEvent.click(screen.getByTitle('收起预览面板，给对话列表让出地方'));
+    fireEvent.click(screen.getByTitle('收起预览面板，把地方让给流程图'));
     expect(onCollapse).toHaveBeenCalled();
+  });
+
+  it('点「结束预览」：通知 App 并回到空态', () => {
+    const { onStop, container } = renderPlayer();
+
+    fireEvent.click(screen.getByRole('button', { name: '结束预览' }));
+    expect(onStop).toHaveBeenCalled();
+    expect(container.querySelector('.preview-text')).toBeNull();
+    expect(screen.getByText('还没有开始预览。')).toBeTruthy();
   });
 
   it('面板聚焦时空格继续、Esc 收起', () => {
@@ -246,11 +260,33 @@ describe('PreviewPlayer 键盘与收起', () => {
     expect(onCollapse).toHaveBeenCalled();
   });
 
-  it('下拉框里的键盘操作不会被面板抢走', () => {
+  it('按钮里的键盘操作不会被面板抢走', () => {
     const { container } = renderPlayer();
-    const select = screen.getByTitle('预览从哪个段落开始');
-    fireEvent.keyDown(select, { key: ' ' });
-    // 还在第一句，没有被「继续」推进
+    const button = screen.getByRole('button', { name: '继续 ▶' });
+    fireEvent.keyDown(button, { key: ' ' });
+    // 还在第一句，没有被面板的「继续」再推进一次
     expect(container.querySelector('.preview-text')?.textContent).toBe('第一句');
+  });
+});
+
+describe('PreviewPlayer 锁定到对话', () => {
+  it('默认勾上，点一下通知 App', () => {
+    const { onToggleLocked } = renderPlayer();
+    const box = screen.getByRole('checkbox', { name: '锁定到对话' }) as HTMLInputElement;
+    expect(box.checked).toBe(true);
+
+    fireEvent.click(box);
+    expect(onToggleLocked).toHaveBeenCalledWith(false);
+  });
+
+  it('播放停到某一行时把行号 / 段落报给 App（供高亮与滚动）', () => {
+    const onActiveLine = vi.fn();
+    const { container } = renderPlayer({ onActiveLine });
+
+    expect(onActiveLine).toHaveBeenCalledWith('d1', 'g1');
+    expect(container.querySelector('.preview-text')?.textContent).toBe('第一句');
+
+    fireEvent.click(screen.getByText('继续 ▶'));
+    expect(onActiveLine).toHaveBeenLastCalledWith('d2', 'g1');
   });
 });

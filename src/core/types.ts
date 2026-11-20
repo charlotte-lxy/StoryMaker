@@ -256,6 +256,14 @@ export interface LookupRow {
    * 物品 / 任务表不用这个字段（空串 / 不写）。
    */
   categoryUid?: string;
+  /**
+   * 音效的音量 / 音调倍率（只有音效表用；不填就是 1.0）。
+   *
+   * 预览按它播放；导入 UE 时写到 SoundWave 资产的 Volume / Pitch 属性上。
+   * 改过之后算「素材修改」，下次导入会重新导这条音频。
+   */
+  volume?: number;
+  pitch?: number;
 }
 
 /**

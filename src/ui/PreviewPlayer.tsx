@@ -3,8 +3,8 @@
  *
  * 播放逻辑全在 core/preview.ts，这里只负责：
  *   - 把「当前状态」画成画面（背景 / 立绘 / 台词 / 选项 / 延时提示）
- *   - 按日志增量播放音效（一句台词可能先后触发好几条音效指令）
- *   - 自动播放、上一句、重播、继续下一段、指令日志
+ *   - 按日志增量播放音效（**允许多条同时响**，结束预览 / 重播时一次全停）
+ *   - 自动播放、上一句、重播、继续下一段、指令日志、锁定到对话
  *
  * 素材按「文件名 = 条目 ID」从素材文件夹读；读不到就画占位框，
  * 不报错也不白屏——策划看到占位框就知道是该补素材，而不是软件坏了。
@@ -25,6 +25,7 @@ import {
   chooseOption,
   continueToNextGroup,
   describeCommand,
+  previewActiveLineUid,
   previewPositionName,
   previewSpeakerName,
   restartGroup,
@@ -37,7 +38,7 @@ import {
 import { characterAssetOf, imageAssetOf, soundAssetOf } from '../core/preview-assets';
 import type { Project } from '../core/types';
 import { blobOf, canPreviewImage, mimeOf } from './asset-blob';
-import { playExclusive, releaseAudio } from './audio-exclusive';
+import { SoundPlayer } from './sound-player';
 import type { AssetLibrary } from './use-asset-library';
 
 /** 自动播放时每句台词停多久（毫秒） */
@@ -50,9 +51,16 @@ interface Props {
   /** 当前打开的段落：空态里「从当前段落开始」用它 */
   activeGroupUid: string;
   assets: { library: AssetLibrary; host: HostApi | undefined };
-  /** 换起点 / 从当前段落开始：由 App 统一改起点并打开对应段落 */
+  /** 从当前段落开始播（空态按钮） */
   onPickStart: (groupUid: string, lineUid?: string) => void;
   onCollapse: () => void;
+  /** 结束预览：清空播放状态（音频由本组件停掉） */
+  onStop: () => void;
+  /** 锁定到对话：开的时候对话列表会跟着滚 */
+  locked: boolean;
+  onToggleLocked: (locked: boolean) => void;
+  /** 当前停在哪一行 / 哪个段落（对话列表高亮 + 自动滚动用） */
+  onActiveLine: (lineUid: string, groupUid: string) => void;
 }
 
 /** 读一个素材文件，包成 Blob URL；读不到或浏览器显示不了时返回空串 */
@@ -163,6 +171,10 @@ export function PreviewPlayer({
   assets,
   onPickStart,
   onCollapse,
+  onStop,
+  locked,
+  onToggleLocked,
+  onActiveLine,
 }: Props) {
   const [state, setState] = useState<PreviewState | null>(null);
   /** 播放期间读这一份快照，编辑不影响正在播的内容；重播时换成最新项目 */
@@ -173,10 +185,19 @@ export function PreviewPlayer({
   const logRef = useRef<HTMLDivElement | null>(null);
   /** 已经播到第几条日志：音效按新增的那几条播，回退时重置 */
   const playedLogRef = useRef(0);
-  const soundsRef = useRef<Set<HTMLAudioElement>>(new Set());
+  /** 预览里音效可以叠着响，结束 / 重播时一次全停 */
+  const playerRef = useRef<SoundPlayer | null>(null);
+  /** 回调可能每次渲染都换，用 ref 兜住，effect 只跟着「当前行」走 */
+  const activeLineCallback = useRef(onActiveLine);
+  activeLineCallback.current = onActiveLine;
 
-  // 起点变了 = 开一场新的：拿这一刻的项目当快照
+  const stopAllSound = useCallback((): void => {
+    playerRef.current?.stopAll();
+  }, []);
+
+  // 起点变了 = 开一场新的：拿这一刻的项目当快照，旧声音全停
   useEffect(() => {
+    playerRef.current?.stopAll();
     if (start === null) {
       setState(null);
       playedLogRef.current = 0;
@@ -188,39 +209,20 @@ export function PreviewPlayer({
     // project 故意不进依赖：快照只在这一刻取
   }, [start]);
 
-  // 面板关掉（组件卸载）时把还在响的音效停掉
+  // 面板关掉（组件卸载）时把还在响的停掉
   useEffect(() => {
-    const sounds = soundsRef.current;
     return () => {
-      for (const audio of sounds) {
-        audio.pause();
-        releaseAudio(audio);
-      }
-      sounds.clear();
+      playerRef.current?.stopAll();
     };
   }, []);
 
   const playSound = useCallback(
     async (soundUid: string): Promise<void> => {
-      const host = assets.host;
-      if (host?.unreal === undefined) return;
-
       const asset = soundAssetOf(snapshotRef.current, assets.library.byId, soundUid);
       if (asset?.file === undefined) return;
 
-      const result = await host.unreal.readAsset(asset.file.filePath).catch(() => undefined);
-      if (result === undefined || !result.ok || result.data === undefined) return;
-
-      const url = URL.createObjectURL(blobOf(result.data, mimeOf(asset.file.fileName)));
-      const audio = new Audio(url);
-      soundsRef.current.add(audio);
-      playExclusive(audio);
-      audio.addEventListener('ended', () => {
-        soundsRef.current.delete(audio);
-        releaseAudio(audio);
-        URL.revokeObjectURL(url);
-      });
-      await audio.play().catch(() => undefined);
+      const player = playerRef.current ?? (playerRef.current = new SoundPlayer());
+      await player.play(assets.host, asset.file, asset.volume ?? 1, asset.pitch ?? 1);
     },
     [assets.host, assets.library.byId],
   );
@@ -274,6 +276,24 @@ export function PreviewPlayer({
     if (node !== null) node.scrollTop = node.scrollHeight;
   }, [logOpen, state?.log.length]);
 
+  /** 当前停住的那一行：给对话列表高亮 / 滚动用 */
+  const activeLineUid = useMemo(
+    () => (state === null ? '' : previewActiveLineUid(snapshotRef.current, state)),
+    [state],
+  );
+  const activeGroupUidOfLine = state?.cursor.groupUid ?? '';
+
+  useEffect(() => {
+    activeLineCallback.current(activeLineUid, activeGroupUidOfLine);
+  }, [activeLineUid, activeGroupUidOfLine]);
+
+  const stopPreview = (): void => {
+    stopAllSound();
+    playedLogRef.current = 0;
+    setState(null);
+    onStop();
+  };
+
   const choose = (optionUid: string): void => {
     setState((current) =>
       current === null ? null : chooseOption(snapshotRef.current, current, optionUid),
@@ -281,10 +301,14 @@ export function PreviewPlayer({
   };
 
   const back = (): void => {
+    stopAllSound();
     setState((current) => (current === null ? null : stepBack(current)));
   };
 
   const restart = (): void => {
+    // 重播 = 从头再来：先停掉上一轮还在响的音效，再按最新项目重跑本段
+    stopAllSound();
+    playedLogRef.current = 0;
     snapshotRef.current = project;
     setState((current) => (current === null ? null : restartGroup(project, current)));
   };
@@ -310,29 +334,6 @@ export function PreviewPlayer({
     }
   };
 
-  const groups = useMemo(
-    () =>
-      project.chapters.flatMap((chapter) =>
-        chapter.groups.map((group) => ({
-          uid: group.uid,
-          label: `${chapter.title.trim() === '' ? chapter.id : chapter.title} · ${
-            group.title.trim() === '' ? group.id : group.title
-          }`,
-        })),
-      ),
-    [project],
-  );
-
-  const groupUid = state?.cursor.groupUid ?? start?.groupUid ?? activeGroupUid;
-  const group = useMemo(() => {
-    for (const chapter of project.chapters) {
-      const found = chapter.groups.find((item) => item.uid === groupUid);
-      if (found !== undefined) return found;
-    }
-    return undefined;
-  }, [project, groupUid]);
-
-  const lineUid = start?.lineUid ?? '';
   const canAdvance = state !== null && (state.status === 'line' || state.status === 'delay');
   const assetsReady = assets.library.available && assets.library.folder.trim() !== '';
 
@@ -358,46 +359,21 @@ export function PreviewPlayer({
       aria-label="剧情预览"
     >
       <div className="preview-head">
-        <select
-          className="preview-group-select"
-          value={groupUid}
-          title="预览从哪个段落开始"
-          onChange={(event) => {
-            if (event.target.value !== '') onPickStart(event.target.value);
-          }}
-        >
-          {groups.length === 0 && <option value="">还没有段落</option>}
-          {groups.map((item) => (
-            <option key={item.uid} value={item.uid}>
-              {item.label}
-            </option>
-          ))}
-        </select>
-
-        <select
-          className="preview-line-select"
-          value={lineUid}
-          title="从这一行开始（默认第一行）"
-          onChange={(event) => {
-            if (groupUid === '') return;
-            onPickStart(groupUid, event.target.value === '' ? undefined : event.target.value);
-          }}
-          disabled={group === undefined}
-        >
-          <option value="">（第一行）</option>
-          {(group?.lines ?? []).map((line) => (
-            <option key={line.uid} value={line.uid}>
-              {line.readableId}
-              {line.kind === '对话' && line.text.zh.trim() !== '' ? ` · ${line.text.zh.trim()}` : ''}
-            </option>
-          ))}
-        </select>
-
+        <h3 className="preview-title">剧情预览</h3>
         <span className="spacer" />
         <button
           type="button"
           className="mini"
-          title="收起预览面板，给对话列表让出地方"
+          disabled={state === null}
+          title="停止播放、清空预览（所有正在响的音效一起停）"
+          onClick={stopPreview}
+        >
+          结束预览
+        </button>
+        <button
+          type="button"
+          className="mini"
+          title="收起预览面板，把地方让给流程图"
           onClick={onCollapse}
         >
           收起 ⏵
@@ -407,7 +383,7 @@ export function PreviewPlayer({
       {state === null ? (
         <div className="preview-empty">
           <p>还没有开始预览。</p>
-          <p className="hint">点「章节 / 段落」里段落行旁的 ▶，或直接从这里开始：</p>
+          <p className="hint">点对话列表里某一行的「预览」，或从当前段落开始：</p>
           <button
             type="button"
             className="primary"
@@ -547,11 +523,24 @@ export function PreviewPlayer({
             )}
           </div>
 
-          {!assetsReady && (
-            <div className="preview-hint">
-              桌面版 + 设置里选好素材文件夹，才能看到真实画面、听到音效；现在是占位。
-            </div>
-          )}
+          <div className="preview-footer">
+            <label
+              className="preview-lock"
+              title="勾上后对话列表会自动滚动，让当前播放的那一行停在列表中间"
+            >
+              <input
+                type="checkbox"
+                checked={locked}
+                onChange={(event) => onToggleLocked(event.target.checked)}
+              />
+              锁定到对话
+            </label>
+            {!assetsReady && (
+              <span className="hint">
+                桌面版 + 设置里选好素材文件夹，才能看到真实画面、听到音效；现在是占位。
+              </span>
+            )}
+          </div>
 
           {logOpen && (
             <div className="preview-log" ref={logRef}>

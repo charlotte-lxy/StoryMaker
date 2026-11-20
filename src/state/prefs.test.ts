@@ -5,7 +5,6 @@ import {
   DEFAULT_SETTINGS,
   DEFAULT_STORY_LAYOUT,
   clampOutlineWidth,
-  clampPreviewRatio,
   loadSessionPath,
   loadSettings,
   loadStoryLayout,
@@ -47,24 +46,20 @@ describe('设置与「上次打开的项目」的记忆', () => {
     expect(loadSessionPath()).toBeNull();
   });
 
-  it('剧情模块布局默认 440px + 45%，拖过之后记住', () => {
+  it('剧情模块合并面板默认 560px，拖过之后记住', () => {
     expect(loadStoryLayout()).toEqual(DEFAULT_STORY_LAYOUT);
 
-    saveStoryLayout({ outlineWidth: 520, previewRatio: 0.5 });
-    expect(loadStoryLayout()).toEqual({ outlineWidth: 520, previewRatio: 0.5 });
+    saveStoryLayout({ outlineWidth: 640 });
+    expect(loadStoryLayout()).toEqual({ outlineWidth: 640 });
   });
 
-  it('布局尺寸会被夹在合理区间，坏数据退回默认值', () => {
-    expect(clampOutlineWidth(1)).toBe(280);
-    expect(clampOutlineWidth(9999)).toBe(720);
+  it('合并面板宽度会被夹在合理区间，坏数据退回默认值', () => {
+    expect(clampOutlineWidth(1)).toBe(360);
+    expect(clampOutlineWidth(9999)).toBe(760);
     expect(clampOutlineWidth(Number.NaN)).toBe(DEFAULT_STORY_LAYOUT.outlineWidth);
 
-    expect(clampPreviewRatio(0.01)).toBe(0.2);
-    expect(clampPreviewRatio(0.99)).toBe(0.6);
-    expect(clampPreviewRatio(Number.NaN)).toBe(DEFAULT_STORY_LAYOUT.previewRatio);
-
-    saveStoryLayout({ outlineWidth: 9999, previewRatio: 0.99 });
-    expect(loadStoryLayout()).toEqual({ outlineWidth: 720, previewRatio: 0.6 });
+    saveStoryLayout({ outlineWidth: 9999 });
+    expect(loadStoryLayout()).toEqual({ outlineWidth: 760 });
 
     window.localStorage.setItem('storymaker.story-layout.v1', '不是 JSON');
     expect(loadStoryLayout()).toEqual(DEFAULT_STORY_LAYOUT);

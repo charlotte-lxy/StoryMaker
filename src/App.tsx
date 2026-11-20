@@ -1,11 +1,4 @@
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type PointerEvent as ReactPointerEvent,
-  type ReactNode,
-} from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { exportWorkbook } from './core/export';
 import type { IdChange } from './core/ids';
@@ -103,7 +96,6 @@ import {
   type LookupKind,
 } from './state/operations';
 import {
-  clampPreviewRatio,
   loadSettings,
   loadStoryLayout,
   loadUnrealPrefs,
@@ -243,16 +235,19 @@ export default function App() {
   const [flashOptionUid, setFlashOptionUid] = useState<string | null>(null);
   /** 正在看流程图的章节；空串表示用第一章 */
   const [activeChapterUid, setActiveChapterUid] = useState('');
-  /** 剧情模块的布局：合并面板宽度 + 预览面板占比（本机记住，不进项目文件） */
+  /** 剧情模块的布局：合并面板宽度（本机记住，不进项目文件） */
   const [storyLayout, setStoryLayout] = useState(loadStoryLayout);
-  /** 预览面板是否展开；收起后对话列表独占整片 */
+  /** 预览面板是否展开；收起后流程图区占满合并面板 */
   const [previewOpen, setPreviewOpen] = useState(true);
   /** 预览的起点；null 表示还没开始播，面板显示空态 */
   const [previewStart, setPreviewStart] = useState<{
-    chapterUid: string;
     groupUid: string;
     lineUid?: string;
   } | null>(null);
+  /** 预览正在停住的那一行：对话列表描边高亮 */
+  const [previewLineUid, setPreviewLineUid] = useState<string | null>(null);
+  /** 锁定到对话：预览换行时让对话列表滚到中间；默认开 */
+  const [lockToLine, setLockToLine] = useState(true);
   /** 当前项目对应的磁盘文件；还没确定时为 null */
   const [projectPath, setProjectPath] = useState<string | null>(null);
   /** 待确认的危险操作 */
@@ -284,8 +279,6 @@ export default function App() {
   const askConfirm = (message: string, onConfirm: () => void): void => {
     setConfirmRequest({ message, onConfirm });
   };
-  /** 分栏容器：拖分隔线时按它的宽度算比例 */
-  const splitBoxRef = useRef<HTMLDivElement | null>(null);
   /** 对话列表那一栏的滚动位置（按段落记，见下面的 storyListRef） */
 
   /**
@@ -639,15 +632,27 @@ export default function App() {
   };
 
   /**
-   * 从一个段落开始预览：打开它的对话列表，把预览起点设成这段（或指定行），
-   * 预览面板是收起状态时一并展开。
+   * 从某一行的「预览」按钮 / 段落行的 ▶ 开始预览：
+   * 打开它所在的段落，把起点设成这一行（或段落第一行），预览面板收起时一并展开。
    */
   const handlePreviewGroup = (groupUid: string, lineUid?: string): void => {
-    const target = locateGroup(project, groupUid);
-    if (target === undefined) return;
+    if (groupUid === '') return;
     openGroup(groupUid);
-    setPreviewStart({ chapterUid: target.chapter.uid, groupUid, lineUid });
+    setPreviewStart({ groupUid, lineUid });
     setPreviewOpen(true);
+  };
+
+  /** 预览播到哪一行：高亮它；锁定时自动切到那一行所在的段落 */
+  const handlePreviewActiveLine = (lineUid: string, groupUid: string): void => {
+    setPreviewLineUid(lineUid === '' ? null : lineUid);
+    if (!lockToLine || lineUid === '' || groupUid === '' || groupUid === activeUid) return;
+    openGroup(groupUid);
+  };
+
+  /** 结束预览：清掉播放起点与高亮 */
+  const handlePreviewStop = (): void => {
+    setPreviewStart(null);
+    setPreviewLineUid(null);
   };
 
   /** 点侧边栏的章节：看这一章的流程图；列表里的段落不属于本章就切到本章第一段 */
@@ -800,25 +805,6 @@ export default function App() {
     const timer = window.setTimeout(() => saveStoryLayout(storyLayout), 300);
     return () => window.clearTimeout(timer);
   }, [storyLayout]);
-
-  /** 拖动对话列表与预览之间的分隔线，改变预览的宽度占比 */
-  const startSplitDrag = (event: ReactPointerEvent<HTMLDivElement>): void => {
-    event.preventDefault();
-
-    const move = (moveEvent: PointerEvent): void => {
-      const box = splitBoxRef.current?.getBoundingClientRect();
-      if (box === undefined || box.width === 0) return;
-      const ratio = 1 - (moveEvent.clientX - box.left) / box.width;
-      setStoryLayout((prev) => ({ ...prev, previewRatio: clampPreviewRatio(ratio) }));
-    };
-    const end = (): void => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', end);
-    };
-
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', end);
-  };
 
   const handleRemoveGroup = (groupUid: string, title: string): void => {
     const target = locateGroup(project, groupUid);
@@ -1225,6 +1211,25 @@ export default function App() {
                 onResize={(width) =>
                   setStoryLayout((prev) => ({ ...prev, outlineWidth: width }))
                 }
+                preview={
+                  previewOpen ? (
+                    <PreviewPlayer
+                      project={project}
+                      start={previewStart}
+                      activeGroupUid={activeUid}
+                      assets={{ library: assetLibrary, host }}
+                      onPickStart={handlePreviewGroup}
+                      onCollapse={() => {
+                        setPreviewOpen(false);
+                        setPreviewLineUid(null);
+                      }}
+                      onStop={handlePreviewStop}
+                      locked={lockToLine}
+                      onToggleLocked={setLockToLine}
+                      onActiveLine={handlePreviewActiveLine}
+                    />
+                  ) : null
+                }
                 tree={
                   <Sidebar
                     project={project}
@@ -1252,11 +1257,9 @@ export default function App() {
                     project={project}
                     chapterUid={chapterUid}
                     activeGroupUid={activeUid}
-                    previewOpen={previewOpen}
                     onOpenGroup={openGroup}
                     onJumpToOption={handleJumpToOption}
                     onJumpToLine={handleJumpToLine}
-                    onTogglePreview={() => setPreviewOpen((current) => !current)}
                     onRenameGroup={(groupUid, title) =>
                       setProject((prev) => renameGroup(prev, groupUid, title))
                     }
@@ -1461,18 +1464,7 @@ export default function App() {
               )}
 
               {module === 'story' && (
-                <div className="story-split" ref={splitBoxRef}>
-                  <div
-                    className="list-pane"
-                    style={
-                      previewOpen
-                        ? {
-                            flex: '0 0 auto',
-                            flexBasis: `${(1 - storyLayout.previewRatio) * 100}%`,
-                          }
-                        : { flex: '1 1 auto' }
-                    }
-                  >
+                <div className="list-pane">
                     <div className="editor" ref={storyListRef}>
                             {group === undefined ? (
                               <div className="empty-state">
@@ -1524,6 +1516,9 @@ export default function App() {
                                   selectedLineUids={selectedLineUids}
                                   onToggleSelect={handleToggleSelect}
                                   onMoveSelection={handleMoveSelection}
+                                  activeLineUid={previewLineUid}
+                                  lockToLine={lockToLine}
+                                  onPreviewLine={(lineUid) => handlePreviewGroup(activeUid, lineUid)}
                                   onUpdateLine={updateLine}
                                   onUpdateOption={updateOption}
                                   onInsertLine={handleInsertLine}
@@ -1544,27 +1539,6 @@ export default function App() {
                     {/* 脚本块固定在对话列表最下方，横向排布 */}
                     <ScriptPalette onPick={handlePickBlock} />
                   </div>
-
-                  {previewOpen && (
-                    <>
-                      <div
-                        className="split-handle"
-                        title="按住左右拖动，调整对话列表与预览的宽度"
-                        onPointerDown={startSplitDrag}
-                      />
-                      <div className="preview-column">
-                        <PreviewPlayer
-                          project={project}
-                          start={previewStart}
-                          activeGroupUid={activeUid}
-                          assets={{ library: assetLibrary, host }}
-                          onPickStart={handlePreviewGroup}
-                          onCollapse={() => setPreviewOpen(false)}
-                        />
-                      </div>
-                    </>
-                  )}
-                </div>
               )}
             </main>
           </div>

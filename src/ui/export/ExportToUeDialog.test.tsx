@@ -267,7 +267,9 @@ describe('导出到 UE 弹窗', () => {
 
     push!({ phase: 'assets', current: 1, total: 2, label: 'SCE_Black', status: 'running' });
     expect(await screen.findByText(/导入素材/)).toBeTruthy();
-    expect(screen.getByText('1 / 2')).toBeTruthy();
+    await waitFor(() => {
+      expect(document.querySelector('.import-progress-head')?.textContent).toContain('1 / 2');
+    });
   });
 
   it('点完成关闭弹窗', async () => {

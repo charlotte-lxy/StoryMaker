@@ -82,6 +82,9 @@ export interface UnrealImportAsset {
    * 否则会变成「新建一个 + 旧资产残留」。
    */
   previousAssetPath?: string;
+  /** 音效的音量 / 音调倍率：导入后写到 SoundWave 资产的 Volume / Pitch 上 */
+  volume?: number;
+  pitch?: number;
 }
 
 export interface UnrealImportRequest {

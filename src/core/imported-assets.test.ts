@@ -107,6 +107,23 @@ describe('素材按条目 uid 判定', () => {
     expect(previous.get('不存在')).toBeUndefined();
   });
 
+  it('音量 / 音调变了也算修改（文件本身没动）', () => {
+    const before = { ...candidate('u1', 'S_wind', 100, 1000), kind: 'sound' as const, volume: 1, pitch: 1 };
+    const after = { ...candidate('u1', 'S_wind', 100, 1000), kind: 'sound' as const, volume: 1.5, pitch: 1 };
+
+    const changes = classifyAssets([after], new Map([recordOf(before)]));
+    expect(changes.modified.map((item) => item.id)).toEqual(['S_wind']);
+    expect(changes.unchanged).toEqual([]);
+  });
+
+  it('老记录没有音量字段时按 1.0 算，不会凭空变成「修改」', () => {
+    const before = { ...candidate('u1', 'S_wind', 100, 1000), kind: 'sound' as const };
+    const after = { ...candidate('u1', 'S_wind', 100, 1000), kind: 'sound' as const, volume: 1, pitch: 1 };
+
+    const changes = classifyAssets([after], new Map([recordOf(before)]));
+    expect(changes.unchanged.map((item) => item.id)).toEqual(['S_wind']);
+  });
+
   it('路径键统一小写', () => {
     expect(assetKey('C:\\素材\\A.PNG')).toBe('c:\\素材\\a.png');
   });

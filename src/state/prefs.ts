@@ -22,33 +22,25 @@ const SESSION_KEY = 'storymaker.session.v1';
 const LAYOUT_KEY = 'storymaker.story-layout.v1';
 
 /**
- * 剧情模块的三栏布局（合并面板宽度 + 预览面板占比）。
+ * 剧情模块的布局（左侧合并面板的宽度）。
  *
  * 换台机器打开同一个项目时，窗口大小本来就不一样，所以这份尺寸只记在本机，
- * 不进项目文件；老版本存的分栏比例 `storymaker.story-split.v1` 不再读取。
+ * 不进项目文件；老版本存的分栏比例 `storymaker.story-split.v1` 与预览占比不再读取。
  */
 export interface StoryLayout {
-  /** 合并面板（章节 / 段落 + 流程图）的宽度，单位 px */
+  /** 合并面板（预览 + 章节 / 段落 + 流程图）的宽度，单位 px */
   outlineWidth: number;
-  /** 预览面板占右侧的宽度比例 */
-  previewRatio: number;
 }
 
-export const DEFAULT_STORY_LAYOUT: StoryLayout = { outlineWidth: 440, previewRatio: 0.45 };
+export const DEFAULT_STORY_LAYOUT: StoryLayout = { outlineWidth: 560 };
 
 /** 合并面板再窄流程图就没法看了，再宽对话列表就挤没了 */
-export const OUTLINE_WIDTH_MIN = 280;
-export const OUTLINE_WIDTH_MAX = 720;
+export const OUTLINE_WIDTH_MIN = 360;
+export const OUTLINE_WIDTH_MAX = 760;
 
 export function clampOutlineWidth(width: number): number {
   if (!Number.isFinite(width)) return DEFAULT_STORY_LAYOUT.outlineWidth;
   return Math.round(Math.min(OUTLINE_WIDTH_MAX, Math.max(OUTLINE_WIDTH_MIN, width)));
-}
-
-/** 预览占比夹在 20%~60%：再窄看不清画面，再宽对话列表就没地方了 */
-export function clampPreviewRatio(ratio: number): number {
-  if (!Number.isFinite(ratio)) return DEFAULT_STORY_LAYOUT.previewRatio;
-  return Math.min(0.6, Math.max(0.2, ratio));
 }
 
 function readJson(key: string): unknown {
@@ -98,23 +90,17 @@ export function saveSessionPath(projectPath: string | null): void {
   writeJson(SESSION_KEY, { projectPath });
 }
 
-/** 剧情模块三栏布局；没存过、或存坏了都用默认值 */
+/** 剧情模块合并面板的宽度；没存过、或存坏了都用默认值 */
 export function loadStoryLayout(): StoryLayout {
   const parsed = readJson(LAYOUT_KEY);
   if (parsed === null || typeof parsed !== 'object') return { ...DEFAULT_STORY_LAYOUT };
 
   const raw = parsed as Partial<StoryLayout>;
-  return {
-    outlineWidth: clampOutlineWidth(Number(raw.outlineWidth)),
-    previewRatio: clampPreviewRatio(Number(raw.previewRatio)),
-  };
+  return { outlineWidth: clampOutlineWidth(Number(raw.outlineWidth)) };
 }
 
 export function saveStoryLayout(layout: StoryLayout): void {
-  writeJson(LAYOUT_KEY, {
-    outlineWidth: clampOutlineWidth(layout.outlineWidth),
-    previewRatio: clampPreviewRatio(layout.previewRatio),
-  });
+  writeJson(LAYOUT_KEY, { outlineWidth: clampOutlineWidth(layout.outlineWidth) });
 }
 
 const COLLAB_KEY = 'storymaker.collab.v1';

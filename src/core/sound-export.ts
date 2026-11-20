@@ -21,6 +21,30 @@ export const SOUND_HEADER: readonly string[] = ['', '音频', '音效类型', '�
 /** 分类存储路径的默认根：新分类默认放在它下面，并按分类名分子文件夹 */
 export const DEFAULT_SOUND_ASSET_ROOT = '/Game/GameContent/Asset/Sound';
 
+/** 音量 / 音调的倍率范围与默认值（1 = 原样） */
+export const SOUND_VOLUME_MIN = 0;
+export const SOUND_VOLUME_MAX = 2;
+export const SOUND_PITCH_MIN = 0.5;
+export const SOUND_PITCH_MAX = 2;
+
+/**
+ * 音效行的音量倍率。
+ *
+ * 没填、或手改 JSON 改成了不合法的东西，一律当 1.0——预览与导入都不该因此崩。
+ */
+export function soundVolumeOf(row: { volume?: number }): number {
+  const value = row.volume;
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 1;
+  return Math.min(SOUND_VOLUME_MAX, Math.max(SOUND_VOLUME_MIN, value));
+}
+
+/** 音效行的音调倍率；规则同音量 */
+export function soundPitchOf(row: { pitch?: number }): number {
+  const value = row.pitch;
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 1;
+  return Math.min(SOUND_PITCH_MAX, Math.max(SOUND_PITCH_MIN, value));
+}
+
 /** 新分类的默认存储路径：根目录 + 分类名 */
 export function defaultSoundCategoryPath(name: string): string {
   const folder = name.trim();

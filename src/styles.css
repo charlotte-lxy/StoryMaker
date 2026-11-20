@@ -916,15 +916,7 @@ textarea {
   white-space: nowrap;
 }
 
-/* ---------- 章节流程图 + 对话列表的分栏 ---------- */
-
-.story-split {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-}
-
-/* ---------- 剧情模块左侧的合并面板（章节 / 段落 + 流程图，页签切换） ---------- */
+/* ---------- 剧情模块左侧的合并面板（预览 + 章节 / 段落 + 流程图） ---------- */
 
 .story-outline {
   flex: 0 0 auto;
@@ -1235,34 +1227,6 @@ textarea {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--on-accent);
-}
-
-/* 中间那条可以左右拖的分隔线 */
-.split-handle {
-  position: relative;
-  flex: 0 0 7px;
-  cursor: col-resize;
-  background: var(--bg);
-  border-left: 1px solid var(--border);
-  border-right: 1px solid var(--border);
-  touch-action: none;
-}
-
-.split-handle::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 3px;
-  height: 36px;
-  border-radius: 2px;
-  background: var(--border-strong);
-}
-
-.split-handle:hover::after,
-.split-handle.dragging::after {
-  background: var(--accent);
 }
 
 .list-pane {
@@ -1923,6 +1887,8 @@ table.lines tbody tr.line-row:hover {
 
 .row-actions {
   display: flex;
+  flex-direction: column;
+  align-items: stretch;
   gap: 3px;
   white-space: nowrap;
 }
@@ -4519,22 +4485,26 @@ tr.locale-form-note td {
   font-size: 12px;
 }
 
-/* ---------- 剧情预览面板 ---------- */
+/* ---------- 剧情预览面板（在左侧合并面板的顶部） ---------- */
 
-.preview-column {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
+.outline-preview {
+  flex-shrink: 0;
+  min-height: 0;
+  border-bottom: 1px solid var(--border);
   background: var(--panel);
 }
 
 .preview-pane {
-  flex: 1;
-  min-height: 0;
   display: flex;
   flex-direction: column;
+  min-height: 0;
   outline: none;
+}
+
+.preview-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .preview-head {
@@ -4546,11 +4516,6 @@ tr.locale-form-note td {
   border-bottom: 1px solid var(--border);
 }
 
-.preview-head select {
-  min-width: 0;
-  max-width: 220px;
-}
-
 .preview-head .spacer {
   flex: 1;
 }
@@ -4559,10 +4524,10 @@ tr.locale-form-note td {
   padding: 10px;
 }
 
-/* 16:9 画面：宽度先按容器，再由视口高度兜一层，比例始终不变 */
+/* 16:9 画面：宽度跟着合并面板走，高度由比例算出来 */
 .preview-frame {
   position: relative;
-  width: min(100%, calc((100vh - 260px) * 16 / 9));
+  width: 100%;
   margin: 0 auto;
   aspect-ratio: 16 / 9;
   background: #0b0b0f;
@@ -4778,6 +4743,22 @@ tr.locale-form-note td {
   font-size: 12px;
 }
 
+.preview-footer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 10px 8px;
+}
+
+.preview-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
 .preview-hint {
   padding: 0 10px 8px;
   color: var(--text-dim);
@@ -4787,7 +4768,7 @@ tr.locale-form-note td {
 .preview-log {
   flex: 0 1 auto;
   min-height: 0;
-  max-height: 30%;
+  max-height: 150px;
   overflow: auto;
   margin: 0 10px 10px;
   padding: 6px 8px;
@@ -4825,4 +4806,56 @@ tr.locale-form-note td {
 .tree-group:hover .preview-group,
 .tree-group.active .preview-group {
   opacity: 1;
+}
+
+/* 预览正在停住的那一行：描边高亮（锁定到对话时它会停在列表中间） */
+.line-card.previewing {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+/* 对话列表操作列里的「预览」按钮 */
+.row-actions .preview-line {
+  color: var(--accent);
+}
+
+/* ---------- 音频编辑弹窗（音量 / 音调） ---------- */
+
+.audio-edit-modal {
+  width: min(460px, 92vw);
+}
+
+.audio-edit-modal .modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.audio-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.audio-edit-row input[type='range'] {
+  flex: 1;
+}
+
+.audio-edit-label {
+  width: 42px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.audio-edit-row output {
+  width: 56px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+
+.audio-edit-audition {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }

@@ -13,7 +13,7 @@ import { buildAllSheets } from './export';
 import { dataTableRef } from './export-settings';
 import { collectExpressionImages } from './expression-images';
 import { imageAssetPath } from './image-export';
-import { soundAssetPath } from './sound-export';
+import { soundAssetPath, soundPitchOf, soundVolumeOf } from './sound-export';
 import { collectWeaponIcons } from './weapon-icons';
 import type { Project } from './types';
 
@@ -35,6 +35,9 @@ export interface AssetImportTask {
   id: string;
   /** Unreal 包路径，如 /Game/GameContent/Asset/Image/StoryBackground/SCE_Black */
   assetPath: string;
+  /** 音效的音量 / 音调倍率（只有音效用；图片不带） */
+  volume?: number;
+  pitch?: number;
 }
 
 export interface UnrealImportPlan {
@@ -57,6 +60,9 @@ export interface ResolvedImportAsset extends MaterialFileRef {
   id: string;
   assetPath: string;
   kind: 'image' | 'sound';
+  /** 音效的音量 / 音调倍率（图片没有） */
+  volume?: number;
+  pitch?: number;
 }
 
 export interface ResolvedAssets {
@@ -135,7 +141,13 @@ function collectSoundTasks(project: Project): AssetImportTask[] {
     const category = categories.get(row.categoryUid ?? '');
     const assetPath = packagePathOf(soundAssetPath(category?.path ?? '', id));
     if (assetPath === '') continue;
-    tasks.push({ ownerUid: row.uid, id, assetPath });
+    tasks.push({
+      ownerUid: row.uid,
+      id,
+      assetPath,
+      volume: soundVolumeOf(row),
+      pitch: soundPitchOf(row),
+    });
   }
 
   return tasks;
@@ -202,6 +214,8 @@ export function resolveImportAssets(
       fileName: file.fileName,
       size: file.size,
       mtimeMs: file.mtimeMs,
+      ...(task.volume === undefined ? {} : { volume: task.volume }),
+      ...(task.pitch === undefined ? {} : { pitch: task.pitch }),
     });
   }
 

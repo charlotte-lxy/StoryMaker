@@ -11,12 +11,16 @@
 
 import { expressionIdOf, expressionPictureId } from './expression-images';
 import type { AssetFileInfo } from './host';
+import { soundPitchOf, soundVolumeOf } from './sound-export';
 import type { Project } from './types';
 
 /** 一个预览素材：要匹配的 ID 加找到的文件（文件可能不在） */
 export interface PreviewAsset {
   id: string;
   file?: AssetFileInfo;
+  /** 音效的音量 / 音调倍率（图片没有） */
+  volume?: number;
+  pitch?: number;
 }
 
 /** 素材文件夹里的文件，按「文件名去掉扩展名」归类（和 use-asset-library 的 byId 同构） */
@@ -46,7 +50,12 @@ export function soundAssetOf(
 ): PreviewAsset | undefined {
   const row = project.sounds.find((item) => item.uid === soundUid);
   if (row === undefined) return undefined;
-  return { id: row.id, file: firstFile(byId, row.id) };
+  return {
+    id: row.id,
+    file: firstFile(byId, row.id),
+    volume: soundVolumeOf(row),
+    pitch: soundPitchOf(row),
+  };
 }
 
 /**

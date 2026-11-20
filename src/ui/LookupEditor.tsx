@@ -261,7 +261,12 @@ export function LookupRowsTable({
               {hasAssets && (
                 <td>
                   {kind === 'sounds' ? (
-                    <SoundAssetCell id={row.id} library={assets.library} host={assets.host} />
+                    <SoundAssetCell
+                      row={row}
+                      library={assets.library}
+                      host={assets.host}
+                      onUpdate={(patch) => onUpdate(kind, row.uid, patch)}
+                    />
                   ) : (
                     <ImageAssetCell id={row.id} library={assets.library} host={assets.host} />
                   )}

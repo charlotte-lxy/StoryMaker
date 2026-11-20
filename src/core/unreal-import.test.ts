@@ -77,8 +77,19 @@ describe('导入计划', () => {
         ownerUid: 'snd-1',
         id: 'S_dididi',
         assetPath: '/Game/GameContent/Asset/Sound/BackgroundSound/S_dididi',
+        volume: 1,
+        pitch: 1,
       },
     ]);
+  });
+
+  it('音效的音量 / 音调带进计划', () => {
+    const project = makeProject();
+    project.sounds[0].volume = 1.4;
+    project.sounds[0].pitch = 0.8;
+
+    const plan = buildUnrealImportPlan(project);
+    expect(plan.sounds[0]).toMatchObject({ volume: 1.4, pitch: 0.8 });
   });
 
   it('没选分类的图不进计划（导出去的表里那一格本来就是空的）', () => {

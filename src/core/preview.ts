@@ -161,6 +161,20 @@ export function previewPositionName(project: Project, positionUid: string): stri
   return project.playPositions.find((item) => item.uid === positionUid)?.name ?? '';
 }
 
+/**
+ * 当前停住的是哪一行——界面用它高亮，并在「锁定到对话」时滚到列表中间。
+ *
+ * 延时状态的游标已经指向「延时之后的那一行」，要往回退一格；
+ * 播完 / 出问题时没有当前行。
+ */
+export function previewActiveLineUid(project: Project, state: PreviewState): string {
+  if (state.status === 'finished' || state.status === 'blocked') return '';
+  const group = previewGroupOf(project, state.cursor.groupUid);
+  if (group === undefined) return '';
+  const index = state.status === 'delay' ? state.cursor.lineIndex - 1 : state.cursor.lineIndex;
+  return group.lines[index]?.uid ?? '';
+}
+
 /** 角色表里那一行 */
 export function previewCharacterOf(project: Project, characterUid: string): Character | undefined {
   return project.characters.find((item) => item.uid === characterUid);

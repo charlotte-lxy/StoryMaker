@@ -29,6 +29,9 @@ interface ImportCore {
     assetPath: string;
     sourcePath: string;
     previousAssetPath?: string;
+    kind?: 'image' | 'sound';
+    volume?: number;
+    pitch?: number;
   }) => string;
   buildTableScript: (table: { label: string; assetPath: string; csvPath: string }) => string;
   readItemResult: (output: readonly string[]) => { ok: boolean; detail: string } | null;
@@ -154,6 +157,27 @@ describe('单项导入脚本', () => {
     // 改名必须发生在 import 之前
     expect(script.indexOf('rename_asset')).toBeLessThan(script.indexOf('import_asset_tasks'));
     expect(embeddedItem(script)).toMatchObject({ previousAssetPath: '/Game/a/SCE_Old' });
+  });
+
+  it('音效脚本导完把音量 / 音调写进 SoundWave 资产', () => {
+    const script = importer.buildAssetScript({
+      ownerUid: 's1',
+      id: 'S_dididi',
+      assetPath: '/Game/GameContent/Asset/Sound/BackgroundSound/S_dididi',
+      sourcePath: 'C:\\素材\\S_dididi.wav',
+      kind: 'sound',
+      volume: 1.6,
+      pitch: 0.8,
+    });
+
+    expect(script).toContain('set_editor_property("volume"');
+    expect(script).toContain('set_editor_property("pitch"');
+    expect(script).toContain('save_loaded_asset');
+    expect(embeddedItem(script)).toMatchObject({ volume: 1.6, pitch: 0.8 });
+    // 属性写在导入之后
+    expect(script.indexOf('import_asset_tasks')).toBeLessThan(
+      script.indexOf('set_editor_property("volume"'),
+    );
   });
 
   it('没改过 ID 的脚本里不出现改名逻辑', () => {

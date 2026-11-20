@@ -51,6 +51,12 @@ interface Props {
   flashLineUid: string | null;
   /** 刚被跳转过来的选项（点流程图上的选项标签），短暂高亮 */
   flashOptionUid: string | null;
+  /** 预览正在停住的那一行：描边高亮 */
+  activeLineUid: string | null;
+  /** 锁定到对话：当前播放行变化时把它滚到列表中间 */
+  lockToLine: boolean;
+  /** 从这一行开始预览 */
+  onPreviewLine: (lineUid: string) => void;
   onUpdateLine: (lineUid: string, patch: Partial<Line>) => void;
   onUpdateOption: (optionUid: string, patch: Partial<StoryOption>) => void;
   /** 在 index 位置插入一行（index 是插入点，等于行数表示追加到末尾） */
@@ -131,6 +137,15 @@ export function LineList(props: Props) {
     if (props.flashLineUid === null) return;
     flashCardRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }, [props.flashLineUid]);
+
+  // 锁定到对话：预览每停到一行，就把那一行滚到列表中间
+  useEffect(() => {
+    if (!props.lockToLine || props.activeLineUid === null) return;
+    const card = listRef.current?.querySelector(
+      `.line-card[data-line-uid="${props.activeLineUid}"]`,
+    );
+    card?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+  }, [props.lockToLine, props.activeLineUid, props.group.uid]);
 
   // 拖拽不管在哪里结束（含中途取消），都要把插入标记收起来
   useEffect(() => {
@@ -306,6 +321,7 @@ export function LineList(props: Props) {
                 'line-card',
                 `type-card-${line.kind}`,
                 props.flashLineUid === line.uid ? 'flash' : '',
+                props.activeLineUid === line.uid ? 'previewing' : '',
                 dragIndex === index || (draggingGroup && selected) ? 'dragging' : '',
                 editingUid === line.uid ? 'editing' : '',
                 dropAt === index ? 'drop-before' : '',
@@ -573,6 +589,14 @@ export function LineList(props: Props) {
                         onClick={() => setNoteUid(noteUid === line.uid ? null : line.uid)}
                       >
                         备注
+                      </button>
+                      <button
+                        type="button"
+                        className="mini preview-line"
+                        title="从这一行开始预览"
+                        onClick={() => props.onPreviewLine(line.uid)}
+                      >
+                        预览
                       </button>
                     </div>
                   </Field>

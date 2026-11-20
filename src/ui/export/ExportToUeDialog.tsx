@@ -52,6 +52,8 @@ function toRequestAssets(
     assetPath: item.assetPath,
     sourcePath: item.filePath,
     previousAssetPath: previousPaths.get(item.ownerUid),
+    ...(item.volume === undefined ? {} : { volume: item.volume }),
+    ...(item.pitch === undefined ? {} : { pitch: item.pitch }),
   }));
 }
 
@@ -148,6 +150,8 @@ export function ExportToUeDialog({ project, prefs, host, library, connection, on
           size: file.size,
           mtimeMs: file.mtimeMs,
           importedAt: new Date().toISOString(),
+          ...(file.volume === undefined ? {} : { volume: file.volume }),
+          ...(file.pitch === undefined ? {} : { pitch: file.pitch }),
         });
       }
       mergeImportMarkers(folder, records);

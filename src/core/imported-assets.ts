@@ -29,6 +29,9 @@ export interface AssetCandidate extends AssetFingerprint {
   /** 现在要导入到的 UE 资产路径 */
   assetPath: string;
   kind: 'image' | 'sound';
+  /** 音效的音量 / 音调倍率（图片没有）；改了也算素材修改 */
+  volume?: number;
+  pitch?: number;
 }
 
 /** 导入成功后记下来的一条 */
@@ -41,6 +44,9 @@ export interface ImportedAssetRecord extends AssetFingerprint {
   kind: 'image' | 'sound';
   /** 导入时间，ISO 字符串；只在界面上显示 */
   importedAt: string;
+  /** 上次导入时的音量 / 音调（老记录没有，按 1.0 算） */
+  volume?: number;
+  pitch?: number;
 }
 
 /** 一条「ID 改过名」的记录：导入时要先把 UE 里的旧资产改名 */
@@ -97,6 +103,14 @@ export function classifyAssets(
       continue;
     }
     if (record.size !== candidate.size || record.mtimeMs !== candidate.mtimeMs) {
+      modified.push(candidate);
+      continue;
+    }
+    // 音量 / 音调是写在 UE 资产上的，文件没变也要重新导一遍才会生效
+    if (
+      (record.volume ?? 1) !== (candidate.volume ?? 1) ||
+      (record.pitch ?? 1) !== (candidate.pitch ?? 1)
+    ) {
       modified.push(candidate);
       continue;
     }

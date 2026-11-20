@@ -1128,36 +1128,92 @@ describe('章节流程图与分栏', () => {
     expect(container.querySelector('.option-item.flash')).toBeTruthy();
   });
 
-  it('拖分隔线改变对话列表与预览的宽度', async () => {
+  it('拖左侧分隔线改变合并面板的宽度', async () => {
     seedJumpProject();
     const { container } = await renderApp();
 
-    const split = container.querySelector('.story-split') as HTMLElement;
-    split.getBoundingClientRect = () =>
-      ({ left: 0, width: 1000, top: 0, height: 600, right: 1000, bottom: 600, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+    expect((container.querySelector('.story-outline') as HTMLElement).style.width).toBe('560px');
 
-    const handle = container.querySelector('.split-handle') as HTMLElement;
-    fireEvent.pointerDown(handle, { clientX: 550 });
-    fireEvent.pointerMove(window, { clientX: 300 });
+    const handle = container.querySelector('.outline-handle') as HTMLElement;
+    fireEvent.pointerDown(handle, { clientX: 560 });
+    fireEvent.pointerMove(window, { clientX: 640 });
     fireEvent.pointerUp(window);
 
-    // 指针在 30% 处：预览占 70%，但夹在上限 60%，对话列表剩 40%
-    expect((container.querySelector('.list-pane') as HTMLElement).style.flexBasis).toBe('40%');
-    expect(container.querySelector('.preview-column')).not.toBeNull();
+    expect((container.querySelector('.story-outline') as HTMLElement).style.width).toBe('640px');
   });
 
   it('可以收起预览，点段落行的 ▶ 再展开并开始播', async () => {
     seedJumpProject();
     const { container } = await renderApp();
-    expect(container.querySelector('.preview-column')).not.toBeNull();
+    expect(container.querySelector('.outline-preview')).not.toBeNull();
 
-    fireEvent.click(screen.getByTitle('收起预览面板，给对话列表让出地方'));
-    expect(container.querySelector('.preview-column')).toBeNull();
-    expect(container.querySelector('.split-handle')).toBeNull();
+    fireEvent.click(screen.getByTitle('收起预览面板，把地方让给流程图'));
+    expect(container.querySelector('.outline-preview')).toBeNull();
 
     fireEvent.click(screen.getByTitle('从「码头」的第一句开始预览'));
-    expect(container.querySelector('.preview-column')).not.toBeNull();
+    expect(container.querySelector('.outline-preview')).not.toBeNull();
     expect(container.querySelector('.preview-text')?.textContent).toBe('海风很大');
+  });
+
+  it('对话列表每行的「预览」从这一行开始播，并描边高亮那一行', async () => {
+    seedJumpProject();
+    const { container } = await renderApp();
+
+    openFlowTab();
+    fireEvent.click(screen.getByTitle('打开「码头」的对话列表'));
+
+    fireEvent.click(screen.getByTitle('从这一行开始预览'));
+    expect(container.querySelector('.preview-text')?.textContent).toBe('海风很大');
+    expect(container.querySelector('.line-card.previewing')?.getAttribute('data-line-uid')).toBe(
+      'l2',
+    );
+  });
+
+  it('锁定到对话：选项跳到别的段落时，对话列表跟着切过去并高亮', async () => {
+    seedJumpProject();
+    const { container } = await renderApp();
+
+    // 从「开场」第一行播：那一行是选项
+    fireEvent.click(screen.getByTitle('从「开场」的第一句开始预览'));
+    expect(container.querySelector('.preview-option')).not.toBeNull();
+
+    fireEvent.click(container.querySelector('.preview-option') as HTMLElement);
+
+    expect(container.querySelector('.preview-text')?.textContent).toBe('海风很大');
+    expect(container.querySelector('.editor-head h2')?.textContent).toContain('码头');
+    expect(container.querySelector('.line-card.previewing')?.getAttribute('data-line-uid')).toBe(
+      'l2',
+    );
+  });
+
+  it('关掉「锁定到对话」后，预览跳段不会抢走对话列表', async () => {
+    seedJumpProject();
+    const { container } = await renderApp();
+
+    // 先开播，锁定框这时才在面板下方出现
+    fireEvent.click(screen.getByTitle('从「开场」的第一句开始预览'));
+    const lock = screen.getByRole('checkbox', { name: '锁定到对话' }) as HTMLInputElement;
+    expect(lock.checked).toBe(true);
+    fireEvent.click(lock);
+
+    fireEvent.click(container.querySelector('.preview-option') as HTMLElement);
+
+    expect(container.querySelector('.preview-text')?.textContent).toBe('海风很大');
+    // 列表还停在「开场」，也没有那一行可以高亮
+    expect(container.querySelector('.editor-head h2')?.textContent).toContain('开场');
+    expect(container.querySelector('.line-card.previewing')).toBeNull();
+  });
+
+  it('结束预览后画面与高亮一起清掉', async () => {
+    seedJumpProject();
+    const { container } = await renderApp();
+
+    fireEvent.click(screen.getByTitle('从「码头」的第一句开始预览'));
+    expect(container.querySelector('.line-card.previewing')).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: '结束预览' }));
+    expect(container.querySelector('.preview-text')).toBeNull();
+    expect(container.querySelector('.line-card.previewing')).toBeNull();
   });
 
   it('点 ✎ 能改章节名和段落名（侧边栏）', async () => {

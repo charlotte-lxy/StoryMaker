@@ -7,6 +7,7 @@ import {
   continueToNextGroup,
   describeCommand,
   nextGroupUidOf,
+  previewActiveLineUid,
   previewSpeakerName,
   restartGroup,
   startPreview,
@@ -430,6 +431,33 @@ describe('nextGroupUidOf', () => {
     const project = makeProject([]);
     expect(nextGroupUidOf(project, 'g1')).toBe('g2');
     expect(nextGroupUidOf(project, 'g2')).toBe('');
+  });
+});
+
+describe('previewActiveLineUid', () => {
+  it('对话 / 选项停在那一行，延时退回延时行，播完为空', () => {
+    const project = makeProject(
+      [
+        dialogue('d1', 'Dia_ch01_001-1', '第一句'),
+        commandLine('l2', 'Dia_ch01_001-2', '其他|延时|时长:0.5'),
+        optionLine('l3', 'Dia_ch01_001-3', ['o1']),
+      ],
+      [option('o1', 'Dia_ch01_001-3A', '结束', '')],
+    );
+
+    const first = startPreview(project, { groupUid: 'g1' });
+    expect(previewActiveLineUid(project, first)).toBe('d1');
+
+    const delay = advance(project, first);
+    expect(delay.status).toBe('delay');
+    expect(previewActiveLineUid(project, delay)).toBe('l2');
+
+    const options = advance(project, delay);
+    expect(previewActiveLineUid(project, options)).toBe('l3');
+
+    const ended = chooseOption(project, options, 'o1');
+    expect(ended.status).toBe('finished');
+    expect(previewActiveLineUid(project, ended)).toBe('');
   });
 });
 

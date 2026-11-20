@@ -1,10 +1,12 @@
 /**
- * 剧情模块左侧的合并面板：上面一排页签，「章节 / 段落」和「流程图」二选一。
+ * 剧情模块左侧的合并面板，从上到下三段：
  *
- * 原来它们是并排的两栏（树 + 流程图），合并后能腾出地方给右侧的对话列表和预览，
- * 代价是同一时刻只看得到一个——所以流量图的宽度要靠下面的分隔线自己拉。
+ *   剧情预览（可收起）  —— 16:9 播放画面与播放控制
+ *   页签                —— 「章节 / 段落」和「流程图」二选一
+ *   下面这块            —— 章节树或流程图
  *
- * 宽度记在本机（storymaker.story-layout.v1），不跟项目文件走。
+ * 预览收起时下面两块占满整个面板。宽度记在本机（storymaker.story-layout.v1），
+ * 不跟项目文件走。
  */
 
 import { useCallback, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
@@ -17,13 +19,15 @@ type OutlineTab = 'tree' | 'flow';
 interface Props {
   width: number;
   onResize: (width: number) => void;
+  /** 顶部的剧情预览；null 表示收起，不占地方 */
+  preview: ReactNode;
   /** 「章节 / 段落」页签的内容 */
   tree: ReactNode;
   /** 「流程图」页签的内容 */
   flow: ReactNode;
 }
 
-export function StoryOutline({ width, onResize, tree, flow }: Props) {
+export function StoryOutline({ width, onResize, preview, tree, flow }: Props) {
   const [tab, chooseTab] = useRememberedChoice<OutlineTab>('story:outline', 'tree');
 
   /** 按住右侧分隔线拖动：把面板拉宽 / 收窄 */
@@ -50,6 +54,8 @@ export function StoryOutline({ width, onResize, tree, flow }: Props) {
   return (
     <>
       <aside className="story-outline" style={{ width }}>
+        {preview !== null && <div className="outline-preview">{preview}</div>}
+
         <div className="outline-tabs" role="tablist" aria-label="章节、段落与流程图">
           <button
             type="button"
@@ -76,7 +82,7 @@ export function StoryOutline({ width, onResize, tree, flow }: Props) {
 
       <div
         className="outline-handle"
-        title="按住左右拖动，调整章节 / 流程图这一栏的宽度"
+        title="按住左右拖动，调整左侧这一栏的宽度"
         onPointerDown={startResize}
       />
     </>
