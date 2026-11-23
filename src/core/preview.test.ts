@@ -93,7 +93,7 @@ function addCharacter(project: Project, uid: string, id: string, name: string): 
     name,
     nameEn: '',
     nameJa: '',
-    playPosition: project.playPositions[0]?.uid ?? '',
+    textBoxUid: '',
     aliases: [],
     expressions: ['微笑', '悲伤'],
     actions: ['挥手'],
@@ -461,6 +461,90 @@ describe('previewActiveLineUid', () => {
   });
 });
 
+describe('文本框：初始隐藏、自动弹出、清空与隐藏', () => {
+  /** 给项目补一个角色（绑到第一个文本框）与「剧情|文本框」指令定义 */
+  function withTextBox(lines: Line[]): { project: Project; boxUid: string; characterUid: string } {
+    const project = makeProject(lines);
+    const boxUid = project.textBoxes[0]?.uid ?? '';
+    project.characters.push({
+      uid: 'cha1',
+      id: 'CHA_雪',
+      name: '西园寺雪',
+      nameEn: '',
+      nameJa: '',
+      textBoxUid: boxUid,
+      aliases: [],
+      expressions: [],
+      actions: [],
+    });
+    project.commands.push({
+      uid: 'cmd-textbox',
+      category: '指令',
+      head: '剧情',
+      branch: '文本框',
+      note: '',
+      params: [
+        { uid: 'p-ref', name: '文本框', source: 'textbox', options: [], required: true, note: '' },
+        {
+          uid: 'p-act',
+          name: '操作',
+          source: 'fixed',
+          options: ['弹出', '清空', '隐藏'],
+          required: true,
+          note: '',
+        },
+      ],
+    });
+    return { project, boxUid, characterUid: 'cha1' };
+  }
+
+  const visibleOf = (state: { stage: { textBoxes: { textBoxUid: string; visible: boolean }[] } }, uid: string): boolean =>
+    state.stage.textBoxes.find((box) => box.textBoxUid === uid)?.visible ?? false;
+
+  it('刚开始所有文本框都是隐藏的', () => {
+    const { project, boxUid } = withTextBox([dialogue('d1', 'Dia_ch01_001-1', '没有角色的一句')]);
+    const state = startPreview(project, { groupUid: 'g1' });
+    expect(visibleOf(state, boxUid)).toBe(false);
+  });
+
+  it('播到配了这个文本框的台词时自动弹出，并把台词挂到那个框上', () => {
+    const { project, boxUid, characterUid } = withTextBox([
+      dialogue('d1', 'Dia_ch01_001-1', '第一句', { characterUid: 'cha1' }),
+    ]);
+    const state = startPreview(project, { groupUid: 'g1' });
+    expect(visibleOf(state, boxUid)).toBe(true);
+    expect(state.current?.textBoxUid).toBe(boxUid);
+    expect(state.current?.text.zh).toBe('第一句');
+    expect(characterUid).toBe('cha1');
+  });
+
+  it('「清空」把台词清掉但框还留着；「隐藏」把框收起来', () => {
+    const build = (action: string) =>
+      withTextBox([
+        dialogue('d1', 'Dia_ch01_001-1', '第一句', { characterUid: 'cha1' }),
+        commandLine('c1', 'Dia_ch01_001-2', `剧情|文本框|文本框:{{BOX}};操作:${action}`),
+      ]);
+
+    const clearedCase = build('清空');
+    const clearedLine = clearedCase.project.chapters[0].groups[0].lines[1];
+    clearedLine.command = clearedLine.command.replace('{{BOX}}', clearedCase.boxUid);
+    const popped = startPreview(clearedCase.project, { groupUid: 'g1' });
+    expect(visibleOf(popped, clearedCase.boxUid)).toBe(true);
+
+    const cleared = advance(clearedCase.project, popped);
+    expect(cleared.status).toBe('finished');
+    expect(visibleOf(cleared, clearedCase.boxUid)).toBe(true);
+    expect(cleared.current).toBeNull();
+
+    const hiddenCase = build('隐藏');
+    const hiddenLine = hiddenCase.project.chapters[0].groups[0].lines[1];
+    hiddenLine.command = hiddenLine.command.replace('{{BOX}}', hiddenCase.boxUid);
+    const hidden = advance(hiddenCase.project, startPreview(hiddenCase.project, { groupUid: 'g1' }));
+    expect(hidden.status).toBe('finished');
+    expect(visibleOf(hidden, hiddenCase.boxUid)).toBe(false);
+  });
+});
+
 describe('选项条件原文', () => {
   it('选项带着出现 / 可用条件，交给界面显示', () => {
     const project = makeProject(
@@ -479,3 +563,4 @@ describe('选项条件原文', () => {
     expect(state.options[0].enableConditions).toHaveLength(1);
   });
 });
+

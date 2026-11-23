@@ -40,6 +40,7 @@ export interface CommandTargets {
   images: { id: string; label: string }[];
   sounds: { id: string; label: string }[];
   lines: { id: string; label: string }[];
+  textBoxes: { id: string; label: string }[];
   /** 项目里所有能当引用目标的 uid，校验「引用还在不在」时用 */
   uids: Set<string>;
 }
@@ -66,7 +67,8 @@ export function isReferenceSource(source: ParamSource): boolean {
     source === 'quest' ||
     source === 'image' ||
     source === 'sound' ||
-    source === 'line'
+    source === 'line' ||
+    source === 'textbox'
   );
 }
 
@@ -109,6 +111,7 @@ export function collectCommandTargets(
     images: toOptions(project.images),
     sounds: toOptions(project.sounds),
     lines: lineLabels,
+    textBoxes: toOptions(project.textBoxes),
     uids: collectRefUids(project),
   };
 }
@@ -131,6 +134,8 @@ export function targetsOfSource(
       return targets.sounds;
     case 'line':
       return targets.lines;
+    case 'textbox':
+      return targets.textBoxes;
     default:
       return [];
   }

@@ -128,7 +128,7 @@ function makeProject(): Project {
 
   return {
     version: 1,
-    playPositions: [],
+    textBoxes: [],
     expressions: [],
     name: '战斗测试',
     characters: [],

@@ -63,7 +63,8 @@ import {
   collectNameEntries,
   collectWeaponLocaleEntries,
 } from './localization';
-import { characterIdOf, collectRefMaps, type UidToId } from './refs';
+import { characterIdOf, collectRefMaps, textBoxIdOf, type UidToId } from './refs';
+import { CANVAS_HEIGHT, CANVAS_WIDTH, anchorFraction } from './textbox';
 import type { Character, CommandDef, Group, Line, Project, StoryOption } from './types';
 
 export const DIALOGUE_SHEET = '对话';
@@ -73,6 +74,8 @@ export const LOCALE_SHEET = '本地化';
 export const STORY_CHARACTER_SHEET = '角色';
 /** 物品表；物品名称 / 物品描述两列写本地化 key，中文在「物品本地化」页 */
 export const ITEM_SHEET = '物品';
+/** 文本框表：一个文本框一行，给 Unreal 那边摆对话框用 */
+export const TEXT_BOX_SHEET = '文本框';
 
 export const DIALOGUE_HEADER: readonly string[] = [
   '',
@@ -101,12 +104,22 @@ export const LOCALE_HEADER: readonly string[] = ['', '中文', '英文', '日文
  * 角色表（剧情那一张）。
  *
  * 第一列是行名（角色 ID，「默认名称」在本地化表里，所以这一格写的是文本 key）；
- * 播放位置直接写中文选项名，Unreal 那边认这三个串。
+ * 「文本框」写文本框表里的文本框 ID（不再是位置名）。
  */
-export const STORY_CHARACTER_HEADER: readonly string[] = ['', '播放位置', '显示名称', '表情差分列表'];
+export const STORY_CHARACTER_HEADER: readonly string[] = ['', '文本框', '显示名称', '表情差分列表'];
 
 /** 物品表：行名是物品 ID，两列文本都写本地化 key */
 export const ITEM_HEADER: readonly string[] = ['', '物品名称', '物品描述'];
+
+/** 文本框表：行名是文本框 ID，锚点 / 位置 / 尺寸照 UMG 的槽位写法 */
+export const TEXT_BOX_HEADER: readonly string[] = [
+  '---',
+  '文本框名称',
+  '锚点',
+  '位置',
+  '尺寸',
+  '背景图片ID',
+];
 
 export interface ExportRowSets {
   dialogue: string[][];
@@ -159,17 +172,15 @@ export function buildRows(project: Project): ExportRowSets {
     }
   }
 
-  // 播放位置在角色身上存的是 uid，导出时翻回位置名；
-  // 手改过的文件里可能本来就是名字，找不到时原样写出去
-  const positionNames = new Map(project.playPositions.map((row) => [row.uid, row.name]));
-
+  // 文本框在角色身上存的是 uid，导出时翻回文本框 ID；
+  // 手改过的文件里可能找不到，这时留空（校验条会提醒）
   for (const character of project.characters) {
     // 角色 ID 是这张表的行名，也是本地化 key 的一段；没填的行导出也没法命名，跳过
     const id = character.id.trim();
     if (id === '') continue;
     characters.push([
       id,
-      positionNames.get(character.playPosition) ?? character.playPosition,
+      textBoxIdOf(project, character.textBoxUid),
       // 显示名跟对话文本一样进本地化表，这一格写默认名称的 key（别名不导出）
       characterNameKeyOf(id),
       formatArrayLiteral(character.expressions),
@@ -226,6 +237,58 @@ export function buildItemRows(project: Project): string[][] {
       ];
     }),
   ];
+}
+
+/**
+ * 「文本框」子表：一个文本框一行，照 `TB_文本框示例.csv` 的列写。
+ *
+ * 只导背景图（外框）这一组：锚点用外框的 16 格锚点归一化，
+ * 位置 / 尺寸是 1920×1080 设计稿像素；拉伸方向按 UMG 的习惯，
+ * 位置写左 / 上边距，尺寸写负数（-右边距 / -下边距）。
+ * 名字与台词的位置只在编辑器里排版用，不导出。
+ */
+export function buildTextBoxRows(project: Project): string[][] {
+  const idOf = buildIdMap(project);
+  return [
+    [...TEXT_BOX_HEADER],
+    ...project.textBoxes.map((row) => {
+      const { col, row: anchorRow } = row.anchors.bg;
+      const stretchX = col === 3;
+      const stretchY = anchorRow === 3;
+      const anchorMinX = stretchX ? 0 : anchorFraction(col);
+      const anchorMaxX = stretchX ? 1 : anchorFraction(col);
+      const anchorMinY = stretchY ? 0 : anchorFraction(anchorRow);
+      const anchorMaxY = stretchY ? 1 : anchorFraction(anchorRow);
+
+      const posX = stretchX
+        ? row.box.x * CANVAS_WIDTH
+        : (row.box.x - anchorMinX) * CANVAS_WIDTH;
+      const posY = stretchY
+        ? row.box.y * CANVAS_HEIGHT
+        : (row.box.y - anchorMinY) * CANVAS_HEIGHT;
+      const sizeX = stretchX
+        ? -((1 - row.box.x - row.box.w) * CANVAS_WIDTH)
+        : row.box.w * CANVAS_WIDTH;
+      const sizeY = stretchY
+        ? -((1 - row.box.y - row.box.h) * CANVAS_HEIGHT)
+        : row.box.h * CANVAS_HEIGHT;
+
+      const imageId = row.imageUid === '' ? '' : idOf.get(row.imageUid) ?? '';
+      return [
+        row.id,
+        row.name,
+        `(Minimum=(X=${fixed6(anchorMinX)},Y=${fixed6(anchorMinY)}),Maximum=(X=${fixed6(anchorMaxX)},Y=${fixed6(anchorMaxY)}))`,
+        `(X=${fixed6(posX)},Y=${fixed6(posY)})`,
+        `(X=${fixed6(sizeX)},Y=${fixed6(sizeY)})`,
+        imageId,
+      ];
+    }),
+  ];
+}
+
+/** Unreal 那边按 6 位小数读槽位数值 */
+function fixed6(value: number): string {
+  return value.toFixed(6);
 }
 
 /**
@@ -446,7 +509,7 @@ export function buildAllSheets(project: Project): ExportedSheet[] {
   const battle = buildBattleRows(project);
 
   return [
-    // 剧情五张表
+    // 剧情表
     { name: DIALOGUE_SHEET, rows: story.dialogue },
     { name: OPTION_SHEET, rows: story.options },
     { name: LOCALE_SHEET, rows: story.locale },
@@ -455,6 +518,7 @@ export function buildAllSheets(project: Project): ExportedSheet[] {
     { name: IMAGE_SHEET, rows: buildImageRows(project) },
     { name: SOUND_SHEET, rows: buildSoundRows(project) },
     { name: ITEM_SHEET, rows: buildItemRows(project) },
+    { name: TEXT_BOX_SHEET, rows: buildTextBoxRows(project) },
     // 战斗模块（GAS）七张表
     { name: GAMEPLAY_TAGS_SHEET, rows: battle.gameplayTags },
     { name: ATTRIBUTE_SHEET, rows: battle.attributes },

@@ -37,6 +37,7 @@ const SOURCE_OPTIONS: { value: ParamSource; label: string }[] = [
   { value: 'image', label: '立绘表' },
   { value: 'sound', label: '音效表' },
   { value: 'line', label: '对话表' },
+  { value: 'textbox', label: '文本框' },
   { value: 'expression', label: '该角色表情' },
   { value: 'action', label: '该角色动作' },
   { value: 'number', label: '手填数字' },

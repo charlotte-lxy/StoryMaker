@@ -14,7 +14,6 @@ import type {
   LangKey,
   Line,
   LookupRow,
-  PlayPositionRow,
   Project,
   StoryOption,
   UiTextRow,
@@ -39,7 +38,6 @@ import {
   addCharacter,
   addCharacterAlias,
   addExpression,
-  addPlayPosition,
   addCommandDef,
   addCommandModule,
   addCommandParam,
@@ -59,7 +57,6 @@ import {
   removeCharacter,
   removeCharacterAlias,
   removeExpression,
-  removePlayPosition,
   removeCommandDef,
   removeCommandModule,
   removeCommandParam,
@@ -84,7 +81,6 @@ import {
   updateCharacterAlias,
   updateCommandDef,
   updateExpression,
-  updatePlayPosition,
   updateCommandParam,
   updateAssetCategory,
   updateItemText,
@@ -1349,11 +1345,6 @@ export default function App() {
                   onUpdateAlias={(aliasUid, patch) =>
                     setProject((prev) => updateCharacterAlias(prev, aliasUid, patch))
                   }
-                  onAddPosition={() => setProject((prev) => addPlayPosition(prev))}
-                  onRemovePosition={(uid) => setProject((prev) => removePlayPosition(prev, uid))}
-                  onUpdatePosition={(uid, patch: Partial<PlayPositionRow>) =>
-                    setProject((prev) => updatePlayPosition(prev, uid, patch))
-                  }
                   onAddExpression={() => setProject((prev) => addExpression(prev))}
                   onRemoveExpression={(uid) => setProject((prev) => removeExpression(prev, uid))}
                   onUpdateExpression={(uid, patch: Partial<ExpressionRow>) =>
@@ -1577,7 +1568,7 @@ export default function App() {
                                   groupedLines={chapterGroups}
                                   groupChoices={chapterGroupChoices}
                                   characters={project.characters}
-                                  playPositions={project.playPositions}
+                                  textBoxes={project.textBoxes}
                                   commandDefs={project.commands}
                                   commandTargets={commandTargets}
                                   flashLineUid={flashLineUid}

@@ -457,6 +457,15 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
             <h3>文本框设置</h3>
 
             <label className="field">
+              <span>文本框 ID（导出行名，不可重复）</span>
+              <input
+                value={active.id}
+                placeholder="TB_1"
+                onChange={(event) => patch({ id: event.target.value })}
+              />
+            </label>
+
+            <label className="field">
               <span>名称（只在列表里显示）</span>
               <input
                 value={active.name}

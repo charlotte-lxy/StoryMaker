@@ -5,12 +5,10 @@ import { createEmptyBattle } from '../core/battle';
 import type { Line, Project } from '../core/types';
 import {
   addAssetCategory,
-  addCharacter,
   addCommandDef,
   addCommandModule,
   addExpression,
   addLookupRow,
-  addPlayPosition,
   addUiText,
   collectGroupedLineRefs,
   commandModulesOf,
@@ -24,7 +22,6 @@ import {
   removeCommandModule,
   removeExpression,
   removeLines,
-  removePlayPosition,
   removeUiText,
   renameCommandBranch,
   renameCommandModule,
@@ -36,7 +33,6 @@ import {
   reorderLookupRow,
   updateAssetCategory,
   updateExpression,
-  updatePlayPosition,
   updateTextByUid,
   updateUiText,
 } from './operations';
@@ -63,7 +59,7 @@ function makeLine(uid: string, readableId: string, zh: string): Line {
 function makeProject(): Project {
   return {
     version: 1,
-    playPositions: [],
+    textBoxes: [],
     expressions: [],
     name: 'p',
     characters: [],
@@ -830,61 +826,6 @@ describe('资源分类（图片分类 / 音效类型）', () => {
   });
 });
 
-describe('播放位置配置', () => {
-  it('新增位置：名字不重，角色默认用第一个位置', () => {
-    const project = addPlayPosition(addPlayPosition(makeProject()));
-    expect(project.playPositions.map((row) => row.name)).toEqual(['新位置', '新位置2']);
-
-    const withCharacter = addCharacter(project);
-    expect(withCharacter.characters[0].playPosition).toBe(project.playPositions[0].uid);
-  });
-
-  it('改位置名：角色存的是 uid，引用不断', () => {
-    const project = makeProject();
-    project.playPositions = [{ uid: 'pos-1', name: '剧情对话框' }];
-    project.characters = [
-      {
-        uid: 'ch1',
-        id: 'CHA_1',
-        name: '一',
-        nameEn: '',
-        nameJa: '',
-        playPosition: 'pos-1',
-        aliases: [],
-        expressions: [],
-        actions: [],      },
-    ];
-
-    const next = updatePlayPosition(project, 'pos-1', { name: '旁白框' });
-    expect(next.playPositions[0].name).toBe('旁白框');
-    expect(next.characters[0].playPosition).toBe('pos-1');
-  });
-
-  it('删位置：用着它的角色挪到剩下的第一个位置', () => {
-    const project = makeProject();
-    project.playPositions = [
-      { uid: 'pos-1', name: '剧情对话框' },
-      { uid: 'pos-2', name: '战斗对话框' },
-    ];
-    project.characters = [
-      {
-        uid: 'ch1',
-        id: 'CHA_1',
-        name: '一',
-        nameEn: '',
-        nameJa: '',
-        playPosition: 'pos-2',
-        aliases: [],
-        expressions: [],
-        actions: [],      },
-    ];
-
-    const next = removePlayPosition(project, 'pos-2');
-    expect(next.playPositions.map((row) => row.uid)).toEqual(['pos-1']);
-    expect(next.characters[0].playPosition).toBe('pos-1');
-  });
-});
-
 describe('表情差分配置', () => {
   /** 一个角色 + 一条用了「表情:微笑」的指令 */
   function makeExpressionProject(): Project {
@@ -901,7 +842,7 @@ describe('表情差分配置', () => {
         name: '伊芙',
         nameEn: '',
         nameJa: '',
-        playPosition: project.playPositions[0]?.uid ?? '',
+        textBoxUid: '',
         aliases: [],
         expressions: ['微笑', '生气'],
         actions: [],      },
@@ -956,7 +897,7 @@ describe('拖拽排序', () => {
       name,
       nameEn: '',
       nameJa: '',
-      playPosition: '',
+      textBoxUid: '',
       aliases: [],
       expressions: [],
       actions: [],    }));

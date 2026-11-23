@@ -580,8 +580,8 @@ describe('选项结果搬成新段落', () => {
   });
 });
 
-describe('播放位置 / 表情差分 / 图片分类', () => {
-  it('老项目没有播放位置表：预置三个默认位置，角色的位置名换成 uid', () => {
+describe('播放位置（老数据）/ 文本框 / 表情差分 / 图片分类', () => {
+  it('老项目没有文本框表：字符里的位置名补成同名文本框', () => {
     const result = normalizeProject({
       version: 1,
       name: '老项目',
@@ -600,16 +600,13 @@ describe('播放位置 / 表情差分 / 图片分类', () => {
     });
 
     const project = result!.project;
-    expect(project.playPositions.map((row) => row.name)).toEqual([
-      '剧情对话框',
-      '战斗对话框',
-      '屏幕中间',
-    ]);
-    const battle = project.playPositions.find((row) => row.name === '战斗对话框');
-    expect(project.characters[0].playPosition).toBe(battle?.uid);
+    // 新建项目自带一个默认文本框，角色上的位置名再补一个同名的
+    expect(project.textBoxes.map((row) => row.name)).toEqual(['文本框 1', '战斗对话框']);
+    const battle = project.textBoxes.find((row) => row.name === '战斗对话框');
+    expect(project.characters[0].textBoxUid).toBe(battle?.uid);
   });
 
-  it('角色上自己起的位置名（不在默认三个里）也补一条位置', () => {
+  it('角色上自己起的位置名（不在默认三个里）也补一个同名文本框', () => {
     const result = normalizeProject({
       version: 1,
       name: '老项目',
@@ -628,9 +625,9 @@ describe('播放位置 / 表情差分 / 图片分类', () => {
     });
 
     const project = result!.project;
-    expect(project.playPositions.map((row) => row.name)).toContain('旁白框');
-    const row = project.playPositions.find((item) => item.name === '旁白框');
-    expect(project.characters[0].playPosition).toBe(row?.uid);
+    expect(project.textBoxes.map((row) => row.name)).toContain('旁白框');
+    const row = project.textBoxes.find((item) => item.name === '旁白框');
+    expect(project.characters[0].textBoxUid).toBe(row?.uid);
   });
 
   it('角色身上的表情名收进全局表情表（标识先等于名字），一条不重复', () => {

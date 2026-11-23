@@ -23,7 +23,7 @@ function makeProject(): Project {
       name: '伊芙',
       nameEn: '',
       nameJa: '',
-      playPosition: '',
+      textBoxUid: '',
       aliases: [],
       expressions: ['微笑', '生气'],
       actions: [],

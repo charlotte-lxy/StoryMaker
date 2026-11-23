@@ -33,6 +33,7 @@ import type {
   ParamSource,
   Project,
   StoryOption,
+  TextBoxRow,
 } from './types';
 
 /** 播到哪一步了 */
@@ -53,12 +54,19 @@ export interface PreviewCharacterState {
   slot: number;
 }
 
+/** 舞台上一个文本框的显示状态：初始全隐藏 */
+export interface PreviewTextBoxState {
+  textBoxUid: string;
+  visible: boolean;
+}
+
 export interface PreviewStage {
   /** `剧情|图片` 当前显示的图片（图片行 uid）；'' 表示没显示 */
   backgroundImageUid: string;
   /** `剧情|CG` 的 ID；'' 表示没在播 */
   cgId: string;
   characters: PreviewCharacterState[];
+  textBoxes: PreviewTextBoxState[];
 }
 
 export interface PreviewLogEntry {
@@ -76,7 +84,8 @@ export interface PreviewLineState {
   characterUid: string;
   aliasUid: string;
   text: LocalizedText;
-  playPositionUid: string;
+  /** 这一句画在哪个文本框里（角色身上存的 uid）；'' = 什么都不显示 */
+  textBoxUid: string;
   autoAdvance: boolean;
 }
 
@@ -119,8 +128,29 @@ const MAX_HISTORY = 50;
 
 /* ---------- 对外的小工具 ---------- */
 
-export function emptyStage(): PreviewStage {
-  return { backgroundImageUid: '', cgId: '', characters: [] };
+export function emptyStage(project?: Project): PreviewStage {
+  return {
+    backgroundImageUid: '',
+    cgId: '',
+    characters: [],
+    // 初始状态下所有文本框都是隐藏的
+    textBoxes: (project?.textBoxes ?? []).map((row) => ({
+      textBoxUid: row.uid,
+      visible: false,
+    })),
+  };
+}
+
+/** 把某个文本框改成「显示 / 隐藏」；不在列表里就补一条 */
+function setTextBox(stage: PreviewStage, textBoxUid: string, visible: boolean): PreviewStage {
+  if (textBoxUid === '') return stage;
+  const exists = stage.textBoxes.some((item) => item.textBoxUid === textBoxUid);
+  const textBoxes = exists
+    ? stage.textBoxes.map((item) =>
+        item.textBoxUid === textBoxUid ? { ...item, visible } : item,
+      )
+    : [...stage.textBoxes, { textBoxUid, visible }];
+  return { ...stage, textBoxes };
 }
 
 /** 按 uid 找段落 */
@@ -155,10 +185,10 @@ export function previewSpeakerName(
   return character.name.trim() !== '' ? character.name.trim() : character.id;
 }
 
-/** 播放位置名（台词框摆哪儿由界面判断） */
-export function previewPositionName(project: Project, positionUid: string): string {
-  if (positionUid.trim() === '') return '';
-  return project.playPositions.find((item) => item.uid === positionUid)?.name ?? '';
+/** 文本框表的某一行（播放预览按它的排版画台词） */
+export function previewTextBoxOf(project: Project, textBoxUid: string): TextBoxRow | undefined {
+  if (textBoxUid.trim() === '') return undefined;
+  return project.textBoxes.find((item) => item.uid === textBoxUid);
 }
 
 /**
@@ -225,7 +255,7 @@ export function startPreview(project: Project, start: PreviewStart): PreviewStat
   const base: PreviewState = {
     status: 'line',
     cursor: { groupUid: start.groupUid, lineIndex },
-    stage: emptyStage(),
+    stage: emptyStage(project),
     current: null,
     options: [],
     delaySeconds: 0,
@@ -341,7 +371,7 @@ export function restartGroup(project: Project, state: PreviewState): PreviewStat
     {
       status: 'line',
       cursor: { groupUid: group.uid, lineIndex: 0 },
-      stage: emptyStage(),
+      stage: emptyStage(project),
       current: null,
       options: [],
       delaySeconds: 0,
@@ -431,6 +461,7 @@ function run(project: Project, state: PreviewState, steps: number): PreviewState
 
   if (line.kind === '对话') {
     const character = previewCharacterOf(project, line.characterUid);
+    const textBoxUid = character?.textBoxUid ?? '';
     return {
       ...state,
       status: 'line',
@@ -440,9 +471,11 @@ function run(project: Project, state: PreviewState, steps: number): PreviewState
         characterUid: line.characterUid,
         aliasUid: line.displayAliasUid,
         text: line.text,
-        playPositionUid: character?.playPosition ?? '',
+        textBoxUid,
         autoAdvance: line.autoAdvance,
       },
+      // 文本框没弹出来的话，播到它的角色时自动弹出来
+      stage: textBoxUid === '' ? state.stage : setTextBox(state.stage, textBoxUid, true),
       options: [],
       delaySeconds: 0,
       nextGroupUid: '',
@@ -697,6 +730,50 @@ function runCommand(
           },
         ],
       },
+      steps + 1,
+    );
+  }
+
+  // 剧情 · 文本框：弹出 / 清空 / 隐藏
+  if (parsed.head === '剧情' && parsed.branch === '文本框') {
+    const ref = read(['文本框'], ['textbox']);
+    const action = read(['操作']);
+    const box = project.textBoxes.find((item) => item.uid === ref);
+    if (box === undefined) {
+      return run(
+        project,
+        {
+          ...state,
+          cursor: nextCursor,
+          log: [...state.log, warn('指令里的文本框不在文本框表里，已跳过', line.uid)],
+        },
+        steps + 1,
+      );
+    }
+    const label = box.name.trim() === '' ? box.id : box.name.trim();
+    let stage = state.stage;
+    let entry: PreviewLogEntry;
+    if (action === '弹出') {
+      stage = setTextBox(stage, box.uid, true);
+      entry = info(`弹出文本框「${label}」`, line.uid);
+    } else if (action === '清空') {
+      // 清空 = 台词擦掉，但框还留着
+      stage = setTextBox(stage, box.uid, true);
+      entry = info(`清空文本框「${label}」`, line.uid);
+    } else if (action === '隐藏') {
+      stage = setTextBox(stage, box.uid, false);
+      entry = info(`隐藏文本框「${label}」`, line.uid);
+    } else {
+      entry = warn(
+        action === ''
+          ? '文本框指令没选操作，已跳过'
+          : `文本框指令的操作「${action}」不认识，已跳过`,
+        line.uid,
+      );
+    }
+    return run(
+      project,
+      { ...state, cursor: nextCursor, stage, log: [...state.log, entry] },
       steps + 1,
     );
   }

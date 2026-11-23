@@ -50,6 +50,7 @@ export function collectRefMaps(project: Project): RefMaps {
   for (const kind of ['items', 'quests', 'images', 'sounds'] as const) {
     for (const row of project[kind]) add(row.uid, row.id);
   }
+  for (const textBox of project.textBoxes) add(textBox.uid, textBox.id);
 
   return { byUid, byId };
 }
@@ -65,7 +66,8 @@ export function looksLikeUid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(trimmed) || trimmed.startsWith('uid-');
 }
 
-/** 项目里所有能当引用目标的 uid（指令文本里的目标靠它认出来，见 parseCommand） */export function collectRefUids(project: Project): Set<string> {
+/** 项目里所有能当引用目标的 uid（指令文本里的目标靠它认出来，见 parseCommand） */
+export function collectRefUids(project: Project): Set<string> {
   const uids = new Set<string>();
   for (const chapter of project.chapters) {
     for (const group of chapter.groups) {
@@ -77,6 +79,7 @@ export function looksLikeUid(value: string): boolean {
   for (const kind of ['items', 'quests', 'images', 'sounds'] as const) {
     for (const row of project[kind]) uids.add(row.uid);
   }
+  for (const textBox of project.textBoxes) uids.add(textBox.uid);
   return uids;
 }
 
@@ -84,6 +87,16 @@ export function looksLikeUid(value: string): boolean {
 
 export function characterOfUid(project: Project, uid: string) {
   return project.characters.find((row) => row.uid === uid);
+}
+
+/** 文本框按 uid 取；找不到返回 undefined（角色还没绑定 / 绑的框被删了） */
+export function textBoxOfUid(project: Project, uid: string) {
+  return project.textBoxes.find((row) => row.uid === uid);
+}
+
+/** 文本框按 uid 取导出 ID；找不到时返回空串 */
+export function textBoxIdOf(project: Project, uid: string): string {
+  return textBoxOfUid(project, uid)?.id.trim() ?? '';
 }
 
 export function lookupOfUid(project: Project, kind: LookupKind, uid: string) {

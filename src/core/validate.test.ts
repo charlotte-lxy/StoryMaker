@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { createEmptyBattle } from './battle';
 
 import { CONTINUE_TARGET, firstLineRef } from './ids';
+import { createDefaultTextBox } from './textbox';
 import { validateLocalization, validateProject } from './validate';
 import type {
   CommandDef,
@@ -75,7 +76,7 @@ function makeOption(uid: string, readableId: string, over: Partial<StoryOption> 
 function makeProject(group: Partial<Group>): Project {
   return {
     version: 1,
-    playPositions: [],
+    textBoxes: [],
     expressions: [],
     name: 'p',
     // 默认那一行对话引用的是这个角色（老数据里按角色 ID 写也算认得出来）；
@@ -87,7 +88,7 @@ function makeProject(group: Partial<Group>): Project {
         name: '伊芙',
         nameEn: 'Eve',
         nameJa: 'イヴ',
-        playPosition: '剧情对话框',
+        textBoxUid: '',
         aliases: [],
         expressions: [],
         actions: [],
@@ -577,5 +578,30 @@ describe('立绘与图片分类', () => {
       ['empty-image-category', '(空)'],
     ]);
     expect(report.issues[0].assetUid).toBe('img-1');
+  });
+});
+
+describe('文本框', () => {
+  it('ID 空着提醒、重名报错，角色指定的框没了也提醒', () => {
+    const project = makeProject({ lines: [], options: [] });
+    const first = createDefaultTextBox('对话文本框', '');
+    first.uid = 'box-1';
+    const second = createDefaultTextBox('旁白框', 'TB_2');
+    second.uid = 'box-2';
+    const third = createDefaultTextBox('旁白框二', 'TB_2');
+    third.uid = 'box-3';
+    project.textBoxes = [first, second, third];
+    project.characters[0].textBoxUid = 'box-gone';
+
+    const report = validateProject(project);
+
+    expect(report.errors).toBe(1);
+    expect(report.issues.map((i) => [i.code, i.targetId])).toEqual([
+      ['empty-textbox-id', '对话文本框'],
+      ['duplicate-textbox-id', 'TB_2'],
+      ['dangling-textbox', 'CHA_伊芙'],
+    ]);
+    expect(report.issues[1].message).toContain('出现了 2 次');
+    expect(report.issues[2].message).toContain('已经不在了');
   });
 });

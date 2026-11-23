@@ -4,7 +4,6 @@ import type {
   Character,
   CharacterAlias,
   ExpressionRow,
-  PlayPositionRow,
   Project,
 } from '../core/types';
 import { OrderCell, useRowDrag } from './battle/row-drag';
@@ -19,10 +18,6 @@ interface Props {
   onAddAlias: (characterUid: string) => void;
   onRemoveAlias: (characterUid: string, aliasUid: string) => void;
   onUpdateAlias: (aliasUid: string, patch: Partial<CharacterAlias>) => void;
-  /** 播放位置配置表 */
-  onAddPosition: () => void;
-  onRemovePosition: (uid: string) => void;
-  onUpdatePosition: (uid: string, patch: Partial<PlayPositionRow>) => void;
   /** 表情差分配置表（全局） */
   onAddExpression: () => void;
   onRemoveExpression: (uid: string) => void;
@@ -36,10 +31,10 @@ interface Props {
 /**
  * 角色模块。
  *
- * 顶部是一块配置区（左右两张小表）：
- *   播放位置  —— 台词在哪儿显示，角色行里选的就是这里的条目（存 uid，改名不断引用）
+ * 顶部是一块配置区：
  *   表情差分  —— 全局表情清单；图片 ID 的规则是 PIC_<角色ID>-<标识>，标识默认等于表情名
- * 下面才是角色表：每行勾这个角色有哪些表情，勾了的会在立绘页自动收成表情图片。
+ * 下面才是角色表：每行勾这个角色有哪些表情，勾了的会在立绘页自动收成表情图片；
+ * 「文本框」列从文本框模块里选，决定这个角色的台词用哪套框。
  */
 export function CharacterEditor({
   project,
@@ -49,9 +44,6 @@ export function CharacterEditor({
   onAddAlias,
   onRemoveAlias,
   onUpdateAlias,
-  onAddPosition,
-  onRemovePosition,
-  onUpdatePosition,
   onAddExpression,
   onRemoveExpression,
   onUpdateExpression,
@@ -75,7 +67,7 @@ export function CharacterEditor({
     return count;
   };
 
-  const positionNames = new Map(project.playPositions.map((row) => [row.uid, row.name]));
+  const textBoxNames = new Map(project.textBoxes.map((row) => [row.uid, row.name]));
   const expressionNames = project.expressions.map((row) => row.name.trim());
 
   const addExpression = (character: Character): void => {
@@ -93,56 +85,8 @@ export function CharacterEditor({
 
   return (
     <div className="editor" ref={editorRef}>
-      {/* 配置区：播放位置 + 表情差分（左右两张小表） */}
+      {/* 配置区：表情差分 */}
       <div className="char-config">
-        <section className="config-panel">
-          <div className="lookup-subhead">
-            <h3>播放位置</h3>
-            <span className="hint">
-              角色行里选的「播放位置」就是这里的条目，导出时原样写进「角色」子表；改名不用改角色。
-            </span>
-            <button type="button" className="primary" onClick={onAddPosition}>
-              ＋ 新增位置
-            </button>
-          </div>
-
-          {project.playPositions.length === 0 ? (
-            <div className="empty-state">还没有播放位置。先加一个（比如「剧情对话框」）。</div>
-          ) : (
-            <table className="lines">
-              <thead>
-                <tr>
-                  <th>位置名</th>
-                  <th style={{ width: 74 }}>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {project.playPositions.map((row) => (
-                  <tr className="line-row" key={row.uid}>
-                    <td>
-                      <input
-                        value={row.name}
-                        placeholder="例如：剧情对话框"
-                        onChange={(event) => onUpdatePosition(row.uid, { name: event.target.value })}
-                      />
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="mini danger"
-                        title="删掉这个位置；用着它的角色会挪到第一个位置上"
-                        onClick={() => onRemovePosition(row.uid)}
-                      >
-                        删除
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
-
         <section className="config-panel">
           <div className="lookup-subhead">
             <h3>表情差分</h3>
@@ -223,7 +167,7 @@ export function CharacterEditor({
               <th className="cell-order" title="按住把手上下拖动可调整角色顺序" />
               <th style={{ width: '18%' }}>角色 ID</th>
               <th style={{ width: '16%' }}>默认名称</th>
-              <th style={{ width: 132 }}>播放位置</th>
+              <th style={{ width: 132 }}>文本框</th>
               <th>表情差分</th>
               <th className="col-mid">在剧情中的使用</th>
               <th style={{ width: 74 }}>操作</th>
@@ -234,7 +178,7 @@ export function CharacterEditor({
               const used = usageOf(character.uid);
               const duplicated =
                 project.characters.filter((c) => c.id === character.id).length > 1;
-              const positionName = positionNames.get(character.playPosition);
+              const textBoxName = textBoxNames.get(character.textBoxUid);
               const available = expressionNames.filter(
                 (name) => name !== '' && !character.expressions.includes(name),
               );
@@ -296,23 +240,23 @@ export function CharacterEditor({
                   </td>
                   <td>
                     <select
-                      value={character.playPosition}
-                      title="播放位置：这一角色的台词在哪儿显示（选项在上面「播放位置」表里配）"
+                      value={character.textBoxUid}
+                      title="文本框：这一角色的台词用文本框模块里的哪一套"
                       onChange={(event) =>
-                        onUpdate(character.uid, { playPosition: event.target.value })
+                        onUpdate(character.uid, { textBoxUid: event.target.value })
                       }
                     >
-                      {project.playPositions.map((position) => (
-                        <option key={position.uid} value={position.uid}>
-                          {position.name}
+                      {project.textBoxes.map((textBox) => (
+                        <option key={textBox.uid} value={textBox.uid}>
+                          {textBox.name}
                         </option>
                       ))}
-                      {/* 手改过的 JSON、或位置被删了：照原样列出来好让人改回去 */}
-                      {positionName === undefined && (
-                        <option value={character.playPosition}>
-                          {character.playPosition === ''
-                            ? '（未选播放位置）'
-                            : `${character.playPosition}（位置已删除）`}
+                      {/* 手改过的 JSON、或文本框被删了：照原样列出来好让人改回去 */}
+                      {textBoxName === undefined && (
+                        <option value={character.textBoxUid}>
+                          {character.textBoxUid === ''
+                            ? '（未选文本框）'
+                            : `${character.textBoxUid}（文本框已删除）`}
                         </option>
                       )}
                     </select>

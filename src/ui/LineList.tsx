@@ -22,7 +22,7 @@ import {
   SPECIAL_COMMAND_PARAM,
   type CommandTargets,
 } from '../core/command-build';
-import type { Character, CommandDef, Group, Line, PlayPositionRow, StoryOption } from '../core/types';
+import type { Character, CommandDef, Group, Line, StoryOption, TextBoxRow } from '../core/types';
 import type { GroupLineRefs } from '../state/operations';
 import { lineSequenceOf } from '../core/ids';
 import { looksLikeUid } from '../core/refs';
@@ -42,8 +42,8 @@ interface Props {
   /** 本章的段落：供「跳转到段落」行选目标 */
   groupChoices: GroupChoice[];
   characters: Character[];
-  /** 播放位置配置：角色身上存的是 uid，这里翻回名字显示 */
-  playPositions: PlayPositionRow[];
+  /** 文本框：角色身上存的是 uid，这里翻回名字显示 */
+  textBoxes: TextBoxRow[];
   /** 指令字典与各数据表整理出的下拉候选 */
   commandDefs: CommandDef[];
   commandTargets: CommandTargets;
@@ -245,12 +245,12 @@ export function LineList(props: Props) {
       {group.lines.map((line, index) => {
         const hasNote = line.note.trim() !== '';
         const character = props.characters.find((item) => item.uid === line.characterUid);
-        /** 这一行选的角色的播放位置；没选角色、或引用已经失效时为空 */
-        const playPosition =
+        /** 这一行选的角色的文本框名；没选角色、或引用已经失效时为空 */
+        const textBoxName =
           character === undefined
             ? ''
-            : (props.playPositions.find((row) => row.uid === character.playPosition)?.name ??
-              character.playPosition);
+            : (props.textBoxes.find((row) => row.uid === character.textBoxUid)?.name ??
+              character.textBoxUid);
         /** 选中的别名已经不在这个角色的别名里（角色表里删了 / 老数据没收进来） */
         const danglingAlias =
           line.displayAliasUid.trim() !== '' &&
@@ -407,13 +407,13 @@ export function LineList(props: Props) {
                             </>
                           )}
                         </select>
-                        {/* 旁边标一下这个角色的播放位置：在角色表里改，这里跟着变 */}
-                        {playPosition !== '' && (
+                        {/* 旁边标一下这个角色的文本框：在角色表里改，这里跟着变 */}
+                        {textBoxName !== '' && (
                           <span
-                            className="play-position-chip"
-                            title="这个角色的「播放位置」；在「角色」模块里改"
+                            className="textbox-chip"
+                            title="这个角色的「文本框」；在「角色」模块里改"
                           >
-                            {playPosition}
+                            {textBoxName}
                           </span>
                         )}
                       </Field>

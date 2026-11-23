@@ -29,7 +29,6 @@ import {
 import { DEFAULT_SPECIAL_COMMAND_CLASS_PREFIX } from '../core/special-commands';
 import { createDefaultTextBox } from '../core/textbox';
 import {
-  DEFAULT_PLAY_POSITION_NAMES,
   type AssetCategoryRow,
   type Chapter,
   type CharacterAlias,
@@ -43,7 +42,6 @@ import {
   type LineKind,
   type LocalizedText,
   type LookupRow,
-  type PlayPositionRow,
   type Project,
   type StoryOption,
   type ThemeName,
@@ -105,10 +103,6 @@ export function createEmptyProject(name = '未命名项目', theme: ThemeName | 
     version: 1,
     name,
     characters: [],
-    playPositions: DEFAULT_PLAY_POSITION_NAMES.map((position) => ({
-      uid: newUid(),
-      name: position,
-    })),
     expressions: [],
     items: [],
     quests: [],
@@ -539,8 +533,8 @@ export function addCharacter(project: Project): Project {
       name: `角色${n}`,
       nameEn: '',
       nameJa: '',
-      // 播放位置存 uid：默认用配置表里的第一个
-      playPosition: draft.playPositions[0]?.uid ?? '',
+      // 文本框存 uid：默认用文本框模块里的第一个
+      textBoxUid: draft.textBoxes[0]?.uid ?? '',
       aliases: [],
       // 建角色时给一份常用默认表情，可自行增删
       expressions: ['默认', '开心', '生气', '悲伤', '害羞'],
@@ -576,45 +570,6 @@ function ensureExpression(project: Project, name: string): void {
   const value = name.trim();
   if (value === '' || project.expressions.some((row) => row.name.trim() === value)) return;
   project.expressions.push({ uid: newUid(), name: value, id: value });
-}
-
-/* ---------- 播放位置配置 ---------- */
-
-export function addPlayPosition(project: Project): Project {
-  return mutate(project, (draft) => {
-    const taken = new Set(draft.playPositions.map((row) => row.name.trim()));
-    let n = 1;
-    while (taken.has(`新位置${n === 1 ? '' : n}`)) n += 1;
-    const name = `新位置${n === 1 ? '' : n}`;
-    draft.playPositions.push({ uid: newUid(), name });
-  });
-}
-
-export function updatePlayPosition(
-  project: Project,
-  uid: string,
-  patch: Partial<PlayPositionRow>,
-): Project {
-  return mutate(project, (draft) => {
-    const row = draft.playPositions.find((item) => item.uid === uid);
-    if (row !== undefined) Object.assign(row, patch);
-  });
-}
-
-/**
- * 删一个播放位置。
- *
- * 角色存的是 uid，所以用着它的角色要挪到剩下的第一个位置，
- * 不然导出的「播放位置」列会空着。
- */
-export function removePlayPosition(project: Project, uid: string): Project {
-  return mutate(project, (draft) => {
-    draft.playPositions = draft.playPositions.filter((row) => row.uid !== uid);
-    const fallback = draft.playPositions[0]?.uid ?? '';
-    for (const character of draft.characters) {
-      if (character.playPosition === uid) character.playPosition = fallback;
-    }
-  });
 }
 
 /* ---------- 表情差分配置（全局） ---------- */

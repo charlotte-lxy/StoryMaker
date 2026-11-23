@@ -1,4 +1,4 @@
-import { clampRect, createDefaultTextBox } from '../core/textbox';
+import { clampRect, createDefaultTextBox, nextTextBoxId } from '../core/textbox';
 import type { AnchorCell, Project, Rect, TextBoxRow } from '../core/types';
 import { mutate } from './operations';
 
@@ -15,14 +15,26 @@ export function textBoxesOf(project: Project): TextBoxRow[] {
 export function addTextBox(project: Project): Project {
   return mutate(project, (draft) => {
     const list = draft.textBoxes ?? (draft.textBoxes = []);
-    list.push(createDefaultTextBox(`文本框 ${list.length + 1}`));
+    list.push(
+      createDefaultTextBox(`文本框 ${list.length + 1}`, nextTextBoxId(list)),
+    );
   });
 }
 
+/**
+ * 删一个文本框。
+ *
+ * 角色存的是 uid，所以用着它的角色要挪到剩下的第一个文本框，
+ * 不然导出的「文本框」列会空着。
+ */
 export function removeTextBox(project: Project, uid: string): Project {
   return mutate(project, (draft) => {
     if (draft.textBoxes === undefined) return;
     draft.textBoxes = draft.textBoxes.filter((row) => row.uid !== uid);
+    const fallback = draft.textBoxes[0]?.uid ?? '';
+    for (const character of draft.characters) {
+      if (character.textBoxUid === uid) character.textBoxUid = fallback;
+    }
     if (draft.ui?.textBoxUid === uid) delete draft.ui.textBoxUid;
   });
 }

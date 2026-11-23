@@ -99,7 +99,7 @@ describe('武器图标', () => {
         name: '伊芙',
         nameEn: '',
         nameJa: '',
-        playPosition: '',
+        textBoxUid: '',
         aliases: [],
         expressions: ['微笑'],
         actions: [],

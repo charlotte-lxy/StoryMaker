@@ -62,13 +62,14 @@ function option(uid: string, readableId: string, zh: string, nextId: string): St
 
 function makeProject(): Project {
   const project = createEmptyProject('预览界面测试');
+  const boxUid = project.textBoxes[0]?.uid ?? '';
   project.characters.push({
     uid: 'cha1',
     id: 'CHA_雪',
     name: '西园寺雪',
     nameEn: '',
     nameJa: '',
-    playPosition: project.playPositions[0]?.uid ?? '',
+    textBoxUid: boxUid,
     aliases: [],
     expressions: [],
     actions: [],
@@ -90,7 +91,7 @@ function makeProject(): Project {
               command: '剧情|演出|角色:cha1;立绘位移:进入',
             }),
             dialogue('d1', 'Dia_ch01_001-2', '第一句', { characterUid: 'cha1' }),
-            dialogue('d2', 'Dia_ch01_001-3', '第二句'),
+            dialogue('d2', 'Dia_ch01_001-3', '第二句', { characterUid: 'cha1' }),
           ],
           options: [],
         },
@@ -99,7 +100,7 @@ function makeProject(): Project {
           id: '002',
           title: '码头',
           note: '',
-          lines: [dialogue('d3', 'Dia_ch01_002-1', '海风很大')],
+          lines: [dialogue('d3', 'Dia_ch01_002-1', '海风很大', { characterUid: 'cha1' })],
           options: [],
         },
       ],
@@ -173,11 +174,11 @@ describe('PreviewPlayer 播放', () => {
   it('逐条显示台词与说话人，点继续往下走', () => {
     const { container } = renderPlayer();
 
-    expect(container.querySelector('.preview-text')?.textContent).toBe('第一句');
-    expect(container.querySelector('.preview-speaker')?.textContent).toBe('西园寺雪');
+    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('第一句');
+    expect(container.querySelector('.preview-textbox-name')?.textContent).toBe('西园寺雪');
 
     fireEvent.click(screen.getByText('继续 ▶'));
-    expect(container.querySelector('.preview-text')?.textContent).toBe('第二句');
+    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('第二句');
   });
 
   it('台词念完显示本段结束，并给出继续下一段', () => {
@@ -205,7 +206,7 @@ describe('PreviewPlayer 播放', () => {
 
     fireEvent.click(screen.getByText('继续 ▶'));
     fireEvent.click(screen.getByText('◀ 上一句'));
-    expect(container.querySelector('.preview-text')?.textContent).toBe('第一句');
+    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('第一句');
   });
 });
 
@@ -231,7 +232,7 @@ describe('PreviewPlayer 选项', () => {
     expect(buttons[0].textContent).toContain('出现：背包');
 
     fireEvent.click(buttons[0]);
-    expect(container.querySelector('.preview-text')?.textContent).toBe('海风很大');
+    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('海风很大');
   });
 });
 
@@ -257,7 +258,7 @@ describe('PreviewPlayer 键盘与收起', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '结束预览' }));
     expect(onStop).toHaveBeenCalled();
-    expect(container.querySelector('.preview-text')).toBeNull();
+    expect(container.querySelector('.preview-textbox-text')).toBeNull();
     expect(screen.getByText('还没有开始预览。')).toBeTruthy();
   });
 
@@ -266,7 +267,7 @@ describe('PreviewPlayer 键盘与收起', () => {
     const panel = screen.getByLabelText('剧情预览');
 
     fireEvent.keyDown(panel, { key: ' ' });
-    expect(container.querySelector('.preview-text')?.textContent).toBe('第二句');
+    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('第二句');
 
     fireEvent.keyDown(panel, { key: 'Escape' });
     expect(onToggleCollapsed).toHaveBeenCalled();
@@ -277,7 +278,7 @@ describe('PreviewPlayer 键盘与收起', () => {
     const button = screen.getByRole('button', { name: '继续 ▶' });
     fireEvent.keyDown(button, { key: ' ' });
     // 还在第一句，没有被面板的「继续」再推进一次
-    expect(container.querySelector('.preview-text')?.textContent).toBe('第一句');
+    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('第一句');
   });
 });
 
@@ -296,7 +297,7 @@ describe('PreviewPlayer 锁定到对话', () => {
     const { container } = renderPlayer({ onActiveLine });
 
     expect(onActiveLine).toHaveBeenCalledWith('d1', 'g1');
-    expect(container.querySelector('.preview-text')?.textContent).toBe('第一句');
+    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('第一句');
 
     fireEvent.click(screen.getByText('继续 ▶'));
     expect(onActiveLine).toHaveBeenLastCalledWith('d2', 'g1');

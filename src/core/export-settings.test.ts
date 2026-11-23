@@ -44,7 +44,7 @@ describe('Unreal 导入设置', () => {
     expect([...EXPORT_SUBTABLES]).toEqual(buildAllSheets(makeProject()).map((sheet) => sheet.name));
   });
 
-  it('「导入设置」不再是子表，一共 15 张', () => {
+  it('「导入设置」不再是子表，一共 16 张', () => {
     const sheets = buildAllSheets(makeProject());
 
     expect(sheets.map((sheet) => sheet.name)).toEqual([
@@ -56,6 +56,7 @@ describe('Unreal 导入设置', () => {
       '图片',
       '音频',
       '物品',
+      '文本框',
       'GASGameplayTags',
       'GAS属性',
       'GAS效果',

@@ -15,7 +15,16 @@ import {
   renumberGroup,
   textIdOf,
 } from './ids';
-import { DIALOGUE_HEADER, buildItemRows, buildRows, countLines, exportWorkbook, type ExportRowSets } from './export';
+import {
+  DIALOGUE_HEADER,
+  buildItemRows,
+  buildRows,
+  buildTextBoxRows,
+  countLines,
+  exportWorkbook,
+  type ExportRowSets,
+} from './export';
+import { createDefaultTextBox } from './textbox';
 import type {
   CommandDef,
   CommandParamDef,
@@ -221,7 +230,7 @@ describe('导出：跳到首句与跳到段落', () => {
 
     return {
       version: 1,
-      playPositions: [],
+      textBoxes: [],
       expressions: [],
       name: '跳转测试',
       characters: [],
@@ -394,7 +403,7 @@ describe('导出：指令里指向对话行的目标翻译成对话 ID', () => {
   function makeProject(): Project {
     return {
       version: 1,
-      playPositions: [],
+      textBoxes: [],
       expressions: [],
       name: '指令目标翻译',
       characters: [],
@@ -510,7 +519,7 @@ describe('导出：特殊演出效果', () => {
   function makeProject(): Project {
     return {
       version: 1,
-      playPositions: [],
+      textBoxes: [],
       expressions: [],
       name: '特殊演出效果',
       characters: [],
@@ -600,7 +609,7 @@ describe('导出三张表', () => {
 
     return {
       version: 1,
-      playPositions: [],
+      textBoxes: [],
       expressions: [],
       name: '测试项目',
       characters: [],
@@ -673,7 +682,7 @@ describe('导出三张表', () => {
         name: '伊芙',
         nameEn: '',
         nameJa: '',
-        playPosition: '剧情对话框',
+        textBoxUid: '',
         aliases: [{ uid: 'al1', text: 'Q版伊芙', en: '', ja: '' }],
         expressions: [],
         actions: [],
@@ -786,14 +795,15 @@ describe('导出三张表', () => {
     expect(uiRows.options.flat()).not.toContain('开始游戏');
   });
 
-  it('角色子表：行名是角色 ID，写着播放位置、显示名称的文本 key 与表情差分列表', () => {
+  it('角色子表：行名是角色 ID，写着文本框 ID、显示名称的文本 key 与表情差分列表', () => {
     const withCharacters = makeProject();
+    withCharacters.textBoxes = [createDefaultTextBox('战斗框', 'TB_战斗')];
     withCharacters.characters = [
       {
         uid: 'ch1',
         id: 'CHA_Q版伊芙',
         name: 'Q版伊芙',
-        playPosition: '战斗对话框',
+        textBoxUid: withCharacters.textBoxes[0].uid,
         nameEn: '',
         nameJa: '',
         aliases: [{ uid: 'al1', text: 'unknown', en: '', ja: '' }],
@@ -803,10 +813,10 @@ describe('导出三张表', () => {
     ];
 
     const tables = buildRows(withCharacters);
-    expect(tables.characters[0]).toEqual(['', '播放位置', '显示名称', '表情差分列表']);
+    expect(tables.characters[0]).toEqual(['', '文本框', '显示名称', '表情差分列表']);
     expect(tables.characters[1]).toEqual([
       'CHA_Q版伊芙',
-      '战斗对话框',
+      'TB_战斗',
       'TXT_CHA_Q版伊芙_DefaultName',
       '("默认","开心")',
     ]);
@@ -815,6 +825,38 @@ describe('导出三张表', () => {
     expect(tables.characters.flat().some((cell) => cell.includes('OtherName'))).toBe(false);
     expect(tables.locale).toContainEqual(['TXT_CHA_Q版伊芙_DefaultName', 'Q版伊芙', '', '']);
     expect(tables.locale).toContainEqual(['TXT_CHA_Q版伊芙_OtherName-1', 'unknown', '', '']);
+  });
+
+  it('文本框子表：一行一个框，锚点归一化，位置 / 尺寸是设计稿像素', () => {
+    const project = makeProject();
+    const center = createDefaultTextBox('屏幕中间', 'TB_Center');
+    center.box = { x: 0.25, y: 0.25, w: 0.5, h: 0.5 };
+    center.anchors = { ...center.anchors, bg: { col: 1, row: 1 } };
+    const full = createDefaultTextBox('全屏', 'TB_Full');
+    full.box = { x: 0.1, y: 0.2, w: 0.8, h: 0.5 };
+    full.anchors = { ...full.anchors, bg: { col: 3, row: 3 } };
+    project.textBoxes = [center, full];
+
+    const rows = buildTextBoxRows(project);
+    expect(rows[0]).toEqual(['---', '文本框名称', '锚点', '位置', '尺寸', '背景图片ID']);
+
+    // 锚点居中的格子：锚点是 0.5，位置相对它算；尺寸是 1920×1080 的像素
+    expect(rows[1]?.slice(0, 5)).toEqual([
+      'TB_Center',
+      '屏幕中间',
+      '(Minimum=(X=0.500000,Y=0.500000),Maximum=(X=0.500000,Y=0.500000))',
+      '(X=-480.000000,Y=-270.000000)',
+      '(X=960.000000,Y=540.000000)',
+    ]);
+
+    // 全拉伸：锚点满一圈，位置写左边距 / 上边距，尺寸写负数（-右边距 / -下边距）
+    expect(rows[2]?.slice(0, 5)).toEqual([
+      'TB_Full',
+      '全屏',
+      '(Minimum=(X=0.000000,Y=0.000000),Maximum=(X=1.000000,Y=1.000000))',
+      '(X=192.000000,Y=216.000000)',
+      '(X=-192.000000,Y=-324.000000)',
+    ]);
   });
 
   it('武器配置的导出名称也进本地化表，中文就是它们的显示名称', () => {
@@ -936,6 +978,7 @@ describe('导出三张表', () => {
       '图片',
       '音频',
       '物品',
+      '文本框',
       'GASGameplayTags',
       'GAS属性',
       'GAS效果',

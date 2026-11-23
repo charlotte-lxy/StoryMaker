@@ -109,11 +109,11 @@ function makeBattle(): BattleData {
 function makeProject(): Project {
   return {
     version: 1,
-    playPositions: [],
+    textBoxes: [],
     expressions: [],
     name: '引用测试',
     characters: [
-      { uid: 'ch1', id: 'CHA_伊芙', name: '伊芙', playPosition: '剧情对话框', nameEn: '', nameJa: '', aliases: [], expressions: ['微笑'], actions: ['挥手'] },
+      { uid: 'ch1', id: 'CHA_伊芙', name: '伊芙', textBoxUid: '', nameEn: '', nameJa: '', aliases: [], expressions: ['微笑'], actions: ['挥手'] },
     ],
     items: [{ uid: 'it1', id: 'Item_Coin', name: '金币' }],
     quests: [],
@@ -272,7 +272,7 @@ describe('读老项目时把引用换成 uid', () => {
   it('按角色 ID / 属性名 / 技能名 / 物品 ID 写的引用都会换成 uid', () => {
     const result = normalizeProject({
       version: 1,
-      playPositions: [],
+      textBoxes: [],
       expressions: [],
       name: '老项目',
       characters: [{ uid: 'ch1', id: 'CHA_伊芙', name: '伊芙' }],
@@ -352,7 +352,7 @@ describe('读老项目时把引用换成 uid', () => {
   it('表里找不到的引用原样保留，交给校验条去说', () => {
     const result = normalizeProject({
       version: 1,
-      playPositions: [],
+      textBoxes: [],
       expressions: [],
       name: '老项目',
       characters: [],

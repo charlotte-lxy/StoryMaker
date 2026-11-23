@@ -124,21 +124,6 @@ export interface VariableDecl {
 }
 
 /**
- * 角色对话的「播放位置」：这一句台词在哪儿显示。
- *
- * 位置可以在角色页顶部那张小表里增删改；角色行存的是它的 uid，
- * 所以改位置名不会把角色写坏。导出时把 uid 翻回名字写进「角色」子表。
- */
-export interface PlayPositionRow {
-  uid: string;
-  /** 位置名，如「剧情对话框」 */
-  name: string;
-}
-
-/** 新建项目时预置的三个播放位置（和以前写死的三个一样，Unreal 那边认这几个串） */
-export const DEFAULT_PLAY_POSITION_NAMES = ['剧情对话框', '战斗对话框', '屏幕中间'] as const;
-
-/**
  * 0–1 的相对矩形：x / y 是左上角，w / h 是宽高。
  *
  * 文本框相关的位置都存成这个形式，跟画面实际像素大小无关：
@@ -165,13 +150,19 @@ export interface AnchorCell {
 /**
  * 文本框：预览时台词框长什么样。
  *
- * 目前只做编辑界面（剧情 → 文本框），还不参与导出。
+ * 剧情 → 文本框 里编辑，导出成「文本框」子表；角色的台词在哪个文本框里播，
+ * 由角色表的「文本框」列决定（存的是这里的 uid，改 ID 不会把角色写坏）。
  * 外框（`box`，也就是背景图）、说话人名字、台词是画布上三个各自独立的控件，
  * 位置都相对 16:9 的画布存成 0–1；`rectSpace` 标着这套坐标是画布坐标，
  * 老项目没有这个标记，读进来时会把名字 / 台词从「相对外框」换算过来。
  */
 export interface TextBoxRow {
   uid: string;
+  /**
+   * 文本框 ID：导出的行名，也写进角色表的「文本框」列，所以不能重名。
+   * 引用一律用 uid，这个 ID 随时可以改。
+   */
+  id: string;
   /** 列表里显示的名字 */
   name: string;
   /** 背景图：图片表那一行的 uid；空串 = 全透明 */
@@ -236,8 +227,11 @@ export interface Character {
   nameEn: string;
   /** 默认名称的日文 */
   nameJa: string;
-  /** 播放位置：存 PlayPositionRow 的 uid（改位置名不会断），导出时翻回名字 */
-  playPosition: string;
+  /**
+   * 台词在哪个文本框里播：存 TextBoxRow 的 uid（改文本框 ID 不会断），导出时翻回 ID。
+   * 空串 = 这个角色的台词不显示（预览里什么都不画）。
+   */
+  textBoxUid: string;
   /** 别名列表：同一角色的其他显示名（如「unknown」「HUD」） */
   aliases: CharacterAlias[];
   /**
@@ -591,7 +585,7 @@ export interface ExportSettingRow {
 /**
  * 参数的值从哪儿来。
  *
- * 前 6 个是各张表里的行（存 uid，导出时才翻成可读 ID）；
+ * 前 7 个是各张表里的行（存 uid，导出时才翻成可读 ID）；
  * 「该角色表情 / 该角色动作」取同一条指令里「角色表」那个参数所选角色的清单；
  * 手填数字 / 手填文本是自由输入；固定选项是字典里自己填的候选值。
  */
@@ -602,6 +596,7 @@ export type ParamSource =
   | 'image'
   | 'sound'
   | 'line'
+  | 'textbox'
   | 'expression'
   | 'action'
   | 'number'
@@ -652,8 +647,6 @@ export interface Project {
   version: 1;
   name: string;
   characters: Character[];
-  /** 播放位置配置（角色行用 uid 指着这里的某一条） */
-  playPositions: PlayPositionRow[];
   /** 表情差分配置（全局一张表；角色行勾选自己有哪些） */
   expressions: ExpressionRow[];
   /** 数据表：物品、任务、立绘、音效 */
@@ -682,9 +675,11 @@ export interface Project {
    */
   specialCommandClassPrefix: string;
   /**
-   * 预览用的文本框。老项目里没有这一栏，读取时补一条默认的。
+   * 预览用的文本框：剧情 → 文本框 里编辑，导出成「文本框」子表。
+   *
+   * 角色的台词在哪个文本框里播由 Character.textBoxUid 决定。
    */
-  textBoxes?: TextBoxRow[];
+  textBoxes: TextBoxRow[];
   /**
    * 界面配置，跟着项目文件走：换台机器、换个浏览器打开，看到的还是同样的界面。
    *

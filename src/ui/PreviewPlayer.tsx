@@ -26,8 +26,8 @@ import {
   continueToNextGroup,
   describeCommand,
   previewActiveLineUid,
-  previewPositionName,
   previewSpeakerName,
+  previewTextBoxOf,
   restartGroup,
   startPreview,
   stepBack,
@@ -36,7 +36,8 @@ import {
   type PreviewState,
 } from '../core/preview';
 import { characterAssetOf, imageAssetOf, soundAssetOf } from '../core/preview-assets';
-import type { Project } from '../core/types';
+import { CANVAS_HEIGHT, CANVAS_WIDTH } from '../core/textbox';
+import type { Project, TextBoxRow } from '../core/types';
 import { blobOf, canPreviewImage, mimeOf } from './asset-blob';
 import { registerAudioStopper } from './audio-registry';
 import { SoundPlayer } from './sound-player';
@@ -167,6 +168,86 @@ function CharacterSprite({
   );
 }
 
+/** 文本框的背景图：没图片时什么都不画（背景「无」= 全透明） */
+function TextBoxBackground({
+  project,
+  byId,
+  host,
+  box,
+}: {
+  project: Project;
+  byId: Map<string, AssetFileInfo[]>;
+  host: HostApi | undefined;
+  box: TextBoxRow;
+}) {
+  const asset = box.imageUid === '' ? undefined : imageAssetOf(project, byId, box.imageUid);
+  const url = useAssetUrl(host, asset?.file);
+  if (url === '') return null;
+  return <img className="preview-textbox-bg" src={url} alt="" />;
+}
+
+/** 一帧文本框图层：按设计稿 1920×1080 的像素坐标摆，外层整体缩放 */
+function TextBoxLayer({
+  project,
+  byId,
+  host,
+  box,
+  scale,
+  speaker,
+  text,
+}: {
+  project: Project;
+  byId: Map<string, AssetFileInfo[]>;
+  host: HostApi | undefined;
+  box: TextBoxRow;
+  scale: number;
+  speaker: string;
+  text: string;
+}) {
+  const boxStyle = {
+    left: box.box.x * CANVAS_WIDTH,
+    top: box.box.y * CANVAS_HEIGHT,
+    width: box.box.w * CANVAS_WIDTH,
+    height: box.box.h * CANVAS_HEIGHT,
+  };
+  const nameStyle = {
+    left: box.nameRect.x * CANVAS_WIDTH,
+    top: box.nameRect.y * CANVAS_HEIGHT,
+    width: box.nameRect.w * CANVAS_WIDTH,
+    height: box.nameRect.h * CANVAS_HEIGHT,
+  };
+  const textStyle = {
+    left: box.textRect.x * CANVAS_WIDTH,
+    top: box.textRect.y * CANVAS_HEIGHT,
+    width: box.textRect.w * CANVAS_WIDTH,
+    height: box.textRect.h * CANVAS_HEIGHT,
+    lineHeight: box.lineHeight,
+    textAlign: box.align,
+  };
+
+  return (
+    <div
+      className="preview-textbox"
+      data-textbox-name={box.name}
+      style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}
+    >
+      <div className="preview-textbox-frame" style={boxStyle}>
+        <TextBoxBackground project={project} byId={byId} host={host} box={box} />
+      </div>
+      {box.showName && speaker !== '' && (
+        <div className="preview-textbox-name" style={nameStyle}>
+          {speaker}
+        </div>
+      )}
+      {text !== '' && (
+        <div className="preview-textbox-text" style={textStyle}>
+          {text}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function PreviewPlayer({
   project,
   start,
@@ -186,7 +267,10 @@ export function PreviewPlayer({
   const [auto, setAuto] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const frameRef = useRef<HTMLDivElement | null>(null);
   const logRef = useRef<HTMLDivElement | null>(null);
+  /** 文本框图层按 1920×1080 的设计稿画，用这个比例整体缩放 */
+  const [frameScale, setFrameScale] = useState(1);
   /** 已经播到第几条日志：音效按新增的那几条播，回退时重置 */
   const playedLogRef = useRef(0);
   /** 预览里音效可以叠着响，结束 / 重播时一次全停 */
@@ -227,6 +311,21 @@ export function PreviewPlayer({
       playerRef.current?.stopAll();
     };
   }, []);
+
+  // 画面比例：文本框按 1920×1080 设计稿摆，窗口变了跟着缩
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (frame === null) return;
+    const measure = (): void => {
+      const width = frame.getBoundingClientRect().width;
+      if (width > 0) setFrameScale(width / CANVAS_WIDTH);
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, [collapsed, state !== null]);
 
   const playSound = useCallback(
     async (soundUid: string): Promise<void> => {
@@ -351,8 +450,6 @@ export function PreviewPlayer({
 
   const current = state?.current ?? null;
   const speaker = current === null ? '' : previewSpeakerName(project, current.characterUid, current.aliasUid);
-  const positionName = current === null ? '' : previewPositionName(project, current.playPositionUid);
-  const centered = positionName.includes('屏幕');
   const lineText =
     current === null
       ? ''
@@ -361,6 +458,7 @@ export function PreviewPlayer({
         : current.text.en.trim() !== ''
           ? current.text.en
           : current.text.ja;
+  const visibleTextBoxes = (state?.stage.textBoxes ?? []).filter((item) => item.visible);
 
   return (
     <div
@@ -410,7 +508,7 @@ export function PreviewPlayer({
       ) : (
         <>
           <div className="preview-stage">
-            <div className="preview-frame">
+            <div className="preview-frame" ref={frameRef}>
               {state.stage.backgroundImageUid !== '' && (
                 <BackgroundLayer
                   project={project}
@@ -440,13 +538,23 @@ export function PreviewPlayer({
                   />
                 ))}
 
-              {current !== null && (
-                <div className={`preview-dialogue${centered ? ' center' : ''}`}>
-                  {speaker !== '' && <span className="preview-speaker">{speaker}</span>}
-                  <p className="preview-text">{lineText === '' ? '（这一句还没填台词）' : lineText}</p>
-                  {positionName !== '' && <span className="preview-position">{positionName}</span>}
-                </div>
-              )}
+              {visibleTextBoxes.map((item) => {
+                const box = previewTextBoxOf(project, item.textBoxUid);
+                if (box === undefined) return null;
+                const mine = current !== null && current.textBoxUid === box.uid;
+                return (
+                  <TextBoxLayer
+                    key={box.uid}
+                    project={project}
+                    byId={assets.library.byId}
+                    host={assets.host}
+                    box={box}
+                    scale={frameScale}
+                    speaker={mine ? speaker : ''}
+                    text={mine ? lineText : ''}
+                  />
+                );
+              })}
 
               {state.status === 'options' && (
                 <div className="preview-options">

@@ -31,7 +31,7 @@ function projectWithCharacter(): Project {
     name: '西园寺雪',
     nameEn: '',
     nameJa: '',
-    playPosition: '',
+    textBoxUid: '',
     aliases: [],
     expressions: ['微笑', '悲伤'],
     actions: [],

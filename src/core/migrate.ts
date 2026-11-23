@@ -38,9 +38,8 @@ import { WEAPON_ICON_CATEGORY, WEAPON_ICON_ROOT } from './weapon-icons';
 import { firstLineRef, groupUidOfFirstLine, makeLineId, newUid, renumberGroup, type IdChange } from './ids';
 import { collectRefMaps, collectRefUids } from './refs';
 import { DEFAULT_SPECIAL_COMMAND_CLASS_PREFIX } from './special-commands';
-import { normalizeTextBoxes } from './textbox';
+import { createDefaultTextBox, nextTextBoxId, normalizeTextBoxes } from './textbox';
 import {
-  DEFAULT_PLAY_POSITION_NAMES,
   type BattleData,
   type Chapter,
   type Character,
@@ -54,7 +53,6 @@ import {
   type LineKind,
   type LocalizedText,
   type ParamSource,
-  type PlayPositionRow,
   type Project,
   type StoryOption,
   type WeaponEntry,
@@ -181,8 +179,9 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
       }));
   }
 
-  // 播放位置 / 表情差分也是后加的：老项目里角色存的是位置名，换成 uid 在角色收窄之后做
-  project.playPositions = readPlayPositions(project);
+  // 播放位置已经并进文本框：老项目里那张表要换成同名文本框，角色才不丢配置
+  project.textBoxes = normalizeTextBoxes(project.textBoxes);
+  migratePlayPositionsToTextBoxes(project);
   project.expressions = readExpressions(project);
   ensureExpressionImageCategory(project);
   ensureWeaponIconCategory(project);
@@ -254,8 +253,9 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
       // 默认名称的译文：老版本存在 nameTexts 里，现在挂在角色上
       nameEn: asString(row.nameEn) || (legacy?.en ?? ''),
       nameJa: asString(row.nameJa) || (legacy?.ja ?? ''),
-      // 播放位置：老项目里存的是位置名，下面 remapCharacterPlayPositions 统一换成 uid
-      playPosition: asString(row.playPosition),
+      // 文本框：老项目里这个字段叫 playPosition，存的是位置名或位置 uid，
+      // 下面 remapCharacterTextBoxes 统一换成文本框 uid
+      textBoxUid: asString(row.textBoxUid) || asString(row.playPosition),
       aliases: (Array.isArray(row.aliases) ? row.aliases : [])
         .filter(isRecord)
         .map((item) => ({
@@ -273,8 +273,8 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
     };
   });
 
-  // 角色收窄之后再换播放位置：老数据里存的是位置名，换成对应位置的 uid
-  remapCharacterPlayPositions(project);
+  // 角色收窄之后再换文本框：老数据里存的是位置名 / 位置 uid，换成对应文本框的 uid
+  remapCharacterTextBoxes(project);
 
   const changes: IdChange[] = [];
   for (const chapter of project.chapters as (Chapter & { groups?: Group[] })[]) {
@@ -293,6 +293,8 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
   normalizeCommandDict(project);
   migrateOptionResults(project);
   migrateCommandTexts(project);
+  // 「剧情|文本框」的对话框参数原来是写死的两个位置名，改成从文本框表里选
+  migrateTextBoxCommandParams(project);
 
   // 各张表都补齐之后再统一换引用（角色 uid 也在这时候定下来），
   // 然后才能把对话行的显示名收进角色表的别名里
@@ -851,6 +853,7 @@ const PARAM_SOURCES: readonly ParamSource[] = [
   'image',
   'sound',
   'line',
+  'textbox',
   'expression',
   'action',
   'number',
@@ -1022,17 +1025,33 @@ function ensureDefaultDef(project: Project, head: string, branch: string): void 
   if (def !== undefined) project.commands.push(def);
 }
 
-/* ---------- 播放位置 / 表情差分 ---------- */
+/* ---------- 文本框（老数据里的播放位置） / 表情差分 ---------- */
 
-/** 播放位置表：老项目没有就预置三个默认位置 */
-function readPlayPositions(project: Project): PlayPositionRow[] {
-  const raw: unknown = project.playPositions;
-  const rows = (Array.isArray(raw) ? raw : [])
+/**
+ * 老项目的「播放位置」表并进文本框：每个位置建一个同名文本框，
+ * 位置 uid 直接沿用成文本框 uid，角色的 textBoxUid 就不用再换一次。
+ * 新项目没有这张表，这里是空操作。
+ */
+function migratePlayPositionsToTextBoxes(project: Project): void {
+  const raw: unknown = (project as unknown as Record<string, unknown>).playPositions;
+  delete (project as unknown as Record<string, unknown>).playPositions;
+  const positions = (Array.isArray(raw) ? raw : [])
     .filter(isRecord)
     .map((row) => ({ uid: asUid(row.uid), name: asString(row.name).trim() }))
     .filter((row) => row.name !== '');
-  if (rows.length > 0) return rows;
-  return DEFAULT_PLAY_POSITION_NAMES.map((name) => ({ uid: newUid(), name }));
+  if (positions.length === 0) return;
+
+  const byUid = new Set(project.textBoxes.map((row) => row.uid));
+  const byName = new Map(project.textBoxes.map((row) => [row.name.trim(), row]));
+  for (const position of positions) {
+    // 已经有一个同名文本框就用它（比如用户先建好了）
+    if (byName.has(position.name) || (position.uid !== '' && byUid.has(position.uid))) continue;
+    const row = createDefaultTextBox(position.name, nextTextBoxId(project.textBoxes));
+    if (position.uid !== '') row.uid = position.uid;
+    project.textBoxes.push(row);
+    byUid.add(row.uid);
+    byName.set(row.name.trim(), row);
+  }
 }
 
 /**
@@ -1069,31 +1088,91 @@ function readExpressions(project: Project): ExpressionRow[] {
   return rows;
 }
 
-/** 角色的播放位置：老数据里存的是位置名，换成对应位置的 uid */
-function remapCharacterPlayPositions(project: Project): void {
-  const positions = project.playPositions;
-  const byUid = new Set(positions.map((row) => row.uid));
-  const byName = new Map(positions.map((row) => [row.name, row]));
+/** 角色的文本框：老数据里存的是位置名 / 位置 uid，换成对应文本框的 uid */
+function remapCharacterTextBoxes(project: Project): void {
+  const boxes = project.textBoxes;
+  const byUid = new Set(boxes.map((row) => row.uid));
+  const byName = new Map(boxes.map((row) => [row.name.trim(), row]));
 
   for (const character of project.characters) {
-    const value = asString(character.playPosition).trim();
-    // 空串、或者已经是 uid：空串指到第一个位置（和新建角色一样）
+    const value = asString(character.textBoxUid).trim();
+    // 空串：指到第一个文本框（和新建角色一样）
     if (value === '') {
-      character.playPosition = positions[0]?.uid ?? '';
+      character.textBoxUid = boxes[0]?.uid ?? '';
       continue;
     }
     if (byUid.has(value)) continue;
     const matched = byName.get(value);
     if (matched !== undefined) {
-      character.playPosition = matched.uid;
+      character.textBoxUid = matched.uid;
       continue;
     }
-    // 手改过的、或以前自己起的位置名：补一条再指过去
-    const row: PlayPositionRow = { uid: newUid(), name: value };
-    positions.push(row);
+    // 手改过的、或以前自己起的位置名：补一条同名文本框再指过去
+    const row = createDefaultTextBox(value, nextTextBoxId(boxes));
+    boxes.push(row);
     byUid.add(row.uid);
-    byName.set(row.name, row);
-    character.playPosition = row.uid;
+    byName.set(row.name.trim(), row);
+    character.textBoxUid = row.uid;
+  }
+}
+
+/**
+ * 「剧情|文本框」的对话框参数：原来值来源是写死的两个位置名（屏幕中间 / 屏幕左上），
+ * 改成从文本框表里选，并把剧情里已经写下的位置名换成文本框 uid。
+ */
+function migrateTextBoxCommandParams(project: Project): void {
+  const boxes = project.textBoxes;
+  if (boxes.length === 0) return;
+  const byName = new Map(boxes.map((row) => [row.name.trim(), row]));
+
+  /** 参数定义改来源：值来源改为文本框，写死的候选值清掉 */
+  const convertDefs = (defs: CommandDef[]): boolean => {
+    let changed = false;
+    for (const def of defs) {
+      for (const param of def.params) {
+        // 只认「候选值里有某个文本框名字」的固定选项参数：
+        // 别的固定选项（弹出 / 清空 / 隐藏、运算符之类）跟文本框没关系
+        if (param.source !== 'fixed') continue;
+        if (!param.options.some((option) => byName.has(option.trim()))) continue;
+        param.source = 'textbox';
+        param.options = [];
+        changed = true;
+      }
+    }
+    return changed;
+  };
+
+  /** 指令文本里这个参数的值：位置名 → 文本框 uid（已经是 uid 的不动） */
+  const convertText = (text: string, category: '条件' | '指令'): string => {
+    const parsed = parseCommandText(text);
+    if (parsed === null) return text;
+    const def = findCommandDef(project.commands, category, parsed.head, parsed.branch);
+    if (def === undefined) return text;
+    const values: Record<string, string> = {};
+    let changed = false;
+    for (const param of parsed.params) {
+      const paramDef = def.params.find((item) => item.name.trim() === param.name);
+      const box = paramDef?.source === 'textbox' ? byName.get(param.value.trim()) : undefined;
+      values[param.name] = box === undefined ? param.value : box.uid;
+      if (box !== undefined) changed = true;
+    }
+    return changed ? buildCommandText(def, values) : text;
+  };
+
+  const defsChanged = convertDefs(project.commands);
+  if (!defsChanged) return;
+
+  for (const chapter of project.chapters) {
+    for (const group of chapter.groups) {
+      for (const line of group.lines) {
+        if (line.jumpGroupUid === null) line.command = convertText(line.command, '指令');
+        line.jumpConditions = line.jumpConditions.map((text) => convertText(text, '条件'));
+      }
+      for (const option of group.options) {
+        option.appearConditions = option.appearConditions.map((text) => convertText(text, '条件'));
+        option.enableConditions = option.enableConditions.map((text) => convertText(text, '条件'));
+      }
+    }
   }
 }
 

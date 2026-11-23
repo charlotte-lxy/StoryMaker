@@ -41,11 +41,23 @@ export function composeRect(box: Rect, inner: Rect): Rect {
   };
 }
 
+/** 文本框 ID 的前缀：导出的行名，角色表「文本框」列也写它 */
+export const TEXT_BOX_ID_PREFIX = 'TB_';
+
+/** 生成一个还没被用掉的文本框 ID（TB_1、TB_2…） */
+export function nextTextBoxId(rows: readonly { id: string }[]): string {
+  const taken = new Set(rows.map((row) => row.id.trim()));
+  let n = 1;
+  while (taken.has(`${TEXT_BOX_ID_PREFIX}${n}`)) n += 1;
+  return `${TEXT_BOX_ID_PREFIX}${n}`;
+}
+
 /** 新建一条文本框：位置是默认的，名字可以传（列表里显示用） */
-export function createDefaultTextBox(name = '文本框 1'): TextBoxRow {
+export function createDefaultTextBox(name = '文本框 1', id = 'TB_1'): TextBoxRow {
   const box = { ...DEFAULT_TEXT_BOX_RECT };
   return {
     uid: newUid(),
+    id,
     name,
     imageUid: '',
     showName: true,
@@ -87,7 +99,7 @@ export function clampRect(raw: unknown, fallback: Rect): Rect {
 }
 
 /** 锚点选择器的 3 列 / 3 行参考线在画面上的比例：左 / 中 / 右（上 / 中 / 下） */
-function anchorFraction(index: number): number {
+export function anchorFraction(index: number): number {
   return index === 1 ? 0.5 : index === 2 ? 1 : 0;
 }
 
@@ -178,6 +190,7 @@ function readTextBox(raw: Record<string, unknown>, index: number): TextBoxRow {
 
   return {
     uid,
+    id: typeof raw.id === 'string' ? raw.id.trim() : '',
     name,
     imageUid,
     showName: typeof raw.showName === 'boolean' ? raw.showName : true,
@@ -209,5 +222,11 @@ function readTextBox(raw: Record<string, unknown>, index: number): TextBoxRow {
  */
 export function normalizeTextBoxes(raw: unknown): TextBoxRow[] {
   if (!Array.isArray(raw)) return [createDefaultTextBox()];
-  return raw.filter(isRecord).map((row, index) => readTextBox(row, index));
+  const rows = raw.filter(isRecord).map((row, index) => readTextBox(row, index));
+  // 文本框 ID 是后加的：老项目里没有，按顺序补 TB_1、TB_2…
+  for (const row of rows) {
+    if (row.id !== '') continue;
+    row.id = nextTextBoxId(rows);
+  }
+  return rows;
 }

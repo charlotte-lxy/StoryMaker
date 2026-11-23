@@ -74,6 +74,10 @@ export type IssueCode =
   | 'missing-translation'
   | 'empty-ui-key'
   | 'duplicate-ui-key'
+  /* 文本框 */
+  | 'empty-textbox-id'
+  | 'duplicate-textbox-id'
+  | 'dangling-textbox'
   /* 立绘 / 音效 */
   | 'image-category-missing'
   | 'empty-image-category'
@@ -282,12 +286,57 @@ export function validateProject(project: Project): ValidationReport {
     }
   }
 
+  // 文本框 ID 是导出行名、也写进角色表「文本框」列：不能空、不能重
+  const textBoxIdCounts = new Map<string, number>();
+  const textBoxUids = new Set<string>();
+  for (const box of project.textBoxes) {
+    textBoxUids.add(box.uid);
+    const id = box.id.trim();
+    if (id === '') {
+      issues.push({
+        level: 'warning',
+        code: 'empty-textbox-id',
+        targetId: box.name.trim() === '' ? '(空)' : box.name,
+        where: '文本框',
+        message: '文本框没有 ID，导出时这一行没法命名',
+        lineUid: '',
+        groupUid: '',
+      });
+      continue;
+    }
+    textBoxIdCounts.set(id, (textBoxIdCounts.get(id) ?? 0) + 1);
+  }
+  for (const [id, count] of textBoxIdCounts) {
+    if (count > 1) {
+      issues.push({
+        level: 'error',
+        code: 'duplicate-textbox-id',
+        targetId: id,
+        where: '文本框',
+        message: `文本框 ID「${id}」出现了 ${count} 次，导出后会互相覆盖`,
+        lineUid: '',
+        groupUid: '',
+      });
+    }
+  }
+  for (const character of project.characters) {
+    if (character.textBoxUid === '' || textBoxUids.has(character.textBoxUid)) continue;
+    issues.push({
+      level: 'warning',
+      code: 'dangling-textbox',
+      targetId: character.id,
+      where: '角色',
+      message: '角色指定的文本框已经不在了，预览里不会显示它',
+      lineUid: '',
+      groupUid: '',
+    });
+  }
+
   for (const chapter of project.chapters) {
     for (const group of chapter.groups) {
       const where = `${chapter.title || chapter.id} / ${group.title || group.id}`;
 
-      const referencedOptions = new Set<string>();
-      for (const line of group.lines) {
+      const referencedOptions = new Set<string>();      for (const line of group.lines) {
         for (const uid of line.optionIds) referencedOptions.add(uid);
       }
 

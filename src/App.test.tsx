@@ -259,41 +259,46 @@ describe('界面冒烟测试', () => {
     expect(characterSelect().selectedOptions[0].textContent).toBe('角色1');
   });
 
-  it('角色表有「播放位置」一列，默认剧情对话框，可改成别的', async () => {
+  it('角色表有「文本框」一列，默认用第一个文本框，可改成别的', async () => {
     await renderApp();
     openCharacters();
     fireEvent.click(screen.getByText(/新增角色/));
 
-    const position = screen.getByTitle(/播放位置/) as HTMLSelectElement;
-    // 下拉里存的是播放位置的 uid，显示的是位置名
-    expect([...position.options].map((option) => option.textContent)).toEqual([
-      '剧情对话框',
-      '战斗对话框',
-      '屏幕中间',
-    ]);
-    expect(position.selectedOptions[0].textContent).toBe('剧情对话框');
+    const position = screen.getByTitle(/文本框/) as HTMLSelectElement;
+    // 下拉里存的是文本框的 uid，显示的是文本框名
+    expect([...position.options].map((option) => option.textContent)).toEqual(['文本框 1']);
+    expect(position.selectedOptions[0].textContent).toBe('文本框 1');
 
-    const screenMiddle = [...position.options].find((option) => option.textContent === '屏幕中间');
-    fireEvent.change(position, { target: { value: screenMiddle?.value } });
-    expect(position.selectedOptions[0].textContent).toBe('屏幕中间');
+    // 再到文本框模块加一个，角色行下拉就能选到它
+    fireEvent.click(within(storySide()).getByText('文本框'));
+    fireEvent.click(screen.getByText(/新建文本框/));
+    fireEvent.click(within(storySide()).getByText('角色'));
+
+    const select = () => screen.getByTitle(/文本框/) as HTMLSelectElement;
+    expect([...select().options].map((option) => option.textContent)).toEqual([
+      '文本框 1',
+      '文本框 2',
+    ]);
+    fireEvent.change(select(), { target: { value: select().options[1].value } });
+    expect(select().selectedOptions[0].textContent).toBe('文本框 2');
   });
 
-  it('对话列表里选好角色后，角色旁边标出这个角色的播放位置', async () => {
+  it('对话列表里选好角色后，角色旁边标出这个角色的文本框', async () => {
     await renderApp();
     openCharacters();
     fireEvent.click(screen.getByText(/新增角色/));
-    const position = screen.getByTitle(/播放位置/) as HTMLSelectElement;
-    const battle = [...position.options].find((option) => option.textContent === '战斗对话框');
-    fireEvent.change(position, { target: { value: battle?.value } });
+    const position = screen.getByTitle(/文本框/) as HTMLSelectElement;
+    const firstBoxUid = position.options[0]?.value ?? '';
 
     fireEvent.click(within(rail()).getByText('剧情'));
     const characterSelect = screen.getByTitle('角色：导出时写入「角色ID」列') as HTMLSelectElement;
     // 还没选角色：没有标记
-    expect(document.querySelector('.play-position-chip')).toBeNull();
+    expect(document.querySelector('.textbox-chip')).toBeNull();
 
     const uid = [...characterSelect.options].find((option) => option.value !== '')?.value;
     fireEvent.change(characterSelect, { target: { value: uid } });
-    expect(document.querySelector('.play-position-chip')?.textContent).toBe('战斗对话框');
+    expect(document.querySelector('.textbox-chip')?.textContent).toBe('文本框 1');
+    expect(firstBoxUid).not.toBe('');
   });
 
   it('角色表的「显示名称」：一行默认名称，点「添加别名」加一行，能删', async () => {
@@ -646,7 +651,7 @@ describe('界面冒烟测试', () => {
           name: '伊芙',
           nameEn: '',
           nameJa: '',
-          playPosition: '战斗对话框',
+          textBoxUid: '',
           aliases: [{ uid: 'al1', text: 'Q版伊芙', en: '', ja: '' }],
           expressions: ['微笑'],
           actions: [],        },
@@ -1086,7 +1091,18 @@ describe('章节流程图与分栏', () => {
       JSON.stringify({
         version: 1,
         name: '流程测试',
-        characters: [],
+        characters: [
+          {
+            uid: 'ch1',
+            id: 'CHA_旁白',
+            name: '旁白',
+            textBoxUid: 'box-1',
+            aliases: [],
+            expressions: [],
+            actions: [],
+          },
+        ],
+        textBoxes: [{ uid: 'box-1', id: 'TB_旁白', name: '旁白框' }],
         items: [],
         quests: [],
         images: [],
@@ -1138,7 +1154,7 @@ describe('章节流程图与分栏', () => {
                     uid: 'l2',
                     readableId: 'Dia_ch01_002-1',
                     kind: '对话',
-                    characterId: '',
+                    characterUid: 'ch1',
                     displayAliasUid: '',
                     text: { zh: '海风很大', en: '', ja: '' },
                     autoAdvance: false,
@@ -1204,17 +1220,17 @@ describe('章节流程图与分栏', () => {
 
     // 先播一段
     fireEvent.click(screen.getByTitle('从「码头」的第一句开始预览'));
-    expect(container.querySelector('.preview-text')?.textContent).toBe('海风很大');
+    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('海风很大');
 
     // 收起：面板和标题栏都在，只是画面 / 控制条藏起来
     fireEvent.click(screen.getByTitle('收起预览面板，把地方让给流程图'));
     expect(container.querySelector('.outline-preview')).not.toBeNull();
-    expect(container.querySelector('.preview-text')).toBeNull();
+    expect(container.querySelector('.preview-textbox-text')).toBeNull();
     expect(screen.getByText('展开 ⏷')).toBeTruthy();
 
     // 展开后播放状态还在，能接着看
     fireEvent.click(screen.getByText('展开 ⏷'));
-    expect(container.querySelector('.preview-text')?.textContent).toBe('海风很大');
+    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('海风很大');
   });
 
   it('对话列表每行的「预览」从这一行开始播，并描边高亮那一行', async () => {
@@ -1225,7 +1241,7 @@ describe('章节流程图与分栏', () => {
     fireEvent.click(screen.getByTitle('打开「码头」的对话列表'));
 
     fireEvent.click(screen.getByTitle('从这一行开始预览'));
-    expect(container.querySelector('.preview-text')?.textContent).toBe('海风很大');
+    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('海风很大');
     expect(container.querySelector('.line-card.previewing')?.getAttribute('data-line-uid')).toBe(
       'l2',
     );
@@ -1241,7 +1257,7 @@ describe('章节流程图与分栏', () => {
 
     fireEvent.click(container.querySelector('.preview-option') as HTMLElement);
 
-    expect(container.querySelector('.preview-text')?.textContent).toBe('海风很大');
+    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('海风很大');
     expect(container.querySelector('.editor-head h2')?.textContent).toContain('码头');
     expect(container.querySelector('.line-card.previewing')?.getAttribute('data-line-uid')).toBe(
       'l2',
@@ -1260,7 +1276,7 @@ describe('章节流程图与分栏', () => {
 
     fireEvent.click(container.querySelector('.preview-option') as HTMLElement);
 
-    expect(container.querySelector('.preview-text')?.textContent).toBe('海风很大');
+    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('海风很大');
     // 列表还停在「开场」，也没有那一行可以高亮
     expect(container.querySelector('.editor-head h2')?.textContent).toContain('开场');
     expect(container.querySelector('.line-card.previewing')).toBeNull();
@@ -1274,7 +1290,7 @@ describe('章节流程图与分栏', () => {
     expect(container.querySelector('.line-card.previewing')).not.toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: '结束预览' }));
-    expect(container.querySelector('.preview-text')).toBeNull();
+    expect(container.querySelector('.preview-textbox-text')).toBeNull();
     expect(container.querySelector('.line-card.previewing')).toBeNull();
   });
 
@@ -2464,6 +2480,7 @@ describe('导出模块', () => {
       '图片',
       '音频',
       '物品',
+      '文本框',
       'GASGameplayTags',
       'GAS属性',
       'GAS效果',
@@ -2531,6 +2548,7 @@ describe('导出模块', () => {
       '图片',
       '音频',
       '物品',
+      '文本框',
       'GASGameplayTags',
       'GAS属性',
       'GAS效果',
@@ -2559,6 +2577,7 @@ describe('导出模块', () => {
       '图片',
       '音频',
       '物品',
+      '文本框',
       'GASGameplayTags',
       'GAS属性',
       'GAS效果',
@@ -2999,40 +3018,27 @@ describe('角色页的配置区与表情图片', () => {
     return container;
   };
 
-  it('播放位置配置表在角色表上方，能新增 / 改名，角色行下拉跟着变', async () => {
+  it('播放位置配置表已经下线，配置区只剩表情差分', async () => {
     const container = await openCharacterPage();
 
     const config = container.querySelector('.char-config') as HTMLElement;
     expect(config).toBeTruthy();
     const panels = [...config.querySelectorAll('.config-panel')] as HTMLElement[];
-    expect(panels.map((panel) => panel.querySelector('h3')?.textContent)).toEqual([
-      '播放位置',
-      '表情差分',
-    ]);
+    expect(panels.map((panel) => panel.querySelector('h3')?.textContent)).toEqual(['表情差分']);
 
-    // 新项目预置了三个位置
-    const nameInputs = () => [...panels[0].querySelectorAll('tbody tr input')] as HTMLInputElement[];
-    expect(nameInputs().map((input) => input.value)).toEqual(['剧情对话框', '战斗对话框', '屏幕中间']);
-
-    fireEvent.click(within(panels[0]).getByText('＋ 新增位置'));
-    expect(nameInputs().map((input) => input.value)).toContain('新位置');
-
-    // 改个名字，角色行的下拉里就能看到新名字
-    const rows = [...panels[0].querySelectorAll('tbody tr')];
-    fireEvent.change(rows[0].querySelector('input') as HTMLInputElement, {
-      target: { value: '旁白框' },
-    });
+    // 角色表的列名改成「文本框」，下拉里是文本框模块里的那些框
     fireEvent.click(screen.getByText(/新增角色/));
-    const positionSelect = screen.getByTitle(/播放位置/) as HTMLSelectElement;
-    expect([...positionSelect.options].map((option) => option.textContent)).toContain('旁白框');
-    expect(positionSelect.selectedOptions[0].textContent).toBe('旁白框');
+    const headers = [...container.querySelectorAll('th')].map((cell) => cell.textContent);
+    expect(headers).toContain('文本框');
+    const textBoxSelect = screen.getByTitle(/文本框/) as HTMLSelectElement;
+    expect([...textBoxSelect.options].map((option) => option.textContent)).toEqual(['文本框 1']);
   });
 
   it('表情表新增表情后，角色行能加它，立绘页自动收出 PIC_ 图片', async () => {
     const container = await openCharacterPage();
 
     const config = container.querySelector('.char-config') as HTMLElement;
-    const expressionPanel = ([...config.querySelectorAll('.config-panel')] as HTMLElement[])[1];
+    const expressionPanel = ([...config.querySelectorAll('.config-panel')] as HTMLElement[])[0];
     fireEvent.click(within(expressionPanel).getByText('＋ 新增表情'));
     const rows = [...expressionPanel.querySelectorAll('tbody tr')];
     const [nameInput, idInput] = [...rows[0].querySelectorAll('input')] as HTMLInputElement[];
