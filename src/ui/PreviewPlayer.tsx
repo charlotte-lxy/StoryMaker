@@ -168,25 +168,46 @@ function CharacterSprite({
   );
 }
 
-/** 文本框的背景图：没图片时什么都不画（背景「无」= 全透明） */
-function TextBoxBackground({
+/** 一个控件自己的背景图：没图片时什么都不画（背景「无」= 全透明） */
+function ControlBackground({
   project,
   byId,
   host,
-  box,
+  imageUid,
 }: {
   project: Project;
   byId: Map<string, AssetFileInfo[]>;
   host: HostApi | undefined;
-  box: TextBoxRow;
+  imageUid: string;
 }) {
-  const asset = box.imageUid === '' ? undefined : imageAssetOf(project, byId, box.imageUid);
+  const asset = imageUid === '' ? undefined : imageAssetOf(project, byId, imageUid);
   const url = useAssetUrl(host, asset?.file);
   if (url === '') return null;
   return <img className="preview-textbox-bg" src={url} alt="" />;
 }
 
-/** 一帧文本框图层：按设计稿 1920×1080 的像素坐标摆，外层整体缩放 */
+/** 设计稿像素 → 绝对定位样式 */
+function rectStyle(rect: { x: number; y: number; w: number; h: number }): React.CSSProperties {
+  return {
+    left: rect.x * CANVAS_WIDTH,
+    top: rect.y * CANVAS_HEIGHT,
+    width: rect.w * CANVAS_WIDTH,
+    height: rect.h * CANVAS_HEIGHT,
+  };
+}
+
+/** 文字控件的行内样式：字体、字号、颜色、对齐、行距 */
+function controlTextStyle(control: TextBoxRow['text']): React.CSSProperties {
+  return {
+    fontFamily: control.fontFamily === '' ? undefined : `"${control.fontFamily}", sans-serif`,
+    fontSize: control.fontSize,
+    color: control.color,
+    textAlign: control.align,
+    lineHeight: control.lineHeight,
+  };
+}
+
+/** 一帧文本框图层：三个控件各按自己的设计稿像素摆，外层整体缩放 */
 function TextBoxLayer({
   project,
   byId,
@@ -204,44 +225,38 @@ function TextBoxLayer({
   speaker: string;
   text: string;
 }) {
-  const boxStyle = {
-    left: box.box.x * CANVAS_WIDTH,
-    top: box.box.y * CANVAS_HEIGHT,
-    width: box.box.w * CANVAS_WIDTH,
-    height: box.box.h * CANVAS_HEIGHT,
-  };
-  const nameStyle = {
-    left: box.nameRect.x * CANVAS_WIDTH,
-    top: box.nameRect.y * CANVAS_HEIGHT,
-    width: box.nameRect.w * CANVAS_WIDTH,
-    height: box.nameRect.h * CANVAS_HEIGHT,
-  };
-  const textStyle = {
-    left: box.textRect.x * CANVAS_WIDTH,
-    top: box.textRect.y * CANVAS_HEIGHT,
-    width: box.textRect.w * CANVAS_WIDTH,
-    height: box.textRect.h * CANVAS_HEIGHT,
-    lineHeight: box.lineHeight,
-    textAlign: box.align,
-  };
-
   return (
     <div
       className="preview-textbox"
       data-textbox-name={box.name}
       style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}
     >
-      <div className="preview-textbox-frame" style={boxStyle}>
-        <TextBoxBackground project={project} byId={byId} host={host} box={box} />
-      </div>
-      {box.showName && speaker !== '' && (
-        <div className="preview-textbox-name" style={nameStyle}>
-          {speaker}
+      {!box.bg.hidden && (
+        <div className="preview-textbox-frame" style={rectStyle(box.bg.rect)}>
+          <ControlBackground project={project} byId={byId} host={host} imageUid={box.bg.imageUid} />
         </div>
       )}
-      {text !== '' && (
-        <div className="preview-textbox-text" style={textStyle}>
-          {text}
+      {!box.speaker.hidden && speaker !== '' && (
+        <div
+          className="preview-textbox-name"
+          style={{ ...rectStyle(box.speaker.rect), ...controlTextStyle(box.speaker) }}
+        >
+          <ControlBackground
+            project={project}
+            byId={byId}
+            host={host}
+            imageUid={box.speaker.imageUid}
+          />
+          <span>{speaker}</span>
+        </div>
+      )}
+      {!box.text.hidden && text !== '' && (
+        <div
+          className="preview-textbox-text"
+          style={{ ...rectStyle(box.text.rect), ...controlTextStyle(box.text) }}
+        >
+          <ControlBackground project={project} byId={byId} host={host} imageUid={box.text.imageUid} />
+          <span>{text}</span>
         </div>
       )}
     </div>

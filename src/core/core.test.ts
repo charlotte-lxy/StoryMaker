@@ -827,36 +827,50 @@ describe('导出三张表', () => {
     expect(tables.locale).toContainEqual(['TXT_CHA_Q版伊芙_OtherName-1', 'unknown', '', '']);
   });
 
-  it('文本框子表：一行一个框，锚点归一化，位置 / 尺寸是设计稿像素', () => {
+  it('文本框子表：一行一个框，三个控件的属性写成一列', () => {
     const project = makeProject();
     const center = createDefaultTextBox('屏幕中间', 'TB_Center');
-    center.box = { x: 0.25, y: 0.25, w: 0.5, h: 0.5 };
-    center.anchors = { ...center.anchors, bg: { col: 1, row: 1 } };
+    center.bg.rect = { x: 0.25, y: 0.25, w: 0.5, h: 0.5 };
+    center.bg.anchor = { col: 1, row: 1 };
     const full = createDefaultTextBox('全屏', 'TB_Full');
-    full.box = { x: 0.1, y: 0.2, w: 0.8, h: 0.5 };
-    full.anchors = { ...full.anchors, bg: { col: 3, row: 3 } };
+    full.bg.rect = { x: 0.1, y: 0.2, w: 0.8, h: 0.5 };
+    full.bg.anchor = { col: 3, row: 3 };
     project.textBoxes = [center, full];
 
     const rows = buildTextBoxRows(project);
-    expect(rows[0]).toEqual(['---', '文本框名称', '锚点', '位置', '尺寸', '背景图片ID']);
+    expect(rows[0]).toEqual(['---', '文本框名称', '控件信息列表']);
+    expect(rows[1]?.[0]).toBe('TB_Center');
+    expect(rows[1]?.[1]).toBe('屏幕中间');
 
-    // 锚点居中的格子：锚点是 0.5，位置相对它算；尺寸是 1920×1080 的像素
-    expect(rows[1]?.slice(0, 5)).toEqual([
-      'TB_Center',
-      '屏幕中间',
-      '(Minimum=(X=0.500000,Y=0.500000),Maximum=(X=0.500000,Y=0.500000))',
-      '(X=-480.000000,Y=-270.000000)',
-      '(X=960.000000,Y=540.000000)',
-    ]);
+    const cell = rows[1]?.[2] ?? '';
+    // 三个控件各一条，名字与顺序照示例
+    expect(cell.startsWith('(("背景图", (')).toBe(true);
+    expect(cell).toContain('("人物名称", (');
+    expect(cell).toContain('("台词", (');
+    // 居中锚点：锚点 0.5，位置相对它算；尺寸是 1920×1080 的像素
+    expect(cell).toContain('锚点=(Minimum=(X=0.500000,Y=0.500000),Maximum=(X=0.500000,Y=0.500000))');
+    expect(cell).toContain('位置=(X=-480.000000,Y=-270.000000)');
+    expect(cell).toContain('尺寸=(X=960.000000,Y=540.000000)');
+    // 台词默认白色、42 号字
+    expect(cell).toContain('字体大小=42.000000');
+    expect(cell).toContain('字体颜色=(R=1.000000,G=1.000000,B=1.000000,A=1.000000)');
 
     // 全拉伸：锚点满一圈，位置写左边距 / 上边距，尺寸写负数（-右边距 / -下边距）
-    expect(rows[2]?.slice(0, 5)).toEqual([
-      'TB_Full',
-      '全屏',
-      '(Minimum=(X=0.000000,Y=0.000000),Maximum=(X=1.000000,Y=1.000000))',
-      '(X=192.000000,Y=216.000000)',
-      '(X=-192.000000,Y=-324.000000)',
-    ]);
+    const fullCell = rows[2]?.[2] ?? '';
+    expect(fullCell).toContain('("背景图", (隐藏控件=False,锚点=(Minimum=(X=0.000000,Y=0.000000),Maximum=(X=1.000000,Y=1.000000)),位置=(X=192.000000,Y=216.000000),尺寸=(X=-192.000000,Y=-324.000000),背景图片ID="",字体样式="",字体大小=0.000000');
+  });
+
+  it('文本框子表：隐藏控件写 True，背景图片写图片 ID', () => {
+    const project = makeProject();
+    const row = createDefaultTextBox('旁白框', 'TB_旁白');
+    row.speaker.hidden = true;
+    project.textBoxes = [row];
+    project.images = [{ uid: 'img1', id: 'IMG_底', name: '底图' }];
+    row.bg.imageUid = 'img1';
+
+    const cell = buildTextBoxRows(project)[1]?.[2] ?? '';
+    expect(cell).toContain('("人物名称", (隐藏控件=True,');
+    expect(cell).toContain('背景图片ID="IMG_底"');
   });
 
   it('武器配置的导出名称也进本地化表，中文就是它们的显示名称', () => {

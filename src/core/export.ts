@@ -65,7 +65,7 @@ import {
 } from './localization';
 import { characterIdOf, collectRefMaps, textBoxIdOf, type UidToId } from './refs';
 import { CANVAS_HEIGHT, CANVAS_WIDTH, anchorFraction } from './textbox';
-import type { Character, CommandDef, Group, Line, Project, StoryOption } from './types';
+import type { Character, CommandDef, Group, Line, Project, StoryOption, TextBoxControl } from './types';
 
 export const DIALOGUE_SHEET = '对话';
 export const OPTION_SHEET = '选项';
@@ -111,15 +111,8 @@ export const STORY_CHARACTER_HEADER: readonly string[] = ['', '文本框', '显�
 /** 物品表：行名是物品 ID，两列文本都写本地化 key */
 export const ITEM_HEADER: readonly string[] = ['', '物品名称', '物品描述'];
 
-/** 文本框表：行名是文本框 ID，锚点 / 位置 / 尺寸照 UMG 的槽位写法 */
-export const TEXT_BOX_HEADER: readonly string[] = [
-  '---',
-  '文本框名称',
-  '锚点',
-  '位置',
-  '尺寸',
-  '背景图片ID',
-];
+/** 文本框表：行名是文本框 ID，三个控件的属性照 `TB_文本框示例.csv` 写成一列 */
+export const TEXT_BOX_HEADER: readonly string[] = ['---', '文本框名称', '控件信息列表'];
 
 export interface ExportRowSets {
   dialogue: string[][];
@@ -240,50 +233,72 @@ export function buildItemRows(project: Project): string[][] {
 }
 
 /**
- * 「文本框」子表：一个文本框一行，照 `TB_文本框示例.csv` 的列写。
+ * 「文本框」子表：一个文本框一行，照 `TB_文本框示例.csv` 的写法。
  *
- * 只导背景图（外框）这一组：锚点用外框的 16 格锚点归一化，
- * 位置 / 尺寸是 1920×1080 设计稿像素；拉伸方向按 UMG 的习惯，
- * 位置写左 / 上边距，尺寸写负数（-右边距 / -下边距）。
- * 名字与台词的位置只在编辑器里排版用，不导出。
+ * 三个控件（背景图 / 人物名称 / 台词）各写一条：
+ * `("名字", (隐藏控件=…,锚点=…,位置=…,尺寸=…,背景图片ID="…",字体样式="…",字体大小=…,字体颜色=(R=…,G=…,B=…,A=…)))`。
+ * 锚点是 16 格锚点归一化，位置 / 尺寸是 1920×1080 设计稿像素；
+ * 拉伸方向按 UMG 的习惯，位置写左 / 上边距，尺寸写负数（-右边距 / -下边距）。
  */
 export function buildTextBoxRows(project: Project): string[][] {
   const idOf = buildIdMap(project);
   return [
     [...TEXT_BOX_HEADER],
-    ...project.textBoxes.map((row) => {
-      const { col, row: anchorRow } = row.anchors.bg;
-      const stretchX = col === 3;
-      const stretchY = anchorRow === 3;
-      const anchorMinX = stretchX ? 0 : anchorFraction(col);
-      const anchorMaxX = stretchX ? 1 : anchorFraction(col);
-      const anchorMinY = stretchY ? 0 : anchorFraction(anchorRow);
-      const anchorMaxY = stretchY ? 1 : anchorFraction(anchorRow);
-
-      const posX = stretchX
-        ? row.box.x * CANVAS_WIDTH
-        : (row.box.x - anchorMinX) * CANVAS_WIDTH;
-      const posY = stretchY
-        ? row.box.y * CANVAS_HEIGHT
-        : (row.box.y - anchorMinY) * CANVAS_HEIGHT;
-      const sizeX = stretchX
-        ? -((1 - row.box.x - row.box.w) * CANVAS_WIDTH)
-        : row.box.w * CANVAS_WIDTH;
-      const sizeY = stretchY
-        ? -((1 - row.box.y - row.box.h) * CANVAS_HEIGHT)
-        : row.box.h * CANVAS_HEIGHT;
-
-      const imageId = row.imageUid === '' ? '' : idOf.get(row.imageUid) ?? '';
-      return [
-        row.id,
-        row.name,
-        `(Minimum=(X=${fixed6(anchorMinX)},Y=${fixed6(anchorMinY)}),Maximum=(X=${fixed6(anchorMaxX)},Y=${fixed6(anchorMaxY)}))`,
-        `(X=${fixed6(posX)},Y=${fixed6(posY)})`,
-        `(X=${fixed6(sizeX)},Y=${fixed6(sizeY)})`,
-        imageId,
-      ];
-    }),
+    ...project.textBoxes.map((row) => [
+      row.id,
+      row.name,
+      `(${[
+        controlTuple('背景图', row.bg, idOf),
+        controlTuple('人物名称', row.speaker, idOf),
+        controlTuple('台词', row.text, idOf),
+      ].join(',')})`,
+    ]),
   ];
+}
+
+/** 一个控件的属性元组 */
+function controlTuple(label: string, control: TextBoxControl, idOf: UidToId): string {
+  const { col, row: anchorRow } = control.anchor;
+  const stretchX = col === 3;
+  const stretchY = anchorRow === 3;
+  const anchorMinX = stretchX ? 0 : anchorFraction(col);
+  const anchorMaxX = stretchX ? 1 : anchorFraction(col);
+  const anchorMinY = stretchY ? 0 : anchorFraction(anchorRow);
+  const anchorMaxY = stretchY ? 1 : anchorFraction(anchorRow);
+
+  const posX = stretchX
+    ? control.rect.x * CANVAS_WIDTH
+    : (control.rect.x - anchorMinX) * CANVAS_WIDTH;
+  const posY = stretchY
+    ? control.rect.y * CANVAS_HEIGHT
+    : (control.rect.y - anchorMinY) * CANVAS_HEIGHT;
+  const sizeX = stretchX
+    ? -((1 - control.rect.x - control.rect.w) * CANVAS_WIDTH)
+    : control.rect.w * CANVAS_WIDTH;
+  const sizeY = stretchY
+    ? -((1 - control.rect.y - control.rect.h) * CANVAS_HEIGHT)
+    : control.rect.h * CANVAS_HEIGHT;
+
+  const imageId = control.imageUid === '' ? '' : idOf.get(control.imageUid) ?? '';
+  return (
+    `("${label}", (隐藏控件=${control.hidden ? 'True' : 'False'},` +
+    `锚点=(Minimum=(X=${fixed6(anchorMinX)},Y=${fixed6(anchorMinY)}),Maximum=(X=${fixed6(anchorMaxX)},Y=${fixed6(anchorMaxY)})),` +
+    `位置=(X=${fixed6(posX)},Y=${fixed6(posY)}),` +
+    `尺寸=(X=${fixed6(sizeX)},Y=${fixed6(sizeY)}),` +
+    `背景图片ID="${imageId}",` +
+    `字体样式="${control.fontFamily}",` +
+    `字体大小=${fixed6(control.fontSize)},` +
+    `字体颜色=${colorLiteral(control.color)}))`
+  );
+}
+
+/** `#RRGGBB` → Unreal 的 `(R=…,G=…,B=…,A=…)`（0–1，6 位小数） */
+function colorLiteral(hex: string): string {
+  const match = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  const r = match === null ? 0 : Number.parseInt(match[1], 16) / 255;
+  const g = match === null ? 0 : Number.parseInt(match[2], 16) / 255;
+  const b = match === null ? 0 : Number.parseInt(match[3], 16) / 255;
+  return `(R=${fixed6(r)},G=${fixed6(g)},B=${fixed6(b)},A=${fixed6(1)})`;
 }
 
 /** Unreal 那边按 6 位小数读槽位数值 */

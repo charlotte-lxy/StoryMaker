@@ -1,5 +1,5 @@
 import { newUid } from './ids';
-import type { AnchorCell, Rect, TextBoxRow } from './types';
+import type { AnchorCell, Rect, TextBoxAlign, TextBoxControl, TextBoxRow } from './types';
 
 /** 排版用的设计稿尺寸：界面缩放时整块画布按比例缩，位置和尺寸都按这个尺寸算 */
 export const CANVAS_WIDTH = 1920;
@@ -8,7 +8,7 @@ export const CANVAS_HEIGHT = 1080;
 /** 新建文本框的默认位置：贴在画面下方、横向占满 */
 export const DEFAULT_TEXT_BOX_RECT: Rect = { x: 0.05, y: 0.66, w: 0.9, h: 0.28 };
 
-/** 文本框里名字 / 台词相对外框的默认位置（新建时换算成画布坐标） */
+/** 文本框里人物名称 / 台词相对外框的默认位置（新建时换算成画布坐标） */
 const DEFAULT_NAME_RECT: Rect = { x: 0.02, y: 0.04, w: 0.96, h: 0.2 };
 const DEFAULT_TEXT_RECT: Rect = { x: 0.02, y: 0.28, w: 0.96, h: 0.68 };
 
@@ -26,6 +26,16 @@ export const TEXT_BOX_ALIGNS = ['left', 'center', 'right'] as const;
 
 export const LINE_HEIGHT_MIN = 0.8;
 export const LINE_HEIGHT_MAX = 3;
+
+/** 字体大小的范围（设计稿像素） */
+export const FONT_SIZE_MIN = 8;
+export const FONT_SIZE_MAX = 200;
+
+/** 字体样式：先给常用的三个，后面还会加 */
+export const TEXT_BOX_FONTS = ['微软雅黑', '黑体', '宋体'] as const;
+
+export const DEFAULT_FONT_FAMILY = '微软雅黑';
+export const DEFAULT_COLOR = '#FFFFFF';
 
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -52,6 +62,33 @@ export function nextTextBoxId(rows: readonly { id: string }[]): string {
   return `${TEXT_BOX_ID_PREFIX}${n}`;
 }
 
+/** 一个控件的默认值：背景图控件用这套，文字控件再覆盖 */
+export function createDefaultControl(rect: Rect): TextBoxControl {
+  return {
+    anchor: { ...DEFAULT_ANCHOR },
+    rect: { ...rect },
+    hidden: false,
+    imageUid: '',
+    fontFamily: '',
+    fontSize: 0,
+    color: '#000000',
+    align: 'left',
+    lineHeight: 1.5,
+    sampleText: '',
+  };
+}
+
+/** 新建一个文字控件：默认微软雅黑、白色，字号传进来 */
+export function createTextControl(rect: Rect, fontSize: number, sampleText: string): TextBoxControl {
+  return {
+    ...createDefaultControl(rect),
+    fontFamily: DEFAULT_FONT_FAMILY,
+    fontSize,
+    color: DEFAULT_COLOR,
+    sampleText,
+  };
+}
+
 /** 新建一条文本框：位置是默认的，名字可以传（列表里显示用） */
 export function createDefaultTextBox(name = '文本框 1', id = 'TB_1'): TextBoxRow {
   const box = { ...DEFAULT_TEXT_BOX_RECT };
@@ -59,21 +96,10 @@ export function createDefaultTextBox(name = '文本框 1', id = 'TB_1'): TextBox
     uid: newUid(),
     id,
     name,
-    imageUid: '',
-    showName: true,
-    sampleName: '角色名',
-    sampleText: '这是一段示例台词。',
     rectSpace: 'canvas',
-    box,
-    nameRect: composeRect(box, DEFAULT_NAME_RECT),
-    textRect: composeRect(box, DEFAULT_TEXT_RECT),
-    anchors: {
-      bg: { ...DEFAULT_ANCHOR },
-      name: { ...DEFAULT_ANCHOR },
-      text: { ...DEFAULT_ANCHOR },
-    },
-    align: 'left',
-    lineHeight: 1.5,
+    bg: createDefaultControl(box),
+    speaker: createTextControl(composeRect(box, DEFAULT_NAME_RECT), 40, '角色名'),
+    text: createTextControl(composeRect(box, DEFAULT_TEXT_RECT), 42, '这是一段示例台词。'),
   };
 }
 
@@ -83,6 +109,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function asNumber(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function asString(value: unknown, fallback: string): string {
+  return typeof value === 'string' ? value : fallback;
 }
 
 /**
@@ -170,47 +200,107 @@ function readAnchor(raw: unknown): AnchorCell {
   return { col: readAnchorValue(record.col), row: readAnchorValue(record.row) };
 }
 
-function readTextBox(raw: Record<string, unknown>, index: number): TextBoxRow {
-  const fallback = createDefaultTextBox(`文本框 ${index + 1}`);
-  const align = raw.align === 'center' || raw.align === 'right' ? raw.align : 'left';
-  const uid = typeof raw.uid === 'string' && raw.uid !== '' ? raw.uid : fallback.uid;
-  const name = typeof raw.name === 'string' && raw.name.trim() !== '' ? raw.name : fallback.name;
-  const imageUid = typeof raw.imageUid === 'string' ? raw.imageUid : '';
-  const sampleName = typeof raw.sampleName === 'string' ? raw.sampleName : fallback.sampleName;
-  const sampleText = typeof raw.sampleText === 'string' ? raw.sampleText : fallback.sampleText;
-  const box = clampRect(raw.box, fallback.box);
-  const anchorsRaw = isRecord(raw.anchors) ? raw.anchors : {};
+function readAlign(value: unknown): TextBoxAlign {
+  return value === 'center' || value === 'right' ? value : 'left';
+}
 
-  // 老项目里名字 / 台词存的是「相对外框」，0.7.11 起改成相对画布
+/** 颜色统一成 `#RRGGBB`（大写），读不出来的用兜底色 */
+export function normalizeColor(value: unknown, fallback: string): string {
+  if (typeof value !== 'string') return fallback;
+  const hex = value.trim();
+  if (/^#[0-9a-f]{6}$/i.test(hex)) return hex.toUpperCase();
+  if (/^#[0-9a-f]{3}$/i.test(hex)) {
+    return `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`.toUpperCase();
+  }
+  return fallback;
+}
+
+function readControl(raw: unknown, fallback: TextBoxControl): TextBoxControl {
+  const record = isRecord(raw) ? raw : {};
+  return {
+    anchor: readAnchor(record.anchor),
+    rect: clampRect(record.rect, fallback.rect),
+    hidden: typeof record.hidden === 'boolean' ? record.hidden : fallback.hidden,
+    imageUid: asString(record.imageUid, fallback.imageUid),
+    fontFamily: asString(record.fontFamily, fallback.fontFamily),
+    fontSize: clamp(asNumber(record.fontSize, fallback.fontSize), FONT_SIZE_MIN, FONT_SIZE_MAX),
+    color: normalizeColor(record.color, fallback.color),
+    align: readAlign(record.align ?? fallback.align),
+    lineHeight: clamp(
+      asNumber(record.lineHeight, fallback.lineHeight),
+      LINE_HEIGHT_MIN,
+      LINE_HEIGHT_MAX,
+    ),
+    sampleText: asString(record.sampleText, fallback.sampleText),
+  };
+}
+
+/**
+ * 老项目里的文本框是「外框 + 名字 + 台词」三个矩形 + 一个共享的对齐 / 行距，
+ * 现在每个控件都带自己的一套属性。这里把老数据摊成三个控件。
+ */
+function readLegacyControls(
+  raw: Record<string, unknown>,
+  fallback: TextBoxRow,
+): { bg: TextBoxControl; speaker: TextBoxControl; text: TextBoxControl } {
+  const box = clampRect(raw.box, fallback.bg.rect);
+  const anchorsRaw = isRecord(raw.anchors) ? raw.anchors : {};
+  // 更老的项目里名字 / 台词存的是「相对外框」，后来才改成相对画布
   const relative = raw.rectSpace !== 'canvas';
   const readPart = (value: unknown, inner: Rect, absolute: Rect): Rect => {
     if (!relative) return clampRect(value, absolute);
     return clampRect(composeRect(box, clampRect(value, inner)), absolute);
   };
+  const align = readAlign(raw.align);
+  const lineHeight = clamp(
+    asNumber(raw.lineHeight, fallback.text.lineHeight),
+    LINE_HEIGHT_MIN,
+    LINE_HEIGHT_MAX,
+  );
+  const sampleName = asString(raw.sampleName, fallback.speaker.sampleText);
+  const sampleText = asString(raw.sampleText, fallback.text.sampleText);
+
+  return {
+    bg: {
+      ...createDefaultControl(box),
+      anchor: readAnchor(anchorsRaw.bg),
+      imageUid: asString(raw.imageUid, ''),
+    },
+    speaker: {
+      ...createTextControl(readPart(raw.nameRect, DEFAULT_NAME_RECT, fallback.speaker.rect), 40, sampleName),
+      anchor: readAnchor(anchorsRaw.name),
+      hidden: raw.showName === false,
+      align,
+      lineHeight,
+    },
+    text: {
+      ...createTextControl(readPart(raw.textRect, DEFAULT_TEXT_RECT, fallback.text.rect), 42, sampleText),
+      anchor: readAnchor(anchorsRaw.text),
+      align,
+      lineHeight,
+    },
+  };
+}
+
+function readTextBox(raw: Record<string, unknown>, index: number): TextBoxRow {
+  const fallback = createDefaultTextBox(`文本框 ${index + 1}`);
+  const uid = typeof raw.uid === 'string' && raw.uid !== '' ? raw.uid : fallback.uid;
+  const name = typeof raw.name === 'string' && raw.name.trim() !== '' ? raw.name : fallback.name;
+  const controls =
+    isRecord(raw.bg) || isRecord(raw.speaker) || isRecord(raw.text)
+      ? {
+          bg: readControl(raw.bg, fallback.bg),
+          speaker: readControl(raw.speaker, fallback.speaker),
+          text: readControl(raw.text, fallback.text),
+        }
+      : readLegacyControls(raw, fallback);
 
   return {
     uid,
     id: typeof raw.id === 'string' ? raw.id.trim() : '',
     name,
-    imageUid,
-    showName: typeof raw.showName === 'boolean' ? raw.showName : true,
-    sampleName,
-    sampleText,
     rectSpace: 'canvas',
-    box,
-    nameRect: readPart(raw.nameRect, DEFAULT_NAME_RECT, fallback.nameRect),
-    textRect: readPart(raw.textRect, DEFAULT_TEXT_RECT, fallback.textRect),
-    anchors: {
-      bg: readAnchor(anchorsRaw.bg),
-      name: readAnchor(anchorsRaw.name),
-      text: readAnchor(anchorsRaw.text),
-    },
-    align,
-    lineHeight: clamp(
-      asNumber(raw.lineHeight, fallback.lineHeight),
-      LINE_HEIGHT_MIN,
-      LINE_HEIGHT_MAX,
-    ),
+    ...controls,
   };
 }
 

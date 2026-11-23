@@ -147,14 +147,45 @@ export interface AnchorCell {
   row: 0 | 1 | 2 | 3;
 }
 
+/** 文字控件（人物名称 / 台词）的对齐方式 */
+export type TextBoxAlign = 'left' | 'center' | 'right';
+
+/**
+ * 文本框里的一个控件：背景图 / 人物名称 / 台词。
+ *
+ * 三个控件各自独立：都有自己的锚点、位置尺寸、背景图与字体属性，
+ * 也都能单独隐藏。位置都相对 16:9 的画布存成 0–1。
+ */
+export interface TextBoxControl {
+  /** Unreal 锚点：决定位置数字以哪个点为原点 */
+  anchor: AnchorCell;
+  /** 相对 16:9 画布的矩形 */
+  rect: Rect;
+  /** 勾上后编辑画布与剧情预览都不显示这个控件 */
+  hidden: boolean;
+  /** 背景图：图片表那一行的 uid；空串 = 透明 */
+  imageUid: string;
+  /** 字体样式（微软雅黑 / 黑体 / 宋体…） */
+  fontFamily: string;
+  /** 字体大小：按 1920×1080 设计稿像素算，画布缩放时一起缩 */
+  fontSize: number;
+  /** 字体颜色 `#RRGGBB` */
+  color: string;
+  align: TextBoxAlign;
+  /** 行距倍数 */
+  lineHeight: number;
+  /** 编辑时显示的示例文本（真正播放时来自剧情） */
+  sampleText: string;
+}
+
 /**
  * 文本框：预览时台词框长什么样。
  *
  * 剧情 → 文本框 里编辑，导出成「文本框」子表；角色的台词在哪个文本框里播，
  * 由角色表的「文本框」列决定（存的是这里的 uid，改 ID 不会把角色写坏）。
- * 外框（`box`，也就是背景图）、说话人名字、台词是画布上三个各自独立的控件，
- * 位置都相对 16:9 的画布存成 0–1；`rectSpace` 标着这套坐标是画布坐标，
- * 老项目没有这个标记，读进来时会把名字 / 台词从「相对外框」换算过来。
+ * 背景图、人物名称、台词是画布上三个各自独立的控件；`rectSpace` 标着这套
+ * 坐标是画布坐标，老项目没有这个标记，读进来时会把名字 / 台词从
+ * 「相对外框」换算过来。
  */
 export interface TextBoxRow {
   uid: string;
@@ -165,26 +196,14 @@ export interface TextBoxRow {
   id: string;
   /** 列表里显示的名字 */
   name: string;
-  /** 背景图：图片表那一行的 uid；空串 = 全透明 */
-  imageUid: string;
-  /** 是否显示说话人名字 */
-  showName: boolean;
-  /** 编辑时的示例名字 / 台词（真正播放时来自剧情） */
-  sampleName: string;
-  sampleText: string;
-  /** 坐标标记：`canvas` = 下面三个矩形都相对 16:9 画布 */
+  /** 坐标标记：`canvas` = 三个控件都相对 16:9 画布 */
   rectSpace: 'canvas';
-  /** 外框 / 背景图 */
-  box: Rect;
-  /** 说话人名字 */
-  nameRect: Rect;
-  /** 台词 */
-  textRect: Rect;
-  /** 三个控件各自的锚点（只决定右侧面板里位置数字的参考点） */
-  anchors: { bg: AnchorCell; name: AnchorCell; text: AnchorCell };
-  align: 'left' | 'center' | 'right';
-  /** 行距倍数 */
-  lineHeight: number;
+  /** 背景图控件 */
+  bg: TextBoxControl;
+  /** 人物名称控件 */
+  speaker: TextBoxControl;
+  /** 台词控件 */
+  text: TextBoxControl;
 }
 
 /**

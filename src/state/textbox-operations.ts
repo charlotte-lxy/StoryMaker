@@ -1,11 +1,18 @@
 import { clampRect, createDefaultTextBox, nextTextBoxId } from '../core/textbox';
-import type { AnchorCell, Project, Rect, TextBoxRow } from '../core/types';
+import type { AnchorCell, Project, Rect, TextBoxControl, TextBoxRow } from '../core/types';
 import { mutate } from './operations';
 
-/** 画布上的三个控件：外框（背景图）/ 名字 / 台词 */
-export type TextBoxPart = 'box' | 'nameRect' | 'textRect';
+/** 画布上的三个控件：背景图 / 人物名称 / 台词 */
+export type TextBoxPart = 'bg' | 'speaker' | 'text';
 
-const ANCHOR_KEY = { box: 'bg', nameRect: 'name', textRect: 'text' } as const;
+/** 三个控件的顺序（也是右侧选项卡的顺序） */
+export const TEXT_BOX_PARTS: readonly TextBoxPart[] = ['bg', 'speaker', 'text'];
+
+export const TEXT_BOX_PART_LABELS: Record<TextBoxPart, string> = {
+  bg: '背景图',
+  speaker: '人物名称',
+  text: '台词',
+};
 
 /** 项目里的文本框列表；老项目还没归一化时按空表处理 */
 export function textBoxesOf(project: Project): TextBoxRow[] {
@@ -51,6 +58,20 @@ export function updateTextBox(
   });
 }
 
+/** 改一个控件的属性（字体、颜色、示例文本、隐藏…） */
+export function setTextBoxControl(
+  project: Project,
+  uid: string,
+  which: TextBoxPart,
+  patch: Partial<TextBoxControl>,
+): Project {
+  return mutate(project, (draft) => {
+    const row = draft.textBoxes?.find((item) => item.uid === uid);
+    if (row === undefined) return;
+    Object.assign(row[which], patch);
+  });
+}
+
 /** 拖动 / 缩放改一个矩形：三个控件都相对画布 */
 export function setTextBoxRect(
   project: Project,
@@ -61,7 +82,7 @@ export function setTextBoxRect(
   return mutate(project, (draft) => {
     const row = draft.textBoxes?.find((item) => item.uid === uid);
     if (row === undefined) return;
-    row[which] = clampRect(rect, row[which]);
+    row[which].rect = clampRect(rect, row[which].rect);
   });
 }
 
@@ -75,7 +96,7 @@ export function setTextBoxAnchor(
   return mutate(project, (draft) => {
     const row = draft.textBoxes?.find((item) => item.uid === uid);
     if (row === undefined) return;
-    row.anchors = { ...row.anchors, [ANCHOR_KEY[which]]: { ...anchor } };
+    row[which].anchor = { ...anchor };
   });
 }
 

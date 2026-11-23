@@ -4,9 +4,12 @@ import type { HostApi } from '../core/host';
 import {
   CANVAS_HEIGHT,
   CANVAS_WIDTH,
+  FONT_SIZE_MAX,
+  FONT_SIZE_MIN,
   LINE_HEIGHT_MAX,
   LINE_HEIGHT_MIN,
   MIN_RECT_SIDE,
+  TEXT_BOX_FONTS,
   isStretchX,
   isStretchY,
   rectToSlot,
@@ -15,10 +18,13 @@ import {
 } from '../core/textbox';
 import type { AnchorCell, Project, Rect, TextBoxRow } from '../core/types';
 import {
+  TEXT_BOX_PART_LABELS,
+  TEXT_BOX_PARTS,
   addTextBox,
   rememberTextBox,
   removeTextBox,
   setTextBoxAnchor,
+  setTextBoxControl,
   setTextBoxRect,
   textBoxesOf,
   updateTextBox,
@@ -59,12 +65,6 @@ const HANDLES: ReadonlyArray<{ dir: ResizeDir; style: React.CSSProperties }> = [
   { dir: 's', style: { left: '50%', bottom: 0, transform: 'translate(-50%, 50%)' } },
   { dir: 'sw', style: { left: 0, bottom: 0, transform: 'translate(-50%, 50%)' } },
   { dir: 'w', style: { left: 0, top: '50%', transform: 'translate(-50%, -50%)' } },
-];
-
-const PARTS: ReadonlyArray<{ part: TextBoxPart; label: string }> = [
-  { part: 'box', label: '背景图' },
-  { part: 'nameRect', label: '说话人名字' },
-  { part: 'textRect', label: '台词' },
 ];
 
 const ANCHOR_LABELS: readonly string[] = [
@@ -122,10 +122,12 @@ function formatPx(value: number): string {
 function SlotField({
   label,
   value,
+  step = 1,
   onCommit,
 }: {
   label: string;
   value: number;
+  step?: number;
   onCommit: (value: number) => void;
 }): React.JSX.Element {
   const [draft, setDraft] = useState(() => formatPx(value));
@@ -146,7 +148,7 @@ function SlotField({
       <span>{label}</span>
       <input
         type="number"
-        step={1}
+        step={step}
         value={draft}
         onFocus={() => setEditing(true)}
         onChange={(event) => setDraft(event.target.value)}
@@ -162,19 +164,125 @@ function SlotField({
   );
 }
 
+/** 控件自己的背景图（三个控件都能配），没选图就不画 */
+function ControlImage({
+  project,
+  assets,
+  imageUid,
+}: {
+  project: Project;
+  assets: { library: AssetLibrary; host: HostApi | undefined };
+  imageUid: string;
+}): React.JSX.Element | null {
+  const image = imageAssetOf(project, assets.library.byId, imageUid);
+  const url = useAssetUrl(assets.host, image?.file);
+  if (url === '') return null;
+  return <img className="textbox-bg" src={url} alt="" draggable={false} />;
+}
+
+/** 文字控件的字体样式：颜色、字号、字体、对齐、行距（背景图没有文字，就不显示） */
+function TextStyleFields({
+  control,
+  onChange,
+}: {
+  control: TextBoxRow['text'];
+  onChange: (patch: Partial<TextBoxRow['text']>) => void;
+}): React.JSX.Element {
+  return (
+    <>
+      <label className="field">
+        <span>字体大小（设计稿像素）</span>
+        <input
+          type="number"
+          min={FONT_SIZE_MIN}
+          max={FONT_SIZE_MAX}
+          step={1}
+          value={control.fontSize}
+          onChange={(event) => {
+            const value = Number.parseFloat(event.target.value);
+            if (!Number.isFinite(value)) return;
+            onChange({ fontSize: Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, value)) });
+          }}
+        />
+      </label>
+
+      <label className="field">
+        <span>字体样式</span>
+        <select
+          value={control.fontFamily}
+          onChange={(event) => onChange({ fontFamily: event.target.value })}
+        >
+          <option value="">（默认）</option>
+          {TEXT_BOX_FONTS.map((font) => (
+            <option key={font} value={font}>
+              {font}
+            </option>
+          ))}
+          {control.fontFamily !== '' && !TEXT_BOX_FONTS.includes(control.fontFamily as never) && (
+            <option value={control.fontFamily}>{control.fontFamily}</option>
+          )}
+        </select>
+      </label>
+
+      <label className="field">
+        <span>字体颜色</span>
+        <input
+          type="color"
+          value={control.color}
+          onChange={(event) => onChange({ color: event.target.value.toUpperCase() })}
+        />
+      </label>
+
+      <div className="field">
+        <span>文本排列</span>
+        <div className="textbox-aligns">
+          {(
+            [
+              ['left', '左对齐'],
+              ['center', '居中'],
+              ['right', '右对齐'],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              className={control.align === value ? 'active' : ''}
+              onClick={() => onChange({ align: value })}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <label className="field">
+        <span>行距（{control.lineHeight.toFixed(1)}）</span>
+        <input
+          type="range"
+          min={LINE_HEIGHT_MIN}
+          max={LINE_HEIGHT_MAX}
+          step={0.1}
+          value={control.lineHeight}
+          onChange={(event) => onChange({ lineHeight: Number(event.target.value) })}
+        />
+      </label>
+    </>
+  );
+}
+
 /**
  * 剧情里的「文本框」子模块。
  *
  * 中间是 16:9 画布（按 1920×1080 设计稿画，随窗口等比缩放）：
- * 背景图 / 说话人名字 / 台词是三个各自独立的控件，选中哪个才显示它的八向把手；
+ * 背景图 / 人物名称 / 台词是三个各自独立的控件，选中哪个才显示它的八向把手；
  * 控件能拖到画布外面，位置和尺寸也可以用锚点 + 数字精确调。
- * 右边是细节面板，改背景图 / 示例文本 / 对齐 / 行距。
- * 这里只负责「长什么样」，预览播放时用的是剧情里的真实台词。
+ * 右边是细节面板：「控件」三个选项卡，每个控件有自己的背景图、字体、颜色、
+ * 示例文本、对齐与行距，也能单独隐藏。
  */
 export function TextBoxEditor({ project, assets, onChange }: Props) {
   const boxes = textBoxesOf(project);
   const [selectedUid, setSelectedUid] = useState<string>(() => project.ui?.textBoxUid ?? '');
-  const [part, setPart] = useState<TextBoxPart | null>(null);
+  const [part, setPart] = useState<TextBoxPart>('bg');
   const [pendingRemove, setPendingRemove] = useState<string | null>(null);
 
   const active = boxes.find((row) => row.uid === selectedUid) ?? boxes[0];
@@ -186,10 +294,6 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
   /** 连续 pointermove 时用最新一次的 project / active，避免基于旧状态计算 */
   const latestRef = useRef({ project, active });
   latestRef.current = { project, active };
-
-  const image =
-    active === undefined ? undefined : imageAssetOf(project, assets.library.byId, active.imageUid);
-  const backgroundUrl = useAssetUrl(assets.host, image?.file);
 
   /** 画布占满中间一栏，但保持 16:9：取宽高两个方向缩得更小的那个 */
   useEffect(() => {
@@ -208,16 +312,13 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
     return () => observer.disconnect();
   }, []);
 
-  // 换一条文本框、或者名字被藏起来了，之前选中的控件就不成立了
+  // 换一条文本框，控件选项卡回到背景图
   useEffect(() => {
-    setPart(null);
+    setPart('bg');
   }, [active?.uid]);
 
   useEffect(() => {
-    if (part === 'nameRect' && active?.showName === false) setPart(null);
-  }, [part, active?.showName]);
-
-  useEffect(() => {
+    if (active?.[part].hidden === true) return;
     const onMove = (event: PointerEvent): void => {
       const drag = dragRef.current;
       if (drag === null) return;
@@ -266,7 +367,7 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
     };
-  }, [onChange]);
+  }, [onChange, part, active?.[part].hidden]);
 
   const beginDrag = (
     target: TextBoxPart,
@@ -285,7 +386,7 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
       dir,
       startX: event.clientX,
       startY: event.clientY,
-      start: { ...active[target] },
+      start: { ...active[target].rect },
       baseW: rect?.width || CANVAS_WIDTH * scale,
       baseH: rect?.height || CANVAS_HEIGHT * scale,
     };
@@ -294,6 +395,11 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
   const patch = (changes: Partial<Omit<TextBoxRow, 'uid'>>): void => {
     if (active === undefined) return;
     onChange(updateTextBox(project, active.uid, changes));
+  };
+
+  const patchControl = (which: TextBoxPart, changes: Partial<TextBoxRow['text']>): void => {
+    if (active === undefined) return;
+    onChange(setTextBoxControl(project, active.uid, which, changes));
   };
 
   const select = (uid: string): void => {
@@ -325,12 +431,6 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
     }
   };
 
-  const layerClass = (target: TextBoxPart): string => {
-    const base =
-      target === 'box' ? 'textbox-frame' : target === 'nameRect' ? 'textbox-name' : 'textbox-text';
-    return part === target ? `${base} selected` : base;
-  };
-
   const layerStyle = (rect: Rect): React.CSSProperties => ({
     left: pct(rect.x),
     top: pct(rect.y),
@@ -338,18 +438,39 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
     height: pct(rect.h),
   });
 
+  /** 文字控件的行内样式：字体、字号、颜色、对齐、行距 */
+  const textStyle = (which: 'speaker' | 'text'): React.CSSProperties => {
+    const item = active?.[which];
+    if (item === undefined) return {};
+    return {
+      fontFamily: item.fontFamily === '' ? undefined : `"${item.fontFamily}", sans-serif`,
+      fontSize: item.fontSize,
+      color: item.color,
+      textAlign: item.align,
+      lineHeight: item.lineHeight,
+    };
+  };
+
   const slotOf = (which: TextBoxPart): { rect: Rect; anchor: AnchorCell } | null => {
     if (active === undefined) return null;
-    const anchor =
-      which === 'box' ? active.anchors.bg : which === 'nameRect' ? active.anchors.name : active.anchors.text;
-    return { rect: active[which], anchor };
+    return { rect: active[which].rect, anchor: active[which].anchor };
   };
 
   const commitSlot = (which: TextBoxPart, key: keyof SlotValues, value: number): void => {
     const slot = slotOf(which);
     if (slot === null || active === undefined) return;
-    const next = slotToRect({ ...rectToSlot(slot.rect, slot.anchor), [key]: value }, slot.anchor, slot.rect);
+    const next = slotToRect(
+      { ...rectToSlot(slot.rect, slot.anchor), [key]: value },
+      slot.anchor,
+      slot.rect,
+    );
     onChange(setTextBoxRect(project, active.uid, which, next));
+  };
+
+  const layerClass = (target: TextBoxPart): string => {
+    const base =
+      target === 'bg' ? 'textbox-frame' : target === 'speaker' ? 'textbox-name' : 'textbox-text';
+    return part === target ? `${base} selected` : base;
   };
 
   return (
@@ -389,54 +510,59 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
                   height: CANVAS_HEIGHT,
                   transform: `scale(${scale})`,
                 }}
-                onPointerDown={() => setPart(null)}
               >
                 {active === undefined ? (
                   <div className="textbox-empty">还没有文本框，点右上角「新建文本框」加一个。</div>
                 ) : (
                   <>
-                    <div
-                      className={layerClass('box')}
-                      style={layerStyle(active.box)}
-                      onPointerDown={(event) => beginDrag('box', 'move', 'n', event)}
-                    >
-                      {backgroundUrl !== '' && (
-                        <img className="textbox-bg" src={backgroundUrl} alt="" draggable={false} />
-                      )}
-                    </div>
-
-                    {active.showName && (
+                    {!active.bg.hidden && (
                       <div
-                        className={layerClass('nameRect')}
-                        style={{ ...layerStyle(active.nameRect), textAlign: active.align }}
-                        onPointerDown={(event) => beginDrag('nameRect', 'move', 'n', event)}
+                        className={layerClass('bg')}
+                        style={layerStyle(active.bg.rect)}
+                        onPointerDown={(event) => beginDrag('bg', 'move', 'n', event)}
                       >
-                        {active.sampleName.trim() === '' ? '角色名' : active.sampleName}
+                        <ControlImage project={project} assets={assets} imageUid={active.bg.imageUid} />
                       </div>
                     )}
 
-                    <div
-                      className={layerClass('textRect')}
-                      style={{
-                        ...layerStyle(active.textRect),
-                        textAlign: active.align,
-                        lineHeight: active.lineHeight,
-                      }}
-                      onPointerDown={(event) => beginDrag('textRect', 'move', 'n', event)}
-                    >
-                      {active.sampleText.trim() === '' ? '这是一段示例台词。' : active.sampleText}
-                    </div>
+                    {!active.speaker.hidden && (
+                      <div
+                        className={layerClass('speaker')}
+                        style={{ ...layerStyle(active.speaker.rect), ...textStyle('speaker') }}
+                        onPointerDown={(event) => beginDrag('speaker', 'move', 'n', event)}
+                      >
+                        <ControlImage
+                          project={project}
+                          assets={assets}
+                          imageUid={active.speaker.imageUid}
+                        />
+                        <span>{active.speaker.sampleText.trim() === '' ? '角色名' : active.speaker.sampleText}</span>
+                      </div>
+                    )}
 
-                    {part !== null && (
-                      <div className="textbox-handles" style={layerStyle(active[part])}>
+                    {!active.text.hidden && (
+                      <div
+                        className={layerClass('text')}
+                        style={{ ...layerStyle(active.text.rect), ...textStyle('text') }}
+                        onPointerDown={(event) => beginDrag('text', 'move', 'n', event)}
+                      >
+                        <ControlImage project={project} assets={assets} imageUid={active.text.imageUid} />
+                        <span>
+                          {active.text.sampleText.trim() === ''
+                            ? '这是一段示例台词。'
+                            : active.text.sampleText}
+                        </span>
+                      </div>
+                    )}
+
+                    {!active[part].hidden && (
+                      <div className="textbox-handles" style={layerStyle(active[part].rect)}>
                         {HANDLES.map((handle) => (
                           <div
                             key={handle.dir}
                             className={`textbox-handle resize-${handle.dir}`}
                             style={handle.style}
-                            onPointerDown={(event) =>
-                              beginDrag(part, 'resize', handle.dir, event)
-                            }
+                            onPointerDown={(event) => beginDrag(part, 'resize', handle.dir, event)}
                           />
                         ))}
                       </div>
@@ -473,195 +599,166 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
               />
             </label>
 
-            <label className="field">
-              <span>背景图片</span>
-              <select
-                value={active.imageUid}
-                onChange={(event) => patch({ imageUid: event.target.value })}
-              >
-                <option value="">（无，全透明）</option>
-                {project.images.map((row) => (
-                  <option key={row.uid} value={row.uid}>
-                    {row.id.trim() === '' ? '（未填图片 ID）' : row.id}
-                    {row.name.trim() === '' ? '' : ` · ${row.name}`}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="textbox-check">
-              <input
-                type="checkbox"
-                checked={active.showName}
-                onChange={(event) => patch({ showName: event.target.checked })}
-              />
-              显示说话人名字
-            </label>
-
             <div className="textbox-section">
-              <h4>控件位置</h4>
+              <h4>控件</h4>
               <p className="textbox-section-hint">
-                点画布上的控件，或点下面的按钮选中；选中后才显示八向把手。
+                三个控件各自摆位、各自配属性；勾上「隐藏控件」后画布和预览里都不显示。
               </p>
-              <div className="textbox-parts">
-                {PARTS.map((item) => (
+              <div className="textbox-parts" role="tablist" aria-label="控件">
+                {TEXT_BOX_PARTS.map((item) => (
                   <button
-                    key={item.part}
+                    key={item}
                     type="button"
-                    className={part === item.part ? 'active' : ''}
-                    disabled={item.part === 'nameRect' && !active.showName}
-                    onClick={() => setPart(item.part)}
+                    role="tab"
+                    aria-selected={part === item}
+                    className={part === item ? 'active' : ''}
+                    onClick={() => setPart(item)}
                   >
-                    {item.label}
+                    {TEXT_BOX_PART_LABELS[item]}
                   </button>
                 ))}
               </div>
 
-              {part === null ? (
-                <p className="textbox-section-hint">还没有选中控件。</p>
-              ) : (
-                (() => {
-                  const slot = slotOf(part);
-                  if (slot === null) return null;
-                  const values = rectToSlot(slot.rect, slot.anchor);
-                  const stretchX = isStretchX(slot.anchor);
-                  const stretchY = isStretchY(slot.anchor);
-                  return (
-                    <>
-                      <div className="textbox-anchor">
-                        <span>锚点（{ANCHOR_LABELS[anchorIndex(slot.anchor)]}）</span>
-                        <div className="textbox-anchor-grid" role="group" aria-label="锚点">
-                          {ANCHOR_LABELS.map((label, index) => {
-                            const col = index % 4;
-                            const row = Math.floor(index / 4);
-                            return (
-                              <button
-                                key={label}
-                                type="button"
-                                aria-label={`锚点：${label}`}
-                                aria-pressed={slot.anchor.col === col && slot.anchor.row === row}
-                                className={
-                                  slot.anchor.col === col && slot.anchor.row === row ? 'active' : ''
-                                }
-                                onClick={() =>
-                                  onChange(
-                                    setTextBoxAnchor(project, active.uid, part, {
-                                      col: col as AnchorCell['col'],
-                                      row: row as AnchorCell['row'],
-                                    }),
-                                  )
-                                }
-                              >
-                                <span
-                                  className="textbox-anchor-mark"
-                                  style={anchorMarkStyle(col, row)}
-                                />
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
+              <label className="textbox-check">
+                <input
+                  type="checkbox"
+                  checked={active[part].hidden}
+                  onChange={(event) => patchControl(part, { hidden: event.target.checked })}
+                />
+                隐藏控件
+              </label>
 
-                      <div className="textbox-slot">
-                        <SlotField
-                          key={`x-${part}`}
-                          label={stretchX ? '左边距' : '位置X'}
-                          value={values.posX}
-                          onCommit={(value) => commitSlot(part, 'posX', value)}
-                        />
-                        {stretchX ? (
-                          <SlotField
-                            key={`right-${part}`}
-                            label="右边距"
-                            value={values.right}
-                            onCommit={(value) => commitSlot(part, 'right', value)}
-                          />
-                        ) : (
-                          <SlotField
-                            key={`sx-${part}`}
-                            label="尺寸X"
-                            value={values.sizeX}
-                            onCommit={(value) => commitSlot(part, 'sizeX', value)}
-                          />
-                        )}
-                        <SlotField
-                          key={`y-${part}`}
-                          label={stretchY ? '上边距' : '位置Y'}
-                          value={values.posY}
-                          onCommit={(value) => commitSlot(part, 'posY', value)}
-                        />
-                        {stretchY ? (
-                          <SlotField
-                            key={`bottom-${part}`}
-                            label="下边距"
-                            value={values.bottom}
-                            onCommit={(value) => commitSlot(part, 'bottom', value)}
-                          />
-                        ) : (
-                          <SlotField
-                            key={`sy-${part}`}
-                            label="尺寸Y"
-                            value={values.sizeY}
-                            onCommit={(value) => commitSlot(part, 'sizeY', value)}
-                          />
-                        )}
+              {(() => {
+                const slot = slotOf(part);
+                if (slot === null) return null;
+                const values = rectToSlot(slot.rect, slot.anchor);
+                const stretchX = isStretchX(slot.anchor);
+                const stretchY = isStretchY(slot.anchor);
+                return (
+                  <>
+                    <div className="textbox-anchor">
+                      <span>锚点（{ANCHOR_LABELS[anchorIndex(slot.anchor)]}）</span>
+                      <div className="textbox-anchor-grid" role="group" aria-label="锚点">
+                        {ANCHOR_LABELS.map((label, index) => {
+                          const col = index % 4;
+                          const row = Math.floor(index / 4);
+                          return (
+                            <button
+                              key={label}
+                              type="button"
+                              aria-label={`锚点：${label}`}
+                              aria-pressed={slot.anchor.col === col && slot.anchor.row === row}
+                              className={
+                                slot.anchor.col === col && slot.anchor.row === row ? 'active' : ''
+                              }
+                              onClick={() =>
+                                onChange(
+                                  setTextBoxAnchor(project, active.uid, part, {
+                                    col: col as AnchorCell['col'],
+                                    row: row as AnchorCell['row'],
+                                  }),
+                                )
+                              }
+                            >
+                              <span
+                                className="textbox-anchor-mark"
+                                style={anchorMarkStyle(col, row)}
+                              />
+                            </button>
+                          );
+                        })}
                       </div>
-                    </>
-                  );
-                })()
+                    </div>
+
+                    <div className="textbox-slot">
+                      <SlotField
+                        key={`x-${part}`}
+                        label={stretchX ? '左边距' : '位置X'}
+                        value={values.posX}
+                        onCommit={(value) => commitSlot(part, 'posX', value)}
+                      />
+                      {stretchX ? (
+                        <SlotField
+                          key={`right-${part}`}
+                          label="右边距"
+                          value={values.right}
+                          onCommit={(value) => commitSlot(part, 'right', value)}
+                        />
+                      ) : (
+                        <SlotField
+                          key={`sx-${part}`}
+                          label="尺寸X"
+                          value={values.sizeX}
+                          onCommit={(value) => commitSlot(part, 'sizeX', value)}
+                        />
+                      )}
+                      <SlotField
+                        key={`y-${part}`}
+                        label={stretchY ? '上边距' : '位置Y'}
+                        value={values.posY}
+                        onCommit={(value) => commitSlot(part, 'posY', value)}
+                      />
+                      {stretchY ? (
+                        <SlotField
+                          key={`bottom-${part}`}
+                          label="下边距"
+                          value={values.bottom}
+                          onCommit={(value) => commitSlot(part, 'bottom', value)}
+                        />
+                      ) : (
+                        <SlotField
+                          key={`sy-${part}`}
+                          label="尺寸Y"
+                          value={values.sizeY}
+                          onCommit={(value) => commitSlot(part, 'sizeY', value)}
+                        />
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+
+              <label className="field">
+                <span>背景图片</span>
+                <select
+                  value={active[part].imageUid}
+                  onChange={(event) => patchControl(part, { imageUid: event.target.value })}
+                >
+                  <option value="">（无，全透明）</option>
+                  {project.images.map((row) => (
+                    <option key={row.uid} value={row.uid}>
+                      {row.id.trim() === '' ? '（未填图片 ID）' : row.id}
+                      {row.name.trim() === '' ? '' : ` · ${row.name}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {part === 'speaker' && (
+                <label className="field">
+                  <span>示例文本</span>
+                  <input
+                    value={active.speaker.sampleText}
+                    onChange={(event) => patchControl('speaker', { sampleText: event.target.value })}
+                  />
+                </label>
+              )}
+
+              {part === 'text' && (
+                <label className="field">
+                  <span>示例文本</span>
+                  <textarea
+                    rows={3}
+                    value={active.text.sampleText}
+                    onChange={(event) => patchControl('text', { sampleText: event.target.value })}
+                  />
+                </label>
+              )}
+
+              {part !== 'bg' && (
+                <TextStyleFields control={active[part]} onChange={(changes) => patchControl(part, changes)} />
               )}
             </div>
-
-            <label className="field">
-              <span>示例名字</span>
-              <input
-                value={active.sampleName}
-                onChange={(event) => patch({ sampleName: event.target.value })}
-              />
-            </label>
-
-            <label className="field">
-              <span>示例台词</span>
-              <textarea
-                rows={4}
-                value={active.sampleText}
-                onChange={(event) => patch({ sampleText: event.target.value })}
-              />
-            </label>
-
-            <div className="field">
-              <span>文本排列</span>
-              <div className="textbox-aligns">
-                {(
-                  [
-                    ['left', '左对齐'],
-                    ['center', '居中'],
-                    ['right', '右对齐'],
-                  ] as const
-                ).map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={active.align === value ? 'active' : ''}
-                    onClick={() => patch({ align: value })}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <label className="field">
-              <span>行距（{active.lineHeight.toFixed(1)}）</span>
-              <input
-                type="range"
-                min={LINE_HEIGHT_MIN}
-                max={LINE_HEIGHT_MAX}
-                step={0.1}
-                value={active.lineHeight}
-                onChange={(event) => patch({ lineHeight: Number(event.target.value) })}
-              />
-            </label>
 
             <button
               type="button"

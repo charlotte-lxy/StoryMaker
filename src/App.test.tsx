@@ -226,7 +226,8 @@ describe('界面冒烟测试', () => {
     fireEvent.click(within(side).getByText('文本框'));
     expect(screen.getByText('＋ 新建文本框')).toBeTruthy();
     fireEvent.click(screen.getByText('＋ 新建文本框'));
-    expect(screen.getAllByRole('tab')).toHaveLength(2);
+    const list = screen.getByRole('tablist', { name: '文本框列表' });
+    expect(within(list).getAllByRole('tab')).toHaveLength(2);
   });
 
   it('新增角色后出现默认的 ID 与名称', async () => {

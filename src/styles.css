@@ -4768,10 +4768,14 @@ tr.locale-form-note td {
 }
 
 .preview-textbox-bg {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border-radius: inherit;
+  pointer-events: none;
 }
 
 .preview-textbox-name {
@@ -5185,6 +5189,15 @@ tr.locale-form-note td {
 .textbox-name:hover,
 .textbox-text:hover {
   outline: 2px dashed rgba(255, 255, 255, 0.22);
+}
+
+/* 控件自己的背景图铺在文字下面，文字要压在上面 */
+.textbox-name > span,
+.textbox-text > span,
+.preview-textbox-name > span,
+.preview-textbox-text > span {
+  position: relative;
+  z-index: 1;
 }
 
 .textbox-frame.selected,
