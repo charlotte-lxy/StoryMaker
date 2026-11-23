@@ -4,14 +4,10 @@ import type { HostApi } from '../core/host';
 import {
   CANVAS_HEIGHT,
   CANVAS_WIDTH,
-  FONT_SIZE_MAX,
-  FONT_SIZE_MIN,
   LINE_HEIGHT_MAX,
   LINE_HEIGHT_MIN,
   MIN_RECT_SIDE,
   TEXT_BOX_FONTS,
-  isStretchX,
-  isStretchY,
   rectToSlot,
   slotToRect,
   type SlotValues,
@@ -114,33 +110,34 @@ function pct(value: number): string {
   return `${(value * 100).toFixed(4)}%`;
 }
 
-function formatPx(value: number): string {
-  return value.toFixed(1);
-}
-
 /** 右侧面板上的一个数字框：输入过程中不打断，失焦或回车才写回 */
 function SlotField({
   label,
+  ariaLabel,
   value,
   step = 1,
+  digits = 1,
   onCommit,
 }: {
   label: string;
+  ariaLabel?: string;
   value: number;
   step?: number;
+  digits?: number;
   onCommit: (value: number) => void;
 }): React.JSX.Element {
-  const [draft, setDraft] = useState(() => formatPx(value));
+  const format = (input: number): string => input.toFixed(digits);
+  const [draft, setDraft] = useState(() => format(value));
   const [editing, setEditing] = useState(false);
 
   useEffect(() => {
-    if (!editing) setDraft(formatPx(value));
+    if (!editing) setDraft(format(value));
   }, [value, editing]);
 
   const commit = (): void => {
     const parsed = Number.parseFloat(draft);
     if (Number.isFinite(parsed)) onCommit(parsed);
-    else setDraft(formatPx(value));
+    else setDraft(format(value));
   };
 
   return (
@@ -148,6 +145,7 @@ function SlotField({
       <span>{label}</span>
       <input
         type="number"
+        aria-label={ariaLabel ?? label}
         step={step}
         value={draft}
         onFocus={() => setEditing(true)}
@@ -194,14 +192,12 @@ function TextStyleFields({
         <span>字体大小（设计稿像素）</span>
         <input
           type="number"
-          min={FONT_SIZE_MIN}
-          max={FONT_SIZE_MAX}
           step={1}
           value={control.fontSize}
           onChange={(event) => {
             const value = Number.parseFloat(event.target.value);
             if (!Number.isFinite(value)) return;
-            onChange({ fontSize: Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, value)) });
+            onChange({ fontSize: value });
           }}
         />
       </label>
@@ -451,18 +447,23 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
     };
   };
 
-  const slotOf = (which: TextBoxPart): { rect: Rect; anchor: AnchorCell } | null => {
+  const slotOf = (
+    which: TextBoxPart,
+  ): { rect: Rect; anchor: AnchorCell; pivotX: number; pivotY: number } | null => {
     if (active === undefined) return null;
-    return { rect: active[which].rect, anchor: active[which].anchor };
+    const control = active[which];
+    return { rect: control.rect, anchor: control.anchor, pivotX: control.pivotX, pivotY: control.pivotY };
   };
 
   const commitSlot = (which: TextBoxPart, key: keyof SlotValues, value: number): void => {
     const slot = slotOf(which);
     if (slot === null || active === undefined) return;
     const next = slotToRect(
-      { ...rectToSlot(slot.rect, slot.anchor), [key]: value },
+      { ...rectToSlot(slot.rect, slot.anchor, slot.pivotX, slot.pivotY), [key]: value },
       slot.anchor,
       slot.rect,
+      slot.pivotX,
+      slot.pivotY,
     );
     onChange(setTextBoxRect(project, active.uid, which, next));
   };
@@ -631,9 +632,8 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
               {(() => {
                 const slot = slotOf(part);
                 if (slot === null) return null;
-                const values = rectToSlot(slot.rect, slot.anchor);
-                const stretchX = isStretchX(slot.anchor);
-                const stretchY = isStretchY(slot.anchor);
+                const values = rectToSlot(slot.rect, slot.anchor, slot.pivotX, slot.pivotY);
+                const clampPivot = (value: number): number => Math.min(1, Math.max(0, value));
                 return (
                   <>
                     <div className="textbox-anchor">
@@ -671,48 +671,61 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
                     </div>
 
                     <div className="textbox-slot">
+                      <span className="textbox-slot-label">位置</span>
                       <SlotField
-                        key={`x-${part}`}
-                        label={stretchX ? '左边距' : '位置X'}
+                        key={`px-${part}`}
+                        label="X"
+                        ariaLabel="位置X"
                         value={values.posX}
                         onCommit={(value) => commitSlot(part, 'posX', value)}
                       />
-                      {stretchX ? (
-                        <SlotField
-                          key={`right-${part}`}
-                          label="右边距"
-                          value={values.right}
-                          onCommit={(value) => commitSlot(part, 'right', value)}
-                        />
-                      ) : (
-                        <SlotField
-                          key={`sx-${part}`}
-                          label="尺寸X"
-                          value={values.sizeX}
-                          onCommit={(value) => commitSlot(part, 'sizeX', value)}
-                        />
-                      )}
                       <SlotField
-                        key={`y-${part}`}
-                        label={stretchY ? '上边距' : '位置Y'}
+                        key={`py-${part}`}
+                        label="Y"
+                        ariaLabel="位置Y"
                         value={values.posY}
                         onCommit={(value) => commitSlot(part, 'posY', value)}
                       />
-                      {stretchY ? (
-                        <SlotField
-                          key={`bottom-${part}`}
-                          label="下边距"
-                          value={values.bottom}
-                          onCommit={(value) => commitSlot(part, 'bottom', value)}
-                        />
-                      ) : (
-                        <SlotField
-                          key={`sy-${part}`}
-                          label="尺寸Y"
-                          value={values.sizeY}
-                          onCommit={(value) => commitSlot(part, 'sizeY', value)}
-                        />
-                      )}
+                    </div>
+
+                    <div className="textbox-slot">
+                      <span className="textbox-slot-label">尺寸</span>
+                      <SlotField
+                        key={`sx-${part}`}
+                        label="X"
+                        ariaLabel="尺寸X"
+                        value={values.sizeX}
+                        onCommit={(value) => commitSlot(part, 'sizeX', value)}
+                      />
+                      <SlotField
+                        key={`sy-${part}`}
+                        label="Y"
+                        ariaLabel="尺寸Y"
+                        value={values.sizeY}
+                        onCommit={(value) => commitSlot(part, 'sizeY', value)}
+                      />
+                    </div>
+
+                    <div className="textbox-slot">
+                      <span className="textbox-slot-label">对齐</span>
+                      <SlotField
+                        key={`ax-${part}`}
+                        label="X"
+                        ariaLabel="对齐X"
+                        step={0.1}
+                        digits={2}
+                        value={slot.pivotX}
+                        onCommit={(value) => patchControl(part, { pivotX: clampPivot(value) })}
+                      />
+                      <SlotField
+                        key={`ay-${part}`}
+                        label="Y"
+                        ariaLabel="对齐Y"
+                        step={0.1}
+                        digits={2}
+                        value={slot.pivotY}
+                        onCommit={(value) => patchControl(part, { pivotY: clampPivot(value) })}
+                      />
                     </div>
                   </>
                 );

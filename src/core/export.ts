@@ -64,7 +64,7 @@ import {
   collectWeaponLocaleEntries,
 } from './localization';
 import { characterIdOf, collectRefMaps, textBoxIdOf, type UidToId } from './refs';
-import { CANVAS_HEIGHT, CANVAS_WIDTH, anchorFraction } from './textbox';
+import { anchorFraction, rectToSlot } from './textbox';
 import type { Character, CommandDef, Group, Line, Project, StoryOption, TextBoxControl } from './types';
 
 export const DIALOGUE_SHEET = '对话';
@@ -236,9 +236,9 @@ export function buildItemRows(project: Project): string[][] {
  * 「文本框」子表：一个文本框一行，照 `TB_文本框示例.csv` 的写法。
  *
  * 三个控件（背景图 / 人物名称 / 台词）各写一条：
- * `("名字", (隐藏控件=…,锚点=…,位置=…,尺寸=…,背景图片ID="…",字体样式="…",字体大小=…,字体颜色=(R=…,G=…,B=…,A=…)))`。
- * 锚点是 16 格锚点归一化，位置 / 尺寸是 1920×1080 设计稿像素；
- * 拉伸方向按 UMG 的习惯，位置写左 / 上边距，尺寸写负数（-右边距 / -下边距）。
+ * `("名字", (隐藏控件=…,插槽锚点=…,插槽位置=…,插槽大小=…,插槽对齐=…,背景图片ID="…",字体样式="…",字体大小=…,字体颜色=(R=…,G=…,B=…,A=…)))`。
+ * 锚点是 16 格锚点归一化，位置 / 大小是 1920×1080 设计稿像素，对齐是 0–1 的比例；
+ * 拉伸方向按 UMG 的习惯，位置写左 / 上边距，大小写负数（-右边距 / -下边距）。
  */
 export function buildTextBoxRows(project: Project): string[][] {
   const idOf = buildIdMap(project);
@@ -266,25 +266,19 @@ function controlTuple(label: string, control: TextBoxControl, idOf: UidToId): st
   const anchorMinY = stretchY ? 0 : anchorFraction(anchorRow);
   const anchorMaxY = stretchY ? 1 : anchorFraction(anchorRow);
 
-  const posX = stretchX
-    ? control.rect.x * CANVAS_WIDTH
-    : (control.rect.x - anchorMinX) * CANVAS_WIDTH;
-  const posY = stretchY
-    ? control.rect.y * CANVAS_HEIGHT
-    : (control.rect.y - anchorMinY) * CANVAS_HEIGHT;
-  const sizeX = stretchX
-    ? -((1 - control.rect.x - control.rect.w) * CANVAS_WIDTH)
-    : control.rect.w * CANVAS_WIDTH;
-  const sizeY = stretchY
-    ? -((1 - control.rect.y - control.rect.h) * CANVAS_HEIGHT)
-    : control.rect.h * CANVAS_HEIGHT;
+  const slot = rectToSlot(control.rect, control.anchor, control.pivotX, control.pivotY);
+  const posX = slot.posX;
+  const posY = slot.posY;
+  const sizeX = slot.sizeX;
+  const sizeY = slot.sizeY;
 
   const imageId = control.imageUid === '' ? '' : idOf.get(control.imageUid) ?? '';
   return (
     `("${label}", (隐藏控件=${control.hidden ? 'True' : 'False'},` +
-    `锚点=(Minimum=(X=${fixed6(anchorMinX)},Y=${fixed6(anchorMinY)}),Maximum=(X=${fixed6(anchorMaxX)},Y=${fixed6(anchorMaxY)})),` +
-    `位置=(X=${fixed6(posX)},Y=${fixed6(posY)}),` +
-    `尺寸=(X=${fixed6(sizeX)},Y=${fixed6(sizeY)}),` +
+    `插槽锚点=(Minimum=(X=${fixed6(anchorMinX)},Y=${fixed6(anchorMinY)}),Maximum=(X=${fixed6(anchorMaxX)},Y=${fixed6(anchorMaxY)})),` +
+    `插槽位置=(X=${fixed6(posX)},Y=${fixed6(posY)}),` +
+    `插槽大小=(X=${fixed6(sizeX)},Y=${fixed6(sizeY)}),` +
+    `插槽对齐=(X=${fixed6(control.pivotX)},Y=${fixed6(control.pivotY)}),` +
     `背景图片ID="${imageId}",` +
     `字体样式="${control.fontFamily}",` +
     `字体大小=${fixed6(control.fontSize)},` +

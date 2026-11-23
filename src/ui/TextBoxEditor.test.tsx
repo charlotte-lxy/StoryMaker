@@ -128,11 +128,27 @@ describe('文本框子模块', () => {
     expect(lastProject(onChange).textBoxes?.[0].text.fontFamily).toBe('微软雅黑');
   });
 
-  it('字号超出范围会被夹住', () => {
+  it('字号不做输入限制，写多少就是多少', () => {
     const { onChange } = renderEditor();
     openPart('台词');
     fireEvent.change(screen.getByLabelText(/字体大小/), { target: { value: '999' } });
-    expect(lastProject(onChange).textBoxes?.[0].text.fontSize).toBe(200);
+    expect(lastProject(onChange).textBoxes?.[0].text.fontSize).toBe(999);
+  });
+
+  it('对齐默认 0.5，改完写回控件自己的对齐', () => {
+    const { onChange } = renderEditor();
+    const pivotX = screen.getByLabelText('对齐X') as HTMLInputElement;
+    const pivotY = screen.getByLabelText('对齐Y') as HTMLInputElement;
+    expect(pivotX.value).toBe('0.50');
+    expect(pivotY.value).toBe('0.50');
+
+    fireEvent.change(pivotX, { target: { value: '0' } });
+    fireEvent.blur(pivotX);
+    expect(lastProject(onChange).textBoxes?.[0].bg.pivotX).toBe(0);
+
+    fireEvent.change(pivotY, { target: { value: '2' } });
+    fireEvent.blur(pivotY);
+    expect(lastProject(onChange).textBoxes?.[0].bg.pivotY).toBe(1);
   });
 
   it('默认的八向把手在背景图上，点台词层就换过去', () => {
@@ -154,11 +170,12 @@ describe('文本框子模块', () => {
     expect(screen.getByRole('tab', { name: '人物名称' }).getAttribute('aria-selected')).toBe('true');
   });
 
-  it('位置数字按设计稿像素显示，改完写回画布坐标', () => {
+  it('位置数字按设计稿像素显示（含对齐的偏移），改完写回画布坐标', () => {
     const { onChange } = renderEditor();
     const posX = screen.getByLabelText('位置X') as HTMLInputElement;
-    expect(posX.value).toBe('96.0');
-    fireEvent.change(posX, { target: { value: '192' } });
+    // 默认外框 left 96px、宽 1728px，对齐 0.5 → 位置 = 96 + 864
+    expect(posX.value).toBe('960.0');
+    fireEvent.change(posX, { target: { value: '1056' } });
     fireEvent.blur(posX);
 
     expect(lastProject(onChange).textBoxes?.[0].bg.rect.x).toBeCloseTo(0.1);

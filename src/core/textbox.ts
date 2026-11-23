@@ -27,9 +27,8 @@ export const TEXT_BOX_ALIGNS = ['left', 'center', 'right'] as const;
 export const LINE_HEIGHT_MIN = 0.8;
 export const LINE_HEIGHT_MAX = 3;
 
-/** 字体大小的范围（设计稿像素） */
-export const FONT_SIZE_MIN = 8;
-export const FONT_SIZE_MAX = 200;
+/** 对齐（UMG 的 Alignment）的默认值：控件中心落在位置上 */
+export const DEFAULT_PIVOT = 0.5;
 
 /** 字体样式：先给常用的三个，后面还会加 */
 export const TEXT_BOX_FONTS = ['微软雅黑', '黑体', '宋体'] as const;
@@ -67,6 +66,8 @@ export function createDefaultControl(rect: Rect): TextBoxControl {
   return {
     anchor: { ...DEFAULT_ANCHOR },
     rect: { ...rect },
+    pivotX: DEFAULT_PIVOT,
+    pivotY: DEFAULT_PIVOT,
     hidden: false,
     imageUid: '',
     fontFamily: '',
@@ -142,52 +143,65 @@ export function isStretchY(anchor: AnchorCell): boolean {
 }
 
 /**
- * 右侧面板上的四个数字（设计稿像素）。
+ * 右侧面板上的三组数字（设计稿像素）。
  *
- * 不拉伸的锚点：`posX` / `posY` 是控件左上角相对锚点的偏移，`sizeX` / `sizeY` 是尺寸；
- * 拉伸的锚点：`posX` / `posY` 是左边距 / 上边距，`right` / `bottom` 是右边距 / 下边距，
- * 尺寸由两边的边距算出来（跟 Unreal 的槽位一样）。
+ * 不拉伸的锚点：`posX` / `posY` 是控件的对齐点相对锚点的偏移（对齐点由 pivot 决定），
+ * `sizeX` / `sizeY` 是尺寸；拉伸的锚点：`posX` / `posY` 是左边距 / 上边距，
+ * `sizeX` / `sizeY` 写负数表示右边距 / 下边距（跟 Unreal 的槽位一样）。
  */
 export interface SlotValues {
   posX: number;
   posY: number;
   sizeX: number;
   sizeY: number;
-  right: number;
-  bottom: number;
 }
 
 /** 画布矩形 → 右侧面板数字 */
-export function rectToSlot(rect: Rect, anchor: AnchorCell): SlotValues {
+export function rectToSlot(
+  rect: Rect,
+  anchor: AnchorCell,
+  pivotX = DEFAULT_PIVOT,
+  pivotY = DEFAULT_PIVOT,
+): SlotValues {
   const left = rect.x * CANVAS_WIDTH;
   const top = rect.y * CANVAS_HEIGHT;
+  const width = rect.w * CANVAS_WIDTH;
+  const height = rect.h * CANVAS_HEIGHT;
   return {
-    posX: isStretchX(anchor) ? left : left - anchorFraction(anchor.col) * CANVAS_WIDTH,
-    posY: isStretchY(anchor) ? top : top - anchorFraction(anchor.row) * CANVAS_HEIGHT,
-    sizeX: rect.w * CANVAS_WIDTH,
-    sizeY: rect.h * CANVAS_HEIGHT,
-    right: (1 - rect.x - rect.w) * CANVAS_WIDTH,
-    bottom: (1 - rect.y - rect.h) * CANVAS_HEIGHT,
+    posX: isStretchX(anchor)
+      ? left
+      : left - anchorFraction(anchor.col) * CANVAS_WIDTH + pivotX * width,
+    posY: isStretchY(anchor)
+      ? top
+      : top - anchorFraction(anchor.row) * CANVAS_HEIGHT + pivotY * height,
+    sizeX: isStretchX(anchor) ? -(CANVAS_WIDTH - left - width) : width,
+    sizeY: isStretchY(anchor) ? -(CANVAS_HEIGHT - top - height) : height,
   };
 }
 
 /** 右侧面板数字 → 画布矩形（越界、反向都交给 clampRect 收） */
-export function slotToRect(slot: SlotValues, anchor: AnchorCell, fallback: Rect): Rect {
+export function slotToRect(
+  slot: SlotValues,
+  anchor: AnchorCell,
+  fallback: Rect,
+  pivotX = DEFAULT_PIVOT,
+  pivotY = DEFAULT_PIVOT,
+): Rect {
   const stretchX = isStretchX(anchor);
   const stretchY = isStretchY(anchor);
+  const width = stretchX
+    ? CANVAS_WIDTH - slot.posX + slot.sizeX
+    : slot.sizeX;
+  const height = stretchY
+    ? CANVAS_HEIGHT - slot.posY + slot.sizeY
+    : slot.sizeY;
   const x = stretchX
     ? slot.posX / CANVAS_WIDTH
-    : anchorFraction(anchor.col) + slot.posX / CANVAS_WIDTH;
+    : anchorFraction(anchor.col) + (slot.posX - pivotX * slot.sizeX) / CANVAS_WIDTH;
   const y = stretchY
     ? slot.posY / CANVAS_HEIGHT
-    : anchorFraction(anchor.row) + slot.posY / CANVAS_HEIGHT;
-  const w = stretchX
-    ? 1 - slot.posX / CANVAS_WIDTH - slot.right / CANVAS_WIDTH
-    : slot.sizeX / CANVAS_WIDTH;
-  const h = stretchY
-    ? 1 - slot.posY / CANVAS_HEIGHT - slot.bottom / CANVAS_HEIGHT
-    : slot.sizeY / CANVAS_HEIGHT;
-  return clampRect({ x, y, w, h }, fallback);
+    : anchorFraction(anchor.row) + (slot.posY - pivotY * slot.sizeY) / CANVAS_HEIGHT;
+  return clampRect({ x, y, w: width / CANVAS_WIDTH, h: height / CANVAS_HEIGHT }, fallback);
 }
 
 function readAnchorValue(value: unknown): 0 | 1 | 2 | 3 {
@@ -220,10 +234,12 @@ function readControl(raw: unknown, fallback: TextBoxControl): TextBoxControl {
   return {
     anchor: readAnchor(record.anchor),
     rect: clampRect(record.rect, fallback.rect),
+    pivotX: readPivot(record.pivotX, fallback.pivotX),
+    pivotY: readPivot(record.pivotY, fallback.pivotY),
     hidden: typeof record.hidden === 'boolean' ? record.hidden : fallback.hidden,
     imageUid: asString(record.imageUid, fallback.imageUid),
     fontFamily: asString(record.fontFamily, fallback.fontFamily),
-    fontSize: clamp(asNumber(record.fontSize, fallback.fontSize), FONT_SIZE_MIN, FONT_SIZE_MAX),
+    fontSize: asNumber(record.fontSize, fallback.fontSize),
     color: normalizeColor(record.color, fallback.color),
     align: readAlign(record.align ?? fallback.align),
     lineHeight: clamp(
@@ -233,6 +249,11 @@ function readControl(raw: unknown, fallback: TextBoxControl): TextBoxControl {
     ),
     sampleText: asString(record.sampleText, fallback.sampleText),
   };
+}
+
+/** 对齐值：0–1，读不出来就用默认的 0.5 */
+function readPivot(value: unknown, fallback: number): number {
+  return clamp(asNumber(value, fallback), 0, 1);
 }
 
 /**

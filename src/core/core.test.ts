@@ -847,17 +847,32 @@ describe('导出三张表', () => {
     expect(cell.startsWith('(("背景图", (')).toBe(true);
     expect(cell).toContain('("人物名称", (');
     expect(cell).toContain('("台词", (');
-    // 居中锚点：锚点 0.5，位置相对它算；尺寸是 1920×1080 的像素
-    expect(cell).toContain('锚点=(Minimum=(X=0.500000,Y=0.500000),Maximum=(X=0.500000,Y=0.500000))');
-    expect(cell).toContain('位置=(X=-480.000000,Y=-270.000000)');
-    expect(cell).toContain('尺寸=(X=960.000000,Y=540.000000)');
+    // 居中锚点 + 默认对齐 0.5/0.5：控件的中心正好落在画面中心，位置是 0
+    expect(cell).toContain('插槽锚点=(Minimum=(X=0.500000,Y=0.500000),Maximum=(X=0.500000,Y=0.500000))');
+    expect(cell).toContain('插槽位置=(X=0.000000,Y=0.000000)');
+    expect(cell).toContain('插槽大小=(X=960.000000,Y=540.000000)');
+    expect(cell).toContain('插槽对齐=(X=0.500000,Y=0.500000)');
     // 台词默认白色、42 号字
     expect(cell).toContain('字体大小=42.000000');
     expect(cell).toContain('字体颜色=(R=1.000000,G=1.000000,B=1.000000,A=1.000000)');
 
-    // 全拉伸：锚点满一圈，位置写左边距 / 上边距，尺寸写负数（-右边距 / -下边距）
+    // 全拉伸：锚点满一圈，位置写左边距 / 上边距，大小写负数（-右边距 / -下边距）
     const fullCell = rows[2]?.[2] ?? '';
-    expect(fullCell).toContain('("背景图", (隐藏控件=False,锚点=(Minimum=(X=0.000000,Y=0.000000),Maximum=(X=1.000000,Y=1.000000)),位置=(X=192.000000,Y=216.000000),尺寸=(X=-192.000000,Y=-324.000000),背景图片ID="",字体样式="",字体大小=0.000000');
+    expect(fullCell).toContain('("背景图", (隐藏控件=False,插槽锚点=(Minimum=(X=0.000000,Y=0.000000),Maximum=(X=1.000000,Y=1.000000)),插槽位置=(X=192.000000,Y=216.000000),插槽大小=(X=-192.000000,Y=-324.000000),插槽对齐=(X=0.500000,Y=0.500000),背景图片ID="",字体样式="",字体大小=0.000000');
+  });
+
+  it('文本框子表：对齐改成左上（0,0）之后位置跟着变', () => {
+    const project = makeProject();
+    const row = createDefaultTextBox('屏幕中间', 'TB_Center');
+    row.bg.rect = { x: 0.25, y: 0.25, w: 0.5, h: 0.5 };
+    row.bg.anchor = { col: 1, row: 1 };
+    row.bg.pivotX = 0;
+    row.bg.pivotY = 0;
+    project.textBoxes = [row];
+
+    const cell = buildTextBoxRows(project)[1]?.[2] ?? '';
+    expect(cell).toContain('插槽位置=(X=-480.000000,Y=-270.000000)');
+    expect(cell).toContain('插槽对齐=(X=0.000000,Y=0.000000)');
   });
 
   it('文本框子表：隐藏控件写 True，背景图片写图片 ID', () => {

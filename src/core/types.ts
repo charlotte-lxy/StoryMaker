@@ -161,6 +161,9 @@ export interface TextBoxControl {
   anchor: AnchorCell;
   /** 相对 16:9 画布的矩形 */
   rect: Rect;
+  /** 对齐（UMG 的 Alignment）：控件自身的哪个点落在「位置」上，0–1，默认 0.5 / 0.5 居中 */
+  pivotX: number;
+  pivotY: number;
   /** 勾上后编辑画布与剧情预览都不显示这个控件 */
   hidden: boolean;
   /** 背景图：图片表那一行的 uid；空串 = 透明 */

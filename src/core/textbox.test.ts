@@ -155,7 +155,7 @@ describe('文本框的默认值与归一化', () => {
     expect(rows[0].text.anchor).toEqual({ col: 3, row: 0 });
   });
 
-  it('新格式的三个控件原样读回，字体颜色归一化', () => {
+  it('新格式的三个控件原样读回，字体颜色归一化，字号不再夹上限', () => {
     const rows = normalizeTextBoxes([
       {
         uid: 'tb1',
@@ -168,35 +168,53 @@ describe('文本框的默认值与归一化', () => {
           fontSize: 0,
           color: '#000000',
         },
-        speaker: { hidden: true, color: '#fff' },
-        text: { fontSize: 999, fontFamily: '黑体', sampleText: '示例' },
+        speaker: { hidden: true, color: '#fff', pivotX: 0.25 },
+        text: { fontSize: 999, fontFamily: '黑体', sampleText: '示例', pivotY: 2 },
       },
     ]);
     expect(rows[0].bg.imageUid).toBe('img1');
     expect(rows[0].bg.anchor).toEqual({ col: 3, row: 0 });
     expect(rows[0].speaker.hidden).toBe(true);
     expect(rows[0].speaker.color).toBe('#FFFFFF');
-    expect(rows[0].text.fontSize).toBe(200);
+    expect(rows[0].speaker.pivotX).toBe(0.25);
+    expect(rows[0].text.fontSize).toBe(999);
     expect(rows[0].text.fontFamily).toBe('黑体');
     expect(rows[0].text.sampleText).toBe('示例');
+    // 对齐值夹在 0–1
+    expect(rows[0].text.pivotY).toBe(1);
+    // 缺省的对齐是 0.5
+    expect(rows[0].bg.pivotX).toBe(0.5);
+    expect(rows[0].bg.pivotY).toBe(0.5);
   });
 });
 
 describe('锚点与像素数字的换算', () => {
   const rect = { x: 0.1, y: 0.2, w: 0.3, h: 0.4 };
 
-  it('左上锚点：位置就是左上角像素，尺寸就是宽高像素', () => {
-    const slot = rectToSlot(rect, CELL);
+  it('左上锚点 + 左上对齐：位置就是左上角像素，尺寸就是宽高像素', () => {
+    const slot = rectToSlot(rect, CELL, 0, 0);
     expect(slot.posX).toBeCloseTo(0.1 * CANVAS_WIDTH);
     expect(slot.posY).toBeCloseTo(0.2 * CANVAS_HEIGHT);
     expect(slot.sizeX).toBeCloseTo(0.3 * CANVAS_WIDTH);
     expect(slot.sizeY).toBeCloseTo(0.4 * CANVAS_HEIGHT);
   });
 
+  it('默认对齐（0.5, 0.5）：位置写控件中心相对锚点的偏移', () => {
+    const slot = rectToSlot(rect, CELL);
+    expect(slot.posX).toBeCloseTo(0.1 * CANVAS_WIDTH + 0.15 * CANVAS_WIDTH);
+    expect(slot.posY).toBeCloseTo(0.2 * CANVAS_HEIGHT + 0.2 * CANVAS_HEIGHT);
+  });
+
   it('居中锚点：位置是相对画面中心的偏移', () => {
-    const slot = rectToSlot(rect, { col: 1, row: 1 });
+    const slot = rectToSlot(rect, { col: 1, row: 1 }, 0, 0);
     expect(slot.posX).toBeCloseTo(0.1 * CANVAS_WIDTH - CANVAS_WIDTH / 2);
     expect(slot.posY).toBeCloseTo(0.2 * CANVAS_HEIGHT - CANVAS_HEIGHT / 2);
+  });
+
+  it('对齐换到右下（1, 1）之后，同一个矩形的位置数字跟着变', () => {
+    const slot = rectToSlot(rect, CELL, 1, 1);
+    expect(slot.posX).toBeCloseTo(0.1 * CANVAS_WIDTH + 0.3 * CANVAS_WIDTH);
+    expect(slot.posY).toBeCloseTo(0.2 * CANVAS_HEIGHT + 0.4 * CANVAS_HEIGHT);
   });
 
   it('非拉伸的槽位数字转回矩形是原样', () => {
@@ -208,16 +226,23 @@ describe('锚点与像素数字的换算', () => {
     expect(next.h).toBeCloseTo(rect.h);
   });
 
-  it('拉伸锚点用边距算矩形，两个方向都拉伸时尺寸由边距推出来', () => {
+  it('带对齐的槽位数字转回矩形也是原样', () => {
+    const anchor: AnchorCell = { col: 1, row: 2 };
+    const next = slotToRect(rectToSlot(rect, anchor, 0.25, 0.75), anchor, rect, 0.25, 0.75);
+    expect(next.x).toBeCloseTo(rect.x);
+    expect(next.y).toBeCloseTo(rect.y);
+    expect(next.w).toBeCloseTo(rect.w);
+    expect(next.h).toBeCloseTo(rect.h);
+  });
+
+  it('拉伸锚点用边距算矩形，尺寸写负数（-右边距 / -下边距）', () => {
     const anchor: AnchorCell = { col: 3, row: 3 };
     const next = slotToRect(
       {
         posX: 0.1 * CANVAS_WIDTH,
         posY: 0.2 * CANVAS_HEIGHT,
-        sizeX: 0,
-        sizeY: 0,
-        right: 0.6 * CANVAS_WIDTH,
-        bottom: 0.4 * CANVAS_HEIGHT,
+        sizeX: -0.6 * CANVAS_WIDTH,
+        sizeY: -0.4 * CANVAS_HEIGHT,
       },
       anchor,
       rect,
@@ -234,10 +259,8 @@ describe('锚点与像素数字的换算', () => {
       {
         posX: 0.6 * CANVAS_WIDTH,
         posY: 0.6 * CANVAS_HEIGHT,
-        sizeX: 0,
-        sizeY: 0,
-        right: 0.6 * CANVAS_WIDTH,
-        bottom: 0.6 * CANVAS_HEIGHT,
+        sizeX: -0.6 * CANVAS_WIDTH,
+        sizeY: -0.6 * CANVAS_HEIGHT,
       },
       anchor,
       rect,

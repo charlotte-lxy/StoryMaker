@@ -5391,8 +5391,15 @@ tr.locale-form-note td {
 
 .textbox-slot {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 40px 1fr 1fr;
+  align-items: end;
   gap: 6px 8px;
+}
+
+.textbox-slot-label {
+  padding-bottom: 6px;
+  font-size: 11px;
+  color: var(--text-dim);
 }
 
 .textbox-number {
