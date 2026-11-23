@@ -34,6 +34,7 @@ import {
   type CharacterAlias,
   type CommandDef,
   type CommandParamDef,
+  type EngineKind,
   type ExportSettingRow,
   type ExpressionRow,
   type Group,
@@ -98,10 +99,17 @@ export function createOption(hostLineId: string, index: number): StoryOption {
   };
 }
 
-export function createEmptyProject(name = '未命名项目', theme: ThemeName | '' = ''): Project {
+export function createEmptyProject(
+  name = '未命名项目',
+  theme: ThemeName | '' = '',
+  engine: EngineKind = 'unreal',
+): Project {
   return {
     version: 1,
     name,
+    // 新项目默认用上次在设置里选的引擎；打开已有项目时以项目文件为准
+    engine,
+    disabledModules: [],
     characters: [],
     expressions: [],
     items: [],

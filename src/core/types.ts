@@ -710,7 +710,39 @@ export interface Project {
   ui?: ProjectUi;
   /** Unreal 导入设置，导出成「导入设置」子表 */
   exportSettings: ExportSettingRow[];
+  /**
+   * 这个项目面向哪个引擎。
+   *
+   * 决定侧边栏给哪一组模块、顶部标签显示 UE 还是 Godot；老项目没有这一栏，按 Unreal 处理。
+   */
+  engine?: EngineKind;
+  /**
+   * 项目里手动关掉的模块。
+   *
+   * 关闭只是把模块从侧边栏藏起来、不参与校验和导出，数据一条都不删，随时能再打开；
+   * 必需模块（剧情 / 条件与指令 / 本地化）忽略这一项。
+   */
+  disabledModules?: ModuleId[];
 }
+
+/** 项目面向的引擎 */
+export type EngineKind = 'unreal' | 'godot';
+
+/** 编辑器里的功能模块；哪些引擎能用见 core/modules.ts 的 MODULES */
+export type ModuleId =
+  | 'story'
+  | 'sounds'
+  | 'images'
+  | 'command'
+  | 'locale'
+  | 'items'
+  | 'quests'
+  | 'battle'
+  | 'mcr_items'
+  | 'mcr_characters'
+  | 'mcr_rooms'
+  | 'mcr_projects'
+  | 'mcr_battle';
 
 /** 界面主题 */
 export type ThemeName = 'light' | 'dark';

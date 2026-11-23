@@ -3638,6 +3638,40 @@ tr.locale-form-note td {
   min-width: 0;
 }
 
+/* 模块开关列表：一行一个模块，图标 + 名字 + 开关 */
+.settings-module-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-module-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 4px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.settings-module-row:first-child {
+  border-top: none;
+}
+
+.settings-module-icon {
+  width: 18px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.settings-module-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .settings-card {
   background: var(--panel);
   border: 1px solid var(--border);

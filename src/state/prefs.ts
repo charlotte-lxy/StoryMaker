@@ -5,9 +5,9 @@
  * 这里的 localStorage 只是本机的一份：门槛页、还没打开项目时用，也用来记自动保存开关。
  */
 
-import type { ThemeName } from '../core/types';
+import type { EngineKind, ThemeName } from '../core/types';
 
-export type { ThemeName };
+export type { EngineKind, ThemeName };
 
 export interface Settings {
   /** 编辑后是否自动保存 */
@@ -178,9 +178,6 @@ export function saveCollabPrefs(prefs: CollabPrefs): void {
 
 const UNREAL_KEY = 'storymaker.unreal.v1';
 
-/** 引擎连接的目标；顶部标签、自动探测、导出入口都看它 */
-export type EngineKind = 'unreal' | 'godot';
-
 /**
  * 「连接引擎」的本机配置。
  *
@@ -189,7 +186,11 @@ export type EngineKind = 'unreal' | 'godot';
  * 名字沿用了 UnrealPrefs，但它现在同时管 Unreal 和 Godot。
  */
 export interface UnrealPrefs {
-  /** 当前选中的引擎 */
+  /**
+   * 上次在设置里选的引擎。
+   *
+   * 只当新建项目时的默认值；打开已有项目后，以项目文件里的 `engine` 为准（那个才决定侧边栏）。
+   */
   engine: EngineKind;
   /** Unreal 项目文件（.uproject）的完整路径；空串表示还没配 */
   uprojectPath: string;

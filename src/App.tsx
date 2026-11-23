@@ -6,14 +6,17 @@ import { collectCommandTargets } from './core/command-build';
 import { displayNameOf, initialOf } from './core/collab/presence';
 import { baseName, getHost, type HostApi } from './core/host';
 import { normalizeProject, type NormalizeResult } from './core/migrate';
+import { engineOf, isModuleVisible, visibleModules } from './core/modules';
 import type {
   Character,
   CommandDef,
   CommandParamDef,
+  EngineKind,
   ExpressionRow,
   LangKey,
   Line,
   LookupRow,
+  ModuleId,
   Project,
   StoryOption,
   UiTextRow,
@@ -120,6 +123,7 @@ import { LineList } from './ui/LineList';
 import { LocalizationEditor } from './ui/LocalizationEditor';
 import { ImagesEditor } from './ui/ImagesEditor';
 import { LookupEditor } from './ui/LookupEditor';
+import { ModulePlaceholder } from './ui/ModulePlaceholder';
 import { MoveLinesDialog } from './ui/MoveLinesDialog';
 import { MergeSummaryDialog } from './ui/MergeSummaryDialog';
 import { PreviewPlayer } from './ui/PreviewPlayer';
@@ -153,18 +157,7 @@ interface ModuleCheck {
  */
 type Phase = 'loading' | 'gate' | 'ready';
 
-type Module =
-  | 'story'
-  | 'character'
-  | 'items'
-  | 'quests'
-  | 'images'
-  | 'sounds'
-  | 'command'
-  | 'battle'
-  | 'locale'
-  | 'export'
-  | 'settings';
+type Module = ModuleId | 'character' | 'export' | 'settings';
 
 /** 剧情模块里的子模块：脚本（章节 / 段落 / 对话）/ 角色 / 文本框 */
 type StoryPage = 'script' | 'characters' | 'textbox';
@@ -212,15 +205,17 @@ export default function App() {
   const [unrealPrefs, setUnrealPrefs] = useState<UnrealPrefs>(loadUnrealPrefs);
   /** 素材文件夹里的文件：立绘和音效的「素材管理」列共用这一份 */
   const assetLibrary = useAssetLibrary(host, unrealPrefs.assetFolder);
+  /** 当前项目面向的引擎：决定侧边栏显示哪一组模块、顶部标签、自动探测哪个编辑器 */
+  const engine = engineOf(project);
   /** 和 Unreal 编辑器的连接：导入设置页和「导出到 UE」弹窗共用 */
   const unrealConnection = useUnrealConnection(host, unrealPrefs.uprojectPath, {
     // 只有选中 Unreal 时才自动探测，别让两个引擎同时 ping
-    autoConnect: unrealPrefs.autoConnect && unrealPrefs.engine === 'unreal',
+    autoConnect: unrealPrefs.autoConnect && engine === 'unreal',
     intervalSec: unrealPrefs.connectIntervalSec,
   });
   /** 和 Godot 编辑器的连接：设置页的插件安装与顶部标签共用 */
   const godotConnection = useGodotConnection(host, unrealPrefs.godotProjectPath, {
-    autoConnect: unrealPrefs.autoConnect && unrealPrefs.engine === 'godot',
+    autoConnect: unrealPrefs.autoConnect && engine === 'godot',
     intervalSec: unrealPrefs.connectIntervalSec,
   });
   /** 「导出到 UE」弹窗开着没有 */
@@ -887,7 +882,7 @@ export default function App() {
     setPicking(false);
     if (target === null) return;
 
-    const fresh = createEmptyProject(undefined, settings.theme);
+    const fresh = createEmptyProject(undefined, settings.theme, unrealPrefs.engine);
     try {
       await host.writeProject(target, JSON.stringify(fresh, null, 2));
     } catch {
@@ -1011,20 +1006,57 @@ export default function App() {
     setToast(`已另存为 ${target}`);
   };
 
+  /** 侧边栏实际显示的模块：引擎定候选集，项目里还能再关掉几个 */
+  const visible = useMemo(() => visibleModules(project), [project]);
+  /** 当前停在哪个 MCR 模块上；这一期只有占位页，具体功能后面再填 */
+  const mcrModule = visible.find((item) => item.id === module && item.id.startsWith('mcr_'));
+
+  /**
+   * 换引擎：引擎记在项目文件里（决定侧边栏给哪组模块、顶部标签、自动探测谁），
+   * 同时写回本机设置，下次新建项目默认还用它。
+   */
+  const handleChangeEngine = (next: EngineKind): void => {
+    setProject((prev) => ({ ...prev, engine: next }));
+    setUnrealPrefs((prev) => ({ ...prev, engine: next }));
+  };
+
+  /** 模块开关：关掉只是从侧边栏藏起来、不参与校验和导出，数据一条不删 */
+  const handleToggleModule = (id: ModuleId, on: boolean): void => {
+    setProject((prev) => {
+      const disabled = new Set(prev.disabledModules ?? []);
+      if (on) disabled.delete(id);
+      else disabled.add(id);
+      return { ...prev, disabledModules: [...disabled] };
+    });
+  };
+
   /**
    * 各模块的校验结果。
    *
    * 都在改动后自动重算（和项目状态一起 useMemo），所以右上角的总数与模块
    * 底部的条数永远是最新的，不需要手动点「校验」。
+   * 只校验当前项目可见的模块：另一个引擎的模块、以及项目里关掉的模块都不该报错。
    */
-  const checks = useMemo<ModuleCheck[]>(
-    () => [
-      { key: 'story', label: '剧情', report: validateProject(project) },
-      { key: 'battle', label: '战斗', report: validateBattle(project) },
-      { key: 'locale', label: '本地化', report: validateLocalization(project) },
-    ],
-    [project],
-  );
+  const checks = useMemo<ModuleCheck[]>(() => {
+    const ids = new Set(visibleModules(project).map((item) => item.id));
+    const list: ModuleCheck[] = [];
+    if (ids.has('story')) {
+      list.push({ key: 'story', label: '剧情', report: validateProject(project) });
+    }
+    if (ids.has('battle')) {
+      list.push({ key: 'battle', label: '战斗', report: validateBattle(project) });
+    }
+    if (ids.has('locale')) {
+      list.push({ key: 'locale', label: '本地化', report: validateLocalization(project) });
+    }
+    return list;
+  }, [project]);
+
+  /** 当前模块被关掉、或换了引擎不在候选集里了：回到剧情，别停在一个看不见的页面上 */
+  useEffect(() => {
+    if (module === 'export' || module === 'settings' || module === 'character') return;
+    if (!isModuleVisible(project, module)) setModule('story');
+  }, [module, project]);
 
   const checkTotal = checks.reduce((sum, item) => sum + item.report.issues.length, 0);
   const checkErrors = checks.reduce((sum, item) => sum + item.report.errors, 0);
@@ -1072,6 +1104,7 @@ export default function App() {
 
     return (
       <button
+        key={key}
         type="button"
         className={`rail-item${extraClass === '' ? '' : ` ${extraClass}`}${
           module === key ? ' active' : ''
@@ -1164,7 +1197,7 @@ export default function App() {
         {/* 编辑器连接状态：和「协作」一个样式。选 Unreal 时绿点=连上（点一下直接导出），
             选 Godot 时只显示连接状态（点一下去设置） */}
         <EngineBadge
-          engine={unrealPrefs.engine}
+          engine={engine}
           connection={unrealConnection}
           godotConnection={godotConnection}
           onExportToUe={() => setUeDialogOpen(true)}
@@ -1224,14 +1257,8 @@ export default function App() {
 
       <div className="body">
         <nav className="rail">
-          {railButton('story', '✎', '剧情')}
-          {railButton('sounds', '♪', '音效')}
-          {railButton('items', '◆', '物品')}
-          {railButton('quests', '✓', '任务')}
-          {railButton('images', '▣', '立绘')}
-          {railButton('command', '⌘', '条件与指令')}
-          {railButton('battle', '⚔', '战斗')}
-          {railButton('locale', '文', '本地化')}
+          {/* 模块清单在 core/modules.ts：引擎决定这一组有哪些，项目里还能再关掉几个 */}
+          {visible.map((item) => railButton(item.id, item.icon, item.label))}
 
           {/*
             置底的一组：靠 rail-item-bottom 的 margin-top:auto 顶到最下面，
@@ -1492,6 +1519,9 @@ export default function App() {
                 />
               )}
 
+              {/* MCR（Godot）独有的几张表：先占位，功能随后按模块补 */}
+              {mcrModule !== undefined && <ModulePlaceholder module={mcrModule} />}
+
               {module === 'export' && (
                 <ExportEditor
                   project={project}
@@ -1513,6 +1543,10 @@ export default function App() {
                   pickGodotProject={host?.godot?.pickProject}
                   connection={unrealConnection}
                   godotConnection={godotConnection}
+                  engine={engine}
+                  disabledModules={project.disabledModules ?? []}
+                  onChangeEngine={handleChangeEngine}
+                  onToggleModule={handleToggleModule}
                   onChange={(patch) => {
                     setSettings((prev) => ({ ...prev, ...patch }));
                     // 主题跟着项目文件走：换台机器打开还是同一个颜色

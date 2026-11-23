@@ -1,3 +1,5 @@
+import { modulesForEngine } from '../core/modules';
+import type { EngineKind, ModuleId } from '../core/types';
 import { DEFAULT_CONNECT_INTERVAL_SEC, type Settings, type UnrealPrefs } from '../state/prefs';
 import { UpdateCard } from './UpdatePanel';
 import type { GodotConnection } from './use-godot-connection';
@@ -12,6 +14,13 @@ interface Props {
   /** 引擎连接的本机配置：Unreal / Godot 的工程路径、自动连接参数都放在这里 */
   unrealPrefs: UnrealPrefs;
   onChangeUnrealPrefs: (patch: Partial<UnrealPrefs>) => void;
+  /** 当前项目面向的引擎（记在项目文件里，不是本机设置） */
+  engine: EngineKind;
+  /** 换引擎：写进项目文件，同时记下「上次选的」给新建项目当默认 */
+  onChangeEngine: (engine: EngineKind) => void;
+  /** 项目里关掉的模块（必需模块不在这里） */
+  disabledModules: ModuleId[];
+  onToggleModule: (id: ModuleId, on: boolean) => void;
   /** 挑素材文件夹；网页版 / 本地服务版没有这个能力（传 undefined） */
   pickAssetFolder?: () => Promise<string | null>;
   /** 挑 .uproject 文件 */
@@ -31,6 +40,7 @@ const AUTO_SAVE_OFF = '改动不会自动写回项目文件，请记得点顶部
 
 const SECTIONS = [
   { id: 'engine', label: '引擎连接' },
+  { id: 'modules', label: '模块' },
   { id: 'general', label: '通用' },
 ] as const;
 
@@ -42,6 +52,10 @@ export function SettingsEditor({
   updater,
   unrealPrefs,
   onChangeUnrealPrefs,
+  engine,
+  onChangeEngine,
+  disabledModules,
+  onToggleModule,
   pickAssetFolder,
   pickUproject,
   pickGodotProject,
@@ -52,7 +66,7 @@ export function SettingsEditor({
   // 默认停在「通用」：自动保存、主题、素材文件夹是平时最常改的；引擎连接点左边切过去
   const [section, chooseSection] = useRememberedChoice<SectionId>('settings:section', 'general');
 
-  const engineLabel = unrealPrefs.engine === 'godot' ? 'Godot' : 'Unreal';
+  const engineLabel = engine === 'godot' ? 'Godot' : 'Unreal';
 
   const engineSection = (
     <>
@@ -61,15 +75,13 @@ export function SettingsEditor({
           <div className="settings-text">
             <strong>引擎</strong>
             <span>
-              选 Unreal 还是 Godot。顶部工具栏右侧的标签、自动连接的探测对象都跟着它走；
-              「导出到 UE」入口不受影响。
+              这个项目面向 Unreal 还是 Godot。侧边栏给哪组模块、顶部工具栏右侧的标签、
+              自动连接探测谁，都跟着它走；「导出到 UE」入口不受影响。换引擎不会删数据。
             </span>
           </div>
           <select
-            value={unrealPrefs.engine}
-            onChange={(event) =>
-              onChangeUnrealPrefs({ engine: event.target.value === 'godot' ? 'godot' : 'unreal' })
-            }
+            value={engine}
+            onChange={(event) => onChangeEngine(event.target.value === 'godot' ? 'godot' : 'unreal')}
           >
             <option value="unreal">Unreal</option>
             <option value="godot">Godot</option>
@@ -77,7 +89,7 @@ export function SettingsEditor({
         </div>
       </section>
 
-      {unrealPrefs.engine === 'unreal' ? (
+      {engine === 'unreal' ? (
         <section className="settings-card">
           <div className="settings-item">
             <div className="settings-text">
@@ -231,6 +243,45 @@ export function SettingsEditor({
     </>
   );
 
+  const modulesSection = (
+    <section className="settings-card">
+      <div className="settings-item">
+        <div className="settings-text">
+          <strong>模块</strong>
+          <span>
+            当前项目面向 {engineLabel}，下面是它能用的模块。关掉只是先从侧边栏藏起来，
+            不参与校验和导出，数据还在项目文件里；必需模块关不掉。
+          </span>
+        </div>
+      </div>
+      <ul className="settings-module-list">
+        {modulesForEngine(engine).map((item) => {
+          const on = item.required === true || !disabledModules.includes(item.id);
+          return (
+            <li key={item.id} className="settings-module-row">
+              <span className="settings-module-icon">{item.icon}</span>
+              <span className="settings-module-label">{item.label}</span>
+              {item.required === true ? (
+                <span className="hint">必需</span>
+              ) : (
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    aria-label={`启用${item.label}`}
+                    onChange={(event) => onToggleModule(item.id, event.target.checked)}
+                  />
+                  <span className="switch-track" />
+                  <span className="switch-label">{on ? '已开启' : '已关闭'}</span>
+                </label>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+
   const generalSection = (
     <>
       <section className="settings-card">
@@ -318,7 +369,7 @@ export function SettingsEditor({
     <div className="editor settings" ref={editorRef}>
       <div className="editor-head">
         <h2>设置</h2>
-        <span className="hint">设置只记在这台机器上，不会写进项目文件</span>
+        <span className="hint">引擎与模块记在项目文件里，其余设置只记在这台机器上</span>
       </div>
 
       <div className="settings-body">
@@ -336,7 +387,11 @@ export function SettingsEditor({
           ))}
         </nav>
         <div className="settings-sections">
-          {section === 'engine' ? engineSection : generalSection}
+          {section === 'engine'
+            ? engineSection
+            : section === 'modules'
+              ? modulesSection
+              : generalSection}
         </div>
       </div>
     </div>

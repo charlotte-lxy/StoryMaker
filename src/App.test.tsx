@@ -783,13 +783,15 @@ describe('设置、自动保存与自动加载', () => {
     expect(screen.getByText('深色')).toBeTruthy();
   });
 
-  it('设置页分「引擎连接 / 通用」两栏；选 Godot 后顶部标签变 Godot 并多出装插件的条目', async () => {
+  it('设置页分「引擎连接 / 模块 / 通用」三栏；选 Godot 后顶部标签变 Godot 并多出装插件的条目', async () => {
     await renderApp();
     fireEvent.click(within(rail()).getByText('设置'));
 
     // 默认停在「通用」：自动保存、主题这些老条目还在原处
     expect(screen.getByText('自动保存')).toBeTruthy();
     expect(document.querySelector('.ue-badge')?.textContent).toBe('UE');
+    // 左栏多出「模块」一栏
+    expect(screen.getByRole('button', { name: '模块' })).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: '引擎连接' }));
     expect(screen.getByText('Unreal 连接')).toBeTruthy();
@@ -805,11 +807,53 @@ describe('设置、自动保存与自动加载', () => {
     // 自动连接还在这一栏，并且文案跟着引擎走
     expect(screen.getByText(/定时探测 Godot 编辑器/)).toBeTruthy();
 
+    // 引擎记在项目文件里（侧边栏跟着变），本机只记「上次选的」给新建项目当默认
+    await waitFor(() => {
+      const savedProject = JSON.parse(host.disk.get(DEFAULT_PROJECT_PATH) ?? '{}') as {
+        engine?: string;
+      };
+      expect(savedProject.engine).toBe('godot');
+    });
     await waitFor(() => {
       const saved = JSON.parse(window.localStorage.getItem('storymaker.unreal.v1') ?? '{}') as {
         engine?: string;
       };
       expect(saved.engine).toBe('godot');
+    });
+  });
+
+  it('切到 Godot 后侧边栏换成 MCR 那套；关掉模块只是藏起来，数据仍写回项目文件', async () => {
+    await renderApp();
+    const railEl = () => document.querySelector('.rail') as HTMLElement;
+
+    fireEvent.click(within(railEl()).getByText('设置'));
+    fireEvent.click(screen.getByRole('button', { name: '引擎连接' }));
+    fireEvent.change(document.querySelector('.settings-sections select') as HTMLSelectElement, {
+      target: { value: 'godot' },
+    });
+
+    // 通用五个 + MCR 五项；Unreal 独有的任务、物品、战斗让位
+    expect(within(railEl()).getByText('物品（MCR）')).toBeTruthy();
+    expect(within(railEl()).getByText('房间（MCR）')).toBeTruthy();
+    expect(within(railEl()).queryByText('任务')).toBeNull();
+    expect(within(railEl()).queryByText('物品')).toBeNull();
+
+    // 点进 MCR 模块是占位页：入口先就位，功能还没做
+    fireEvent.click(within(railEl()).getByText('房间（MCR）'));
+    expect(screen.getByText('功能还没做')).toBeTruthy();
+
+    // 设置 → 模块：剧情是必需模块，没有开关；音效可以关，关掉侧边栏立刻少一项
+    fireEvent.click(within(railEl()).getByText('设置'));
+    fireEvent.click(screen.getByRole('button', { name: '模块' }));
+    expect(screen.queryByRole('checkbox', { name: '启用剧情' })).toBeNull();
+    fireEvent.click(screen.getByRole('checkbox', { name: '启用音效' }));
+    expect(within(railEl()).queryByText('音效')).toBeNull();
+
+    await waitFor(() => {
+      const saved = JSON.parse(host.disk.get(DEFAULT_PROJECT_PATH) ?? '{}') as {
+        disabledModules?: string[];
+      };
+      expect(saved.disabledModules).toContain('sounds');
     });
   });
 

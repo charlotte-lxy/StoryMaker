@@ -35,6 +35,7 @@ import {
   EXPRESSION_IMAGE_ROOT,
 } from './expression-images';
 import { WEAPON_ICON_CATEGORY, WEAPON_ICON_ROOT } from './weapon-icons';
+import { isModuleId } from './modules';
 import { firstLineRef, groupUidOfFirstLine, makeLineId, newUid, renumberGroup, type IdChange } from './ids';
 import { collectRefMaps, collectRefUids } from './refs';
 import { DEFAULT_SPECIAL_COMMAND_CLASS_PREFIX } from './special-commands';
@@ -147,6 +148,12 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
     if (!Array.isArray(project[key])) project[key] = [];
   }
   if (!Array.isArray(project.variables)) project.variables = [];
+
+  // 引擎与模块是后加的：老项目没有这两栏，按「Unreal + 模块全开」处理；
+  // 手改过的 JSON 里 disabledModules 可能写着不认识的 ID，读的时候就滤掉。
+  project.engine = project.engine === 'godot' ? 'godot' : 'unreal';
+  const rawDisabled: unknown = project.disabledModules;
+  project.disabledModules = (Array.isArray(rawDisabled) ? rawDisabled : []).filter(isModuleId);
 
   // 物品表后来多了「物品名称 / 物品描述」的三语字段（中文就是 name / description），
   // 老项目里没有，补成空串，免得界面读到 undefined。
