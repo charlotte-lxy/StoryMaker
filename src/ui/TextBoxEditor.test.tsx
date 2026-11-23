@@ -42,6 +42,12 @@ describe('文本框子模块', () => {
     expect(document.querySelector('.textbox-text')?.textContent).toBe('这是一段示例台词。');
   });
 
+  it('没选背景图时画布上不放图片，背景是全透明', () => {
+    renderEditor();
+    expect(document.querySelector('.textbox-bg')).toBeNull();
+    expect(screen.getByRole('option', { name: '（无，全透明）' })).toBeTruthy();
+  });
+
   it('新建按钮把新文本框加进列表并选中它', () => {
     const { onChange } = renderEditor();
     fireEvent.click(screen.getByText('＋ 新建文本框'));
@@ -74,6 +80,61 @@ describe('文本框子模块', () => {
     const lineHeight = screen.getByRole('slider') as HTMLInputElement;
     fireEvent.change(lineHeight, { target: { value: '2' } });
     expect(lastProject(onChange).textBoxes?.[0].lineHeight).toBe(2);
+  });
+
+  it('点画布上的控件才出现八向把手，点空白处把手消失', () => {
+    renderEditor();
+    expect(document.querySelectorAll('.textbox-handle')).toHaveLength(0);
+
+    fireEvent.pointerDown(document.querySelector('.textbox-text')!);
+    expect(document.querySelectorAll('.textbox-handle')).toHaveLength(8);
+    expect(document.querySelector('.textbox-text')?.classList.contains('selected')).toBe(true);
+
+    fireEvent.pointerDown(document.querySelector('.textbox-canvas')!);
+    expect(document.querySelectorAll('.textbox-handle')).toHaveLength(0);
+    expect(document.querySelector('.textbox-text')?.classList.contains('selected')).toBe(false);
+  });
+
+  it('右侧按钮也能选中控件，切换后把手跟着换', () => {
+    renderEditor();
+    fireEvent.click(screen.getByRole('button', { name: '说话人名字' }));
+    expect(document.querySelector('.textbox-name')?.classList.contains('selected')).toBe(true);
+    expect(document.querySelectorAll('.textbox-handle')).toHaveLength(8);
+
+    fireEvent.click(screen.getByRole('button', { name: '背景图' }));
+    expect(document.querySelector('.textbox-frame')?.classList.contains('selected')).toBe(true);
+    expect(document.querySelector('.textbox-name')?.classList.contains('selected')).toBe(false);
+  });
+
+  it('名字藏起来时不能选名字控件', () => {
+    const project = createEmptyProject();
+    project.textBoxes![0].showName = false;
+    renderEditor(project);
+    expect((screen.getByRole('button', { name: '说话人名字' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+  });
+
+  it('位置数字按设计稿像素显示，改完写回画布坐标', () => {
+    const { onChange } = renderEditor();
+    fireEvent.click(screen.getByRole('button', { name: '背景图' }));
+
+    const posX = screen.getByLabelText('位置X') as HTMLInputElement;
+    expect(posX.value).toBe('96.0');
+    fireEvent.change(posX, { target: { value: '192' } });
+    fireEvent.blur(posX);
+
+    expect(lastProject(onChange).textBoxes?.[0].box.x).toBeCloseTo(0.1);
+  });
+
+  it('换锚点只换参考点，写回 anchors 且不动矩形', () => {
+    const { onChange } = renderEditor();
+    fireEvent.click(screen.getByRole('button', { name: '背景图' }));
+    fireEvent.click(screen.getByRole('button', { name: '锚点：居中' }));
+
+    const next = lastProject(onChange);
+    expect(next.textBoxes?.[0].anchors.bg).toEqual({ col: 1, row: 1 });
+    expect(next.textBoxes?.[0].box).toEqual(createEmptyProject().textBoxes?.[0].box);
   });
 
   it('有两条时点列表里的另一个，会记成下次打开的选中项', () => {

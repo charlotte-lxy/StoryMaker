@@ -5,6 +5,7 @@ import {
   addTextBox,
   rememberTextBox,
   removeTextBox,
+  setTextBoxAnchor,
   setTextBoxRect,
   textBoxesOf,
   updateTextBox,
@@ -45,11 +46,19 @@ describe('文本框的操作', () => {
     expect(textBoxesOf(project)[0].align).toBe('left');
   });
 
-  it('改矩形时把越界坐标夹回来', () => {
+  it('改矩形时允许越出画布，但收在合理范围里', () => {
     const project = createEmptyProject();
     const uid = textBoxesOf(project)[0].uid;
     const next = setTextBoxRect(project, uid, 'box', { x: 5, y: -2, w: 0.1, h: 0.1 });
-    expect(textBoxesOf(next)[0].box).toEqual({ x: 0.9, y: 0, w: 0.1, h: 0.1 });
+    expect(textBoxesOf(next)[0].box).toEqual({ x: 2, y: -1, w: 0.1, h: 0.1 });
+  });
+
+  it('换锚点只动那一个控件的锚点', () => {
+    const project = createEmptyProject();
+    const uid = textBoxesOf(project)[0].uid;
+    const next = setTextBoxAnchor(project, uid, 'textRect', { col: 3, row: 3 });
+    expect(textBoxesOf(next)[0].anchors.text).toEqual({ col: 3, row: 3 });
+    expect(textBoxesOf(next)[0].anchors.bg).toEqual({ col: 0, row: 0 });
   });
 
   it('名字 / 台词的矩形也各自独立保存', () => {

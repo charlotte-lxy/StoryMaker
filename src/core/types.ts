@@ -152,25 +152,45 @@ export interface Rect {
 }
 
 /**
+ * 锚点在 Unreal 锚点选择器里的格子：4 列 × 4 行。
+ *
+ * 0 / 1 / 2 列分别是左 / 中 / 右，3 列是「横向拉伸」；
+ * 行同理（上 / 中 / 下 / 纵向拉伸）。拉伸的格子用边距定位，不再有尺寸。
+ */
+export interface AnchorCell {
+  col: 0 | 1 | 2 | 3;
+  row: 0 | 1 | 2 | 3;
+}
+
+/**
  * 文本框：预览时台词框长什么样。
  *
- * 目前只做编辑界面（剧情 → 文本框），还不参与导出；`box` 相对 16:9 画面，
- * `nameRect` / `textRect` 相对文本框，所以整体换位置时名字和台词会跟着走。
+ * 目前只做编辑界面（剧情 → 文本框），还不参与导出。
+ * 外框（`box`，也就是背景图）、说话人名字、台词是画布上三个各自独立的控件，
+ * 位置都相对 16:9 的画布存成 0–1；`rectSpace` 标着这套坐标是画布坐标，
+ * 老项目没有这个标记，读进来时会把名字 / 台词从「相对外框」换算过来。
  */
 export interface TextBoxRow {
   uid: string;
   /** 列表里显示的名字 */
   name: string;
-  /** 背景图：图片表那一行的 uid；空串 = 半透明黑底 */
+  /** 背景图：图片表那一行的 uid；空串 = 全透明 */
   imageUid: string;
   /** 是否显示说话人名字 */
   showName: boolean;
   /** 编辑时的示例名字 / 台词（真正播放时来自剧情） */
   sampleName: string;
   sampleText: string;
+  /** 坐标标记：`canvas` = 下面三个矩形都相对 16:9 画布 */
+  rectSpace: 'canvas';
+  /** 外框 / 背景图 */
   box: Rect;
+  /** 说话人名字 */
   nameRect: Rect;
+  /** 台词 */
   textRect: Rect;
+  /** 三个控件各自的锚点（只决定右侧面板里位置数字的参考点） */
+  anchors: { bg: AnchorCell; name: AnchorCell; text: AnchorCell };
   align: 'left' | 'center' | 'right';
   /** 行距倍数 */
   lineHeight: number;

@@ -1,6 +1,11 @@
 import { clampRect, createDefaultTextBox } from '../core/textbox';
-import type { Project, Rect, TextBoxRow } from '../core/types';
+import type { AnchorCell, Project, Rect, TextBoxRow } from '../core/types';
 import { mutate } from './operations';
+
+/** 画布上的三个控件：外框（背景图）/ 名字 / 台词 */
+export type TextBoxPart = 'box' | 'nameRect' | 'textRect';
+
+const ANCHOR_KEY = { box: 'bg', nameRect: 'name', textRect: 'text' } as const;
 
 /** 项目里的文本框列表；老项目还没归一化时按空表处理 */
 export function textBoxesOf(project: Project): TextBoxRow[] {
@@ -34,17 +39,31 @@ export function updateTextBox(
   });
 }
 
-/** 拖动 / 缩放改一个矩形：box 相对画面，nameRect / textRect 相对外框 */
+/** 拖动 / 缩放改一个矩形：三个控件都相对画布 */
 export function setTextBoxRect(
   project: Project,
   uid: string,
-  which: 'box' | 'nameRect' | 'textRect',
+  which: TextBoxPart,
   rect: Rect,
 ): Project {
   return mutate(project, (draft) => {
     const row = draft.textBoxes?.find((item) => item.uid === uid);
     if (row === undefined) return;
     row[which] = clampRect(rect, row[which]);
+  });
+}
+
+/** 换一个控件的锚点：矩形不动，只换成新的参考点（跟 Unreal 一样） */
+export function setTextBoxAnchor(
+  project: Project,
+  uid: string,
+  which: TextBoxPart,
+  anchor: AnchorCell,
+): Project {
+  return mutate(project, (draft) => {
+    const row = draft.textBoxes?.find((item) => item.uid === uid);
+    if (row === undefined) return;
+    row.anchors = { ...row.anchors, [ANCHOR_KEY[which]]: { ...anchor } };
   });
 }
 

@@ -5039,24 +5039,43 @@ tr.locale-form-note td {
 .textbox-canvas-wrap {
   flex: 1;
   min-width: 0;
-  padding: 18px;
+  min-height: 0;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  overflow: auto;
+  gap: 8px;
+}
+
+.textbox-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #171a20;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.textbox-scaler {
+  position: relative;
+  flex-shrink: 0;
 }
 
 .textbox-canvas {
-  position: relative;
-  width: 100%;
-  max-width: 1000px;
-  margin: 0 auto;
-  aspect-ratio: 16 / 9;
-  flex-shrink: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
+  box-sizing: border-box;
   background: #3c414a;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
+  border-radius: 16px;
+  /* 控件允许拖到画布外面，这里不能裁掉，不然拖出去就看不见了 */
+  overflow: visible;
+  touch-action: none;
+  user-select: none;
 }
 
 .textbox-empty {
@@ -5069,12 +5088,11 @@ tr.locale-form-note td {
   font-size: 13px;
 }
 
+/* 外框就是背景图：没选图片时完全透明，只有选中时才画虚线框 */
 .textbox-frame {
   position: absolute;
   box-sizing: border-box;
-  border: 1px dashed rgba(255, 255, 255, 0.45);
   border-radius: 10px;
-  background: rgba(10, 12, 18, 0.82);
   cursor: move;
   touch-action: none;
 }
@@ -5093,35 +5111,58 @@ tr.locale-form-note td {
   position: absolute;
   box-sizing: border-box;
   color: #ffffff;
-  font-size: 13px;
+  font-size: 40px;
   font-weight: 600;
-  padding: 2px 4px;
+  padding: 6px 14px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
   cursor: move;
+  touch-action: none;
 }
 
 .textbox-text {
   position: absolute;
   box-sizing: border-box;
   color: #e8eaf0;
-  font-size: 15px;
-  padding: 2px 4px;
+  font-size: 42px;
+  padding: 6px 14px;
   overflow: hidden;
   white-space: pre-wrap;
   word-break: break-word;
   cursor: move;
+  touch-action: none;
+}
+
+/* 没选中时只给一点点悬停提示，方便找到全透明的背景图 */
+.textbox-frame:hover,
+.textbox-name:hover,
+.textbox-text:hover {
+  outline: 2px dashed rgba(255, 255, 255, 0.22);
+}
+
+.textbox-frame.selected,
+.textbox-name.selected,
+.textbox-text.selected {
+  outline: 4px dashed rgba(255, 255, 255, 0.8);
+}
+
+.textbox-handles {
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: none;
+  z-index: 4;
 }
 
 .textbox-handle {
   position: absolute;
-  width: 11px;
-  height: 11px;
-  border-radius: 3px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   background: #ffffff;
-  border: 1px solid var(--accent);
+  border: 4px solid var(--accent);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+  pointer-events: auto;
   z-index: 2;
 }
 
@@ -5146,15 +5187,17 @@ tr.locale-form-note td {
 }
 
 .textbox-hint {
+  flex-shrink: 0;
   margin: 0;
   font-size: 11px;
+  line-height: 1.5;
   color: var(--text-dim);
   text-align: center;
 }
 
 .textbox-detail {
   flex-shrink: 0;
-  width: 300px;
+  width: 320px;
   padding: 14px;
   display: flex;
   flex-direction: column;
@@ -5200,6 +5243,110 @@ tr.locale-form-note td {
   border-color: var(--accent);
   color: var(--on-accent);
   font-weight: 600;
+}
+
+.textbox-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.textbox-section h4 {
+  margin: 0;
+  font-size: 12px;
+}
+
+.textbox-section-hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.textbox-parts {
+  display: flex;
+  gap: 6px;
+}
+
+.textbox-parts button {
+  flex: 1;
+  padding: 5px 4px;
+  font-size: 12px;
+  border-color: var(--border);
+  background: var(--control-bg);
+}
+
+.textbox-parts button.active,
+.textbox-parts button.active:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.textbox-parts button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.textbox-anchor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.textbox-anchor-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.textbox-anchor-grid button {
+  position: relative;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--border);
+  background: var(--control-bg);
+  border-radius: 4px;
+}
+
+.textbox-anchor-grid button.active,
+.textbox-anchor-grid button.active:hover {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.textbox-anchor-mark {
+  display: block;
+  border-radius: 2px;
+  background: var(--text-dim);
+}
+
+.textbox-anchor-grid button.active .textbox-anchor-mark {
+  background: var(--on-accent);
+}
+
+.textbox-slot {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 8px;
+}
+
+.textbox-number {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.textbox-number input {
+  font-size: 12px;
+  padding: 4px 6px;
 }
 
 .textbox-remove {
