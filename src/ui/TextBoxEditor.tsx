@@ -12,7 +12,7 @@ import {
   slotToRect,
   type SlotValues,
 } from '../core/textbox';
-import type { AnchorCell, Project, Rect, TextBoxRow } from '../core/types';
+import type { AnchorCell, Project, Rect, TextBoxReveal, TextBoxRow } from '../core/types';
 import {
   TEXT_BOX_PART_LABELS,
   TEXT_BOX_PARTS,
@@ -262,6 +262,102 @@ function TextStyleFields({
           onChange={(event) => onChange({ lineHeight: Number(event.target.value) })}
         />
       </label>
+    </>
+  );
+}
+
+/**
+ * 台词的出现效果：立即 / 淡入淡出 / 逐字，外加「允许多行」。
+ *
+ * 只有台词用得上这些：名字和背景图不会有逐字 / 淡入淡出的变化。
+ */
+function RevealFields({
+  control,
+  onChange,
+}: {
+  control: TextBoxRow['text'];
+  onChange: (patch: Partial<TextBoxRow['text']>) => void;
+}): React.JSX.Element {
+  const number = (raw: string, fallback: number, min: number): number => {
+    const parsed = Number.parseFloat(raw);
+    return Number.isFinite(parsed) ? Math.max(min, parsed) : fallback;
+  };
+  return (
+    <>
+      <label className="textbox-check">
+        <input
+          type="checkbox"
+          checked={control.multiLine}
+          onChange={(event) => onChange({ multiLine: event.target.checked })}
+        />
+        允许多行（下一句接在下一行）
+      </label>
+
+      <label className="field">
+        <span>出现效果</span>
+        <select
+          value={control.reveal}
+          onChange={(event) => onChange({ reveal: event.target.value as TextBoxReveal })}
+        >
+          <option value="instant">立即</option>
+          <option value="fade">淡入淡出</option>
+          <option value="typewriter">逐字</option>
+        </select>
+      </label>
+
+      {control.reveal === 'fade' && (
+        <>
+          <label className="field">
+            <span>淡入时长（秒）</span>
+            <input
+              type="number"
+              step={0.05}
+              min={0}
+              value={control.fadeIn}
+              onChange={(event) => onChange({ fadeIn: number(event.target.value, control.fadeIn, 0) })}
+            />
+          </label>
+          <label className="field">
+            <span>淡出时长（秒）</span>
+            <input
+              type="number"
+              step={0.05}
+              min={0}
+              value={control.fadeOut}
+              onChange={(event) => onChange({ fadeOut: number(event.target.value, control.fadeOut, 0) })}
+            />
+          </label>
+        </>
+      )}
+
+      {control.reveal === 'typewriter' && (
+        <>
+          <label className="field">
+            <span>速度（字/秒）</span>
+            <input
+              type="number"
+              step={1}
+              min={1}
+              value={control.typeSpeed}
+              onChange={(event) =>
+                onChange({ typeSpeed: number(event.target.value, control.typeSpeed, 1) })
+              }
+            />
+          </label>
+          <label className="field">
+            <span>标点停顿（秒）</span>
+            <input
+              type="number"
+              step={0.05}
+              min={0}
+              value={control.punctuationPause}
+              onChange={(event) =>
+                onChange({ punctuationPause: number(event.target.value, control.punctuationPause, 0) })
+              }
+            />
+          </label>
+        </>
+      )}
     </>
   );
 }
@@ -600,6 +696,20 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
               />
             </label>
 
+            <label className="field">
+              <span>层级（大的显示在上层）</span>
+              <input
+                type="number"
+                step={1}
+                value={active.layer}
+                onChange={(event) => {
+                  const value = Number.parseFloat(event.target.value);
+                  if (!Number.isFinite(value)) return;
+                  patch({ layer: Math.round(value) });
+                }}
+              />
+            </label>
+
             <div className="textbox-section">
               <h4>控件</h4>
               <p className="textbox-section-hint">
@@ -766,6 +876,13 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
                     onChange={(event) => patchControl('text', { sampleText: event.target.value })}
                   />
                 </label>
+              )}
+
+              {part === 'text' && (
+                <RevealFields
+                  control={active.text}
+                  onChange={(changes) => patchControl('text', changes)}
+                />
               )}
 
               {part !== 'bg' && (

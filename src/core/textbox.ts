@@ -1,5 +1,12 @@
 import { newUid } from './ids';
-import type { AnchorCell, Rect, TextBoxAlign, TextBoxControl, TextBoxRow } from './types';
+import type {
+  AnchorCell,
+  Rect,
+  TextBoxAlign,
+  TextBoxControl,
+  TextBoxReveal,
+  TextBoxRow,
+} from './types';
 
 /** 排版用的设计稿尺寸：界面缩放时整块画布按比例缩，位置和尺寸都按这个尺寸算 */
 export const CANVAS_WIDTH = 1920;
@@ -35,6 +42,22 @@ export const TEXT_BOX_FONTS = ['微软雅黑', '黑体', '宋体'] as const;
 
 export const DEFAULT_FONT_FAMILY = '微软雅黑';
 export const DEFAULT_COLOR = '#FFFFFF';
+
+/** 出现效果：立即 / 淡入淡出 / 逐字 */
+export const TEXT_BOX_REVEALS = ['instant', 'fade', 'typewriter'] as const;
+export const DEFAULT_FADE_IN = 0.3;
+export const DEFAULT_FADE_OUT = 0.2;
+export const DEFAULT_TYPE_SPEED = 30;
+export const DEFAULT_PUNCTUATION_PAUSE = 0.15;
+export const FADE_MAX = 5;
+export const TYPE_SPEED_MIN = 1;
+export const TYPE_SPEED_MAX = 200;
+export const PUNCTUATION_PAUSE_MAX = 3;
+/** 逐字时遇到这些标点多停一下 */
+export const REVEAL_PUNCTUATION = '，。！？；：、…—,.!?;:';
+
+/** 文本框层级默认 0：数字大的画在上层 */
+export const DEFAULT_LAYER = 0;
 
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -76,6 +99,12 @@ export function createDefaultControl(rect: Rect): TextBoxControl {
     align: 'left',
     lineHeight: 1.5,
     sampleText: '',
+    reveal: 'instant',
+    fadeIn: DEFAULT_FADE_IN,
+    fadeOut: DEFAULT_FADE_OUT,
+    typeSpeed: DEFAULT_TYPE_SPEED,
+    punctuationPause: DEFAULT_PUNCTUATION_PAUSE,
+    multiLine: false,
   };
 }
 
@@ -97,6 +126,7 @@ export function createDefaultTextBox(name = '文本框 1', id = 'TB_1'): TextBox
     uid: newUid(),
     id,
     name,
+    layer: DEFAULT_LAYER,
     rectSpace: 'canvas',
     bg: createDefaultControl(box),
     speaker: createTextControl(composeRect(box, DEFAULT_NAME_RECT), 40, '角色名'),
@@ -248,7 +278,25 @@ function readControl(raw: unknown, fallback: TextBoxControl): TextBoxControl {
       LINE_HEIGHT_MAX,
     ),
     sampleText: asString(record.sampleText, fallback.sampleText),
+    reveal: readReveal(record.reveal, fallback.reveal),
+    fadeIn: clamp(asNumber(record.fadeIn, fallback.fadeIn), 0, FADE_MAX),
+    fadeOut: clamp(asNumber(record.fadeOut, fallback.fadeOut), 0, FADE_MAX),
+    typeSpeed: clamp(
+      asNumber(record.typeSpeed, fallback.typeSpeed),
+      TYPE_SPEED_MIN,
+      TYPE_SPEED_MAX,
+    ),
+    punctuationPause: clamp(
+      asNumber(record.punctuationPause, fallback.punctuationPause),
+      0,
+      PUNCTUATION_PAUSE_MAX,
+    ),
+    multiLine: typeof record.multiLine === 'boolean' ? record.multiLine : fallback.multiLine,
   };
+}
+
+function readReveal(value: unknown, fallback: TextBoxReveal): TextBoxReveal {
+  return value === 'fade' || value === 'typewriter' || value === 'instant' ? value : fallback;
 }
 
 /** 对齐值：0–1，读不出来就用默认的 0.5 */
@@ -320,6 +368,7 @@ function readTextBox(raw: Record<string, unknown>, index: number): TextBoxRow {
     uid,
     id: typeof raw.id === 'string' ? raw.id.trim() : '',
     name,
+    layer: Math.round(asNumber(raw.layer, DEFAULT_LAYER)),
     rectSpace: 'canvas',
     ...controls,
   };

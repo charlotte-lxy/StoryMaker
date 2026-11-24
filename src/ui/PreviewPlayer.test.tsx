@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { createDefaultTextBox } from '../core/textbox';
 import type { Line, Project, StoryOption } from '../core/types';
 import { createEmptyProject } from '../state/operations';
 import { PreviewPlayer } from './PreviewPlayer';
@@ -233,6 +234,66 @@ describe('PreviewPlayer 选项', () => {
 
     fireEvent.click(buttons[0]);
     expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('海风很大');
+  });
+});
+
+describe('PreviewPlayer 出现效果', () => {
+  it('逐字：一句话一个字一个字露出来，点继续先补完整行，再点才推进', () => {
+    vi.useFakeTimers();
+    try {
+      const project = makeProject();
+      project.textBoxes![0].text.reveal = 'typewriter';
+      project.textBoxes![0].text.typeSpeed = 10; // 每个字 100ms
+      const { container } = renderPlayer({ project });
+      const text = (): string => container.querySelector('.preview-textbox-text')?.textContent ?? '';
+
+      expect(text()).toBe('');
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(text()).toBe('第一');
+
+      // 第一下只是把这一句补完，不推进剧情
+      fireEvent.click(screen.getByText('继续 ▶'));
+      expect(text()).toBe('第一句');
+
+      fireEvent.click(screen.getByText('继续 ▶'));
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(text()).toBe('第二句');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('台词允许多行：下一句接在下一行，不覆盖上一句', () => {
+    const project = makeProject();
+    project.textBoxes![0].text.multiLine = true;
+    const { container } = renderPlayer({ project });
+
+    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('第一句');
+    fireEvent.click(screen.getByText('继续 ▶'));
+    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('第一句\n第二句');
+  });
+
+  it('层级高的文本框排在后面，压在其他框上面', () => {
+    const project = makeProject();
+    const second = createDefaultTextBox('叠加框', 'TB_2');
+    second.layer = 5;
+    project.textBoxes!.push(second);
+    project.chapters[0].groups[0].lines.unshift(
+      dialogue('l9', 'Dia_ch01_001-0', '', {
+        kind: '指令',
+        command: `剧情|文本框|文本框:${second.uid};操作:弹出`,
+      }),
+    );
+
+    const { container } = renderPlayer({ project });
+    const layers = [...container.querySelectorAll('.preview-textbox')] as HTMLElement[];
+    expect(layers).toHaveLength(2);
+    expect(layers[0].style.zIndex).toBe('0');
+    expect(layers[1].style.zIndex).toBe('5');
   });
 });
 

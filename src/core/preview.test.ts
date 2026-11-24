@@ -543,6 +543,42 @@ describe('文本框：初始隐藏、自动弹出、清空与隐藏', () => {
     expect(hidden.status).toBe('finished');
     expect(visibleOf(hidden, hiddenCase.boxUid)).toBe(false);
   });
+
+  const linesOf = (
+    state: { stage: { textBoxes: { textBoxUid: string; lines: { zh: string }[] }[] } },
+    uid: string,
+  ): string[] =>
+    (state.stage.textBoxes.find((box) => box.textBoxUid === uid)?.lines ?? []).map((line) => line.zh);
+
+  it('每一句默认覆盖上一句：框里始终只有最新那一句', () => {
+    const { project, boxUid } = withTextBox([
+      dialogue('d1', 'Dia_ch01_001-1', '第一句', { characterUid: 'cha1' }),
+      dialogue('d2', 'Dia_ch01_001-2', '第二句', { characterUid: 'cha1' }),
+    ]);
+    const first = startPreview(project, { groupUid: 'g1' });
+    expect(linesOf(first, boxUid)).toEqual(['第一句']);
+    const second = advance(project, first);
+    expect(linesOf(second, boxUid)).toEqual(['第二句']);
+  });
+
+  it('台词勾了允许多行：下一句接在下一行，清空时整个列表一起清掉', () => {
+    const { project, boxUid } = withTextBox([
+      dialogue('d1', 'Dia_ch01_001-1', '第一句', { characterUid: 'cha1' }),
+      dialogue('d2', 'Dia_ch01_001-2', '第二句', { characterUid: 'cha1' }),
+      commandLine('c1', 'Dia_ch01_001-3', '剧情|文本框|文本框:{{BOX}};操作:清空'),
+    ]);
+    const box = project.textBoxes[0];
+    box.text.multiLine = true;
+    const line = project.chapters[0].groups[0].lines[2];
+    line.command = line.command.replace('{{BOX}}', boxUid);
+
+    const first = startPreview(project, { groupUid: 'g1' });
+    const second = advance(project, first);
+    expect(linesOf(second, boxUid)).toEqual(['第一句', '第二句']);
+    const cleared = advance(project, second);
+    expect(linesOf(cleared, boxUid)).toEqual([]);
+    expect(visibleOf(cleared, boxUid)).toBe(true);
+  });
 });
 
 describe('选项条件原文', () => {

@@ -5,11 +5,13 @@ import {
   CANVAS_WIDTH,
   DEFAULT_ANCHOR,
   DEFAULT_TEXT_BOX_RECT,
+  FADE_MAX,
   LINE_HEIGHT_MAX,
   LINE_HEIGHT_MIN,
   MAX_RECT_OFFSET,
   MIN_RECT_OFFSET,
   MIN_RECT_SIDE,
+  TYPE_SPEED_MAX,
   clampRect,
   createDefaultTextBox,
   normalizeTextBoxes,
@@ -36,6 +38,9 @@ describe('文本框的默认值与归一化', () => {
     expect(row.text.fontSize).toBe(42);
     expect(row.text.align).toBe('left');
     expect(row.text.lineHeight).toBe(1.5);
+    expect(row.text.reveal).toBe('instant');
+    expect(row.text.multiLine).toBe(false);
+    expect(row.layer).toBe(0);
     expect(row.rectSpace).toBe('canvas');
     // 名字 / 台词都收在外框里面，但存的是画布坐标
     expect(row.speaker.rect.y).toBeGreaterThanOrEqual(row.bg.rect.y);
@@ -155,8 +160,7 @@ describe('文本框的默认值与归一化', () => {
     expect(rows[0].text.anchor).toEqual({ col: 3, row: 0 });
   });
 
-  it('新格式的三个控件原样读回，字体颜色归一化，字号不再夹上限', () => {
-    const rows = normalizeTextBoxes([
+  it('新格式的三个控件原样读回，字体颜色归一化，字号不再夹上限', () => {    const rows = normalizeTextBoxes([
       {
         uid: 'tb1',
         bg: {
@@ -185,6 +189,29 @@ describe('文本框的默认值与归一化', () => {
     // 缺省的对齐是 0.5
     expect(rows[0].bg.pivotX).toBe(0.5);
     expect(rows[0].bg.pivotY).toBe(0.5);
+  });
+
+  it('出现效果、多行与层级都能读回来，越界的参数收进范围', () => {
+    const rows = normalizeTextBoxes([
+      {
+        uid: 'tb1',
+        layer: 5.6,
+        text: {
+          reveal: 'typewriter',
+          typeSpeed: 500,
+          punctuationPause: -1,
+          fadeIn: 99,
+          multiLine: true,
+        },
+      },
+    ]);
+    expect(rows[0].layer).toBe(6);
+    expect(rows[0].text.reveal).toBe('typewriter');
+    expect(rows[0].text.typeSpeed).toBe(TYPE_SPEED_MAX);
+    expect(rows[0].text.punctuationPause).toBe(0);
+    expect(rows[0].text.fadeIn).toBe(FADE_MAX);
+    expect(rows[0].text.fadeOut).toBe(0.2);
+    expect(rows[0].text.multiLine).toBe(true);
   });
 });
 

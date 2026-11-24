@@ -150,6 +150,9 @@ export interface AnchorCell {
 /** 文字控件（人物名称 / 台词）的对齐方式 */
 export type TextBoxAlign = 'left' | 'center' | 'right';
 
+/** 出现效果：立即显示 / 淡入淡出 / 逐字打出来 */
+export type TextBoxReveal = 'instant' | 'fade' | 'typewriter';
+
 /**
  * 文本框里的一个控件：背景图 / 人物名称 / 台词。
  *
@@ -179,6 +182,17 @@ export interface TextBoxControl {
   lineHeight: number;
   /** 编辑时显示的示例文本（真正播放时来自剧情） */
   sampleText: string;
+  /** 出现效果（台词用；名字与背景图固定立即显示） */
+  reveal: TextBoxReveal;
+  /** 淡入 / 淡出时长（秒） */
+  fadeIn: number;
+  fadeOut: number;
+  /** 逐字：每秒打出几个字 */
+  typeSpeed: number;
+  /** 逐字：标点后额外停顿多久（秒） */
+  punctuationPause: number;
+  /** 台词是否允许多行：新的一句接在上一句下面，而不是覆盖 */
+  multiLine: boolean;
 }
 
 /**
@@ -199,6 +213,8 @@ export interface TextBoxRow {
   id: string;
   /** 列表里显示的名字 */
   name: string;
+  /** 层级：数字大的画在上层，默认 0 */
+  layer: number;
   /** 坐标标记：`canvas` = 三个控件都相对 16:9 画布 */
   rectSpace: 'canvas';
   /** 背景图控件 */

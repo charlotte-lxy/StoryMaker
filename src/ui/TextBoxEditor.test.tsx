@@ -91,6 +91,52 @@ describe('文本框子模块', () => {
     expect(lastProject(onChange).textBoxes?.[0].id).toBe('TB_旁白');
   });
 
+  it('台词的允许多行与出现效果写回项目', () => {
+    const { onChange } = renderEditor();
+    openPart('台词');
+
+    fireEvent.click(screen.getByLabelText(/允许多行/));
+    expect(lastProject(onChange).textBoxes?.[0].text.multiLine).toBe(true);
+
+    // 默认是立即显示，没有任何时长参数
+    expect(screen.queryByLabelText(/淡入时长/)).toBeNull();
+    fireEvent.change(screen.getByLabelText('出现效果'), { target: { value: 'fade' } });
+    expect(lastProject(onChange).textBoxes?.[0].text.reveal).toBe('fade');
+  });
+
+  it('淡入淡出只显示淡入 / 淡出时长', () => {
+    const project = createEmptyProject();
+    project.textBoxes![0].text.reveal = 'fade';
+    const { onChange } = renderEditor(project);
+    openPart('台词');
+
+    expect(screen.queryByLabelText(/速度/)).toBeNull();
+    fireEvent.change(screen.getByLabelText(/淡入时长/), { target: { value: '0.6' } });
+    expect(lastProject(onChange).textBoxes?.[0].text.fadeIn).toBe(0.6);
+    fireEvent.change(screen.getByLabelText(/淡出时长/), { target: { value: '0.1' } });
+    expect(lastProject(onChange).textBoxes?.[0].text.fadeOut).toBe(0.1);
+  });
+
+  it('逐字只显示速度与标点停顿', () => {
+    const project = createEmptyProject();
+    project.textBoxes![0].text.reveal = 'typewriter';
+    const { onChange } = renderEditor(project);
+    openPart('台词');
+
+    expect(screen.queryByLabelText(/淡入时长/)).toBeNull();
+    fireEvent.change(screen.getByLabelText(/速度/), { target: { value: '12' } });
+    expect(lastProject(onChange).textBoxes?.[0].text.typeSpeed).toBe(12);
+    fireEvent.change(screen.getByLabelText(/标点停顿/), { target: { value: '0.5' } });
+    expect(lastProject(onChange).textBoxes?.[0].text.punctuationPause).toBe(0.5);
+  });
+
+  it('层级写回项目', () => {
+    const { onChange } = renderEditor();
+    const layer = screen.getByLabelText(/层级/) as HTMLInputElement;
+    fireEvent.change(layer, { target: { value: '3' } });
+    expect(lastProject(onChange).textBoxes?.[0].layer).toBe(3);
+  });
+
   it('台词页能改示例文本、字号、字体、颜色、对齐与行距', () => {
     const { onChange } = renderEditor();
     openPart('台词');

@@ -36,8 +36,8 @@ import {
   type PreviewState,
 } from '../core/preview';
 import { characterAssetOf, imageAssetOf, soundAssetOf } from '../core/preview-assets';
-import { CANVAS_HEIGHT, CANVAS_WIDTH } from '../core/textbox';
-import type { Project, TextBoxRow } from '../core/types';
+import { CANVAS_HEIGHT, CANVAS_WIDTH, REVEAL_PUNCTUATION } from '../core/textbox';
+import type { LocalizedText, Project, TextBoxRow } from '../core/types';
 import { blobOf, canPreviewImage, mimeOf } from './asset-blob';
 import { registerAudioStopper } from './audio-registry';
 import { SoundPlayer } from './sound-player';
@@ -207,6 +207,221 @@ function controlTextStyle(control: TextBoxRow['text']): React.CSSProperties {
   };
 }
 
+/** 一句台词按语言取文本：中文优先，其次英文，最后日文 */
+function previewTextOf(text: LocalizedText): string {
+  return text.zh.trim() !== '' ? text.zh : text.en.trim() !== '' ? text.en : text.ja;
+}
+
+/**
+ * 台词的出现效果：立即 / 淡入淡出 / 逐字。
+ *
+ * 淡入淡出：先把旧文字淡出，再换上新文字淡入；淡出过程中点下一句就直接隐藏、
+ * 换文字、直接淡入；淡入过程中点一下则立刻显示整段。
+ * 逐字：按字数一个个露出来，遇到标点多停一下；点一下直接显示整行。
+ */
+function RevealText({
+  lines,
+  control,
+  registerFinish,
+}: {
+  lines: string[];
+  control: TextBoxRow['text'];
+  registerFinish?: (finish: (() => void) | null) => void;
+}) {
+  const [shown, setShown] = useState<string[]>([]);
+  const [opacity, setOpacity] = useState(1);
+  /** 逐字时最后一行露出几个字；null 表示整行都在 */
+  const [revealed, setRevealed] = useState<number | null>(null);
+  const [phase, setPhase] = useState<'idle' | 'out' | 'in' | 'typing'>('idle');
+
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
+  const targetRef = useRef(lines);
+  targetRef.current = lines;
+  const opacityRef = useRef(1);
+  opacityRef.current = opacity;
+  const rafRef = useRef(0);
+  const timerRef = useRef(0);
+  const keyRef = useRef('');
+
+  const cancelAnimation = useCallback((): void => {
+    if (rafRef.current !== 0) {
+      window.cancelAnimationFrame(rafRef.current);
+      rafRef.current = 0;
+    }
+  }, []);
+
+  const cancelTimer = useCallback((): void => {
+    if (timerRef.current !== 0) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = 0;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      cancelAnimation();
+      cancelTimer();
+    };
+  }, [cancelAnimation, cancelTimer]);
+
+  /** 用 rAF 把不透明度从 from 走到 to */
+  const fadeTo = useCallback(
+    (from: number, to: number, durationMs: number, done: () => void): void => {
+      cancelAnimation();
+      setOpacity(from);
+      if (durationMs <= 0) {
+        setOpacity(to);
+        done();
+        return;
+      }
+      const start = performance.now();
+      const step = (now: number): void => {
+        const t = Math.min(1, (now - start) / durationMs);
+        setOpacity(from + (to - from) * t);
+        if (t >= 1) done();
+        else rafRef.current = window.requestAnimationFrame(step);
+      };
+      rafRef.current = window.requestAnimationFrame(step);
+    },
+    [cancelAnimation],
+  );
+
+  const startFadeIn = useCallback(
+    (from: number): void => {
+      setPhase('in');
+      fadeTo(from, 1, Math.max(0, control.fadeIn) * 1000, () => setPhase('idle'));
+    },
+    [control.fadeIn, fadeTo],
+  );
+
+  const startTyping = useCallback(
+    (target: string[]): void => {
+      cancelTimer();
+      setShown(target);
+      const last = target[target.length - 1] ?? '';
+      if (last === '') {
+        setRevealed(null);
+        setPhase('idle');
+        return;
+      }
+      setRevealed(0);
+      setPhase('typing');
+      const base = 1000 / Math.max(1, control.typeSpeed);
+      const pause = control.punctuationPause * 1000;
+      let index = 0;
+      const step = (): void => {
+        index += 1;
+        setRevealed(index);
+        if (index >= last.length) {
+          setRevealed(null);
+          setPhase('idle');
+          return;
+        }
+        const extra = REVEAL_PUNCTUATION.includes(last[index - 1] ?? '') ? pause : 0;
+        timerRef.current = window.setTimeout(step, base + extra);
+      };
+      timerRef.current = window.setTimeout(step, base);
+    },
+    [cancelTimer, control.punctuationPause, control.typeSpeed],
+  );
+
+  // 内容变了：按出现效果演一遍
+  useEffect(() => {
+    const key = lines.join('\u0001');
+    if (key === keyRef.current) return;
+    keyRef.current = key;
+    const mode = control.reveal;
+
+    if (mode === 'instant') {
+      cancelAnimation();
+      cancelTimer();
+      setShown(lines);
+      setOpacity(1);
+      setRevealed(null);
+      setPhase('idle');
+      return;
+    }
+
+    if (mode === 'fade') {
+      if (phaseRef.current === 'out') {
+        // 淡出还没完就又来下一句：直接隐藏、换文字、直接淡入
+        setShown(lines);
+        startFadeIn(0);
+        return;
+      }
+      if (phaseRef.current === 'in') {
+        // 淡入中途来下一句：文字直接显示，再重新走一遍
+        cancelAnimation();
+        setShown(lines);
+        setOpacity(1);
+        setPhase('idle');
+        return;
+      }
+    }
+
+    if (mode === 'typewriter') {
+      cancelAnimation();
+      setOpacity(1);
+      startTyping(lines);
+      return;
+    }
+
+    // 正常：先把当前文字淡出，再换新的淡入
+    setPhase('out');
+    fadeTo(opacityRef.current, 0, Math.max(0, control.fadeOut) * 1000, () => {
+      setShown(lines);
+      startFadeIn(0);
+    });
+    return;
+  }, [lines, control, cancelAnimation, cancelTimer, fadeTo, startFadeIn, startTyping]);
+
+  // 点一下（或自动播放到下一拍）时调这个：正在演就先补完，不推进剧情
+  const finish = useCallback((): void => {
+    if (phaseRef.current === 'out') {
+      cancelAnimation();
+      setShown(targetRef.current);
+      startFadeIn(0);
+      return;
+    }
+    if (phaseRef.current === 'in') {
+      cancelAnimation();
+      setOpacity(1);
+      setPhase('idle');
+      return;
+    }
+    if (phaseRef.current === 'typing') {
+      cancelTimer();
+      setRevealed(null);
+      setPhase('idle');
+    }
+  }, [cancelAnimation, cancelTimer, startFadeIn]);
+
+  useEffect(() => {
+    if (registerFinish === undefined) return undefined;
+    if (phase === 'idle') {
+      registerFinish(null);
+      return undefined;
+    }
+    registerFinish(finish);
+    return () => registerFinish(null);
+  }, [phase, finish, registerFinish]);
+
+  const full = shown.join('\n');
+  let body = full;
+  if (revealed !== null && shown.length > 0) {
+    const head = shown.slice(0, -1).join('\n');
+    const last = shown[shown.length - 1].slice(0, revealed);
+    body = head === '' ? last : `${head}\n${last}`;
+  }
+
+  return (
+    <span className="preview-textbox-reveal" style={{ opacity }}>
+      {body}
+    </span>
+  );
+}
+
 /** 一帧文本框图层：三个控件各按自己的设计稿像素摆，外层整体缩放 */
 function TextBoxLayer({
   project,
@@ -215,7 +430,8 @@ function TextBoxLayer({
   box,
   scale,
   speaker,
-  text,
+  lines,
+  registerFinish,
 }: {
   project: Project;
   byId: Map<string, AssetFileInfo[]>;
@@ -223,13 +439,18 @@ function TextBoxLayer({
   box: TextBoxRow;
   scale: number;
   speaker: string;
-  text: string;
+  lines: string[];
+  registerFinish?: (finish: (() => void) | null) => void;
 }) {
   return (
     <div
       className="preview-textbox"
       data-textbox-name={box.name}
-      style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}
+      style={{
+        transform: `scale(${scale})`,
+        transformOrigin: 'top left',
+        zIndex: box.layer,
+      }}
     >
       {!box.bg.hidden && (
         <div className="preview-textbox-frame" style={rectStyle(box.bg.rect)}>
@@ -250,13 +471,17 @@ function TextBoxLayer({
           <span>{speaker}</span>
         </div>
       )}
-      {!box.text.hidden && text !== '' && (
+      {!box.text.hidden && lines.length > 0 && (
         <div
           className="preview-textbox-text"
           style={{ ...rectStyle(box.text.rect), ...controlTextStyle(box.text) }}
         >
           <ControlBackground project={project} byId={byId} host={host} imageUid={box.text.imageUid} />
-          <span>{text}</span>
+          <RevealText
+            lines={lines}
+            control={box.text}
+            registerFinish={registerFinish}
+          />
         </div>
       )}
     </div>
@@ -378,10 +603,30 @@ export function PreviewPlayer({
     });
   }, []);
 
+  /** 出现效果演到一半时，点一下先把它演完，不推进剧情 */
+  const revealFinishRef = useRef<(() => void) | null>(null);
+
+  const advanceOrFinish = useCallback(() => {
+    if (revealFinishRef.current !== null) {
+      revealFinishRef.current();
+      return;
+    }
+    advanceNow();
+  }, [advanceNow]);
+
+  const registerRevealFinish = useCallback((finish: (() => void) | null) => {
+    revealFinishRef.current = finish;
+  }, []);
+
   // 自动播放：延时按秒数等，「强制自动播放」的台词按固定间隔走，选项永远等玩家
   useEffect(() => {
     if (!auto || state === null) return;
     const tick = (): void => {
+      // 演到一半先补完，下一拍再推进
+      if (revealFinishRef.current !== null) {
+        revealFinishRef.current();
+        return;
+      }
       setState((current) => (current === null ? null : advance(snapshotRef.current, current)));
     };
     if (state.status === 'delay') {
@@ -452,7 +697,7 @@ export function PreviewPlayer({
 
     if (event.key === ' ' || event.key === 'Enter') {
       event.preventDefault();
-      advanceNow();
+      advanceOrFinish();
     }
     if (event.key === 'Escape') {
       event.preventDefault();
@@ -465,15 +710,15 @@ export function PreviewPlayer({
 
   const current = state?.current ?? null;
   const speaker = current === null ? '' : previewSpeakerName(project, current.characterUid, current.aliasUid);
-  const lineText =
-    current === null
-      ? ''
-      : current.text.zh.trim() !== ''
-        ? current.text.zh
-        : current.text.en.trim() !== ''
-          ? current.text.en
-          : current.text.ja;
-  const visibleTextBoxes = (state?.stage.textBoxes ?? []).filter((item) => item.visible);
+  /** 层级高的画在上层：DOM 顺序靠后的盖住前面的 */
+  const visibleTextBoxes = (state?.stage.textBoxes ?? [])
+    .filter((item) => item.visible)
+    .slice()
+    .sort((a, b) => {
+      const boxA = previewTextBoxOf(project, a.textBoxUid);
+      const boxB = previewTextBoxOf(project, b.textBoxUid);
+      return (boxA?.layer ?? 0) - (boxB?.layer ?? 0);
+    });
 
   return (
     <div
@@ -566,7 +811,8 @@ export function PreviewPlayer({
                     box={box}
                     scale={frameScale}
                     speaker={mine ? speaker : ''}
-                    text={mine ? lineText : ''}
+                    lines={item.lines.map(previewTextOf)}
+                    registerFinish={mine ? registerRevealFinish : undefined}
                   />
                 );
               })}
@@ -630,7 +876,7 @@ export function PreviewPlayer({
             <button type="button" onClick={restart}>
               重播本段
             </button>
-            <button type="button" className="primary" onClick={advanceNow} disabled={!canAdvance}>
+            <button type="button" className="primary" onClick={advanceOrFinish} disabled={!canAdvance}>
               继续 ▶
             </button>
             <label className="preview-auto" title="按「强制自动播放」与延时指令自动往下走">

@@ -58,6 +58,11 @@ export interface PreviewCharacterState {
 export interface PreviewTextBoxState {
   textBoxUid: string;
   visible: boolean;
+  /**
+   * 框里现在有哪些句子：普通模式下只有刚播的那一句，
+   * 台词控件勾了「允许多行」之后逐句往后接。
+   */
+  lines: LocalizedText[];
 }
 
 export interface PreviewStage {
@@ -137,20 +142,52 @@ export function emptyStage(project?: Project): PreviewStage {
     textBoxes: (project?.textBoxes ?? []).map((row) => ({
       textBoxUid: row.uid,
       visible: false,
+      lines: [],
     })),
   };
 }
 
-/** 把某个文本框改成「显示 / 隐藏」；不在列表里就补一条 */
-function setTextBox(stage: PreviewStage, textBoxUid: string, visible: boolean): PreviewStage {
+/** 改某个文本框的状态；不在列表里就补一条 */
+function updateTextBox(
+  stage: PreviewStage,
+  textBoxUid: string,
+  update: (item: PreviewTextBoxState) => PreviewTextBoxState,
+): PreviewStage {
   if (textBoxUid === '') return stage;
   const exists = stage.textBoxes.some((item) => item.textBoxUid === textBoxUid);
   const textBoxes = exists
-    ? stage.textBoxes.map((item) =>
-        item.textBoxUid === textBoxUid ? { ...item, visible } : item,
-      )
-    : [...stage.textBoxes, { textBoxUid, visible }];
+    ? stage.textBoxes.map((item) => (item.textBoxUid === textBoxUid ? update(item) : item))
+    : [...stage.textBoxes, update({ textBoxUid, visible: false, lines: [] })];
   return { ...stage, textBoxes };
+}
+
+/** 把某个文本框改成「显示 / 隐藏」 */
+function setTextBoxVisible(stage: PreviewStage, textBoxUid: string, visible: boolean): PreviewStage {
+  return updateTextBox(stage, textBoxUid, (item) => ({ ...item, visible }));
+}
+
+/**
+ * 往文本框里放一句台词：显示这个框。
+ * 勾了「允许多行」就接在已有句子后面，否则整体换成这一句。
+ */
+function pushTextBoxLine(
+  stage: PreviewStage,
+  project: Project,
+  textBoxUid: string,
+  text: LocalizedText,
+): PreviewStage {
+  const box = previewTextBoxOf(project, textBoxUid);
+  if (box === undefined) return stage;
+  return updateTextBox(stage, textBoxUid, (item) => ({
+    ...item,
+    visible: true,
+    lines: box.text.multiLine ? [...item.lines, text] : [text],
+  }));
+}
+
+/** 清空：框还留着，里面的句子全清掉（多行时一次清干净） */
+function clearTextBox(stage: PreviewStage, textBoxUid: string): PreviewStage {
+  return updateTextBox(stage, textBoxUid, (item) => ({ ...item, visible: true, lines: [] }));
 }
 
 /** 按 uid 找段落 */
@@ -474,8 +511,8 @@ function run(project: Project, state: PreviewState, steps: number): PreviewState
         textBoxUid,
         autoAdvance: line.autoAdvance,
       },
-      // 文本框没弹出来的话，播到它的角色时自动弹出来
-      stage: textBoxUid === '' ? state.stage : setTextBox(state.stage, textBoxUid, true),
+      // 文本框没弹出来的话，播到它的角色时自动弹出来，并把这一句写进去
+      stage: pushTextBoxLine(state.stage, project, textBoxUid, line.text),
       options: [],
       delaySeconds: 0,
       nextGroupUid: '',
@@ -754,14 +791,14 @@ function runCommand(
     let stage = state.stage;
     let entry: PreviewLogEntry;
     if (action === '弹出') {
-      stage = setTextBox(stage, box.uid, true);
+      stage = setTextBoxVisible(stage, box.uid, true);
       entry = info(`弹出文本框「${label}」`, line.uid);
     } else if (action === '清空') {
-      // 清空 = 台词擦掉，但框还留着
-      stage = setTextBox(stage, box.uid, true);
+      // 清空 = 台词擦掉，但框还留着（多行时把列表里的句子一起清掉）
+      stage = clearTextBox(stage, box.uid);
       entry = info(`清空文本框「${label}」`, line.uid);
     } else if (action === '隐藏') {
-      stage = setTextBox(stage, box.uid, false);
+      stage = setTextBoxVisible(stage, box.uid, false);
       entry = info(`隐藏文本框「${label}」`, line.uid);
     } else {
       entry = warn(
