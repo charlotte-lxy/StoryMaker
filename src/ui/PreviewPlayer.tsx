@@ -37,7 +37,7 @@ import {
 } from '../core/preview';
 import { characterAssetOf, imageAssetOf, soundAssetOf } from '../core/preview-assets';
 import { CANVAS_HEIGHT, CANVAS_WIDTH, REVEAL_PUNCTUATION } from '../core/textbox';
-import type { LocalizedText, Project, TextBoxRow } from '../core/types';
+import type { LangKey, LocalizedText, Project, TextBoxRow } from '../core/types';
 import { blobOf, canPreviewImage, mimeOf } from './asset-blob';
 import { registerAudioStopper } from './audio-registry';
 import { SoundPlayer } from './sound-player';
@@ -128,22 +128,24 @@ function BackgroundLayer({
   );
 }
 
-/** 立绘层：按上场顺序摆左 / 中 / 右，第 4 个起在右侧叠放错开 */
+/** 立绘层：单个站中间，多个从中间往两边排（第 4 个起在右侧叠放错开） */
 function CharacterSprite({
   project,
   byId,
   host,
   character,
+  language,
 }: {
   project: Project;
   byId: Map<string, AssetFileInfo[]>;
   host: HostApi | undefined;
   character: PreviewCharacterState;
+  language: LangKey;
 }) {
   const asset = characterAssetOf(project, byId, character.characterUid, character.expression);
   const url = useAssetUrl(host, asset?.file);
-  const name = previewSpeakerName(project, character.characterUid, '');
-  const side = character.slot >= 3 ? 'right' : ['left', 'center', 'right'][character.slot];
+  const name = previewTextOf(previewSpeakerName(project, character.characterUid, ''), language);
+  const side = character.slot >= 3 ? 'right' : ['center', 'right', 'left'][character.slot];
   const style =
     side === 'right' ? { right: `${4 + Math.max(0, character.slot - 2) * 7}%` } : undefined;
 
@@ -207,9 +209,16 @@ function controlTextStyle(control: TextBoxRow['text']): React.CSSProperties {
   };
 }
 
-/** 一句台词按语言取文本：中文优先，其次英文，最后日文 */
-function previewTextOf(text: LocalizedText): string {
-  return text.zh.trim() !== '' ? text.zh : text.en.trim() !== '' ? text.en : text.ja;
+/** 一句台词 / 名字按语言取：没填那种语言就退回中文，中文也没有再退回其它语言 */
+function previewTextOf(text: LocalizedText, language: LangKey = 'zh'): string {
+  const pick = (key: LangKey): string => text[key] ?? '';
+  if (language === 'en') {
+    return pick('en').trim() !== '' ? pick('en') : pick('zh').trim() !== '' ? pick('zh') : pick('ja');
+  }
+  if (language === 'ja') {
+    return pick('ja').trim() !== '' ? pick('ja') : pick('zh').trim() !== '' ? pick('zh') : pick('en');
+  }
+  return pick('zh').trim() !== '' ? pick('zh') : pick('en').trim() !== '' ? pick('en') : pick('ja');
 }
 
 /**
@@ -505,6 +514,10 @@ export function PreviewPlayer({
   /** 播放期间读这一份快照，编辑不影响正在播的内容；重播时换成最新项目 */
   const snapshotRef = useRef<Project>(project);
   const [auto, setAuto] = useState(false);
+  /** 预览语言：台词 / 选项 / 说话人名字都按它取 */
+  const [language, setLanguage] = useState<LangKey>('zh');
+  /** 预览里的音效音量（0–1），只影响这个面板 */
+  const [volume, setVolume] = useState(1);
   const [logOpen, setLogOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
@@ -573,9 +586,9 @@ export function PreviewPlayer({
       if (asset?.file === undefined) return;
 
       const player = playerRef.current ?? (playerRef.current = new SoundPlayer());
-      await player.play(assets.host, asset.file, asset.volume ?? 1, asset.pitch ?? 1);
+      await player.play(assets.host, asset.file, (asset.volume ?? 1) * volume, asset.pitch ?? 1);
     },
-    [assets.host, assets.library.byId],
+    [assets.host, assets.library.byId, volume],
   );
 
   // 音效：只播这次新推进出来的那几条（「上一句」退回时日志变短，直接重置）
@@ -794,6 +807,7 @@ export function PreviewPlayer({
                     byId={assets.library.byId}
                     host={assets.host}
                     character={character}
+                    language={language}
                   />
                 ))}
 
@@ -809,8 +823,8 @@ export function PreviewPlayer({
                     host={assets.host}
                     box={box}
                     scale={frameScale}
-                    speaker={item.speaker}
-                    lines={item.lines.map(previewTextOf)}
+                    speaker={previewTextOf(item.speaker, language)}
+                    lines={item.lines.map((line) => previewTextOf(line, language))}
                     registerFinish={mine ? registerRevealFinish : undefined}
                   />
                 );
@@ -826,11 +840,9 @@ export function PreviewPlayer({
                       onClick={() => choose(option.optionUid)}
                     >
                       <span className="preview-option-text">
-                        {option.text.zh.trim() !== ''
-                          ? option.text.zh
-                          : option.text.en.trim() !== ''
-                            ? option.text.en
-                            : '（没填选项文本）'}
+                        {previewTextOf(option.text, language).trim() !== ''
+                          ? previewTextOf(option.text, language)
+                          : '（没填选项文本）'}
                       </span>
                       {(option.appearConditions.length > 0 ||
                         option.enableConditions.length > 0) && (
@@ -878,17 +890,6 @@ export function PreviewPlayer({
             <button type="button" className="primary" onClick={advanceOrFinish} disabled={!canAdvance}>
               继续 ▶
             </button>
-            <label className="preview-auto" title="按「强制自动播放」与延时指令自动往下走">
-              <input type="checkbox" checked={auto} onChange={(event) => setAuto(event.target.checked)} />
-              自动播放
-            </label>
-            <button
-              type="button"
-              className="mini"
-              onClick={() => setLogOpen((currentValue) => !currentValue)}
-            >
-              指令日志 {state.log.length}
-            </button>
             {state.status === 'finished' && (
               <button
                 type="button"
@@ -905,9 +906,13 @@ export function PreviewPlayer({
             )}
           </div>
 
-          <div className="preview-footer">
+          <div className="preview-toggles">
+            <label className="preview-toggle" title="按「强制自动播放」与延时指令自动往下走">
+              <input type="checkbox" checked={auto} onChange={(event) => setAuto(event.target.checked)} />
+              自动播放
+            </label>
             <label
-              className="preview-lock"
+              className="preview-toggle"
               title="勾上后对话列表会自动滚动，让当前播放的那一行停在列表中间"
             >
               <input
@@ -917,10 +922,43 @@ export function PreviewPlayer({
               />
               锁定到对话
             </label>
+            <label className="preview-field preview-select">
+              语言
+              <select
+                value={language}
+                aria-label="预览语言"
+                onChange={(event) => setLanguage(event.target.value as LangKey)}
+              >
+                <option value="zh">中文</option>
+                <option value="en">英文</option>
+                <option value="ja">日文</option>
+              </select>
+            </label>
+            <label className="preview-field preview-volume">
+              音量
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={Math.round(volume * 100)}
+                aria-label="预览音量"
+                onChange={(event) => setVolume(Number(event.target.value) / 100)}
+              />
+              <span className="preview-volume-value">{Math.round(volume * 100)}%</span>
+            </label>
+          </div>
+
+          <div className="preview-log-bar">
+            <button
+              type="button"
+              className="mini"
+              onClick={() => setLogOpen((currentValue) => !currentValue)}
+            >
+              指令日志 {state.log.length}
+            </button>
             {!assetsReady && (
-              <span className="hint">
-                桌面版 + 设置里选好素材文件夹，才能看到真实画面、听到音效；现在是占位。
-              </span>
+              <span className="hint">桌面版 + 设置里选好素材文件夹才有真实画面与音效</span>
             )}
           </div>
 

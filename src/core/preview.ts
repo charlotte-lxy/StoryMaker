@@ -64,10 +64,10 @@ export interface PreviewTextBoxState {
    */
   lines: LocalizedText[];
   /**
-   * 框里那句台词的说话人名字。
+   * 框里那句台词的说话人名字（中英日都留着，预览按所选语言显示）。
    * 跟着框一起存：先播的框不会因为下一句换到别的框里就把名字丢掉。
    */
-  speaker: string;
+  speaker: LocalizedText;
 }
 
 export interface PreviewStage {
@@ -138,6 +138,11 @@ const MAX_HISTORY = 50;
 
 /* ---------- 对外的小工具 ---------- */
 
+/** 「还没有说话人」的空名字（预览按语言取，这里三语都留空） */
+export function emptySpeaker(): LocalizedText {
+  return { zh: '', en: '', ja: '' };
+}
+
 export function emptyStage(project?: Project): PreviewStage {
   return {
     backgroundImageUid: '',
@@ -148,7 +153,7 @@ export function emptyStage(project?: Project): PreviewStage {
       textBoxUid: row.uid,
       visible: false,
       lines: [],
-      speaker: '',
+      speaker: emptySpeaker(),
     })),
   };
 }
@@ -163,7 +168,7 @@ function updateTextBox(
   const exists = stage.textBoxes.some((item) => item.textBoxUid === textBoxUid);
   const textBoxes = exists
     ? stage.textBoxes.map((item) => (item.textBoxUid === textBoxUid ? update(item) : item))
-    : [...stage.textBoxes, update({ textBoxUid, visible: false, lines: [], speaker: '' })];
+    : [...stage.textBoxes, update({ textBoxUid, visible: false, lines: [], speaker: emptySpeaker() })];
   return { ...stage, textBoxes };
 }
 
@@ -181,7 +186,7 @@ function pushTextBoxLine(
   project: Project,
   textBoxUid: string,
   text: LocalizedText,
-  speaker: string,
+  speaker: LocalizedText,
 ): PreviewStage {
   const box = previewTextBoxOf(project, textBoxUid);
   if (box === undefined) return stage;
@@ -199,7 +204,7 @@ function clearTextBox(stage: PreviewStage, textBoxUid: string): PreviewStage {
     ...item,
     visible: true,
     lines: [],
-    speaker: '',
+    speaker: emptySpeaker(),
   }));
 }
 
@@ -222,17 +227,31 @@ export function nextGroupUidOf(project: Project, groupUid: string): string {
   return '';
 }
 
-/** 角色在这一句里显示什么名字：别名 → 默认名称 → 角色 ID */
+/**
+ * 角色在这一句里显示什么名字：别名 → 默认名称 → 角色 ID。
+ *
+ * 三种语言都返回，界面按「预览语言」挑一列；某一种语言没填时退回中文。
+ */
 export function previewSpeakerName(
   project: Project,
   characterUid: string,
   aliasUid: string,
-): string {
+): LocalizedText {
   const character = project.characters.find((item) => item.uid === characterUid);
-  if (character === undefined) return '';
+  if (character === undefined) return emptySpeaker();
+
   const alias = character.aliases.find((item) => item.uid === aliasUid);
-  if (alias !== undefined && alias.text.trim() !== '') return alias.text.trim();
-  return character.name.trim() !== '' ? character.name.trim() : character.id;
+  if (alias !== undefined && (alias.text.trim() !== '' || alias.en.trim() !== '' || alias.ja.trim() !== '')) {
+    const zh = alias.text.trim();
+    return { zh, en: alias.en.trim() === '' ? zh : alias.en.trim(), ja: alias.ja.trim() === '' ? zh : alias.ja.trim() };
+  }
+
+  const zh = character.name.trim() !== '' ? character.name.trim() : character.id;
+  return {
+    zh,
+    en: character.nameEn.trim() === '' ? zh : character.nameEn.trim(),
+    ja: character.nameJa.trim() === '' ? zh : character.nameJa.trim(),
+  };
 }
 
 /** 文本框表的某一行（播放预览按它的排版画台词） */

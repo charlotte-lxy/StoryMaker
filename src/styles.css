@@ -620,6 +620,8 @@ textarea {
   flex: 1;
   min-height: 0;
   display: flex;
+  /* 左栏拖宽时内部各栏自己滚，别把整页顶出一条横向滚动条 */
+  overflow: hidden;
 }
 
 .rail {
@@ -921,9 +923,9 @@ textarea {
 .story-outline {
   flex: 0 0 auto;
   min-width: 0;
-  /* 和 .workspace-row 一样被限制高度：预览 + 页签 + 流程图再高也不能把整页撑开 */
+  /* 预览拉大以后整栏可能比窗口高，整栏自己滚 */
   min-height: 0;
-  overflow: hidden;
+  overflow: hidden auto;
   display: flex;
   flex-direction: column;
   background: var(--panel);
@@ -964,8 +966,9 @@ textarea {
 }
 
 .outline-body {
-  flex: 1;
-  min-height: 0;
+  flex: 1 1 auto;
+  /* 预览拉大以后下面的页签/树至少还留一块能看见 */
+  min-height: 220px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -4602,9 +4605,7 @@ tr.locale-form-note td {
 .outline-preview {
   flex-shrink: 0;
   min-height: 0;
-  /* 窗口矮的时候预览自己滚，别把下面的页签 / 流程图挤没 */
-  max-height: 62%;
-  overflow: auto;
+  /* 不再限制高度：画面想多大就多大，整个左侧面板不够高时由面板自己滚 */
   border-bottom: 1px solid var(--border);
   background: var(--panel);
 }
@@ -4694,7 +4695,6 @@ tr.locale-form-note td {
   top: 10%;
   bottom: 0;
   width: 28%;
-  max-width: 260px;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -4705,7 +4705,6 @@ tr.locale-form-note td {
   height: 100%;
   object-fit: contain;
   object-position: bottom;
-  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.45));
 }
 
 .preview-character.slot-left {
@@ -4845,11 +4844,13 @@ tr.locale-form-note td {
   will-change: opacity;
 }
 
+/* 选项摆在画面正中，压在立绘上面；立绘从中间往两边排 */
 .preview-options {
   position: absolute;
   left: 50%;
-  bottom: 18%;
-  transform: translateX(-50%);
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 90;
   width: min(78%, 520px);
   display: flex;
   flex-direction: column;
@@ -4904,34 +4905,63 @@ tr.locale-form-note td {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px;
   padding: 8px 10px;
   border-top: 1px solid var(--border);
 }
 
-.preview-auto {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--text-dim);
-  font-size: 12px;
-}
-
-.preview-footer {
+/* 播放开关 / 语言 / 音量：固定一行，窄的时候横向滚，不换行 */
+.preview-toggles {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-wrap: nowrap;
+  gap: 12px;
   padding: 0 10px 8px;
+  overflow-x: auto;
 }
 
-.preview-lock {
+.preview-toggle {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  flex: 0 0 auto;
+  white-space: nowrap;
   color: var(--text-dim);
   font-size: 12px;
+}
+
+.preview-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.preview-select select {
+  min-width: 74px;
+}
+
+.preview-volume input[type='range'] {
+  width: 96px;
+}
+
+.preview-volume-value {
+  min-width: 34px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.preview-log-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 8px;
 }
 
 .preview-hint {

@@ -34,13 +34,21 @@ export interface StoryLayout {
 
 export const DEFAULT_STORY_LAYOUT: StoryLayout = { outlineWidth: 560 };
 
-/** 合并面板再窄流程图就没法看了，再宽对话列表就挤没了 */
+/** 合并面板再窄流程图就没法看了 */
 export const OUTLINE_WIDTH_MIN = 360;
-export const OUTLINE_WIDTH_MAX = 760;
+
+/** 拖到最宽时给右边的编辑区留多少（够放下对话列表与行编辑），剩下的都归左侧面板 */
+export const OUTLINE_WIDTH_RESERVE = 560;
+
+/** 面板允许多宽：不写死上限，跟着窗口宽度走（预览要能拖多大就拖多大） */
+export function outlineWidthLimit(): number {
+  const viewport = typeof window === 'undefined' ? 0 : window.innerWidth;
+  return Math.max(OUTLINE_WIDTH_MIN, Math.round(viewport - OUTLINE_WIDTH_RESERVE));
+}
 
 export function clampOutlineWidth(width: number): number {
   if (!Number.isFinite(width)) return DEFAULT_STORY_LAYOUT.outlineWidth;
-  return Math.round(Math.min(OUTLINE_WIDTH_MAX, Math.max(OUTLINE_WIDTH_MIN, width)));
+  return Math.round(Math.min(outlineWidthLimit(), Math.max(OUTLINE_WIDTH_MIN, width)));
 }
 
 function readJson(key: string): unknown {

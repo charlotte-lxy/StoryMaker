@@ -8,6 +8,7 @@ import {
   loadSessionPath,
   loadSettings,
   loadStoryLayout,
+  outlineWidthLimit,
   saveSessionPath,
   saveSettings,
   saveStoryLayout,
@@ -47,21 +48,39 @@ describe('设置与「上次打开的项目」的记忆', () => {
   });
 
   it('剧情模块合并面板默认 560px，拖过之后记住', () => {
-    expect(loadStoryLayout()).toEqual(DEFAULT_STORY_LAYOUT);
+    const original = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', { value: 1600, configurable: true });
+    try {
+      expect(loadStoryLayout()).toEqual(DEFAULT_STORY_LAYOUT);
 
-    saveStoryLayout({ outlineWidth: 640 });
-    expect(loadStoryLayout()).toEqual({ outlineWidth: 640 });
+      saveStoryLayout({ outlineWidth: 640 });
+      expect(loadStoryLayout()).toEqual({ outlineWidth: 640 });
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { value: original, configurable: true });
+    }
   });
 
   it('合并面板宽度会被夹在合理区间，坏数据退回默认值', () => {
     expect(clampOutlineWidth(1)).toBe(360);
-    expect(clampOutlineWidth(9999)).toBe(760);
+    // 上限跟着窗口宽度走：jsdom 窗口 1024 宽 - 560
+    expect(clampOutlineWidth(9999)).toBe(outlineWidthLimit());
     expect(clampOutlineWidth(Number.NaN)).toBe(DEFAULT_STORY_LAYOUT.outlineWidth);
 
     saveStoryLayout({ outlineWidth: 9999 });
-    expect(loadStoryLayout()).toEqual({ outlineWidth: 760 });
+    expect(loadStoryLayout()).toEqual({ outlineWidth: outlineWidthLimit() });
 
     window.localStorage.setItem('storymaker.story-layout.v1', '不是 JSON');
     expect(loadStoryLayout()).toEqual(DEFAULT_STORY_LAYOUT);
+  });
+
+  it('窗口够宽时面板能拖得比原来更宽', () => {
+    const original = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', { value: 1600, configurable: true });
+    try {
+      expect(outlineWidthLimit()).toBe(1040);
+      expect(clampOutlineWidth(9999)).toBe(1040);
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { value: original, configurable: true });
+    }
   });
 });

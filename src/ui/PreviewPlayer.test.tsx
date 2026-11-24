@@ -199,7 +199,7 @@ describe('PreviewPlayer 播放', () => {
     expect(container.querySelector('.preview-character-placeholder')?.textContent).toContain(
       '西园寺雪',
     );
-    expect(container.querySelector('.preview-footer')?.textContent).toContain('素材文件夹');
+    expect(container.querySelector('.preview-log-bar')?.textContent).toContain('素材文件夹');
   });
 
   it('上一句退回上一句台词', () => {
@@ -234,6 +234,68 @@ describe('PreviewPlayer 选项', () => {
 
     fireEvent.click(buttons[0]);
     expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('海风很大');
+  });
+
+  it('选项单独铺一层盖在画面中间（层级由样式压住立绘）', () => {
+    const project = makeProject();
+    project.chapters[0].groups[0].lines = [optionLine('l1', 'Dia_ch01_001-1', ['o1'])];
+    project.chapters[0].groups[0].options = [option('o1', 'Dia_ch01_001-1A', '去码头', 'd3')];
+
+    const { container } = renderPlayer({ project });
+    const overlay = container.querySelector('.preview-options');
+    expect(overlay).not.toBeNull();
+    // 选项层挂在舞台画面里，不是堆在控制条下面
+    expect(overlay?.parentElement?.className).toContain('preview-frame');
+  });
+});
+
+describe('PreviewPlayer 语言与音量', () => {
+  it('切到英文后台词、选项、说话人名字都走英文', () => {
+    const project = makeProject();
+    project.chapters[0].groups[0].lines = [
+      dialogue('d1', 'Dia_ch01_001-1', '第一句', {
+        characterUid: 'cha1',
+        text: { zh: '第一句', en: 'First line', ja: '最初の台詞' },
+      }),
+      optionLine('l1', 'Dia_ch01_001-2', ['o1']),
+    ];
+    project.chapters[0].groups[0].options = [
+      {
+        ...option('o1', 'Dia_ch01_001-2A', '去码头', 'd3'),
+        text: { zh: '去码头', en: 'Go to the dock', ja: '' },
+      },
+    ];
+    project.characters[0].nameEn = 'Seienji Yuki';
+    project.characters[0].nameJa = '西園寺ユキ';
+
+    const { container } = renderPlayer({ project });
+
+    const picker = screen.getByLabelText('预览语言') as HTMLSelectElement;
+    fireEvent.change(picker, { target: { value: 'en' } });
+    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('First line');
+    expect(container.querySelector('.preview-textbox-name')?.textContent).toBe('Seienji Yuki');
+
+    // 推进到选项，选项文本也走英文
+    fireEvent.click(screen.getByText('继续 ▶'));
+    expect(container.querySelector('.preview-option-text')?.textContent).toBe('Go to the dock');
+
+    fireEvent.change(picker, { target: { value: 'ja' } });
+    expect(container.querySelector('.preview-option-text')?.textContent).toBe('去码头');
+  });
+
+  it('音量滑块默认 100%，拖到 0 后显示 0%', () => {
+    renderPlayer();
+
+    const slider = screen.getByLabelText('预览音量') as HTMLInputElement;
+    expect(slider.value).toBe('100');
+    fireEvent.change(slider, { target: { value: '0' } });
+    expect(slider.value).toBe('0');
+    expect(screen.getByText('0%')).toBeTruthy();
+  });
+
+  it('立绘默认站在屏幕中间', () => {
+    const { container } = renderPlayer();
+    expect(container.querySelector('.preview-character')?.className).toContain('slot-center');
   });
 });
 

@@ -13,7 +13,7 @@ import {
   startPreview,
   stepBack,
 } from './preview';
-import type { Line, Project, StoryOption } from './types';
+import type { Line, LocalizedText, Project, StoryOption } from './types';
 import { createEmptyProject } from '../state/operations';
 import { createDefaultTextBox } from './textbox';
 
@@ -237,7 +237,11 @@ describe('剧情|演出', () => {
       entered: true,
       slot: 0,
     });
-    expect(previewSpeakerName(project, 'cha1', '')).toBe('西园寺雪');
+    expect(previewSpeakerName(project, 'cha1', '')).toEqual({
+      zh: '西园寺雪',
+      en: '西园寺雪',
+      ja: '西园寺雪',
+    });
 
     // 一次推进跨过「换表情」和「退出」两条指令，停在再下一句台词上
     const goodbye = advance(project, first);
@@ -582,9 +586,10 @@ describe('文本框：初始隐藏、自动弹出、清空与隐藏', () => {
   });
 
   const speakerOf = (
-    state: { stage: { textBoxes: { textBoxUid: string; speaker: string }[] } },
+    state: { stage: { textBoxes: { textBoxUid: string; speaker: LocalizedText }[] } },
     uid: string,
-  ): string => state.stage.textBoxes.find((box) => box.textBoxUid === uid)?.speaker ?? '';
+  ): string =>
+    state.stage.textBoxes.find((box) => box.textBoxUid === uid)?.speaker.zh ?? '';
 
   it('说话人名字跟着各自的框走：换到另一个框继续播，前一个框的名字不会丢', () => {
     const { project, boxUid } = withTextBox([

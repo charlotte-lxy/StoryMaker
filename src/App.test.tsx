@@ -1248,16 +1248,23 @@ describe('章节流程图与分栏', () => {
 
   it('拖左侧分隔线改变合并面板的宽度', async () => {
     seedJumpProject();
-    const { container } = await renderApp();
+    // 面板宽度上限跟着窗口走，给一个够宽的窗口才拖得到 640
+    const original = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', { value: 1600, configurable: true });
+    try {
+      const { container } = await renderApp();
 
-    expect((container.querySelector('.story-outline') as HTMLElement).style.width).toBe('560px');
+      expect((container.querySelector('.story-outline') as HTMLElement).style.width).toBe('560px');
 
-    const handle = container.querySelector('.outline-handle') as HTMLElement;
-    fireEvent.pointerDown(handle, { clientX: 560 });
-    fireEvent.pointerMove(window, { clientX: 640 });
-    fireEvent.pointerUp(window);
+      const handle = container.querySelector('.outline-handle') as HTMLElement;
+      fireEvent.pointerDown(handle, { clientX: 560 });
+      fireEvent.pointerMove(window, { clientX: 640 });
+      fireEvent.pointerUp(window);
 
-    expect((container.querySelector('.story-outline') as HTMLElement).style.width).toBe('640px');
+      expect((container.querySelector('.story-outline') as HTMLElement).style.width).toBe('640px');
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { value: original, configurable: true });
+    }
   });
 
   it('可以收起预览（标题栏保留），再展开接着看', async () => {
