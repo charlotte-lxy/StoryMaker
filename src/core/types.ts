@@ -226,6 +226,20 @@ export interface TextBoxRow {
 }
 
 /**
+ * 字体子模块的一行。
+ *
+ * 文件放在素材文件夹的 Fonts/ 里，`fileName` 是带扩展名的文件名；
+ * 界面上的下拉、导出的「字体样式」都写 `name`（显示名称）。
+ */
+export interface FontRow {
+  uid: string;
+  /** 显示名称：文本框字体下拉与导出「字体样式」都用它 */
+  name: string;
+  /** Fonts/ 里的文件名（含扩展名） */
+  fileName: string;
+}
+
+/**
  * 表情差分配置（全局一张表）。
  *
  * 角色行里勾选自己有哪些表情差分（存表情名）；
@@ -720,6 +734,12 @@ export interface Project {
    * 角色的台词在哪个文本框里播由 Character.textBoxUid 决定。
    */
   textBoxes: TextBoxRow[];
+  /**
+   * 字体子模块：导入进来的字体文件（放素材文件夹的 Fonts/ 里）。
+   *
+   * 文本框里人物名称 / 台词控件的「字体样式」存的就是这里的显示名称。
+   */
+  fonts: FontRow[];
   /**
    * 界面配置，跟着项目文件走：换台机器、换个浏览器打开，看到的还是同样的界面。
    *

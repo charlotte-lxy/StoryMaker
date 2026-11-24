@@ -466,12 +466,14 @@ ipcMain.handle('unreal:list-assets', async (_event, folder) => {
 });
 
 ipcMain.handle('unreal:upload-asset', async (_event, request) => {
-  const kind = request.kind === 'sound' ? 'sound' : 'image';
+  const kind =
+    request.kind === 'sound' ? 'sound' : request.kind === 'font' ? 'font' : 'image';
   const extensions = unrealAssets.allowedExtensions(kind);
+  const label = kind === 'sound' ? '音频' : kind === 'font' ? '字体' : '图片';
   const picked = await dialog.showOpenDialog(mainWindow, {
-    title: kind === 'sound' ? '选择音频文件' : '选择图片文件',
+    title: `选择${label}文件`,
     properties: ['openFile'],
-    filters: [{ name: kind === 'sound' ? '音频' : '图片', extensions }],
+    filters: [{ name: label, extensions }],
   });
   if (picked.canceled || picked.filePaths.length === 0) return { ok: false, canceled: true };
 
@@ -489,7 +491,8 @@ ipcMain.handle('unreal:rename-asset', async (_event, request) => {
     folder: request.folder,
     oldId: request.oldId,
     newId: request.newId,
-    kind: request.kind === 'sound' ? 'sound' : 'image',
+    kind:
+      request.kind === 'sound' ? 'sound' : request.kind === 'font' ? 'font' : 'image',
   });
 });
 
@@ -511,7 +514,8 @@ ipcMain.handle('unreal:write-asset', async (_event, request) => {
   return unrealAssets.writeAssetFile({
     folder: request.folder,
     id: request.id,
-    kind: request.kind === 'sound' ? 'sound' : 'image',
+    kind:
+      request.kind === 'sound' ? 'sound' : request.kind === 'font' ? 'font' : 'image',
     extension: request.extension,
     data: request.data,
     replace: request.replace === true,

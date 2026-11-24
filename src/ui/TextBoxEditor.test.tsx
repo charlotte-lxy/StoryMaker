@@ -82,6 +82,19 @@ describe('文本框子模块', () => {
     expect(document.querySelectorAll('.textbox-handle')).toHaveLength(8);
   });
 
+  it('字体下拉里能选到字体子模块导入的字体', () => {
+    const project = createEmptyProject();
+    project.fonts = [{ uid: 'font-1', name: '思源黑体', fileName: 'SourceHanSans.ttf' }];
+    const { onChange } = renderEditor(project);
+    openPart('台词');
+
+    const select = screen.getByLabelText('字体样式') as HTMLSelectElement;
+    expect([...select.options].map((option) => option.value)).toContain('思源黑体');
+
+    fireEvent.change(select, { target: { value: '思源黑体' } });
+    expect(lastProject(onChange).textBoxes?.[0].text.fontFamily).toBe('思源黑体');
+  });
+
   it('名称与文本框 ID 写回项目', () => {
     const { onChange } = renderEditor();
     fireEvent.change(screen.getByDisplayValue('文本框 1'), { target: { value: '旁白框' } });

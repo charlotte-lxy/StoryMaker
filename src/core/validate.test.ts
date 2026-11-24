@@ -77,6 +77,7 @@ function makeProject(group: Partial<Group>): Project {
   return {
     version: 1,
     textBoxes: [],
+    fonts: [],
     expressions: [],
     name: 'p',
     // 默认那一行对话引用的是这个角色（老数据里按角色 ID 写也算认得出来）；

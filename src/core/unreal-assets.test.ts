@@ -9,10 +9,12 @@ const require = createRequire(import.meta.url);
 interface AssetCore {
   IMAGE_EXTENSIONS: string[];
   SOUND_EXTENSIONS: string[];
+  FONT_EXTENSIONS: string[];
+  KIND_FOLDERS: Record<'image' | 'sound' | 'font', string>;
   UPLOAD_IMAGE_EXTENSIONS: string[];
-  allowedExtensions: (kind: 'image' | 'sound') => string[];
+  allowedExtensions: (kind: 'image' | 'sound' | 'font') => string[];
   baseNameOf: (fileName: string) => string;
-  kindOfFile: (fileName: string) => 'image' | 'sound' | null;
+  kindOfFile: (fileName: string) => 'image' | 'sound' | 'font' | null;
   listAssetFiles: (
     folder: string,
   ) => Promise<Array<{ filePath: string; fileName: string; baseName: string; kind: string }>>;
@@ -21,12 +23,12 @@ interface AssetCore {
     folder: string;
     oldId: string;
     newId: string;
-    kind: 'image' | 'sound';
+    kind: 'image' | 'sound' | 'font';
   }) => Promise<{ ok: boolean; filePath?: string; message?: string }>;
   uploadAssetFile: (options: {
     folder: string;
     id: string;
-    kind: 'image' | 'sound';
+    kind: 'image' | 'sound' | 'font';
     sourceFile: string;
     replace?: boolean;
   }) => Promise<{
@@ -39,7 +41,7 @@ interface AssetCore {
   writeAssetFile: (options: {
     folder: string;
     id: string;
-    kind: 'image' | 'sound';
+    kind: 'image' | 'sound' | 'font';
     extension: string;
     data: Uint8Array;
     replace?: boolean;
@@ -84,6 +86,13 @@ describe('素材文件的格式判断', () => {
     expect(assets.baseNameOf('SCE_Black.png')).toBe('SCE_Black');
     expect(assets.baseNameOf('S_dididi.wav')).toBe('S_dididi');
   });
+
+  it('字体认 ttf / otf，放进 Fonts 子文件夹', () => {
+    expect(assets.kindOfFile('a.ttf')).toBe('font');
+    expect(assets.kindOfFile('a.OTF')).toBe('font');
+    expect(assets.allowedExtensions('font')).toEqual(['ttf', 'otf']);
+    expect(assets.KIND_FOLDERS).toEqual({ image: 'Image', sound: 'Sound', font: 'Fonts' });
+  });
 });
 
 describe('列素材文件夹', () => {
@@ -125,8 +134,8 @@ describe('上传素材', () => {
     });
 
     expect(result.ok).toBe(true);
-    expect(result.filePath).toBe(join(dir, 'SCE_Black.jpeg'));
-    expect(existsSync(join(dir, 'SCE_Black.jpeg'))).toBe(true);
+    expect(result.filePath).toBe(join(dir, 'Image', 'SCE_Black.jpeg'));
+    expect(existsSync(join(dir, 'Image', 'SCE_Black.jpeg'))).toBe(true);
   });
 
   it('格式对不上直接拒绝，不往里复制', async () => {
@@ -192,7 +201,8 @@ describe('上传素材', () => {
 
   it('重新选择素材时把同一 ID 的旧文件删掉', async () => {
     const dir = tempDir();
-    writeFileSync(join(dir, 'SCE_Black.png'), '旧图');
+    mkdirSync(join(dir, 'Image'));
+    writeFileSync(join(dir, 'Image', 'SCE_Black.png'), '旧图');
     const source = join(dir, '新图.jpg');
     writeFileSync(source, '新图');
 
@@ -205,13 +215,14 @@ describe('上传素材', () => {
     });
 
     expect(result.ok).toBe(true);
-    expect(existsSync(join(dir, 'SCE_Black.png'))).toBe(false);
-    expect(existsSync(join(dir, 'SCE_Black.jpg'))).toBe(true);
+    expect(existsSync(join(dir, 'Image', 'SCE_Black.png'))).toBe(false);
+    expect(existsSync(join(dir, 'Image', 'SCE_Black.jpg'))).toBe(true);
   });
 
   it('不替换时不动别的扩展名', async () => {
     const dir = tempDir();
-    writeFileSync(join(dir, 'SCE_Black.png'), '旧图');
+    mkdirSync(join(dir, 'Image'));
+    writeFileSync(join(dir, 'Image', 'SCE_Black.png'), '旧图');
     const source = join(dir, '新图.jpg');
     writeFileSync(source, '新图');
 
@@ -223,8 +234,25 @@ describe('上传素材', () => {
       replace: false,
     });
 
-    expect(existsSync(join(dir, 'SCE_Black.png'))).toBe(true);
-    expect(existsSync(join(dir, 'SCE_Black.jpg'))).toBe(true);
+    expect(existsSync(join(dir, 'Image', 'SCE_Black.png'))).toBe(true);
+    expect(existsSync(join(dir, 'Image', 'SCE_Black.jpg'))).toBe(true);
+  });
+
+  it('字体保留原文件名，放进 Fonts 子文件夹', async () => {
+    const dir = tempDir();
+    const source = join(dir, '思源黑体-Regular.ttf');
+    writeFileSync(source, 'font');
+
+    const result = await assets.uploadAssetFile({
+      folder: dir,
+      id: '',
+      kind: 'font',
+      sourceFile: source,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.filePath).toBe(join(dir, 'Fonts', '思源黑体-Regular.ttf'));
+    expect(existsSync(join(dir, 'Fonts', '思源黑体-Regular.ttf'))).toBe(true);
   });
 });
 
@@ -258,13 +286,14 @@ describe('webp 上传与写入 PNG', () => {
     });
 
     expect(result.ok).toBe(true);
-    expect(result.filePath).toBe(join(dir, 'PIC_X.png'));
-    expect([...readFileSync(join(dir, 'PIC_X.png'))]).toEqual([...png]);
+    expect(result.filePath).toBe(join(dir, 'Image', 'PIC_X.png'));
+    expect([...readFileSync(join(dir, 'Image', 'PIC_X.png'))]).toEqual([...png]);
   });
 
   it('replace 时把同一 ID 的旧扩展名清掉', async () => {
     const dir = tempDir();
-    writeFileSync(join(dir, 'PIC_X.jpg'), '旧的');
+    mkdirSync(join(dir, 'Image'));
+    writeFileSync(join(dir, 'Image', 'PIC_X.jpg'), '旧的');
 
     await assets.writeAssetFile({
       folder: dir,
@@ -275,8 +304,8 @@ describe('webp 上传与写入 PNG', () => {
       replace: true,
     });
 
-    expect(existsSync(join(dir, 'PIC_X.jpg'))).toBe(false);
-    expect(existsSync(join(dir, 'PIC_X.png'))).toBe(true);
+    expect(existsSync(join(dir, 'Image', 'PIC_X.jpg'))).toBe(false);
+    expect(existsSync(join(dir, 'Image', 'PIC_X.png'))).toBe(true);
   });
 
   it('不允许写 webp、空内容、空 ID', async () => {

@@ -138,6 +138,7 @@ export function createEmptyProject(
     battle: createEmptyBattle(),
     specialCommandClassPrefix: DEFAULT_SPECIAL_COMMAND_CLASS_PREFIX,
     textBoxes: [createDefaultTextBox()],
+    fonts: [],
     ui: { theme },
     exportSettings: [],
     chapters: [

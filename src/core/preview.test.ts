@@ -15,6 +15,7 @@ import {
 } from './preview';
 import type { Line, Project, StoryOption } from './types';
 import { createEmptyProject } from '../state/operations';
+import { createDefaultTextBox } from './textbox';
 
 function dialogue(
   uid: string,
@@ -578,6 +579,61 @@ describe('文本框：初始隐藏、自动弹出、清空与隐藏', () => {
     const cleared = advance(project, second);
     expect(linesOf(cleared, boxUid)).toEqual([]);
     expect(visibleOf(cleared, boxUid)).toBe(true);
+  });
+
+  const speakerOf = (
+    state: { stage: { textBoxes: { textBoxUid: string; speaker: string }[] } },
+    uid: string,
+  ): string => state.stage.textBoxes.find((box) => box.textBoxUid === uid)?.speaker ?? '';
+
+  it('说话人名字跟着各自的框走：换到另一个框继续播，前一个框的名字不会丢', () => {
+    const { project, boxUid } = withTextBox([
+      dialogue('d1', 'Dia_ch01_001-1', '第一句', { characterUid: 'cha1' }),
+    ]);
+    // 第二个框 + 第二个角色
+    const box2 = createDefaultTextBox('第二个框', 'TB_2');
+    project.textBoxes.push(box2);
+    project.characters.push({
+      uid: 'cha2',
+      id: 'CHA_樱',
+      name: '樱',
+      nameEn: '',
+      nameJa: '',
+      textBoxUid: box2.uid,
+      aliases: [],
+      expressions: [],
+      actions: [],
+    });
+    project.chapters[0].groups[0].lines.push(
+      dialogue('d2', 'Dia_ch01_001-2', '第二句', { characterUid: 'cha2' }),
+    );
+
+    const first = startPreview(project, { groupUid: 'g1' });
+    expect(speakerOf(first, boxUid)).toBe('西园寺雪');
+
+    const second = advance(project, first);
+    expect(speakerOf(second, boxUid)).toBe('西园寺雪');
+    expect(speakerOf(second, box2.uid)).toBe('樱');
+  });
+
+  it('从本章中间开始预览：先静默回放前面的指令与台词，音效不重放', () => {
+    const { project, boxUid } = withTextBox([
+      commandLine('i1', 'Dia_ch01_001-1', '剧情|图片|图片:{{IMG}}'),
+      dialogue('d1', 'Dia_ch01_001-2', '第一句', { characterUid: 'cha1' }),
+      commandLine('s1', 'Dia_ch01_001-3', '剧情|音效|音效:S_Wind'),
+    ]);
+    project.images.push({ uid: 'img1', id: 'SCE_Black', name: '黑底' });
+    const [imgLine] = project.chapters[0].groups[0].lines;
+    imgLine.command = imgLine.command.replace('{{IMG}}', 'img1');
+
+    const state = startPreview(project, { groupUid: 'g2' });
+
+    // 起点在 g2：前面 g1 的图片、台词、文本框都补上了
+    expect(state.stage.backgroundImageUid).toBe('img1');
+    expect(visibleOf(state, boxUid)).toBe(true);
+    expect(linesOf(state, boxUid)).toEqual(['第一句']);
+    // 音效不重放
+    expect(state.log.some((entry) => entry.text.includes('S_Wind'))).toBe(false);
   });
 });
 

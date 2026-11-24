@@ -214,13 +214,14 @@ describe('界面冒烟测试', () => {
     expect(screen.getByText(/还没有角色/)).toBeTruthy();
   });
 
-  it('剧情模块的子模块栏有脚本 / 角色 / 文本框，文本框页能新建', async () => {
+  it('剧情模块的子模块栏有脚本 / 角色 / 文本框 / 字体，文本框页能新建', async () => {
     await renderApp();
     const side = storySide();
     expect([...side.querySelectorAll('button')].map((button) => button.textContent)).toEqual([
       '脚本',
       '角色',
       '文本框',
+      '字体',
     ]);
 
     fireEvent.click(within(side).getByText('文本框'));

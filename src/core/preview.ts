@@ -63,6 +63,11 @@ export interface PreviewTextBoxState {
    * 台词控件勾了「允许多行」之后逐句往后接。
    */
   lines: LocalizedText[];
+  /**
+   * 框里那句台词的说话人名字。
+   * 跟着框一起存：先播的框不会因为下一句换到别的框里就把名字丢掉。
+   */
+  speaker: string;
 }
 
 export interface PreviewStage {
@@ -143,6 +148,7 @@ export function emptyStage(project?: Project): PreviewStage {
       textBoxUid: row.uid,
       visible: false,
       lines: [],
+      speaker: '',
     })),
   };
 }
@@ -157,7 +163,7 @@ function updateTextBox(
   const exists = stage.textBoxes.some((item) => item.textBoxUid === textBoxUid);
   const textBoxes = exists
     ? stage.textBoxes.map((item) => (item.textBoxUid === textBoxUid ? update(item) : item))
-    : [...stage.textBoxes, update({ textBoxUid, visible: false, lines: [] })];
+    : [...stage.textBoxes, update({ textBoxUid, visible: false, lines: [], speaker: '' })];
   return { ...stage, textBoxes };
 }
 
@@ -175,6 +181,7 @@ function pushTextBoxLine(
   project: Project,
   textBoxUid: string,
   text: LocalizedText,
+  speaker: string,
 ): PreviewStage {
   const box = previewTextBoxOf(project, textBoxUid);
   if (box === undefined) return stage;
@@ -182,12 +189,18 @@ function pushTextBoxLine(
     ...item,
     visible: true,
     lines: box.text.multiLine ? [...item.lines, text] : [text],
+    speaker,
   }));
 }
 
 /** 清空：框还留着，里面的句子全清掉（多行时一次清干净） */
 function clearTextBox(stage: PreviewStage, textBoxUid: string): PreviewStage {
-  return updateTextBox(stage, textBoxUid, (item) => ({ ...item, visible: true, lines: [] }));
+  return updateTextBox(stage, textBoxUid, (item) => ({
+    ...item,
+    visible: true,
+    lines: [],
+    speaker: '',
+  }));
 }
 
 /** 按 uid 找段落 */
@@ -277,6 +290,138 @@ export function describeCommand(
 
 /* ---------- 启动与推进 ---------- */
 
+/** 回放一条指令对舞台的影响；要跳走时把目标也带回来 */
+function replayCommand(
+  project: Project,
+  stage: PreviewStage,
+  line: Line,
+): { stage: PreviewStage; jump?: PreviewCursor } {
+  // 「跳转到段落」：指令内容由段落现拼
+  if (line.jumpGroupUid !== null && line.jumpGroupUid !== '') {
+    return { stage, jump: { groupUid: line.jumpGroupUid, lineIndex: 0 } };
+  }
+
+  const parsed = parseCommandText(line.command);
+  if (parsed === null) return { stage };
+
+  const def = findCommandDef(project.commands, '指令', parsed.head, parsed.branch);
+  const values = paramValuesOf(parsed);
+  const read = (names: string[], sources: ParamSource[] = []): string =>
+    readParam(def, values, names, sources);
+
+  // 剧情 · 演出
+  if (parsed.head === '剧情' && parsed.branch === '演出') {
+    const applied = applyPerformance(project, stage, read(['角色'], ['character']), read(['立绘位移']), read(['表情'], ['expression']));
+    return { stage: applied.stage };
+  }
+
+  // 剧情 · 图片
+  if (parsed.head === '剧情' && parsed.branch === '图片') {
+    const ref = read(['图片'], ['image']);
+    const row = ref === '' ? undefined : project.images.find((item) => item.uid === ref);
+    return { stage: { ...stage, backgroundImageUid: row?.uid ?? '' } };
+  }
+
+  // 剧情 · CG
+  if (parsed.head === '剧情' && parsed.branch === 'CG') {
+    return { stage: { ...stage, cgId: read(['CG'], ['text']) } };
+  }
+
+  // 剧情 · 播放对话
+  if (parsed.head === '剧情' && parsed.branch === '播放对话') {
+    const ref = read(['对话'], ['line']);
+    const target = ref === '' ? undefined : locateLine(project, ref);
+    return target === undefined ? { stage } : { stage, jump: target };
+  }
+
+  // 剧情 · 文本框：弹出 / 清空 / 隐藏
+  if (parsed.head === '剧情' && parsed.branch === '文本框') {
+    const ref = read(['文本框'], ['textbox']);
+    const action = read(['操作']);
+    const box = project.textBoxes.find((item) => item.uid === ref);
+    if (box === undefined) return { stage };
+    if (action === '弹出') return { stage: setTextBoxVisible(stage, box.uid, true) };
+    if (action === '清空') return { stage: clearTextBox(stage, box.uid) };
+    if (action === '隐藏') return { stage: setTextBoxVisible(stage, box.uid, false) };
+    return { stage };
+  }
+
+  // 音效、延时、特殊：回放时都不算（音效用户明确说了不要）
+  return { stage };
+}
+
+/**
+ * 从本章开头把舞台重放一遍，直到起点之前。
+ *
+ * 只回放「会留在画面上」的东西：立绘、背景、CG、文本框的弹出/清空/隐藏、台词。
+ * 音效不回放，延时直接跳过，选项行不影响舞台。
+ */
+export function replayStageBefore(
+  project: Project,
+  startGroupUid: string,
+  startLineIndex: number,
+): { stage: PreviewStage; lines: number } {
+  const chapter = project.chapters.find((item) =>
+    item.groups.some((group) => group.uid === startGroupUid),
+  );
+  if (chapter === undefined) return { stage: emptyStage(project), lines: 0 };
+  if (chapter.groups[0]?.uid === startGroupUid && startLineIndex <= 0) {
+    return { stage: emptyStage(project), lines: 0 };
+  }
+
+  let stage = emptyStage(project);
+  let groupIndex = 0;
+  let lineIndex = 0;
+  let steps = 0;
+  let lines = 0;
+
+  while (steps < MAX_STEPS) {
+    const group = chapter.groups[groupIndex];
+    if (group === undefined) break;
+    // 走到起点就停
+    if (group.uid === startGroupUid && lineIndex >= startLineIndex) break;
+
+    const line = group.lines[lineIndex];
+    if (line === undefined) {
+      groupIndex += 1;
+      lineIndex = 0;
+      continue;
+    }
+    steps += 1;
+
+    if (line.kind === '对话') {
+      const character = previewCharacterOf(project, line.characterUid);
+      stage = pushTextBoxLine(
+        stage,
+        project,
+        character?.textBoxUid ?? '',
+        line.text,
+        previewSpeakerName(project, line.characterUid, line.displayAliasUid),
+      );
+      lines += 1;
+      lineIndex += 1;
+      continue;
+    }
+
+    if (line.kind === '指令') {
+      const replayed = replayCommand(project, stage, line);
+      stage = replayed.stage;
+      if (replayed.jump !== undefined) {
+        const targetGroup = chapter.groups.findIndex((item) => item.uid === replayed.jump?.groupUid);
+        // 跳到本章之外就不再往下回放
+        if (targetGroup < 0) break;
+        groupIndex = targetGroup;
+        lineIndex = replayed.jump.lineIndex;
+        continue;
+      }
+    }
+
+    lineIndex += 1;
+  }
+
+  return { stage, lines };
+}
+
 export function startPreview(project: Project, start: PreviewStart): PreviewState {
   const group = previewGroupOf(project, start.groupUid);
   const lineIndex =
@@ -289,15 +434,23 @@ export function startPreview(project: Project, start: PreviewStart): PreviewStat
             : group.lines.findIndex((line) => line.uid === start.lineUid),
         );
 
+  const replayed =
+    group === undefined
+      ? { stage: emptyStage(project), lines: 0 }
+      : replayStageBefore(project, start.groupUid, lineIndex);
+
   const base: PreviewState = {
     status: 'line',
     cursor: { groupUid: start.groupUid, lineIndex },
-    stage: emptyStage(project),
+    stage: replayed.stage,
     current: null,
     options: [],
     delaySeconds: 0,
     nextGroupUid: '',
-    log: [],
+    log:
+      replayed.lines === 0
+        ? []
+        : [info(`回放了本章前面的 ${replayed.lines} 句台词（音效不重放）`)],
     history: [],
   };
 
@@ -512,7 +665,13 @@ function run(project: Project, state: PreviewState, steps: number): PreviewState
         autoAdvance: line.autoAdvance,
       },
       // 文本框没弹出来的话，播到它的角色时自动弹出来，并把这一句写进去
-      stage: pushTextBoxLine(state.stage, project, textBoxUid, line.text),
+      stage: pushTextBoxLine(
+        state.stage,
+        project,
+        textBoxUid,
+        line.text,
+        previewSpeakerName(project, line.characterUid, line.displayAliasUid),
+      ),
       options: [],
       delaySeconds: 0,
       nextGroupUid: '',

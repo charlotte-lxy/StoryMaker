@@ -26,6 +26,7 @@ import {
   updateTextBox,
   type TextBoxPart,
 } from '../state/textbox-operations';
+import { fontsOf } from '../state/font-operations';
 import { ConfirmDialog } from './ConfirmDialog';
 import { imageAssetOf } from '../core/preview-assets';
 import { useAssetUrl } from './PreviewPlayer';
@@ -181,11 +182,17 @@ function ControlImage({
 /** 文字控件的字体样式：颜色、字号、字体、对齐、行距（背景图没有文字，就不显示） */
 function TextStyleFields({
   control,
+  fonts,
   onChange,
 }: {
   control: TextBoxRow['text'];
+  /** 字体子模块里导入的字体显示名称（排在内置字体后面） */
+  fonts: readonly string[];
   onChange: (patch: Partial<TextBoxRow['text']>) => void;
 }): React.JSX.Element {
+  const builtin: string[] = [...TEXT_BOX_FONTS];
+  const options: string[] = [...builtin, ...fonts.filter((font) => !builtin.includes(font))];
+  const known = options.includes(control.fontFamily);
   return (
     <>
       <label className="field">
@@ -209,12 +216,12 @@ function TextStyleFields({
           onChange={(event) => onChange({ fontFamily: event.target.value })}
         >
           <option value="">（默认）</option>
-          {TEXT_BOX_FONTS.map((font) => (
+          {options.map((font) => (
             <option key={font} value={font}>
               {font}
             </option>
           ))}
-          {control.fontFamily !== '' && !TEXT_BOX_FONTS.includes(control.fontFamily as never) && (
+          {control.fontFamily !== '' && !known && (
             <option value={control.fontFamily}>{control.fontFamily}</option>
           )}
         </select>
@@ -378,6 +385,8 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
   const [pendingRemove, setPendingRemove] = useState<string | null>(null);
 
   const active = boxes.find((row) => row.uid === selectedUid) ?? boxes[0];
+  /** 字体子模块里的显示名称，排在内置字体后面 */
+  const fontNames = fontsOf(project).map((row) => row.name.trim()).filter((name) => name !== '');
 
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -886,7 +895,11 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
               )}
 
               {part !== 'bg' && (
-                <TextStyleFields control={active[part]} onChange={(changes) => patchControl(part, changes)} />
+                <TextStyleFields
+                  control={active[part]}
+                  fonts={fontNames}
+                  onChange={(changes) => patchControl(part, changes)}
+                />
               )}
             </div>
 

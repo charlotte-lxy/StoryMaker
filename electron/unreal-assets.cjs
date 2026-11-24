@@ -3,14 +3,16 @@
 /**
  * 素材文件夹的读写：列表、上传（复制 + 按 ID 重命名）、删除、读内容。
  *
- * 素材文件夹是策划本机上的一个目录，png / wav 丢在里面，**文件名（不含扩展名）就是
- * 图片 ID / 音效 ID**。立绘和音效模块的「素材管理」列全靠这一套。
+ * 素材文件夹是策划本机上的一个目录，里面按类别分了三个子目录：
+ * `Image/` 放图片、`Sound/` 放音效、`Fonts/` 放字体；
+ * **文件名（不含扩展名）就是图片 ID / 音效 ID**，字体则用显示名称当文件名。
+ * 立绘 / 音效模块的「素材管理」列与字体子模块全靠这一套。
  *
- * 上传一律**平铺到素材文件夹根目录**，不做子文件夹——和导入时「递归扫、按文件名对 ID」
- * 的规则保持一致，放哪一层都认，但新传的都在最外层，好找。
+ * 老版本的素材是平铺在根目录的：列表照样递归扫得到，不用手工搬；
+ * 但新传的都进对应子目录，不再往根上堆。
  */
 
-const { copyFile, readFile, readdir, rename, rm, stat, writeFile } = require('node:fs/promises');
+const { copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } = require('node:fs/promises');
 const path = require('node:path');
 
 /** 素材文件夹里允许存在的图片格式：都是 UE 能直接导进去的 */
@@ -19,19 +21,33 @@ const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.tga'];
 const WEBP_EXTENSION = '.webp';
 const UPLOAD_IMAGE_EXTENSIONS = [...IMAGE_EXTENSIONS, WEBP_EXTENSION];
 const SOUND_EXTENSIONS = ['.wav', '.ogg', '.flac'];
+/** 字体：UE 认的两种字体文件 */
+const FONT_EXTENSIONS = ['.ttf', '.otf'];
+
+/** 每个类别在素材文件夹里的子目录（和 UE 内容目录的 Image / Sound 对齐） */
+const KIND_FOLDERS = { image: 'Image', sound: 'Sound', font: 'Fonts' };
 
 /** 文件属于哪一类；不认识的返回 null（webp 不算素材格式，它只是上传来源） */
 function kindOfFile(fileName) {
   const extension = path.extname(fileName).toLowerCase();
   if (IMAGE_EXTENSIONS.includes(extension)) return 'image';
   if (SOUND_EXTENSIONS.includes(extension)) return 'sound';
+  if (FONT_EXTENSIONS.includes(extension)) return 'font';
   return null;
 }
 
 /** 某个类别允许的扩展名，给文件选择框用（不带点） */
 function allowedExtensions(kind) {
-  const list = kind === 'sound' ? SOUND_EXTENSIONS : UPLOAD_IMAGE_EXTENSIONS;
-  return list.map((ext) => ext.slice(1));
+  if (kind === 'sound') return SOUND_EXTENSIONS.map((ext) => ext.slice(1));
+  if (kind === 'font') return FONT_EXTENSIONS.map((ext) => ext.slice(1));
+  return UPLOAD_IMAGE_EXTENSIONS.map((ext) => ext.slice(1));
+}
+
+/** 某个类别的素材应该落在哪个目录（不存在就建出来） */
+async function folderForKind(folder, kind) {
+  const target = path.join(folder, KIND_FOLDERS[kind] ?? KIND_FOLDERS.image);
+  await mkdir(target, { recursive: true }).catch(() => undefined);
+  return target;
 }
 
 /** 去掉扩展名的文件名 */
@@ -92,10 +108,11 @@ async function listAssetFiles(folder) {
  *
  * keepPath 是刚写进去的那一份，跳过它。
  */
-async function removeOtherFilesWithBaseName(folder, baseName, keepPath) {
+async function removeOtherFilesWithBaseName(folder, baseName, keepPath, kind) {
   const existing = await listAssetFiles(folder);
   for (const file of existing) {
     if (file.baseName !== baseName) continue;
+    if (kind !== undefined && file.kind !== kind) continue;
     if (path.resolve(file.filePath) === path.resolve(keepPath)) continue;
     await rm(file.filePath, { force: true }).catch(() => undefined);
   }
@@ -116,7 +133,9 @@ async function uploadAssetFile({ folder, id, kind, sourceFile, replace = false }
   if (targetFolder === '') return { ok: false, message: '还没有在设置里选素材文件夹' };
 
   const name = safeFileName(id);
-  if (name === '') return { ok: false, message: '这一行还没有 ID，先填 ID 再传素材' };
+  if (kind !== 'font' && name === '') {
+    return { ok: false, message: '这一行还没有 ID，先填 ID 再传素材' };
+  }
 
   const extension = path.extname(sourceFile).toLowerCase();
   const isWebp = extension === WEBP_EXTENSION;
@@ -134,7 +153,10 @@ async function uploadAssetFile({ folder, id, kind, sourceFile, replace = false }
     return { ok: false, requiresConversion: true, sourcePath: sourceFile };
   }
 
-  const targetPath = path.join(targetFolder, `${name}${extension}`);
+  // 字体保留原文件名：字体文件的名字本身就是最有用的信息，没必要按 ID 改
+  const fileName = kind === 'font' ? safeFileName(baseNameOf(sourceFile)) : name;
+  const kindFolder = await folderForKind(targetFolder, kind);
+  const targetPath = path.join(kindFolder, `${fileName}${extension}`);
 
   try {
     await copyFile(sourceFile, targetPath);
@@ -144,7 +166,7 @@ async function uploadAssetFile({ folder, id, kind, sourceFile, replace = false }
 
   // 「重新选择素材」：同一个 ID 只该留一份，把别的扩展名清掉
   if (replace) {
-    await removeOtherFilesWithBaseName(targetFolder, name, targetPath);
+    await removeOtherFilesWithBaseName(targetFolder, fileName, targetPath, kind);
   }
 
   return { ok: true, filePath: targetPath };
@@ -164,7 +186,8 @@ async function writeAssetFile({ folder, id, kind, extension, data, replace = fal
 
   const raw = String(extension ?? '').toLowerCase();
   const ext = raw.startsWith('.') ? raw : `.${raw}`;
-  const allowed = kind === 'sound' ? SOUND_EXTENSIONS : IMAGE_EXTENSIONS;
+  const allowed =
+    kind === 'sound' ? SOUND_EXTENSIONS : kind === 'font' ? FONT_EXTENSIONS : IMAGE_EXTENSIONS;
   if (!allowed.includes(ext)) {
     return { ok: false, message: `不支持写入的格式：${ext === '.' ? '没有扩展名' : ext}` };
   }
@@ -173,7 +196,8 @@ async function writeAssetFile({ folder, id, kind, extension, data, replace = fal
     return { ok: false, message: '没有收到要写入的图片内容' };
   }
 
-  const targetPath = path.join(targetFolder, `${name}${ext}`);
+  const kindFolder = await folderForKind(targetFolder, kind);
+  const targetPath = path.join(kindFolder, `${name}${ext}`);
   try {
     await writeFile(targetPath, Buffer.from(data));
   } catch (error) {
@@ -184,7 +208,7 @@ async function writeAssetFile({ folder, id, kind, extension, data, replace = fal
   }
 
   if (replace) {
-    await removeOtherFilesWithBaseName(targetFolder, name, targetPath);
+    await removeOtherFilesWithBaseName(targetFolder, name, targetPath, kind);
   }
 
   return { ok: true, filePath: targetPath };
@@ -220,7 +244,8 @@ async function renameAssetFile({ folder, oldId, newId, kind }) {
   if (source === undefined) return { ok: true };
 
   const extension = path.extname(source.filePath);
-  const targetPath = path.join(targetFolder, `${to}${extension}`);
+  // 改名留在原目录里：别把 Image/ 里的图片挪到根上
+  const targetPath = path.join(path.dirname(source.filePath), `${to}${extension}`);
 
   const occupied = await stat(targetPath).catch(() => null);
   if (occupied !== null) {
@@ -245,11 +270,14 @@ async function readAssetFile(filePath) {
 }
 
 module.exports = {
+  FONT_EXTENSIONS,
   IMAGE_EXTENSIONS,
+  KIND_FOLDERS,
   SOUND_EXTENSIONS,
   UPLOAD_IMAGE_EXTENSIONS,
   allowedExtensions,
   baseNameOf,
+  folderForKind,
   kindOfFile,
   listAssetFiles,
   readAssetFile,

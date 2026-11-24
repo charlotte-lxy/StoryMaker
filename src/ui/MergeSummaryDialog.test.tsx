@@ -15,6 +15,7 @@ function makeProject(): Project {
   return {
     version: 1,
     textBoxes: [],
+    fonts: [],
     expressions: [],
     name: '测试项目',
     characters: [{ uid: 'c1', id: 'CHA_甲', name: '甲', textBoxUid: '', nameEn: '', nameJa: '', aliases: [], expressions: [], actions: [] }],

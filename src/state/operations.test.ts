@@ -60,6 +60,7 @@ function makeProject(): Project {
   return {
     version: 1,
     textBoxes: [],
+    fonts: [],
     expressions: [],
     name: 'p',
     characters: [],

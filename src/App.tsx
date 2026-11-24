@@ -133,6 +133,8 @@ import { ScriptPalette } from './ui/ScriptPalette';
 import { Sidebar } from './ui/Sidebar';
 import { StoryOutline } from './ui/StoryOutline';
 import { TextBoxEditor } from './ui/TextBoxEditor';
+import { FontEditor } from './ui/FontEditor';
+import { useFontFaces } from './ui/use-font-faces';
 import { UpdatePrompt } from './ui/UpdatePanel';
 import { ExportToUeDialog } from './ui/export/ExportToUeDialog';
 import { useAssetLibrary } from './ui/use-asset-library';
@@ -160,12 +162,13 @@ type Phase = 'loading' | 'gate' | 'ready';
 type Module = ModuleId | 'character' | 'export' | 'settings';
 
 /** 剧情模块里的子模块：脚本（章节 / 段落 / 对话）/ 角色 / 文本框 */
-type StoryPage = 'script' | 'characters' | 'textbox';
+type StoryPage = 'script' | 'characters' | 'textbox' | 'fonts';
 
 const STORY_PAGES: { key: StoryPage; label: string }[] = [
   { key: 'script', label: '脚本' },
   { key: 'characters', label: '角色' },
   { key: 'textbox', label: '文本框' },
+  { key: 'fonts', label: '字体' },
 ];
 
 /**
@@ -205,6 +208,8 @@ export default function App() {
   const [unrealPrefs, setUnrealPrefs] = useState<UnrealPrefs>(loadUnrealPrefs);
   /** 素材文件夹里的文件：立绘和音效的「素材管理」列共用这一份 */
   const assetLibrary = useAssetLibrary(host, unrealPrefs.assetFolder);
+  /** 项目里导入的字体：注册成 @font-face，文本框与预览写 font-family 就能用 */
+  useFontFaces(host, assetLibrary, project.fonts ?? []);
   /** 当前项目面向的引擎：决定侧边栏显示哪一组模块、顶部标签、自动探测哪个编辑器 */
   const engine = engineOf(project);
   /** 和 Unreal 编辑器的连接：导入设置页和「导出到 UE」弹窗共用 */
@@ -1383,6 +1388,14 @@ export default function App() {
 
               {storyActive && storySubPage === 'textbox' && (
                 <TextBoxEditor
+                  project={project}
+                  assets={{ library: assetLibrary, host }}
+                  onChange={setProject}
+                />
+              )}
+
+              {storyActive && storySubPage === 'fonts' && (
+                <FontEditor
                   project={project}
                   assets={{ library: assetLibrary, host }}
                   onChange={setProject}

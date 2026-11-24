@@ -110,6 +110,7 @@ function makeProject(): Project {
   return {
     version: 1,
     textBoxes: [],
+    fonts: [],
     expressions: [],
     name: '引用测试',
     characters: [
@@ -273,6 +274,7 @@ describe('读老项目时把引用换成 uid', () => {
     const result = normalizeProject({
       version: 1,
       textBoxes: [],
+      fonts: [],
       expressions: [],
       name: '老项目',
       characters: [{ uid: 'ch1', id: 'CHA_伊芙', name: '伊芙' }],
@@ -353,6 +355,7 @@ describe('读老项目时把引用换成 uid', () => {
     const result = normalizeProject({
       version: 1,
       textBoxes: [],
+      fonts: [],
       expressions: [],
       name: '老项目',
       characters: [],

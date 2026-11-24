@@ -48,6 +48,7 @@ function makeProject(chapters: Chapter[]): Project {
   return {
     version: 1,
     textBoxes: [],
+    fonts: [],
     expressions: [],
     name: '流程测试',
     characters: [],

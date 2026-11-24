@@ -121,6 +121,9 @@ export interface UnrealImportProgress {
   status: 'running' | 'ok' | 'failed';
 }
 
+/** 素材文件夹里的文件分三类：图片进 Image/、音效进 Sound/、字体进 Fonts/ */
+export type AssetKind = 'image' | 'sound' | 'font';
+
 /**
  * 素材文件夹里的一个文件。
  *
@@ -130,7 +133,7 @@ export interface AssetFileInfo {
   filePath: string;
   fileName: string;
   baseName: string;
-  kind: 'image' | 'sound';
+  kind: AssetKind;
   /** 字节数，增量判定用 */
   size: number;
   /** 修改时间（毫秒），增量判定用 */
@@ -206,7 +209,7 @@ export interface UnrealApi {
   uploadAsset: (request: {
     folder: string;
     id: string;
-    kind: 'image' | 'sound';
+    kind: AssetKind;
     replace?: boolean;
   }) => Promise<AssetUploadResult>;
   /** 删掉一个素材文件 */
@@ -216,7 +219,7 @@ export interface UnrealApi {
     folder: string;
     oldId: string;
     newId: string;
-    kind: 'image' | 'sound';
+    kind: AssetKind;
   }) => Promise<{ ok: boolean; filePath?: string; message?: string }>;
   /** 读素材内容，用于预览图和音频播放 */
   readAsset: (filePath: string) => Promise<AssetReadResult>;
@@ -224,7 +227,7 @@ export interface UnrealApi {
   writeAsset: (request: {
     folder: string;
     id: string;
-    kind: 'image' | 'sound';
+    kind: AssetKind;
     /** 要写入的扩展名（不带点也行），只收素材文件夹里合法的格式 */
     extension: string;
     data: Uint8Array;
@@ -349,7 +352,7 @@ export interface DesktopBridge {
   unrealUploadAsset?: (request: {
     folder: string;
     id: string;
-    kind: 'image' | 'sound';
+    kind: AssetKind;
     replace?: boolean;
   }) => Promise<AssetUploadResult>;
   unrealRemoveAsset?: (filePath: string) => Promise<{ ok: boolean; message?: string }>;
@@ -357,13 +360,13 @@ export interface DesktopBridge {
     folder: string;
     oldId: string;
     newId: string;
-    kind: 'image' | 'sound';
+    kind: AssetKind;
   }) => Promise<{ ok: boolean; filePath?: string; message?: string }>;
   unrealReadAsset?: (filePath: string) => Promise<AssetReadResult>;
   unrealWriteAsset?: (request: {
     folder: string;
     id: string;
-    kind: 'image' | 'sound';
+    kind: AssetKind;
     extension: string;
     data: Uint8Array;
     replace?: boolean;

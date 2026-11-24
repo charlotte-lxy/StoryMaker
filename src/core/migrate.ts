@@ -47,6 +47,7 @@ import {
   type CommandDef,
   type CommandParamDef,
   type ExpressionRow,
+  type FontRow,
   type GasModifier,
   type GasPair,
   type Group,
@@ -237,6 +238,9 @@ export function normalizeProject(input: unknown): NormalizeResult | null {
 
   // 预览文本框也是后加的：老项目里没有这一栏，补一条默认的
   project.textBoxes = normalizeTextBoxes(project.textBoxes);
+
+  // 字体子模块同样是后加的：老项目里没有这一栏，给个空表
+  project.fonts = readFonts(project);
 
   // 导入设置同样是后加的：老项目里没有这栏
   const rawExportSettings: unknown = project.exportSettings;
@@ -1066,8 +1070,20 @@ function migratePlayPositionsToTextBoxes(project: Project): void {
  * 表情差分配置：老项目里表情是挂在角色身上的一串名字，
  * 这里把它们收进全局表情表（图片 ID 标识先等于表情名）。
  */
-function readExpressions(project: Project): ExpressionRow[] {
-  const raw: unknown = project.expressions;
+/** 字体子模块：读过一遍，去掉没名字或没文件名的行 */
+function readFonts(project: Project): FontRow[] {
+  const raw: unknown = project.fonts;
+  return (Array.isArray(raw) ? raw : [])
+    .filter(isRecord)
+    .map((row) => ({
+      uid: asUid(row.uid),
+      name: asString(row.name).trim(),
+      fileName: asString(row.fileName).trim(),
+    }))
+    .filter((row) => row.name !== '' && row.fileName !== '');
+}
+
+function readExpressions(project: Project): ExpressionRow[] {  const raw: unknown = project.expressions;
   const rows = (Array.isArray(raw) ? raw : [])
     .filter(isRecord)
     .map((row) => ({

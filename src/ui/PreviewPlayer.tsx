@@ -709,7 +709,6 @@ export function PreviewPlayer({
   const assetsReady = assets.library.available && assets.library.folder.trim() !== '';
 
   const current = state?.current ?? null;
-  const speaker = current === null ? '' : previewSpeakerName(project, current.characterUid, current.aliasUid);
   /** 层级高的画在上层：DOM 顺序靠后的盖住前面的 */
   const visibleTextBoxes = (state?.stage.textBoxes ?? [])
     .filter((item) => item.visible)
@@ -810,7 +809,7 @@ export function PreviewPlayer({
                     host={assets.host}
                     box={box}
                     scale={frameScale}
-                    speaker={mine ? speaker : ''}
+                    speaker={item.speaker}
                     lines={item.lines.map(previewTextOf)}
                     registerFinish={mine ? registerRevealFinish : undefined}
                   />

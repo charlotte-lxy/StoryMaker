@@ -8,6 +8,7 @@ function makeProject(name = '测试项目'): Project {
   return {
     version: 1,
     textBoxes: [],
+    fonts: [],
     expressions: [],
     name,
     characters: [{ uid: 'c1', id: 'CHA_甲', name: '甲', textBoxUid: '', nameEn: '', nameJa: '', aliases: [], expressions: [], actions: [] }],

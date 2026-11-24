@@ -7,12 +7,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import type { AssetFileInfo, HostApi } from '../core/host';
+import type { AssetFileInfo, AssetKind, HostApi } from '../core/host';
 import { convertImageToPng } from './image-convert';
 
 export interface AssetActionResult {
   ok: boolean;
   message?: string;
+  /** 上传成功时落地的文件路径（字体子模块要拿它记文件名） */
+  filePath?: string;
 }
 
 export interface AssetLibrary {
@@ -31,11 +33,11 @@ export interface AssetLibrary {
   byId: Map<string, AssetFileInfo[]>;
   refresh: () => void;
   /** 传素材；replace 为 true 时先删掉同 ID 的其他文件（「重新选择素材」） */
-  upload: (id: string, kind: 'image' | 'sound', replace: boolean) => Promise<AssetActionResult>;
+  upload: (id: string, kind: AssetKind, replace: boolean) => Promise<AssetActionResult>;
   /** 删素材文件 */
   remove: (file: AssetFileInfo) => Promise<AssetActionResult>;
   /** 条目改了 ID：把素材文件跟着改名；没有对应文件时什么也不做 */
-  rename: (oldId: string, newId: string, kind: 'image' | 'sound') => Promise<AssetActionResult>;
+  rename: (oldId: string, newId: string, kind: AssetKind) => Promise<AssetActionResult>;
 }
 
 export function useAssetLibrary(host: HostApi | undefined, folder: string): AssetLibrary {
@@ -90,12 +92,12 @@ export function useAssetLibrary(host: HostApi | undefined, folder: string): Asse
   const refresh = useCallback(() => setVersion((current) => current + 1), []);
 
   const upload = useCallback(
-    async (id: string, kind: 'image' | 'sound', replace: boolean): Promise<AssetActionResult> => {
+    async (id: string, kind: AssetKind, replace: boolean): Promise<AssetActionResult> => {
       if (unreal === undefined) return { ok: false, message: '当前环境不能读写素材文件' };
       const result = await unreal.uploadAsset({ folder, id, kind, replace });
       if (result.ok) {
         refresh();
-        return { ok: true };
+        return { ok: true, filePath: result.filePath };
       }
       if (result.canceled === true) return { ok: false };
 
@@ -142,7 +144,7 @@ export function useAssetLibrary(host: HostApi | undefined, folder: string): Asse
   );
 
   const rename = useCallback(
-    async (oldId: string, newId: string, kind: 'image' | 'sound'): Promise<AssetActionResult> => {
+    async (oldId: string, newId: string, kind: AssetKind): Promise<AssetActionResult> => {
       if (unreal === undefined) return { ok: false, message: '当前环境不能读写素材文件' };
       const result = await unreal.renameAsset({ folder, oldId, newId, kind });
       if (result.ok) {

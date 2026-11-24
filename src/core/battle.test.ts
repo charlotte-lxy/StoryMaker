@@ -130,6 +130,7 @@ function makeProject(): Project {
   return {
     version: 1,
     textBoxes: [],
+    fonts: [],
     expressions: [],
     name: '战斗测试',
     characters: [],
