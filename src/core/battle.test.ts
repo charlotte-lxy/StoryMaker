@@ -121,6 +121,7 @@ function makeProject(): Project {
       attackSpeed: '1',
       energyCost: '5',
       baseDamage: '0',
+      attackRange: '300',
       attackModeUids: [],
       slotUids: [],
     },
@@ -350,9 +351,10 @@ describe('战斗模块的导出', () => {
       'TXT_WeaponInfo_WEA_测试-手枪',
       '10',
       '1',
-      // 基础伤害（夹具里默认 0），然后是能量消耗
+      // 基础伤害（夹具里默认 0），然后是能量消耗、攻击范围
       '0',
       '5',
+      '300',
       // 没勾攻击模式 / 插槽时两列留空
       '',
       '',
@@ -370,7 +372,7 @@ describe('战斗模块的导出', () => {
 
     const project = makeProject();
     project.battle.weaponClassPrefix = "/Game/BP/Weapon/";
-    expect(buildBattleRows(project).weapons[1][10]).toBe(
+    expect(buildBattleRows(project).weapons[1][11]).toBe(
       "/Game/BP/Weapon/BP_Weapon_测试-手枪.BP_Weapon_测试-手枪_C'",
     );
   });
@@ -378,7 +380,7 @@ describe('战斗模块的导出', () => {
   it('前缀为空时武器类这一列写 None（和样例一致）', () => {
     const project = makeProject();
     project.battle.weaponClassPrefix = '';
-    expect(buildBattleRows(project).weapons[1][10]).toBe('None');
+    expect(buildBattleRows(project).weapons[1][11]).toBe('None');
   });
 
   it('支持攻击模式列表写成 (A,B,C)、支持插槽列表写成 ("a","b")，都用导出名称', () => {
@@ -396,8 +398,8 @@ describe('战斗模块的导出', () => {
     project.battle.weapons[0].slotUids = ['sl1', 'sl2'];
 
     const row = buildBattleRows(project).weapons[1];
-    expect(row[7]).toBe('(TXT_AttackMode_手动攻击,TXT_AttackMode_自动攻击,TXT_AttackMode_点防御)');
-    expect(row[8]).toBe('("111","222")');
+    expect(row[8]).toBe('(TXT_AttackMode_手动攻击,TXT_AttackMode_自动攻击,TXT_AttackMode_点防御)');
+    expect(row[9]).toBe('("111","222")');
   });
 
   it('导出名称为空的那一条不写进去', () => {
@@ -408,7 +410,7 @@ describe('战斗模块的导出', () => {
     ];
     project.battle.weapons[0].attackModeUids = ['am1', 'am2'];
 
-    expect(buildBattleRows(project).weapons[1][7]).toBe('(TXT_AttackMode_自动攻击)');
+    expect(buildBattleRows(project).weapons[1][8]).toBe('(TXT_AttackMode_自动攻击)');
   });
 
   it('属性初始值可以绑定另一个属性：顺链取最终数字，链断与成环的行不导出', () => {

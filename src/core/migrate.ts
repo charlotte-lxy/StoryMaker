@@ -575,6 +575,7 @@ function normalizeBattle(input: unknown): BattleData {
       baseDamage: text(row, 'baseDamage'),
       // 武器表改成「能量消耗」之后，老数据里的修改器 / 技能列表不再读
       energyCost: text(row, 'energyCost'),
+      attackRange: text(row, 'attackRange'),
       attackModeUids: names(row.attackModeUids),
       slotUids: names(row.slotUids),
     })),

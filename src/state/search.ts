@@ -453,6 +453,7 @@ function battleDrafts(project: Project): Draft[] {
         row.magazine,
         row.attackSpeed,
         row.energyCost,
+        row.attackRange,
       ],
       target: { kind: 'battle', page: 'weapons', uid: row.uid },
     });

@@ -945,6 +945,7 @@ describe('导出三张表', () => {
         attackSpeed: '1',
         energyCost: '0',
         baseDamage: '0',
+        attackRange: '0',
         attackModeUids: [],
         slotUids: [],
       },

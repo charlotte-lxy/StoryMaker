@@ -24,7 +24,7 @@ interface Props {
  *
  * 顶上两张配置小表：攻击模式 / 插槽（都带「显示名称 + 导出名称」，各条用 uid 绑定，
  * 改名字只会改显示，导出跟着导出名称走）。下面才是武器表：
- * 弹匣容量 / 攻击速度 / 基础伤害 / 能量消耗都是手填数值，支持攻击模式与支持插槽是多选。
+ * 弹匣容量 / 攻击速度 / 基础伤害 / 能量消耗 / 攻击范围都是手填数值，支持攻击模式与支持插槽是多选。
  */
 export function BattleWeaponsPage({ project, onChange }: Props) {
   const editorRef = useScrollMemory('battle:weapons');
@@ -151,6 +151,7 @@ export function BattleWeaponsPage({ project, onChange }: Props) {
                 <th style={{ width: 84 }}>攻击速度</th>
                 <th style={{ width: 84 }}>基础伤害</th>
                 <th style={{ width: 84 }}>能量消耗</th>
+                <th style={{ width: 84 }}>攻击范围</th>
                 <th style={{ width: 200 }}>支持攻击模式</th>
                 <th style={{ width: 180 }}>支持插槽</th>
                 <th style={{ width: 74 }}>操作</th>
@@ -224,6 +225,16 @@ export function BattleWeaponsPage({ project, onChange }: Props) {
                       title="开一枪要消耗多少能量"
                       onChange={(event) =>
                         onChange(updateBattleRow(project, 'weapons', row.uid, { energyCost: event.target.value }))
+                      }
+                    />
+                  </td>
+                  <td>
+                    <input
+                      value={row.attackRange}
+                      placeholder="0"
+                      title="攻击范围：这把武器的有效射程"
+                      onChange={(event) =>
+                        onChange(updateBattleRow(project, 'weapons', row.uid, { attackRange: event.target.value }))
                       }
                     />
                   </td>

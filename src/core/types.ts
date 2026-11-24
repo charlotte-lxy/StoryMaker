@@ -533,6 +533,8 @@ export interface GasWeapon {
   baseDamage: string;
   /** 能量消耗：开一枪要多少能量 */
   energyCost: string;
+  /** 攻击范围：这把武器的有效射程 */
+  attackRange: string;
   /** 支持攻击模式：攻击模式配置表那一行的 uid（改名字不会断） */
   attackModeUids: string[];
   /** 支持插槽：插槽配置表那一行的 uid */

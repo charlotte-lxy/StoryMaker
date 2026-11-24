@@ -481,6 +481,7 @@ describe('界面冒烟测试', () => {
           attackSpeed: '1',
           energyCost: '0',
           baseDamage: '0',
+          attackRange: '0',
           attackModeUids: [],
           slotUids: [],
         },
@@ -2776,6 +2777,7 @@ describe('立绘：图片分类与「图片」子表', () => {
         attackSpeed: '1',
         energyCost: '0',
         baseDamage: '0',
+        attackRange: '0',
         attackModeUids: [],
         slotUids: [],
       },
@@ -3266,6 +3268,7 @@ describe('角色页的配置区与表情图片', () => {
       attackSpeed: '1',
       energyCost: '0',
       baseDamage: '0',
+      attackRange: '0',
       attackModeUids: modes,
       slotUids: slots,
     });
@@ -3476,6 +3479,30 @@ describe('武器页：攻击模式与插槽', () => {
     expect(cells[5]).toBe('25');
   });
 
+  it('武器表有「攻击范围」列：新武器默认 0，改了会进导出', async () => {
+    await openWeapons();
+    fireEvent.click(screen.getByText('＋ 新增武器'));
+
+    const headers = [...document.querySelectorAll('.battle-table thead th')].map(
+      (th) => th.textContent,
+    );
+    expect(headers).toContain('攻击范围');
+
+    const range = screen.getByTitle('攻击范围：这把武器的有效射程') as HTMLInputElement;
+    expect(range.value).toBe('0');
+    fireEvent.change(range, { target: { value: '500' } });
+
+    fireEvent.click(within(rail()).getByText('导出'));
+    const tab = [...document.querySelectorAll('.export-nav')].find((item) =>
+      item.textContent?.startsWith('GAS武器'),
+    ) as HTMLElement;
+    fireEvent.click(tab);
+    const cells = [...document.querySelectorAll('.preview-table tbody tr.line-row td')].map(
+      (td) => td.textContent,
+    );
+    expect(cells[7]).toBe('500');
+  });
+
   it('导出预览的 GAS武器 表多了两列，格式照着样例来', async () => {
     const project = createEmptyProject();
     project.battle.attackModes = [
@@ -3496,6 +3523,7 @@ describe('武器页：攻击模式与插槽', () => {
         attackSpeed: '1.000000',
         energyCost: '0',
         baseDamage: '0',
+        attackRange: '500',
         attackModeUids: ['am1'],
         slotUids: ['sl1'],
       },
@@ -3521,6 +3549,7 @@ describe('武器页：攻击模式与插槽', () => {
       '攻击速度',
       '基础伤害',
       '能量消耗',
+      '攻击范围',
       '支持攻击模式列表',
       '支持插槽列表',
       '武器图标',
@@ -3539,6 +3568,7 @@ describe('武器页：攻击模式与插槽', () => {
       '1.000000',
       '0',
       '0',
+      '500',
       '(TXT_AttackMode_手动攻击)',
       '("111")',
       'PIC_WEA_测试-手枪',

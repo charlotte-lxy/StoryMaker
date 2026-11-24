@@ -82,6 +82,7 @@ export const WEAPON_HEADER: readonly string[] = [
   '攻击速度',
   '基础伤害',
   '能量消耗',
+  '攻击范围',
   '支持攻击模式列表',
   '支持插槽列表',
   '武器图标',
@@ -324,6 +325,7 @@ export function buildBattleRows(project: Project): BattleSheetRows {
           row.attackSpeed,
           row.baseDamage,
           row.energyCost,
+          row.attackRange,
           // 攻击模式按样例不加引号；插槽是普通字符串数组（带引号）
           formatNameList(optionNames(battle.attackModes, row.attackModeUids)),
           formatArrayLiteral(optionNames(battle.slots, row.slotUids)),
