@@ -193,6 +193,28 @@ describe('PreviewPlayer 播放', () => {
     expect(container.querySelector('.preview-textbox-text[data-content="line"]')?.textContent).toBe('第二句');
   });
 
+  it('点画面就当点继续往下走', () => {
+    const { container } = renderPlayer();
+
+    expect(container.querySelector('.preview-textbox-text[data-content="line"]')?.textContent).toBe('第一句');
+
+    fireEvent.click(container.querySelector('.preview-frame') as HTMLElement);
+    expect(container.querySelector('.preview-textbox-text[data-content="line"]')?.textContent).toBe('第二句');
+  });
+
+  it('图片控件按自己的矩形摆，不会铺满整屏', () => {
+    const { container } = renderPlayer();
+
+    const image = container.querySelector('.preview-textbox-image') as HTMLElement;
+    expect(image).toBeTruthy();
+    // 0.05×1920 / 0.66×1080 / 0.9×1920 / 0.28×1080：少了 position 就会按父层铺满
+    expect(image.style.position).toBe('absolute');
+    expect(image.style.left).toBe('96px');
+    expect(Math.round(Number.parseFloat(image.style.top))).toBe(713);
+    expect(image.style.width).toBe('1728px');
+    expect(Math.round(Number.parseFloat(image.style.height))).toBe(302);
+  });
+
   it('台词念完显示本段结束，并给出继续下一段', () => {
     const { container } = renderPlayer();
 

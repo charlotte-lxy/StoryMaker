@@ -185,9 +185,10 @@ function ControlBackground({
   return <img className="preview-textbox-bg" src={url} alt="" />;
 }
 
-/** 设计稿像素 → 绝对定位样式 */
+/** 设计稿像素 → 绝对定位样式（position 也在这里给，少一条样式就会铺满整屏） */
 function rectStyle(rect: { x: number; y: number; w: number; h: number }): React.CSSProperties {
   return {
+    position: 'absolute',
     left: rect.x * CANVAS_WIDTH,
     top: rect.y * CANVAS_HEIGHT,
     width: rect.w * CANVAS_WIDTH,
@@ -819,7 +820,11 @@ export function PreviewPlayer({
         </div>
       ) : (
         <>
-          <div className="preview-stage">
+          <div
+            className="preview-stage"
+            onClick={advanceOrFinish}
+            title="点一下画面 = 继续"
+          >
             <div className="preview-frame" ref={frameRef}>
               {state.stage.backgroundImageUid !== '' && (
                 <BackgroundLayer
@@ -870,7 +875,11 @@ export function PreviewPlayer({
                       key={option.optionUid}
                       type="button"
                       className="preview-option"
-                      onClick={() => choose(option.optionUid)}
+                      onClick={(event) => {
+                        // 点选项只是选它，别让画面上「点一下继续」再推进一句
+                        event.stopPropagation();
+                        choose(option.optionUid);
+                      }}
                     >
                       <span className="preview-option-text">
                         {previewTextOf(option.text, language).trim() !== ''

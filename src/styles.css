@@ -4638,6 +4638,7 @@ tr.locale-form-note td {
 
 .preview-stage {
   padding: 10px;
+  cursor: pointer;
 }
 
 /* 16:9 画面：宽度跟着合并面板走，高度由比例算出来 */
@@ -4795,6 +4796,13 @@ tr.locale-form-note td {
 }
 
 .preview-textbox-frame {
+  position: absolute;
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+/* 图片控件的框：只占自己那一块，别跟着外层铺满 1920×1080 */
+.preview-textbox-image {
   position: absolute;
   overflow: hidden;
   border-radius: 10px;
