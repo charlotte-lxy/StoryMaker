@@ -147,8 +147,11 @@ export interface AnchorCell {
   row: 0 | 1 | 2 | 3;
 }
 
-/** 文字控件（人物名称 / 台词）的对齐方式 */
+/** 文字控件（人物名称 / 台词）的水平对齐方式 */
 export type TextBoxAlign = 'left' | 'center' | 'right';
+
+/** 文字在控件里的垂直对齐：贴着上边 / 居中 / 贴着下边 */
+export type TextBoxVerticalAlign = 'top' | 'middle' | 'bottom';
 
 /** 出现效果：立即显示 / 淡入淡出 / 逐字打出来 */
 export type TextBoxReveal = 'instant' | 'fade' | 'typewriter';
@@ -161,6 +164,9 @@ export type TextBoxTextContent = 'speaker' | 'line';
 
 /** 立绘弹窗：只显示最上面一张 / 所有弹出的立绘一起居中排开 */
 export type TextBoxPortraitMode = 'single' | 'multi';
+
+/** 多张立绘怎么摆：平分控件宽度 / 按原比例紧贴并排 */
+export type TextBoxPortraitLayout = 'fill' | 'pack';
 
 /** 立绘弹窗里的一行预览：编辑时摆哪个角色的哪个表情（只是预览，不导出） */
 export interface TextBoxPortraitPreview {
@@ -199,6 +205,8 @@ export interface TextBoxControl {
   /** 字体颜色 `#RRGGBB` */
   color: string;
   align: TextBoxAlign;
+  /** 文字贴着控件上边 / 居中 / 贴着下边 */
+  verticalAlign: TextBoxVerticalAlign;
   /** 行距倍数 */
   lineHeight: number;
   /** 编辑时显示的示例文本（真正播放时来自剧情） */
@@ -216,6 +224,10 @@ export interface TextBoxControl {
   multiLine: boolean;
   /** 立绘弹窗：单张覆盖 / 多张一起显示 */
   portraitMode: TextBoxPortraitMode;
+  /** 立绘弹窗：多张时平分控件宽度，还是按原比例紧贴并排 */
+  portraitLayout: TextBoxPortraitLayout;
+  /** 立绘弹窗：把立绘限制在控件宽高之内，不溢出 */
+  portraitLimit: boolean;
   /** 立绘弹窗的预览行：单张只取第一行，多张按顺序排开 */
   portraits: TextBoxPortraitPreview[];
 }

@@ -59,6 +59,9 @@ describe('文本框的默认值与归一化', () => {
     expect(line.lineHeight).toBe(1.5);
     expect(line.reveal).toBe('instant');
     expect(line.multiLine).toBe(false);
+    expect(line.verticalAlign).toBe('top');
+    expect(image.portraitLayout).toBe('fill');
+    expect(image.portraitLimit).toBe(false);
 
     // 名字 / 台词都收在外框里面，但存的是画布坐标
     expect(speaker.rect.y).toBeGreaterThanOrEqual(image.rect.y);
@@ -290,6 +293,41 @@ describe('文本框的默认值与归一化', () => {
     expect(line.fadeIn).toBe(FADE_MAX);
     expect(line.fadeOut).toBe(0.2);
     expect(line.multiLine).toBe(true);
+  });
+
+  it('排列方式、垂直排列与限制立绘长宽都能读回来', () => {
+    const rows = normalizeTextBoxes([
+      {
+        uid: 'tb1',
+        controls: [
+          {
+            uid: 'c1',
+            kind: 'text',
+            content: 'line',
+            verticalAlign: 'bottom',
+          },
+          {
+            uid: 'c2',
+            kind: 'portrait',
+            portraitMode: 'multi',
+            portraitLayout: 'pack',
+            portraitLimit: true,
+          },
+          {
+            uid: 'c3',
+            kind: 'text',
+            content: 'speaker',
+            verticalAlign: '没这个',
+            portraitLayout: '没这个',
+          },
+        ],
+      },
+    ]);
+    expect(textControl(rows[0], 'line').verticalAlign).toBe('bottom');
+    expect(rows[0].controls[1].portraitLayout).toBe('pack');
+    expect(rows[0].controls[1].portraitLimit).toBe(true);
+    expect(rows[0].controls[2].verticalAlign).toBe('top');
+    expect(rows[0].controls[2].portraitLayout).toBe('fill');
   });
 });
 

@@ -138,6 +138,25 @@ export function removeControl(project: Project, textBoxUid: string, controlUid: 
   });
 }
 
+/** 拖动排序：把第 from 个控件挪到第 to 个位置（数组越靠后画得越上层） */
+export function moveControl(
+  project: Project,
+  textBoxUid: string,
+  from: number,
+  to: number,
+): Project {
+  const row = textBoxesOf(project).find((item) => item.uid === textBoxUid);
+  if (row === undefined) return project;
+  if (from < 0 || from >= row.controls.length) return project;
+  if (to < 0 || to >= row.controls.length || from === to) return project;
+  return mutate(project, (draft) => {
+    const target = draft.textBoxes?.find((item) => item.uid === textBoxUid);
+    if (target === undefined) return;
+    const [moved] = target.controls.splice(from, 1);
+    target.controls.splice(to, 0, moved);
+  });
+}
+
 /** 记住上次编辑的是哪一条（存在项目文件的 ui 里，换台机器也接着看同一张） */
 export function rememberTextBox(project: Project, uid: string): Project {
   if (project.ui?.textBoxUid === uid) return project;

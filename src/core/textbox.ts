@@ -5,11 +5,13 @@ import type {
   TextBoxAlign,
   TextBoxControl,
   TextBoxControlKind,
+  TextBoxPortraitLayout,
   TextBoxPortraitMode,
   TextBoxPortraitPreview,
   TextBoxReveal,
   TextBoxRow,
   TextBoxTextContent,
+  TextBoxVerticalAlign,
 } from './types';
 
 /** 排版用的设计稿尺寸：界面缩放时整块画布按比例缩，位置和尺寸都按这个尺寸算 */
@@ -34,6 +36,21 @@ export const MAX_RECT_SIDE = 2;
 export const DEFAULT_ANCHOR: AnchorCell = { col: 0, row: 0 };
 
 export const TEXT_BOX_ALIGNS = ['left', 'center', 'right'] as const;
+
+/** 文字在控件里的垂直对齐 */
+export const TEXT_BOX_VERTICAL_ALIGNS = ['top', 'middle', 'bottom'] as const;
+export const TEXT_BOX_VERTICAL_ALIGN_LABELS: Record<TextBoxVerticalAlign, string> = {
+  top: '上对齐',
+  middle: '居中',
+  bottom: '下对齐',
+};
+
+/** 多张立绘怎么摆 */
+export const TEXT_BOX_PORTRAIT_LAYOUTS = ['fill', 'pack'] as const;
+export const TEXT_BOX_PORTRAIT_LAYOUT_LABELS: Record<TextBoxPortraitLayout, string> = {
+  fill: '控件填充（平分宽度）',
+  pack: '紧贴并排（按原比例）',
+};
 
 export const LINE_HEIGHT_MIN = 0.8;
 export const LINE_HEIGHT_MAX = 3;
@@ -130,6 +147,7 @@ export function createControlBase(
     fontSize: 0,
     color: '#000000',
     align: 'left',
+    verticalAlign: 'top',
     lineHeight: 1.5,
     sampleText: '',
     reveal: 'instant',
@@ -139,6 +157,8 @@ export function createControlBase(
     punctuationPause: DEFAULT_PUNCTUATION_PAUSE,
     multiLine: false,
     portraitMode: 'single',
+    portraitLayout: 'fill',
+    portraitLimit: false,
     portraits: [],
   };
 }
@@ -388,6 +408,7 @@ function readControl(raw: unknown, fallback: TextBoxControl): TextBoxControl {
     fontSize: asNumber(record.fontSize, fallback.fontSize),
     color: normalizeColor(record.color, fallback.color),
     align: readAlign(record.align ?? fallback.align),
+    verticalAlign: readVerticalAlign(record.verticalAlign, fallback.verticalAlign),
     lineHeight: clamp(
       asNumber(record.lineHeight, fallback.lineHeight),
       LINE_HEIGHT_MIN,
@@ -409,8 +430,19 @@ function readControl(raw: unknown, fallback: TextBoxControl): TextBoxControl {
     ),
     multiLine: typeof record.multiLine === 'boolean' ? record.multiLine : fallback.multiLine,
     portraitMode: readPortraitMode(record.portraitMode, fallback.portraitMode),
+    portraitLayout: readPortraitLayout(record.portraitLayout, fallback.portraitLayout),
+    portraitLimit:
+      typeof record.portraitLimit === 'boolean' ? record.portraitLimit : fallback.portraitLimit,
     portraits: readPortraits(record.portraits, fallback.portraits),
   };
+}
+
+function readVerticalAlign(value: unknown, fallback: TextBoxVerticalAlign): TextBoxVerticalAlign {
+  return value === 'top' || value === 'middle' || value === 'bottom' ? value : fallback;
+}
+
+function readPortraitLayout(value: unknown, fallback: TextBoxPortraitLayout): TextBoxPortraitLayout {
+  return value === 'fill' || value === 'pack' ? value : fallback;
 }
 
 function readReveal(value: unknown, fallback: TextBoxReveal): TextBoxReveal {

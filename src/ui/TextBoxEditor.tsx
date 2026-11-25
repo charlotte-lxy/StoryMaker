@@ -12,8 +12,12 @@ import {
   TEXT_BOX_CONTROL_KINDS,
   TEXT_BOX_CONTROL_LABELS,
   TEXT_BOX_FONTS,
+  TEXT_BOX_PORTRAIT_LAYOUTS,
+  TEXT_BOX_PORTRAIT_LAYOUT_LABELS,
   TEXT_BOX_PORTRAIT_MODES,
   TEXT_BOX_PORTRAIT_MODE_LABELS,
+  TEXT_BOX_VERTICAL_ALIGNS,
+  TEXT_BOX_VERTICAL_ALIGN_LABELS,
   rectToSlot,
   slotToRect,
   type SlotValues,
@@ -30,6 +34,7 @@ import type {
 import {
   addControl,
   addTextBox,
+  moveControl,
   rememberTextBox,
   removeControl,
   removeTextBox,
@@ -276,7 +281,7 @@ function TextStyleFields({
       </label>
 
       <div className="field">
-        <span>文本排列</span>
+        <span>水平排列</span>
         <div className="textbox-aligns">
           {(
             [
@@ -296,6 +301,23 @@ function TextStyleFields({
           ))}
         </div>
       </div>
+
+      <label className="field">
+        <span>垂直排列</span>
+        <select
+          aria-label="垂直排列"
+          value={control.verticalAlign}
+          onChange={(event) =>
+            onChange({ verticalAlign: event.target.value as TextBoxControl['verticalAlign'] })
+          }
+        >
+          {TEXT_BOX_VERTICAL_ALIGNS.map((value) => (
+            <option key={value} value={value}>
+              {TEXT_BOX_VERTICAL_ALIGN_LABELS[value]}
+            </option>
+          ))}
+        </select>
+      </label>
 
       <label className="field">
         <span>行距（{control.lineHeight.toFixed(1)}）</span>
@@ -423,6 +445,9 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
   const [selectedControlUid, setSelectedControlUid] = useState<string>('');
   const [pendingRemove, setPendingRemove] = useState<string | null>(null);
   const [pendingRemoveControl, setPendingRemoveControl] = useState<string | null>(null);
+  /** 拖动排序时正拖到哪一行上面（只用来高亮） */
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
+  const dragFromRef = useRef<number>(-1);
 
   const active = boxes.find((row) => row.uid === selectedUid) ?? boxes[0];
   const control =
@@ -605,6 +630,14 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
     onChange(next);
   };
 
+  /** 拖动排序：列表是倒着显示的（最上面 = 最上层），但传进来的是真实下标 */
+  const handleMoveControl = (from: number, to: number): void => {
+    setDropIndex(null);
+    if (active === undefined) return;
+    if (from < 0 || from === to) return;
+    onChange(moveControl(project, active.uid, from, to));
+  };
+
   const layerStyle = (rect: Rect): React.CSSProperties => ({
     left: pct(rect.x),
     top: pct(rect.y),
@@ -619,6 +652,14 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
     color: item.color,
     textAlign: item.align,
     lineHeight: item.lineHeight,
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent:
+      item.verticalAlign === 'middle'
+        ? 'center'
+        : item.verticalAlign === 'bottom'
+          ? 'flex-end'
+          : 'flex-start',
   });
 
   const commitSlot = (key: keyof SlotValues, value: number): void => {
@@ -697,8 +738,7 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
                   height: CANVAS_HEIGHT,
                   transform: `scale(${scale})`,
                 }}
-              >
-                {active === undefined ? (
+              >                {active === undefined ? (
                   <div className="textbox-empty">还没有文本框，点右上角「新建文本框」加一个。</div>
                 ) : (
                   <>
@@ -732,7 +772,12 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
                             style={layerStyle(item.rect)}
                             onPointerDown={(event) => beginDrag(item, 'move', 'n', event)}
                           >
-                            <div className="textbox-portrait-row" data-mode={item.portraitMode}>
+                            <div
+                              className="textbox-portrait-row"
+                              data-mode={item.portraitMode}
+                              data-layout={item.portraitLayout}
+                              data-limit={item.portraitLimit ? 'true' : 'false'}
+                            >
                               {shown.map((row, index) => (
                                 <PortraitPreview
                                   key={`${row.characterUid}-${index}`}
@@ -826,21 +871,57 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
             <div className="textbox-section">
               <h4>控件</h4>
               <p className="textbox-section-hint">
-                控件按列表顺序叠放，靠后的画在上层；点哪个就改哪个的属性。
+                列表最上面是最上层；拖动左边的拖拽框能调顺序，点哪个就改哪个的属性。
               </p>
-              <div className="textbox-parts" role="tablist" aria-label="控件">
-                {active.controls.map((item) => (
-                  <button
-                    key={item.uid}
-                    type="button"
-                    role="tab"
-                    aria-selected={control?.uid === item.uid}
-                    className={control?.uid === item.uid ? 'active' : ''}
-                    onClick={() => setSelectedControlUid(item.uid)}
-                  >
-                    {item.name.trim() === '' ? TEXT_BOX_CONTROL_LABELS[item.kind] : item.name}
-                  </button>
-                ))}
+              <div
+                className="textbox-parts"
+                role="tablist"
+                aria-label="控件"
+                aria-orientation="vertical"
+              >
+                {[...active.controls].reverse().map((item) => {
+                  const index = active.controls.findIndex((row) => row.uid === item.uid);
+                  return (
+                    <div
+                      key={item.uid}
+                      className="textbox-part-row"
+                      draggable
+                      onDragStart={(event) => {
+                        dragFromRef.current = index;
+                        event.dataTransfer?.setData('text/plain', String(index));
+                        if (event.dataTransfer !== undefined) event.dataTransfer.effectAllowed = 'move';
+                      }}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        setDropIndex(index);
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        handleMoveControl(dragFromRef.current, index);
+                      }}
+                      onDragEnd={() => setDropIndex(null)}
+                    >
+                      <span className="textbox-part-grip" aria-hidden="true">
+                        ⋮⋮
+                      </span>
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={control?.uid === item.uid}
+                        className={
+                          control?.uid === item.uid
+                            ? 'textbox-part active'
+                            : dropIndex === index
+                              ? 'textbox-part drop'
+                              : 'textbox-part'
+                        }
+                        onClick={() => setSelectedControlUid(item.uid)}
+                      >
+                        {item.name.trim() === '' ? TEXT_BOX_CONTROL_LABELS[item.kind] : item.name}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
 
               {control === undefined ? (
@@ -1020,7 +1101,9 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
                   {control.kind === 'portrait' && (
                     <>
                       <label className="field">
-                        <span>显示方式</span>                        <select
+                        <span>显示方式</span>
+                        <select
+                          aria-label="显示方式"
                           value={control.portraitMode}
                           onChange={(event) =>
                             patchControl({
@@ -1034,6 +1117,34 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
                             </option>
                           ))}
                         </select>
+                      </label>
+
+                      <label className="field">
+                        <span>排列方式</span>
+                        <select
+                          aria-label="排列方式"
+                          value={control.portraitLayout}
+                          onChange={(event) =>
+                            patchControl({
+                              portraitLayout: event.target.value as TextBoxControl['portraitLayout'],
+                            })
+                          }
+                        >
+                          {TEXT_BOX_PORTRAIT_LAYOUTS.map((value) => (
+                            <option key={value} value={value}>
+                              {TEXT_BOX_PORTRAIT_LAYOUT_LABELS[value]}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="textbox-check">
+                        <input
+                          type="checkbox"
+                          checked={control.portraitLimit}
+                          onChange={(event) => patchControl({ portraitLimit: event.target.checked })}
+                        />
+                        限制立绘长宽（不超出控件）
                       </label>
 
                       <div className="textbox-section">

@@ -4859,6 +4859,39 @@ tr.locale-form-note td {
   object-fit: contain;
 }
 
+/* 与编辑界面同一套：控件填充 / 紧贴并排 / 限制长宽 */
+.preview-portrait-row[data-layout='fill'] .preview-portrait {
+  flex: 1 1 0;
+}
+
+.preview-portrait-row[data-layout='fill'] .preview-portrait img {
+  width: 100%;
+  height: 100%;
+}
+
+.preview-portrait-row[data-layout='pack'] {
+  gap: 0;
+}
+
+.preview-portrait-row[data-layout='pack'] .preview-portrait {
+  flex: 0 0 auto;
+}
+
+.preview-portrait-row[data-layout='pack'] .preview-portrait img {
+  width: auto;
+  height: 100%;
+}
+
+.preview-portrait-row[data-limit='true'] .preview-portrait img {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.preview-portrait-row[data-limit='true'][data-layout='pack'] .preview-portrait img {
+  width: auto;
+  height: auto;
+}
+
 /* 逐字 / 淡入淡出只作用在文字这一层，背景图与定位不受影响 */
 .preview-textbox-reveal {
   position: relative;
@@ -5301,11 +5334,43 @@ tr.locale-form-note td {
   height: 100%;
 }
 
-.textbox-portrait-row > * {
+/* 控件填充：立绘平分这一格；紧贴并排：保持原比例、不留空隙、整体居中 */
+.textbox-portrait-row[data-layout='fill'] > * {
   flex: 1 1 0;
   min-width: 0;
   height: 100%;
+}
+
+.textbox-portrait-row[data-layout='fill'] img {
+  width: 100%;
+  height: 100%;
   object-fit: contain;
+}
+
+.textbox-portrait-row[data-layout='pack'] {
+  gap: 0;
+}
+
+.textbox-portrait-row[data-layout='pack'] > * {
+  flex: 0 0 auto;
+  height: 100%;
+}
+
+.textbox-portrait-row[data-layout='pack'] img {
+  width: auto;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* 限制立绘长宽：等比缩到控件范围里，不超出 */
+.textbox-portrait-row[data-limit='true'] img {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.textbox-portrait-row[data-limit='true'][data-layout='pack'] img {
+  width: auto;
+  height: auto;
 }
 
 .textbox-portrait-placeholder {
@@ -5476,30 +5541,59 @@ tr.locale-form-note td {
   color: var(--text-dim);
 }
 
+/* 控件列表：垂直排、每行左边一个拖拽框；列表最上面是最上层 */
 .textbox-parts {
   display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.textbox-part-row {
+  display: flex;
+  align-items: center;
   gap: 6px;
 }
 
-.textbox-parts button {
+.textbox-part-grip {
+  display: flex;
+  flex: 0 0 16px;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 11px;
+  letter-spacing: -2px;
+  cursor: grab;
+  user-select: none;
+}
+
+.textbox-part-row:active .textbox-part-grip {
+  cursor: grabbing;
+}
+
+.textbox-parts .textbox-part {
   flex: 1;
-  padding: 5px 4px;
+  min-width: 0;
+  overflow: hidden;
+  padding: 5px 8px;
   font-size: 12px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   border-color: var(--border);
   background: var(--control-bg);
 }
 
-.textbox-parts button.active,
-.textbox-parts button.active:hover {
+.textbox-parts .textbox-part.active,
+.textbox-parts .textbox-part.active:hover {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--on-accent);
   font-weight: 600;
 }
 
-.textbox-parts button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+.textbox-parts .textbox-part.drop {
+  border-color: var(--accent);
+  border-style: dashed;
 }
 
 .textbox-anchor {
@@ -5570,4 +5664,12 @@ tr.locale-form-note td {
 .textbox-remove {
   margin-top: auto;
   font-size: 12px;
+  color: #ffd9dc;
+  background: #5a1f24;
+  border-color: #7a2b30;
+}
+
+.textbox-remove:hover {
+  background: #6f272d;
+  border-color: #8f343a;
 }

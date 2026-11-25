@@ -198,8 +198,11 @@ describe('文本框子模块', () => {
     fireEvent.change(screen.getByLabelText('字体颜色'), { target: { value: '#ff0000' } });
     expect(controlByContent(lastProject(onChange), 'line').color).toBe('#FF0000');
 
-    fireEvent.click(screen.getByText('居中'));
+    fireEvent.click(screen.getByRole('button', { name: '居中' }));
     expect(controlByContent(lastProject(onChange), 'line').align).toBe('center');
+
+    fireEvent.change(screen.getByLabelText('垂直排列'), { target: { value: 'bottom' } });
+    expect(controlByContent(lastProject(onChange), 'line').verticalAlign).toBe('bottom');
 
     const lineHeight = screen.getByRole('slider') as HTMLInputElement;
     fireEvent.change(lineHeight, { target: { value: '2' } });
@@ -340,6 +343,49 @@ describe('文本框子模块', () => {
 
     fireEvent.change(screen.getByLabelText('显示方式'), { target: { value: 'single' } });
     expect(controlsOf(lastProject(onChange)).at(-1)?.portraitMode).toBe('single');
+  });
+
+  it('立绘弹窗能选排列方式、勾上限制立绘长宽', () => {
+    const project = createEmptyProject();
+    const first = project.textBoxes?.[0];
+    if (first === undefined) throw new Error('默认项目应该带一条文本框');
+    const portrait = createPortraitControl({ x: 0.3, y: 0.08, w: 0.4, h: 0.84 }, '立绘弹窗 1');
+    first.controls = [...first.controls, portrait];
+    const { onChange } = renderEditor(project);
+    openControl('立绘弹窗 1');
+
+    fireEvent.change(screen.getByLabelText('排列方式'), { target: { value: 'pack' } });
+    expect(controlsOf(lastProject(onChange)).at(-1)?.portraitLayout).toBe('pack');
+
+    const limit = screen.getByLabelText(/限制立绘长宽/) as HTMLInputElement;
+    expect(limit.checked).toBe(false);
+    fireEvent.click(limit);
+    expect(controlsOf(lastProject(onChange)).at(-1)?.portraitLimit).toBe(true);
+  });
+
+  it('控件列表是竖着的，最上面是最上层，拖动左边的把手能换层级', () => {
+    const project = createEmptyProject();
+    const first = project.textBoxes?.[0];
+    if (first === undefined) throw new Error('默认项目应该带一条文本框');
+    const { onChange } = renderEditor(project);
+
+    const list = screen.getByRole('tablist', { name: '控件' });
+    expect(list.getAttribute('aria-orientation')).toBe('vertical');
+    const names = within(list)
+      .getAllByRole('tab')
+      .map((node) => node.textContent ?? '');
+    expect(names).toEqual(['台词', '人物名称', '背景图']);
+    expect(document.querySelectorAll('.textbox-part-grip')).toHaveLength(3);
+
+    const rows = document.querySelectorAll('.textbox-part-row');
+    fireEvent.dragStart(rows[0]);
+    fireEvent.dragOver(rows[2]);
+    fireEvent.drop(rows[2]);
+    expect(controlsOf(lastProject(onChange)).map((item) => item.name)).toEqual([
+      '台词',
+      '背景图',
+      '人物名称',
+    ]);
   });
 
   it('有两条时点列表里的另一个，会记成下次打开的选中项', () => {

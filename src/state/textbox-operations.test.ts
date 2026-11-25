@@ -4,6 +4,7 @@ import { createEmptyProject } from './operations';
 import {
   addControl,
   addTextBox,
+  moveControl,
   rememberTextBox,
   removeControl,
   removeTextBox,
@@ -153,5 +154,19 @@ describe('文本框的操作', () => {
     const uid = textBoxesOf(project)[0].uid;
     const once = rememberTextBox(project, uid);
     expect(rememberTextBox(once, uid)).toBe(once);
+  });
+
+  it('拖动排序换控件顺序，越界或没动就原样返回', () => {
+    const project = createEmptyProject();
+    const row = textBoxesOf(project)[0];
+    const names = (next: typeof project): string[] =>
+      textBoxesOf(next)[0].controls.map((control) => control.name);
+
+    expect(names(moveControl(project, row.uid, 2, 0))).toEqual(['台词', '背景图', '人物名称']);
+    expect(names(moveControl(project, row.uid, 0, 1))).toEqual(['人物名称', '背景图', '台词']);
+    expect(moveControl(project, row.uid, 1, 1)).toBe(project);
+    expect(moveControl(project, row.uid, -1, 0)).toBe(project);
+    expect(moveControl(project, row.uid, 0, 9)).toBe(project);
+    expect(moveControl(project, 'nope', 0, 1)).toBe(project);
   });
 });

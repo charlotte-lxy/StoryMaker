@@ -203,6 +203,14 @@ function controlTextStyle(control: TextBoxControl): React.CSSProperties {
     color: control.color,
     textAlign: control.align,
     lineHeight: control.lineHeight,
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent:
+      control.verticalAlign === 'middle'
+        ? 'center'
+        : control.verticalAlign === 'bottom'
+          ? 'flex-end'
+          : 'flex-start',
   };
 }
 
@@ -489,6 +497,8 @@ function TextBoxLayer({
               key={control.uid}
               className="preview-portrait-row"
               data-mode={control.portraitMode}
+              data-layout={control.portraitLayout}
+              data-limit={control.portraitLimit ? 'true' : 'false'}
               style={rectStyle(control.rect)}
             >
               {shown.map((character) => (
