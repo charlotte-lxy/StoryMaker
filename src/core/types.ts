@@ -153,13 +153,34 @@ export type TextBoxAlign = 'left' | 'center' | 'right';
 /** 出现效果：立即显示 / 淡入淡出 / 逐字打出来 */
 export type TextBoxReveal = 'instant' | 'fade' | 'typewriter';
 
+/** 控件类型：图片 / 文本 / 立绘弹窗 */
+export type TextBoxControlKind = 'image' | 'text' | 'portrait';
+
+/** 文本控件显示什么：说话人名字 / 台词 */
+export type TextBoxTextContent = 'speaker' | 'line';
+
+/** 立绘弹窗：只显示最上面一张 / 所有弹出的立绘一起居中排开 */
+export type TextBoxPortraitMode = 'single' | 'multi';
+
+/** 立绘弹窗里的一行预览：编辑时摆哪个角色的哪个表情（只是预览，不导出） */
+export interface TextBoxPortraitPreview {
+  characterUid: string;
+  expression: string;
+}
+
 /**
- * 文本框里的一个控件：背景图 / 人物名称 / 台词。
+ * 文本框里的一个控件：图片 / 文本 / 立绘弹窗，数量和顺序由用户自己定。
  *
- * 三个控件各自独立：都有自己的锚点、位置尺寸、背景图与字体属性，
- * 也都能单独隐藏。位置都相对 16:9 的画布存成 0–1。
+ * 三种控件都有的属性是锚点、位置、尺寸、对齐；文本控件才有字体那几项，
+ * 图片控件才有图片，立绘弹窗才有显示方式与预览角色。
+ * 位置都相对 16:9 的画布存成 0–1。
  */
 export interface TextBoxControl {
+  /** 控件自己的 uid：面板选中、拖拽、删除都靠它 */
+  uid: string;
+  kind: TextBoxControlKind;
+  /** 控件名（只在编辑界面显示，也用于「图片 2」这种自动命名） */
+  name: string;
   /** Unreal 锚点：决定位置数字以哪个点为原点 */
   anchor: AnchorCell;
   /** 相对 16:9 画布的矩形 */
@@ -167,10 +188,10 @@ export interface TextBoxControl {
   /** 对齐（UMG 的 Alignment）：控件自身的哪个点落在「位置」上，0–1，默认 0.5 / 0.5 居中 */
   pivotX: number;
   pivotY: number;
-  /** 勾上后编辑画布与剧情预览都不显示这个控件 */
-  hidden: boolean;
-  /** 背景图：图片表那一行的 uid；空串 = 透明 */
+  /** 图片控件的图片：图片表那一行的 uid；空串 = 透明 */
   imageUid: string;
+  /** 文本控件显示说话人名字还是台词 */
+  content: TextBoxTextContent;
   /** 字体样式（微软雅黑 / 黑体 / 宋体…） */
   fontFamily: string;
   /** 字体大小：按 1920×1080 设计稿像素算，画布缩放时一起缩 */
@@ -182,7 +203,7 @@ export interface TextBoxControl {
   lineHeight: number;
   /** 编辑时显示的示例文本（真正播放时来自剧情） */
   sampleText: string;
-  /** 出现效果（台词用；名字与背景图固定立即显示） */
+  /** 出现效果（文本控件用） */
   reveal: TextBoxReveal;
   /** 淡入 / 淡出时长（秒） */
   fadeIn: number;
@@ -193,6 +214,10 @@ export interface TextBoxControl {
   punctuationPause: number;
   /** 台词是否允许多行：新的一句接在上一句下面，而不是覆盖 */
   multiLine: boolean;
+  /** 立绘弹窗：单张覆盖 / 多张一起显示 */
+  portraitMode: TextBoxPortraitMode;
+  /** 立绘弹窗的预览行：单张只取第一行，多张按顺序排开 */
+  portraits: TextBoxPortraitPreview[];
 }
 
 /**
@@ -200,9 +225,8 @@ export interface TextBoxControl {
  *
  * 剧情 → 文本框 里编辑，导出成「文本框」子表；角色的台词在哪个文本框里播，
  * 由角色表的「文本框」列决定（存的是这里的 uid，改 ID 不会把角色写坏）。
- * 背景图、人物名称、台词是画布上三个各自独立的控件；`rectSpace` 标着这套
- * 坐标是画布坐标，老项目没有这个标记，读进来时会把名字 / 台词从
- * 「相对外框」换算过来。
+ * 画布上的控件由用户自己增删，`rectSpace` 标着这套坐标是画布坐标，
+ * 老项目没有这个标记，读进来时会把名字 / 台词从「相对外框」换算过来。
  */
 export interface TextBoxRow {
   uid: string;
@@ -215,14 +239,10 @@ export interface TextBoxRow {
   name: string;
   /** 层级：数字大的画在上层，默认 0 */
   layer: number;
-  /** 坐标标记：`canvas` = 三个控件都相对 16:9 画布 */
+  /** 坐标标记：`canvas` = 所有控件都相对 16:9 画布 */
   rectSpace: 'canvas';
-  /** 背景图控件 */
-  bg: TextBoxControl;
-  /** 人物名称控件 */
-  speaker: TextBoxControl;
-  /** 台词控件 */
-  text: TextBoxControl;
+  /** 控件列表：顺序就是叠放顺序，靠后的画在上层 */
+  controls: TextBoxControl[];
 }
 
 /**

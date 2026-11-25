@@ -2,21 +2,40 @@ import { describe, expect, it } from 'vitest';
 
 import { createEmptyProject } from './operations';
 import {
+  addControl,
   addTextBox,
   rememberTextBox,
+  removeControl,
   removeTextBox,
-  setTextBoxAnchor,
-  setTextBoxControl,
-  setTextBoxRect,
+  setControlAnchor,
+  setControlProps,
+  setControlRect,
   textBoxesOf,
   updateTextBox,
 } from './textbox-operations';
+import type { TextBoxControl, TextBoxRow } from '../core/types';
+
+function controlOf(row: TextBoxRow, uid: string): TextBoxControl {
+  const found = row.controls.find((control) => control.uid === uid);
+  if (found === undefined) throw new Error('没有这个控件');
+  return found;
+}
+
+function byContent(row: TextBoxRow, content: 'speaker' | 'line'): TextBoxControl {
+  const found = row.controls.find(
+    (control) => control.kind === 'text' && control.content === content,
+  );
+  if (found === undefined) throw new Error(`没有 ${content} 控件`);
+  return found;
+}
 
 describe('文本框的操作', () => {
-  it('新项目自带一条文本框', () => {
+  it('新项目自带一条文本框，默认三个控件', () => {
     const project = createEmptyProject();
-    expect(textBoxesOf(project)).toHaveLength(1);
-    expect(textBoxesOf(project)[0].name).toBe('文本框 1');
+    const rows = textBoxesOf(project);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].name).toBe('文本框 1');
+    expect(rows[0].controls.map((control) => control.kind)).toEqual(['image', 'text', 'text']);
   });
 
   it('新建按顺序编号，并在项目里追加', () => {
@@ -49,36 +68,84 @@ describe('文本框的操作', () => {
 
   it('改控件的属性只动那一个控件', () => {
     const project = createEmptyProject();
-    const uid = textBoxesOf(project)[0].uid;
-    const next = setTextBoxControl(project, uid, 'speaker', { hidden: true, fontSize: 24 });
-    expect(textBoxesOf(next)[0].speaker.hidden).toBe(true);
-    expect(textBoxesOf(next)[0].speaker.fontSize).toBe(24);
-    expect(textBoxesOf(next)[0].text.hidden).toBe(false);
-    expect(textBoxesOf(next)[0].text.fontSize).toBe(42);
+    const row = textBoxesOf(project)[0];
+    const speaker = byContent(row, 'speaker');
+    const line = byContent(row, 'line');
+    const next = setControlProps(project, row.uid, speaker.uid, { fontSize: 24, content: 'line' });
+    const updated = textBoxesOf(next)[0];
+    expect(controlOf(updated, speaker.uid).fontSize).toBe(24);
+    expect(controlOf(updated, speaker.uid).content).toBe('line');
+    expect(controlOf(updated, line.uid).fontSize).toBe(line.fontSize);
   });
 
   it('改矩形时允许越出画布，但收在合理范围里', () => {
     const project = createEmptyProject();
-    const uid = textBoxesOf(project)[0].uid;
-    const next = setTextBoxRect(project, uid, 'bg', { x: 5, y: -2, w: 0.1, h: 0.1 });
-    expect(textBoxesOf(next)[0].bg.rect).toEqual({ x: 2, y: -1, w: 0.1, h: 0.1 });
+    const row = textBoxesOf(project)[0];
+    const image = row.controls[0];
+    const next = setControlRect(project, row.uid, image.uid, { x: 5, y: -2, w: 0.1, h: 0.1 });
+    expect(controlOf(textBoxesOf(next)[0], image.uid).rect).toEqual({
+      x: 2,
+      y: -1,
+      w: 0.1,
+      h: 0.1,
+    });
   });
 
   it('换锚点只动那一个控件的锚点', () => {
     const project = createEmptyProject();
-    const uid = textBoxesOf(project)[0].uid;
-    const next = setTextBoxAnchor(project, uid, 'text', { col: 3, row: 3 });
-    expect(textBoxesOf(next)[0].text.anchor).toEqual({ col: 3, row: 3 });
-    expect(textBoxesOf(next)[0].bg.anchor).toEqual({ col: 0, row: 0 });
+    const row = textBoxesOf(project)[0];
+    const line = byContent(row, 'line');
+    const image = row.controls[0];
+    const next = setControlAnchor(project, row.uid, line.uid, { col: 3, row: 3 });
+    const updated = textBoxesOf(next)[0];
+    expect(controlOf(updated, line.uid).anchor).toEqual({ col: 3, row: 3 });
+    expect(controlOf(updated, image.uid).anchor).toEqual({ col: 0, row: 0 });
   });
 
-  it('人物名称 / 台词的矩形也各自独立保存', () => {
+  it('两个文本控件的矩形各自独立保存', () => {
+    const project = createEmptyProject();
+    const row = textBoxesOf(project)[0];
+    const speaker = byContent(row, 'speaker');
+    const line = byContent(row, 'line');
+    const next = setControlRect(project, row.uid, speaker.uid, {
+      x: 0.1,
+      y: 0.1,
+      w: 0.5,
+      h: 0.2,
+    });
+    const updated = textBoxesOf(next)[0];
+    expect(controlOf(updated, speaker.uid).rect).toEqual({ x: 0.1, y: 0.1, w: 0.5, h: 0.2 });
+    expect(controlOf(updated, line.uid).rect).toEqual(controlOf(row, line.uid).rect);
+  });
+
+  it('添加控件按类型排名字，位置用该类型的默认矩形', () => {
     const project = createEmptyProject();
     const uid = textBoxesOf(project)[0].uid;
-    const next = setTextBoxRect(project, uid, 'speaker', { x: 0.1, y: 0.1, w: 0.5, h: 0.2 });
-    expect(textBoxesOf(next)[0].speaker.rect).toEqual({ x: 0.1, y: 0.1, w: 0.5, h: 0.2 });
-    expect(textBoxesOf(next)[0].bg.rect).toEqual(textBoxesOf(project)[0].bg.rect);
-    expect(textBoxesOf(next)[0].text.rect).toEqual(textBoxesOf(project)[0].text.rect);
+    const once = addControl(project, uid, 'image');
+    const twice = addControl(once, uid, 'image');
+    const thrice = addControl(twice, uid, 'portrait');
+    const row = textBoxesOf(thrice)[0];
+    expect(row.controls.map((control) => control.name)).toEqual([
+      '背景图',
+      '人物名称',
+      '台词',
+      '图片 1',
+      '图片 2',
+      '立绘弹窗 1',
+    ]);
+    expect(row.controls.at(-1)?.kind).toBe('portrait');
+    expect(row.controls.at(-1)?.portraitMode).toBe('single');
+  });
+
+  it('删除控件只掉那一个，别的不动', () => {
+    const project = createEmptyProject();
+    const row = textBoxesOf(project)[0];
+    const speaker = byContent(row, 'speaker');
+    const next = removeControl(project, row.uid, speaker.uid);
+    const updated = textBoxesOf(next)[0];
+    expect(updated.controls).toHaveLength(2);
+    expect(updated.controls.map((control) => control.kind)).toEqual(['image', 'text']);
+    expect(updated.controls[1].content).toBe('line');
   });
 
   it('记住上次选中的文本框，重复调用不产生新对象', () => {

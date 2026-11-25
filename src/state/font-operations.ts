@@ -48,7 +48,7 @@ export function updateFont(
 
     if (patch.name !== undefined && patch.name !== previous) {
       for (const textBox of draft.textBoxes ?? []) {
-        for (const control of [textBox.bg, textBox.speaker, textBox.text]) {
+        for (const control of textBox.controls) {
           if (control.fontFamily === previous) control.fontFamily = patch.name;
         }
       }
@@ -65,7 +65,7 @@ export function removeFont(project: Project, uid: string): Project {
     const name = row.name;
     draft.fonts = (draft.fonts ?? []).filter((item) => item.uid !== uid);
     for (const textBox of draft.textBoxes ?? []) {
-      for (const control of [textBox.bg, textBox.speaker, textBox.text]) {
+      for (const control of textBox.controls) {
         if (control.fontFamily === name) control.fontFamily = DEFAULT_FONT_FAMILY;
       }
     }

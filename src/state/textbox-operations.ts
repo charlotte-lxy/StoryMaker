@@ -1,18 +1,20 @@
-import { clampRect, createDefaultTextBox, nextTextBoxId } from '../core/textbox';
-import type { AnchorCell, Project, Rect, TextBoxControl, TextBoxRow } from '../core/types';
+import {
+  clampRect,
+  createControl,
+  createDefaultTextBox,
+  defaultRectFor,
+  nextControlName,
+  nextTextBoxId,
+} from '../core/textbox';
+import type {
+  AnchorCell,
+  Project,
+  Rect,
+  TextBoxControl,
+  TextBoxControlKind,
+  TextBoxRow,
+} from '../core/types';
 import { mutate } from './operations';
-
-/** 画布上的三个控件：背景图 / 人物名称 / 台词 */
-export type TextBoxPart = 'bg' | 'speaker' | 'text';
-
-/** 三个控件的顺序（也是右侧选项卡的顺序） */
-export const TEXT_BOX_PARTS: readonly TextBoxPart[] = ['bg', 'speaker', 'text'];
-
-export const TEXT_BOX_PART_LABELS: Record<TextBoxPart, string> = {
-  bg: '背景图',
-  speaker: '人物名称',
-  text: '台词',
-};
 
 /** 项目里的文本框列表；老项目还没归一化时按空表处理 */
 export function textBoxesOf(project: Project): TextBoxRow[] {
@@ -58,45 +60,81 @@ export function updateTextBox(
   });
 }
 
-/** 改一个控件的属性（字体、颜色、示例文本、隐藏…） */
-export function setTextBoxControl(
+function findControl(
+  row: TextBoxRow,
+  controlUid: string,
+): TextBoxControl | undefined {
+  return row.controls.find((control) => control.uid === controlUid);
+}
+
+/** 改一个控件的属性（字体、颜色、示例文本、图片、预览角色…） */
+export function setControlProps(
   project: Project,
-  uid: string,
-  which: TextBoxPart,
+  textBoxUid: string,
+  controlUid: string,
   patch: Partial<TextBoxControl>,
 ): Project {
   return mutate(project, (draft) => {
-    const row = draft.textBoxes?.find((item) => item.uid === uid);
+    const row = draft.textBoxes?.find((item) => item.uid === textBoxUid);
     if (row === undefined) return;
-    Object.assign(row[which], patch);
+    const control = findControl(row, controlUid);
+    if (control === undefined) return;
+    Object.assign(control, patch);
   });
 }
 
-/** 拖动 / 缩放改一个矩形：三个控件都相对画布 */
-export function setTextBoxRect(
+/** 拖动 / 缩放改一个控件的矩形：所有控件都相对画布 */
+export function setControlRect(
   project: Project,
-  uid: string,
-  which: TextBoxPart,
+  textBoxUid: string,
+  controlUid: string,
   rect: Rect,
 ): Project {
   return mutate(project, (draft) => {
-    const row = draft.textBoxes?.find((item) => item.uid === uid);
+    const row = draft.textBoxes?.find((item) => item.uid === textBoxUid);
     if (row === undefined) return;
-    row[which].rect = clampRect(rect, row[which].rect);
+    const control = findControl(row, controlUid);
+    if (control === undefined) return;
+    control.rect = clampRect(rect, control.rect);
   });
 }
 
 /** 换一个控件的锚点：矩形不动，只换成新的参考点（跟 Unreal 一样） */
-export function setTextBoxAnchor(
+export function setControlAnchor(
   project: Project,
-  uid: string,
-  which: TextBoxPart,
+  textBoxUid: string,
+  controlUid: string,
   anchor: AnchorCell,
 ): Project {
   return mutate(project, (draft) => {
-    const row = draft.textBoxes?.find((item) => item.uid === uid);
+    const row = draft.textBoxes?.find((item) => item.uid === textBoxUid);
     if (row === undefined) return;
-    row[which].anchor = { ...anchor };
+    const control = findControl(row, controlUid);
+    if (control === undefined) return;
+    control.anchor = { ...anchor };
+  });
+}
+
+/** 「添加控件」：在控件列表末尾加一个，名字自动排（图片 1、文本 2…） */
+export function addControl(
+  project: Project,
+  textBoxUid: string,
+  kind: TextBoxControlKind,
+): Project {
+  return mutate(project, (draft) => {
+    const row = draft.textBoxes?.find((item) => item.uid === textBoxUid);
+    if (row === undefined) return;
+    const name = nextControlName(row.controls, kind);
+    row.controls.push(createControl(kind, defaultRectFor(kind), name));
+  });
+}
+
+/** 删掉一个控件（只删控件，不动文本框） */
+export function removeControl(project: Project, textBoxUid: string, controlUid: string): Project {
+  return mutate(project, (draft) => {
+    const row = draft.textBoxes?.find((item) => item.uid === textBoxUid);
+    if (row === undefined) return;
+    row.controls = row.controls.filter((control) => control.uid !== controlUid);
   });
 }
 

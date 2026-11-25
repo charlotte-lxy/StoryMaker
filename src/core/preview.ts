@@ -179,7 +179,8 @@ function setTextBoxVisible(stage: PreviewStage, textBoxUid: string, visible: boo
 
 /**
  * 往文本框里放一句台词：显示这个框。
- * 勾了「允许多行」就接在已有句子后面，否则整体换成这一句。
+ * 文件里只要有任何一个「台词」文本控件勾了「允许多行」，就接在已有句子后面，
+ * 否则整体换成这一句。
  */
 function pushTextBoxLine(
   stage: PreviewStage,
@@ -190,10 +191,13 @@ function pushTextBoxLine(
 ): PreviewStage {
   const box = previewTextBoxOf(project, textBoxUid);
   if (box === undefined) return stage;
+  const multiLine = box.controls.some(
+    (control) => control.kind === 'text' && control.content === 'line' && control.multiLine,
+  );
   return updateTextBox(stage, textBoxUid, (item) => ({
     ...item,
     visible: true,
-    lines: box.text.multiLine ? [...item.lines, text] : [text],
+    lines: multiLine ? [...item.lines, text] : [text],
     speaker,
   }));
 }

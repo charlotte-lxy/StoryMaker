@@ -24,7 +24,7 @@ import {
   exportWorkbook,
   type ExportRowSets,
 } from './export';
-import { createDefaultTextBox } from './textbox';
+import { createDefaultTextBox, createPortraitControl } from './textbox';
 import type {
   CommandDef,
   CommandParamDef,
@@ -831,14 +831,14 @@ describe('导出三张表', () => {
     expect(tables.locale).toContainEqual(['TXT_CHA_Q版伊芙_OtherName-1', 'unknown', '', '']);
   });
 
-  it('文本框子表：一行一个框，三个控件的属性写成一列', () => {
+  it('文本框子表：一行一个框，每个控件的属性写成一列', () => {
     const project = makeProject();
     const center = createDefaultTextBox('屏幕中间', 'TB_Center');
-    center.bg.rect = { x: 0.25, y: 0.25, w: 0.5, h: 0.5 };
-    center.bg.anchor = { col: 1, row: 1 };
+    center.controls[0].rect = { x: 0.25, y: 0.25, w: 0.5, h: 0.5 };
+    center.controls[0].anchor = { col: 1, row: 1 };
     const full = createDefaultTextBox('全屏', 'TB_Full');
-    full.bg.rect = { x: 0.1, y: 0.2, w: 0.8, h: 0.5 };
-    full.bg.anchor = { col: 3, row: 3 };
+    full.controls[0].rect = { x: 0.1, y: 0.2, w: 0.8, h: 0.5 };
+    full.controls[0].anchor = { col: 3, row: 3 };
     project.textBoxes = [center, full];
 
     const rows = buildTextBoxRows(project);
@@ -847,10 +847,10 @@ describe('导出三张表', () => {
     expect(rows[1]?.[1]).toBe('屏幕中间');
 
     const cell = rows[1]?.[2] ?? '';
-    // 三个控件各一条，名字与顺序照示例
-    expect(cell.startsWith('(("背景图", (')).toBe(true);
-    expect(cell).toContain('("人物名称", (');
-    expect(cell).toContain('("台词", (');
+    // 三个控件各一条，名字与类型照示例
+    expect(cell.startsWith('(("背景图", (类型="图片",')).toBe(true);
+    expect(cell).toContain('("人物名称", (类型="文本",内容="说话人名字",');
+    expect(cell).toContain('("台词", (类型="文本",内容="台词",');
     // 居中锚点 + 默认对齐 0.5/0.5：控件的中心正好落在画面中心，位置是 0
     expect(cell).toContain('插槽锚点=(Minimum=(X=0.500000,Y=0.500000),Maximum=(X=0.500000,Y=0.500000))');
     expect(cell).toContain('插槽位置=(X=0.000000,Y=0.000000)');
@@ -862,16 +862,16 @@ describe('导出三张表', () => {
 
     // 全拉伸：锚点满一圈，位置写左边距 / 上边距，大小写负数（-右边距 / -下边距）
     const fullCell = rows[2]?.[2] ?? '';
-    expect(fullCell).toContain('("背景图", (隐藏控件=False,插槽锚点=(Minimum=(X=0.000000,Y=0.000000),Maximum=(X=1.000000,Y=1.000000)),插槽位置=(X=192.000000,Y=216.000000),插槽大小=(X=-192.000000,Y=-324.000000),插槽对齐=(X=0.500000,Y=0.500000),背景图片ID="",字体样式="",字体大小=0.000000');
+    expect(fullCell).toContain('("背景图", (类型="图片",插槽锚点=(Minimum=(X=0.000000,Y=0.000000),Maximum=(X=1.000000,Y=1.000000)),插槽位置=(X=192.000000,Y=216.000000),插槽大小=(X=-192.000000,Y=-324.000000),插槽对齐=(X=0.500000,Y=0.500000),背景图片ID="",字体样式="",字体大小=0.000000');
   });
 
   it('文本框子表：对齐改成左上（0,0）之后位置跟着变', () => {
     const project = makeProject();
     const row = createDefaultTextBox('屏幕中间', 'TB_Center');
-    row.bg.rect = { x: 0.25, y: 0.25, w: 0.5, h: 0.5 };
-    row.bg.anchor = { col: 1, row: 1 };
-    row.bg.pivotX = 0;
-    row.bg.pivotY = 0;
+    row.controls[0].rect = { x: 0.25, y: 0.25, w: 0.5, h: 0.5 };
+    row.controls[0].anchor = { col: 1, row: 1 };
+    row.controls[0].pivotX = 0;
+    row.controls[0].pivotY = 0;
     project.textBoxes = [row];
 
     const cell = buildTextBoxRows(project)[1]?.[2] ?? '';
@@ -879,17 +879,21 @@ describe('导出三张表', () => {
     expect(cell).toContain('插槽对齐=(X=0.000000,Y=0.000000)');
   });
 
-  it('文本框子表：隐藏控件写 True，背景图片写图片 ID', () => {
+  it('文本框子表：图片写图片 ID，立绘弹窗写显示方式且不导出预览角色', () => {
     const project = makeProject();
     const row = createDefaultTextBox('旁白框', 'TB_旁白');
-    row.speaker.hidden = true;
     project.textBoxes = [row];
     project.images = [{ uid: 'img1', id: 'IMG_底', name: '底图' }];
-    row.bg.imageUid = 'img1';
+    row.controls[0].imageUid = 'img1';
+    const portrait = createPortraitControl({ x: 0.3, y: 0.1, w: 0.4, h: 0.8 });
+    portrait.portraitMode = 'multi';
+    portrait.portraits = [{ characterUid: 'ch1', expression: '开心' }];
+    row.controls.push(portrait);
 
     const cell = buildTextBoxRows(project)[1]?.[2] ?? '';
-    expect(cell).toContain('("人物名称", (隐藏控件=True,');
     expect(cell).toContain('背景图片ID="IMG_底"');
+    expect(cell).toContain('("立绘弹窗", (类型="立绘弹窗",显示方式="多张同时展示",');
+    expect(cell).not.toContain('ch1');
   });
 
   it('武器配置的导出名称也进本地化表，中文就是它们的显示名称', () => {

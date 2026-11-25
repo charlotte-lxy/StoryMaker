@@ -2,8 +2,8 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createDefaultTextBox } from '../core/textbox';
-import type { Line, Project, StoryOption } from '../core/types';
+import { createDefaultTextBox, createPortraitControl } from '../core/textbox';
+import type { Line, Project, StoryOption, TextBoxControl } from '../core/types';
 import { createEmptyProject } from '../state/operations';
 import { PreviewPlayer } from './PreviewPlayer';
 import type { AssetLibrary } from './use-asset-library';
@@ -61,6 +61,15 @@ function option(uid: string, readableId: string, zh: string, nextId: string): St
   };
 }
 
+/** 第一个文本框里的台词控件：改出现效果 / 多行都落在它身上 */
+function lineControlOf(project: Project): TextBoxControl {
+  const found = project.textBoxes?.[0]?.controls.find(
+    (control) => control.kind === 'text' && control.content === 'line',
+  );
+  if (found === undefined) throw new Error('没有台词控件');
+  return found;
+}
+
 function makeProject(): Project {
   const project = createEmptyProject('预览界面测试');
   const boxUid = project.textBoxes[0]?.uid ?? '';
@@ -68,13 +77,15 @@ function makeProject(): Project {
     uid: 'cha1',
     id: 'CHA_雪',
     name: '西园寺雪',
-    nameEn: '',
+    nameEn: 'Seienji Yuki',
     nameJa: '',
     textBoxUid: boxUid,
     aliases: [],
     expressions: [],
     actions: [],
   });
+  // 立绘现在是文本框里的「立绘弹窗」控件，给这个框挂一个
+  project.textBoxes[0]?.controls.push(createPortraitControl({ x: 0.3, y: 0.1, w: 0.4, h: 0.8 }));
   project.chapters = [
     {
       uid: 'c1',
@@ -175,11 +186,11 @@ describe('PreviewPlayer 播放', () => {
   it('逐条显示台词与说话人，点继续往下走', () => {
     const { container } = renderPlayer();
 
-    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('第一句');
-    expect(container.querySelector('.preview-textbox-name')?.textContent).toBe('西园寺雪');
+    expect(container.querySelector('.preview-textbox-text[data-content="line"]')?.textContent).toBe('第一句');
+    expect(container.querySelector('.preview-textbox-text[data-content="speaker"]')?.textContent).toBe('西园寺雪');
 
     fireEvent.click(screen.getByText('继续 ▶'));
-    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('第二句');
+    expect(container.querySelector('.preview-textbox-text[data-content="line"]')?.textContent).toBe('第二句');
   });
 
   it('台词念完显示本段结束，并给出继续下一段', () => {
@@ -207,7 +218,7 @@ describe('PreviewPlayer 播放', () => {
 
     fireEvent.click(screen.getByText('继续 ▶'));
     fireEvent.click(screen.getByText('◀ 上一句'));
-    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('第一句');
+    expect(container.querySelector('.preview-textbox-text[data-content="line"]')?.textContent).toBe('第一句');
   });
 });
 
@@ -233,7 +244,7 @@ describe('PreviewPlayer 选项', () => {
     expect(buttons[0].textContent).toContain('出现：背包');
 
     fireEvent.click(buttons[0]);
-    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('海风很大');
+    expect(container.querySelector('.preview-textbox-text[data-content="line"]')?.textContent).toBe('海风很大');
   });
 
   it('选项单独铺一层盖在画面中间（层级由样式压住立绘）', () => {
@@ -272,8 +283,8 @@ describe('PreviewPlayer 语言与音量', () => {
 
     const picker = screen.getByLabelText('预览语言') as HTMLSelectElement;
     fireEvent.change(picker, { target: { value: 'en' } });
-    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('First line');
-    expect(container.querySelector('.preview-textbox-name')?.textContent).toBe('Seienji Yuki');
+    expect(container.querySelector('.preview-textbox-text[data-content="line"]')?.textContent).toBe('First line');
+    expect(container.querySelector('.preview-textbox-text[data-content="speaker"]')?.textContent).toBe('Seienji Yuki');
 
     // 推进到选项，选项文本也走英文
     fireEvent.click(screen.getByText('继续 ▶'));
@@ -293,9 +304,11 @@ describe('PreviewPlayer 语言与音量', () => {
     expect(screen.getByText('0%')).toBeTruthy();
   });
 
-  it('立绘默认站在屏幕中间', () => {
+  it('立绘弹窗默认单张，占的是控件那一格', () => {
     const { container } = renderPlayer();
-    expect(container.querySelector('.preview-character')?.className).toContain('slot-center');
+    const row = container.querySelector('.preview-portrait-row');
+    expect(row?.getAttribute('data-mode')).toBe('single');
+    expect(row?.querySelectorAll('.preview-portrait')).toHaveLength(1);
   });
 });
 
@@ -304,10 +317,10 @@ describe('PreviewPlayer 出现效果', () => {
     vi.useFakeTimers();
     try {
       const project = makeProject();
-      project.textBoxes![0].text.reveal = 'typewriter';
-      project.textBoxes![0].text.typeSpeed = 10; // 每个字 100ms
+      lineControlOf(project).reveal = 'typewriter';
+      lineControlOf(project).typeSpeed = 10; // 每个字 100ms
       const { container } = renderPlayer({ project });
-      const text = (): string => container.querySelector('.preview-textbox-text')?.textContent ?? '';
+      const text = (): string => container.querySelector('.preview-textbox-text[data-content="line"]')?.textContent ?? '';
 
       expect(text()).toBe('');
       act(() => {
@@ -331,12 +344,12 @@ describe('PreviewPlayer 出现效果', () => {
 
   it('台词允许多行：下一句接在下一行，不覆盖上一句', () => {
     const project = makeProject();
-    project.textBoxes![0].text.multiLine = true;
+    lineControlOf(project).multiLine = true;
     const { container } = renderPlayer({ project });
 
-    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('第一句');
+    expect(container.querySelector('.preview-textbox-text[data-content="line"]')?.textContent).toBe('第一句');
     fireEvent.click(screen.getByText('继续 ▶'));
-    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('第一句\n第二句');
+    expect(container.querySelector('.preview-textbox-text[data-content="line"]')?.textContent).toBe('第一句\n第二句');
   });
 
   it('层级高的文本框排在后面，压在其他框上面', () => {
@@ -381,7 +394,7 @@ describe('PreviewPlayer 键盘与收起', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '结束预览' }));
     expect(onStop).toHaveBeenCalled();
-    expect(container.querySelector('.preview-textbox-text')).toBeNull();
+    expect(container.querySelector('.preview-textbox-text[data-content="line"]')).toBeNull();
     expect(screen.getByText('还没有开始预览。')).toBeTruthy();
   });
 
@@ -390,7 +403,7 @@ describe('PreviewPlayer 键盘与收起', () => {
     const panel = screen.getByLabelText('剧情预览');
 
     fireEvent.keyDown(panel, { key: ' ' });
-    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('第二句');
+    expect(container.querySelector('.preview-textbox-text[data-content="line"]')?.textContent).toBe('第二句');
 
     fireEvent.keyDown(panel, { key: 'Escape' });
     expect(onToggleCollapsed).toHaveBeenCalled();
@@ -401,7 +414,7 @@ describe('PreviewPlayer 键盘与收起', () => {
     const button = screen.getByRole('button', { name: '继续 ▶' });
     fireEvent.keyDown(button, { key: ' ' });
     // 还在第一句，没有被面板的「继续」再推进一次
-    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('第一句');
+    expect(container.querySelector('.preview-textbox-text[data-content="line"]')?.textContent).toBe('第一句');
   });
 });
 
@@ -420,7 +433,7 @@ describe('PreviewPlayer 锁定到对话', () => {
     const { container } = renderPlayer({ onActiveLine });
 
     expect(onActiveLine).toHaveBeenCalledWith('d1', 'g1');
-    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('第一句');
+    expect(container.querySelector('.preview-textbox-text[data-content="line"]')?.textContent).toBe('第一句');
 
     fireEvent.click(screen.getByText('继续 ▶'));
     expect(onActiveLine).toHaveBeenLastCalledWith('d2', 'g1');

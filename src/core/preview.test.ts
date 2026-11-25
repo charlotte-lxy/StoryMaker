@@ -573,7 +573,11 @@ describe('文本框：初始隐藏、自动弹出、清空与隐藏', () => {
       commandLine('c1', 'Dia_ch01_001-3', '剧情|文本框|文本框:{{BOX}};操作:清空'),
     ]);
     const box = project.textBoxes[0];
-    box.text.multiLine = true;
+    const lineControl = box.controls.find(
+      (control) => control.kind === 'text' && control.content === 'line',
+    );
+    if (lineControl === undefined) throw new Error('没有台词控件');
+    lineControl.multiLine = true;
     const line = project.chapters[0].groups[0].lines[2];
     line.command = line.command.replace('{{BOX}}', boxUid);
 

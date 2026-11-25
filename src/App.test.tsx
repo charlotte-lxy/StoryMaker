@@ -1274,17 +1274,17 @@ describe('章节流程图与分栏', () => {
 
     // 先播一段
     fireEvent.click(screen.getByTitle('从「码头」的第一句开始预览'));
-    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('海风很大');
+    expect(container.querySelector('.preview-textbox-text[data-content="line"]')?.textContent).toBe('海风很大');
 
     // 收起：面板和标题栏都在，只是画面 / 控制条藏起来
     fireEvent.click(screen.getByTitle('收起预览面板，把地方让给流程图'));
     expect(container.querySelector('.outline-preview')).not.toBeNull();
-    expect(container.querySelector('.preview-textbox-text')).toBeNull();
+    expect(container.querySelector('.preview-textbox-text[data-content="line"]')).toBeNull();
     expect(screen.getByText('展开 ⏷')).toBeTruthy();
 
     // 展开后播放状态还在，能接着看
     fireEvent.click(screen.getByText('展开 ⏷'));
-    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('海风很大');
+    expect(container.querySelector('.preview-textbox-text[data-content="line"]')?.textContent).toBe('海风很大');
   });
 
   it('对话列表每行的「预览」从这一行开始播，并描边高亮那一行', async () => {
@@ -1295,7 +1295,7 @@ describe('章节流程图与分栏', () => {
     fireEvent.click(screen.getByTitle('打开「码头」的对话列表'));
 
     fireEvent.click(screen.getByTitle('从这一行开始预览'));
-    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('海风很大');
+    expect(container.querySelector('.preview-textbox-text[data-content="line"]')?.textContent).toBe('海风很大');
     expect(container.querySelector('.line-card.previewing')?.getAttribute('data-line-uid')).toBe(
       'l2',
     );
@@ -1311,7 +1311,7 @@ describe('章节流程图与分栏', () => {
 
     fireEvent.click(container.querySelector('.preview-option') as HTMLElement);
 
-    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('海风很大');
+    expect(container.querySelector('.preview-textbox-text[data-content="line"]')?.textContent).toBe('海风很大');
     expect(container.querySelector('.editor-head h2')?.textContent).toContain('码头');
     expect(container.querySelector('.line-card.previewing')?.getAttribute('data-line-uid')).toBe(
       'l2',
@@ -1330,7 +1330,7 @@ describe('章节流程图与分栏', () => {
 
     fireEvent.click(container.querySelector('.preview-option') as HTMLElement);
 
-    expect(container.querySelector('.preview-textbox-text')?.textContent).toBe('海风很大');
+    expect(container.querySelector('.preview-textbox-text[data-content="line"]')?.textContent).toBe('海风很大');
     // 列表还停在「开场」，也没有那一行可以高亮
     expect(container.querySelector('.editor-head h2')?.textContent).toContain('开场');
     expect(container.querySelector('.line-card.previewing')).toBeNull();
@@ -1344,7 +1344,7 @@ describe('章节流程图与分栏', () => {
     expect(container.querySelector('.line-card.previewing')).not.toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: '结束预览' }));
-    expect(container.querySelector('.preview-textbox-text')).toBeNull();
+    expect(container.querySelector('.preview-textbox-text[data-content="line"]')).toBeNull();
     expect(container.querySelector('.line-card.previewing')).toBeNull();
   });
 

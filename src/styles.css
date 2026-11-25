@@ -4834,6 +4834,31 @@ tr.locale-form-note td {
   word-break: break-word;
 }
 
+/* 预览里的立绘弹窗：单张居中一张，多张平分这一格 */
+.preview-portrait-row {
+  position: absolute;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 8px;
+  box-sizing: border-box;
+}
+
+.preview-portrait {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.preview-portrait img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
 /* 逐字 / 淡入淡出只作用在文字这一层，背景图与定位不受影响 */
 .preview-textbox-reveal {
   position: relative;
@@ -5258,10 +5283,62 @@ tr.locale-form-note td {
   touch-action: none;
 }
 
+/* 立绘弹窗：单张居中一张，多张按顺序平分这一格 */
+.textbox-portrait {
+  position: absolute;
+  box-sizing: border-box;
+  overflow: visible;
+  cursor: move;
+  touch-action: none;
+}
+
+.textbox-portrait-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+}
+
+.textbox-portrait-row > * {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  object-fit: contain;
+}
+
+.textbox-portrait-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  overflow: hidden;
+  border: 2px dashed rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  color: var(--text-dim);
+  font-size: 16px;
+  text-align: center;
+}
+
+.textbox-portrait-placeholder .hint {
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+.textbox-portrait-row-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
 /* 没选中时只给一点点悬停提示，方便找到全透明的背景图 */
 .textbox-frame:hover,
 .textbox-name:hover,
-.textbox-text:hover {
+.textbox-text:hover,
+.textbox-portrait:hover {
   outline: 2px dashed rgba(255, 255, 255, 0.22);
 }
 
@@ -5276,7 +5353,8 @@ tr.locale-form-note td {
 
 .textbox-frame.selected,
 .textbox-name.selected,
-.textbox-text.selected {
+.textbox-text.selected,
+.textbox-portrait.selected {
   outline: 4px dashed rgba(255, 255, 255, 0.8);
 }
 

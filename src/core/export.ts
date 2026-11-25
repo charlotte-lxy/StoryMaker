@@ -64,7 +64,13 @@ import {
   collectWeaponLocaleEntries,
 } from './localization';
 import { characterIdOf, collectRefMaps, textBoxIdOf, type UidToId } from './refs';
-import { anchorFraction, rectToSlot } from './textbox';
+import {
+  anchorFraction,
+  rectToSlot,
+  TEXT_BOX_CONTENT_LABELS,
+  TEXT_BOX_CONTROL_LABELS,
+  TEXT_BOX_PORTRAIT_MODE_LABELS,
+} from './textbox';
 import type { Character, CommandDef, Group, Line, Project, StoryOption, TextBoxControl } from './types';
 
 export const DIALOGUE_SHEET = '对话';
@@ -235,8 +241,9 @@ export function buildItemRows(project: Project): string[][] {
 /**
  * 「文本框」子表：一个文本框一行，照 `TB_文本框示例.csv` 的写法。
  *
- * 三个控件（背景图 / 人物名称 / 台词）各写一条：
- * `("名字", (隐藏控件=…,插槽锚点=…,插槽位置=…,插槽大小=…,插槽对齐=…,背景图片ID="…",字体样式="…",字体大小=…,字体颜色=(R=…,G=…,B=…,A=…)))`。
+ * 控件按列表顺序各写一条：
+ * `("控件名", (类型="图片|文本|立绘弹窗",插槽锚点=…,插槽位置=…,插槽大小=…,插槽对齐=…,背景图片ID="…",字体样式="…",字体大小=…,字体颜色=(R=…,G=…,B=…,A=…)))`。
+ * 文本控件多一个 `内容="说话人名字|台词"`，立绘弹窗多一个 `显示方式="单张|多张"`。
  * 锚点是 16 格锚点归一化，位置 / 大小是 1920×1080 设计稿像素，对齐是 0–1 的比例；
  * 拉伸方向按 UMG 的习惯，位置写左 / 上边距，大小写负数（-右边距 / -下边距）。
  */
@@ -247,17 +254,13 @@ export function buildTextBoxRows(project: Project): string[][] {
     ...project.textBoxes.map((row) => [
       row.id,
       row.name,
-      `(${[
-        controlTuple('背景图', row.bg, idOf),
-        controlTuple('人物名称', row.speaker, idOf),
-        controlTuple('台词', row.text, idOf),
-      ].join(',')})`,
+      `(${row.controls.map((control) => controlTuple(control, idOf)).join(',')})`,
     ]),
   ];
 }
 
 /** 一个控件的属性元组 */
-function controlTuple(label: string, control: TextBoxControl, idOf: UidToId): string {
+function controlTuple(control: TextBoxControl, idOf: UidToId): string {
   const { col, row: anchorRow } = control.anchor;
   const stretchX = col === 3;
   const stretchY = anchorRow === 3;
@@ -273,8 +276,16 @@ function controlTuple(label: string, control: TextBoxControl, idOf: UidToId): st
   const sizeY = slot.sizeY;
 
   const imageId = control.imageUid === '' ? '' : idOf.get(control.imageUid) ?? '';
+  const kind = TEXT_BOX_CONTROL_LABELS[control.kind];
+  const extra =
+    control.kind === 'text'
+      ? `内容="${TEXT_BOX_CONTENT_LABELS[control.content]}",`
+      : control.kind === 'portrait'
+        ? `显示方式="${TEXT_BOX_PORTRAIT_MODE_LABELS[control.portraitMode]}",`
+        : '';
   return (
-    `("${label}", (隐藏控件=${control.hidden ? 'True' : 'False'},` +
+    `("${control.name.replace(/"/g, '')}", (类型="${kind}",` +
+    extra +
     `插槽锚点=(Minimum=(X=${fixed6(anchorMinX)},Y=${fixed6(anchorMinY)}),Maximum=(X=${fixed6(anchorMaxX)},Y=${fixed6(anchorMaxY)})),` +
     `插槽位置=(X=${fixed6(posX)},Y=${fixed6(posY)}),` +
     `插槽大小=(X=${fixed6(sizeX)},Y=${fixed6(sizeY)}),` +

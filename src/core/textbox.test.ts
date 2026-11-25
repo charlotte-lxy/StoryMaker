@@ -18,37 +18,53 @@ import {
   rectToSlot,
   slotToRect,
 } from './textbox';
-import type { AnchorCell } from './types';
+import type { AnchorCell, TextBoxControl, TextBoxRow } from './types';
 
 const CELL: AnchorCell = { col: 0, row: 0 };
 
+function textControl(row: TextBoxRow, content: 'speaker' | 'line'): TextBoxControl {
+  const found = row.controls.find(
+    (control) => control.kind === 'text' && control.content === content,
+  );
+  if (found === undefined) throw new Error(`没有 ${content} 文本控件`);
+  return found;
+}
+
 describe('文本框的默认值与归一化', () => {
-  it('新建的文本框贴在画面下方，三个控件字段齐全', () => {
+  it('新建的文本框贴在画面下方，默认带图片 / 人物名称 / 台词三个控件', () => {
     const row = createDefaultTextBox();
     expect(row.name).toBe('文本框 1');
-    expect(row.bg.rect).toEqual(DEFAULT_TEXT_BOX_RECT);
-    expect(row.bg.anchor).toEqual(DEFAULT_ANCHOR);
-    expect(row.bg.hidden).toBe(false);
-    expect(row.bg.imageUid).toBe('');
-    expect(row.speaker.sampleText).toBe('角色名');
-    expect(row.speaker.fontFamily).toBe('微软雅黑');
-    expect(row.speaker.fontSize).toBe(40);
-    expect(row.speaker.color).toBe('#FFFFFF');
-    expect(row.text.sampleText).toBe('这是一段示例台词。');
-    expect(row.text.fontSize).toBe(42);
-    expect(row.text.align).toBe('left');
-    expect(row.text.lineHeight).toBe(1.5);
-    expect(row.text.reveal).toBe('instant');
-    expect(row.text.multiLine).toBe(false);
     expect(row.layer).toBe(0);
     expect(row.rectSpace).toBe('canvas');
+
+    expect(row.controls.map((control) => control.kind)).toEqual(['image', 'text', 'text']);
+    expect(row.controls.map((control) => control.name)).toEqual(['背景图', '人物名称', '台词']);
+    expect(new Set(row.controls.map((control) => control.uid)).size).toBe(3);
+
+    const [image, speaker, line] = row.controls;
+    expect(image.rect).toEqual(DEFAULT_TEXT_BOX_RECT);
+    expect(image.anchor).toEqual(DEFAULT_ANCHOR);
+    expect(image.imageUid).toBe('');
+
+    expect(speaker.content).toBe('speaker');
+    expect(speaker.sampleText).toBe('角色名');
+    expect(speaker.fontFamily).toBe('微软雅黑');
+    expect(speaker.fontSize).toBe(40);
+    expect(speaker.color).toBe('#FFFFFF');
+
+    expect(line.content).toBe('line');
+    expect(line.sampleText).toBe('这是一段示例台词。');
+    expect(line.fontSize).toBe(42);
+    expect(line.align).toBe('left');
+    expect(line.lineHeight).toBe(1.5);
+    expect(line.reveal).toBe('instant');
+    expect(line.multiLine).toBe(false);
+
     // 名字 / 台词都收在外框里面，但存的是画布坐标
-    expect(row.speaker.rect.y).toBeGreaterThanOrEqual(row.bg.rect.y);
-    expect(row.speaker.rect.y + row.speaker.rect.h).toBeLessThanOrEqual(
-      row.bg.rect.y + row.bg.rect.h,
-    );
-    expect(row.text.rect.y).toBeGreaterThanOrEqual(row.bg.rect.y);
-    expect(row.text.rect.y + row.text.rect.h).toBeLessThanOrEqual(row.bg.rect.y + row.bg.rect.h);
+    expect(speaker.rect.y).toBeGreaterThanOrEqual(image.rect.y);
+    expect(speaker.rect.y + speaker.rect.h).toBeLessThanOrEqual(image.rect.y + image.rect.h);
+    expect(line.rect.y).toBeGreaterThanOrEqual(image.rect.y);
+    expect(line.rect.y + line.rect.h).toBeLessThanOrEqual(image.rect.y + image.rect.h);
   });
 
   it('每个新建的文本框 uid 不一样', () => {
@@ -88,7 +104,7 @@ describe('文本框的默认值与归一化', () => {
     expect(normalizeTextBoxes([])).toEqual([]);
   });
 
-  it('缺字段的行会补齐，并按范围夹住', () => {
+  it('缺字段的老行会补齐，并摊成图片 / 人物名称 / 台词三个控件', () => {
     const rows = normalizeTextBoxes([
       {
         uid: 'tb1',
@@ -101,17 +117,18 @@ describe('文本框的默认值与归一化', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].uid).toBe('tb1');
     expect(rows[0].name).toBe('旁白框');
-    expect(rows[0].text.align).toBe('center');
-    expect(rows[0].text.lineHeight).toBe(LINE_HEIGHT_MAX);
-    expect(rows[0].bg.rect).toEqual({ x: 0.9, y: 0.9, w: 0.4, h: 0.4 });
-    expect(rows[0].speaker.hidden).toBe(false);
-    expect(rows[0].speaker.sampleText).toBe('角色名');
+    expect(rows[0].id).toBe('TB_1');
+    expect(rows[0].controls.map((control) => control.kind)).toEqual(['image', 'text', 'text']);
+    expect(rows[0].controls[0].rect).toEqual({ x: 0.9, y: 0.9, w: 0.4, h: 0.4 });
+    expect(textControl(rows[0], 'speaker').sampleText).toBe('角色名');
+    expect(textControl(rows[0], 'line').align).toBe('center');
+    expect(textControl(rows[0], 'line').lineHeight).toBe(LINE_HEIGHT_MAX);
   });
 
   it('行距太小时夹到下限，非法对齐退回左对齐', () => {
     const rows = normalizeTextBoxes([{ uid: 'tb1', lineHeight: 0.1, align: 'middle' }]);
-    expect(rows[0].text.lineHeight).toBe(LINE_HEIGHT_MIN);
-    expect(rows[0].text.align).toBe('left');
+    expect(textControl(rows[0], 'line').lineHeight).toBe(LINE_HEIGHT_MIN);
+    expect(textControl(rows[0], 'line').align).toBe('left');
   });
 
   it('不是对象的条目直接丢掉', () => {
@@ -129,15 +146,18 @@ describe('文本框的默认值与归一化', () => {
         textRect: { x: 0.2, y: 0.1, w: 0.5, h: 0.25 },
       },
     ]);
+    const speaker = textControl(rows[0], 'speaker');
+    const line = textControl(rows[0], 'line');
     expect(rows[0].rectSpace).toBe('canvas');
-    expect(rows[0].speaker.rect).toEqual({ x: 0.1, y: 0.2, w: 0.5, h: 0.4 });
-    expect(rows[0].text.rect.x).toBeCloseTo(0.2);
-    expect(rows[0].text.rect.y).toBeCloseTo(0.24);
-    expect(rows[0].text.rect.w).toBeCloseTo(0.25);
-    expect(rows[0].text.rect.h).toBeCloseTo(0.1);
+    expect(rows[0].controls[0].rect).toEqual({ x: 0.1, y: 0.2, w: 0.5, h: 0.4 });
+    expect(speaker.rect).toEqual({ x: 0.1, y: 0.2, w: 0.5, h: 0.4 });
+    expect(line.rect.x).toBeCloseTo(0.2);
+    expect(line.rect.y).toBeCloseTo(0.24);
+    expect(line.rect.w).toBeCloseTo(0.25);
+    expect(line.rect.h).toBeCloseTo(0.1);
   });
 
-  it('老格式的坐标与锚点原样读回，showName=false 变成隐藏名字', () => {
+  it('老格式的坐标与锚点原样读回，showName=false 也照旧摊成三个控件', () => {
     const rows = normalizeTextBoxes([
       {
         uid: 'tb1',
@@ -150,45 +170,97 @@ describe('文本框的默认值与归一化', () => {
         anchors: { bg: { col: 3, row: 3 }, name: { col: 1, row: 2 }, text: { col: 9, row: -2 } },
       },
     ]);
-    expect(rows[0].bg.rect).toEqual({ x: 0.1, y: 0.2, w: 0.5, h: 0.4 });
-    expect(rows[0].speaker.rect).toEqual({ x: 0.2, y: 0.3, w: 0.4, h: 0.1 });
-    expect(rows[0].speaker.hidden).toBe(true);
-    expect(rows[0].speaker.sampleText).toBe('旁白');
-    expect(rows[0].bg.anchor).toEqual({ col: 3, row: 3 });
-    expect(rows[0].speaker.anchor).toEqual({ col: 1, row: 2 });
+    const speaker = textControl(rows[0], 'speaker');
+    const line = textControl(rows[0], 'line');
+    expect(rows[0].controls).toHaveLength(3);
+    expect(rows[0].controls[0].rect).toEqual({ x: 0.1, y: 0.2, w: 0.5, h: 0.4 });
+    expect(speaker.rect).toEqual({ x: 0.2, y: 0.3, w: 0.4, h: 0.1 });
+    expect(speaker.sampleText).toBe('旁白');
+    expect(rows[0].controls[0].anchor).toEqual({ col: 3, row: 3 });
+    expect(speaker.anchor).toEqual({ col: 1, row: 2 });
     // 越界的锚点夹回 0–3
-    expect(rows[0].text.anchor).toEqual({ col: 3, row: 0 });
+    expect(line.anchor).toEqual({ col: 3, row: 0 });
   });
 
-  it('新格式的三个控件原样读回，字体颜色归一化，字号不再夹上限', () => {    const rows = normalizeTextBoxes([
+  it('新格式按控件数组原样读回，字体颜色归一化，字号不再夹上限', () => {
+    const rows = normalizeTextBoxes([
       {
         uid: 'tb1',
-        bg: {
-          rect: { x: 0.1, y: 0.1, w: 0.8, h: 0.2 },
-          anchor: { col: 3, row: 0 },
-          hidden: false,
-          imageUid: 'img1',
-          fontFamily: '',
-          fontSize: 0,
-          color: '#000000',
-        },
-        speaker: { hidden: true, color: '#fff', pivotX: 0.25 },
-        text: { fontSize: 999, fontFamily: '黑体', sampleText: '示例', pivotY: 2 },
+        controls: [
+          {
+            uid: 'c1',
+            kind: 'image',
+            name: '底图',
+            rect: { x: 0.1, y: 0.1, w: 0.8, h: 0.2 },
+            anchor: { col: 3, row: 0 },
+            imageUid: 'img1',
+          },
+          {
+            uid: 'c2',
+            kind: 'text',
+            content: 'speaker',
+            color: '#fff',
+            pivotX: 0.25,
+          },
+          {
+            uid: 'c3',
+            kind: 'text',
+            content: 'line',
+            fontSize: 999,
+            fontFamily: '黑体',
+            sampleText: '示例',
+            pivotY: 2,
+          },
+        ],
       },
     ]);
-    expect(rows[0].bg.imageUid).toBe('img1');
-    expect(rows[0].bg.anchor).toEqual({ col: 3, row: 0 });
-    expect(rows[0].speaker.hidden).toBe(true);
-    expect(rows[0].speaker.color).toBe('#FFFFFF');
-    expect(rows[0].speaker.pivotX).toBe(0.25);
-    expect(rows[0].text.fontSize).toBe(999);
-    expect(rows[0].text.fontFamily).toBe('黑体');
-    expect(rows[0].text.sampleText).toBe('示例');
+    expect(rows[0].controls.map((control) => control.uid)).toEqual(['c1', 'c2', 'c3']);
+    expect(rows[0].controls[0].name).toBe('底图');
+    expect(rows[0].controls[0].imageUid).toBe('img1');
+    expect(rows[0].controls[0].anchor).toEqual({ col: 3, row: 0 });
+
+    const speaker = textControl(rows[0], 'speaker');
+    expect(speaker.color).toBe('#FFFFFF');
+    expect(speaker.pivotX).toBe(0.25);
+
+    const line = textControl(rows[0], 'line');
+    expect(line.fontSize).toBe(999);
+    expect(line.fontFamily).toBe('黑体');
+    expect(line.sampleText).toBe('示例');
     // 对齐值夹在 0–1
-    expect(rows[0].text.pivotY).toBe(1);
+    expect(line.pivotY).toBe(1);
     // 缺省的对齐是 0.5
-    expect(rows[0].bg.pivotX).toBe(0.5);
-    expect(rows[0].bg.pivotY).toBe(0.5);
+    expect(rows[0].controls[0].pivotX).toBe(0.5);
+    expect(rows[0].controls[0].pivotY).toBe(0.5);
+  });
+
+  it('立绘弹窗的显示方式与预览角色能读回来，不认识的类型退回文本', () => {
+    const rows = normalizeTextBoxes([
+      {
+        uid: 'tb1',
+        controls: [
+          {
+            uid: 'c1',
+            kind: 'portrait',
+            name: '立绘',
+            portraitMode: 'multi',
+            portraits: [
+              { characterUid: 'ch1', expression: '开心' },
+              { characterUid: '', expression: '' },
+            ],
+          },
+          { uid: 'c2', kind: 'video', content: 'speaker' },
+        ],
+      },
+    ]);
+    const portrait = rows[0].controls[0];
+    expect(portrait.kind).toBe('portrait');
+    expect(portrait.portraitMode).toBe('multi');
+    expect(portrait.portraits).toEqual([
+      { characterUid: 'ch1', expression: '开心' },
+      { characterUid: '', expression: '' },
+    ]);
+    expect(rows[0].controls[1].kind).toBe('text');
   });
 
   it('出现效果、多行与层级都能读回来，越界的参数收进范围', () => {
@@ -196,22 +268,28 @@ describe('文本框的默认值与归一化', () => {
       {
         uid: 'tb1',
         layer: 5.6,
-        text: {
-          reveal: 'typewriter',
-          typeSpeed: 500,
-          punctuationPause: -1,
-          fadeIn: 99,
-          multiLine: true,
-        },
+        controls: [
+          {
+            uid: 'c1',
+            kind: 'text',
+            content: 'line',
+            reveal: 'typewriter',
+            typeSpeed: 500,
+            punctuationPause: -1,
+            fadeIn: 99,
+            multiLine: true,
+          },
+        ],
       },
     ]);
+    const line = textControl(rows[0], 'line');
     expect(rows[0].layer).toBe(6);
-    expect(rows[0].text.reveal).toBe('typewriter');
-    expect(rows[0].text.typeSpeed).toBe(TYPE_SPEED_MAX);
-    expect(rows[0].text.punctuationPause).toBe(0);
-    expect(rows[0].text.fadeIn).toBe(FADE_MAX);
-    expect(rows[0].text.fadeOut).toBe(0.2);
-    expect(rows[0].text.multiLine).toBe(true);
+    expect(line.reveal).toBe('typewriter');
+    expect(line.typeSpeed).toBe(TYPE_SPEED_MAX);
+    expect(line.punctuationPause).toBe(0);
+    expect(line.fadeIn).toBe(FADE_MAX);
+    expect(line.fadeOut).toBe(0.2);
+    expect(line.multiLine).toBe(true);
   });
 });
 

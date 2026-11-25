@@ -37,7 +37,7 @@ import {
 } from '../core/preview';
 import { characterAssetOf, imageAssetOf, soundAssetOf } from '../core/preview-assets';
 import { CANVAS_HEIGHT, CANVAS_WIDTH, REVEAL_PUNCTUATION } from '../core/textbox';
-import type { LangKey, LocalizedText, Project, TextBoxRow } from '../core/types';
+import type { LangKey, LocalizedText, Project, TextBoxControl, TextBoxRow } from '../core/types';
 import { blobOf, canPreviewImage, mimeOf } from './asset-blob';
 import { registerAudioStopper } from './audio-registry';
 import { SoundPlayer } from './sound-player';
@@ -128,8 +128,8 @@ function BackgroundLayer({
   );
 }
 
-/** 立绘层：单个站中间，多个从中间往两边排（第 4 个起在右侧叠放错开） */
-function CharacterSprite({
+/** 立绘弹窗里的一张立绘：填满它所在的那一格 */
+function PortraitSprite({
   project,
   byId,
   host,
@@ -145,12 +145,9 @@ function CharacterSprite({
   const asset = characterAssetOf(project, byId, character.characterUid, character.expression);
   const url = useAssetUrl(host, asset?.file);
   const name = previewTextOf(previewSpeakerName(project, character.characterUid, ''), language);
-  const side = character.slot >= 3 ? 'right' : ['center', 'right', 'left'][character.slot];
-  const style =
-    side === 'right' ? { right: `${4 + Math.max(0, character.slot - 2) * 7}%` } : undefined;
 
   return (
-    <div className={`preview-character slot-${side ?? 'left'}`} style={style}>
+    <div className="preview-portrait" data-character={character.characterUid}>
       {url !== '' ? (
         <img src={url} alt={name} />
       ) : (
@@ -199,7 +196,7 @@ function rectStyle(rect: { x: number; y: number; w: number; h: number }): React.
 }
 
 /** 文字控件的行内样式：字体、字号、颜色、对齐、行距 */
-function controlTextStyle(control: TextBoxRow['text']): React.CSSProperties {
+function controlTextStyle(control: TextBoxControl): React.CSSProperties {
   return {
     fontFamily: control.fontFamily === '' ? undefined : `"${control.fontFamily}", sans-serif`,
     fontSize: control.fontSize,
@@ -234,7 +231,7 @@ function RevealText({
   registerFinish,
 }: {
   lines: string[];
-  control: TextBoxRow['text'];
+  control: TextBoxControl;
   registerFinish?: (finish: (() => void) | null) => void;
 }) {
   const [shown, setShown] = useState<string[]>([]);
@@ -431,7 +428,7 @@ function RevealText({
   );
 }
 
-/** 一帧文本框图层：三个控件各按自己的设计稿像素摆，外层整体缩放 */
+/** 一帧文本框图层：控件按自己的设计稿像素摆，外层整体缩放 */
 function TextBoxLayer({
   project,
   byId,
@@ -440,6 +437,8 @@ function TextBoxLayer({
   scale,
   speaker,
   lines,
+  characters,
+  language,
   registerFinish,
 }: {
   project: Project;
@@ -449,6 +448,8 @@ function TextBoxLayer({
   scale: number;
   speaker: string;
   lines: string[];
+  characters: PreviewCharacterState[];
+  language: LangKey;
   registerFinish?: (finish: (() => void) | null) => void;
 }) {
   return (
@@ -461,38 +462,66 @@ function TextBoxLayer({
         zIndex: box.layer,
       }}
     >
-      {!box.bg.hidden && (
-        <div className="preview-textbox-frame" style={rectStyle(box.bg.rect)}>
-          <ControlBackground project={project} byId={byId} host={host} imageUid={box.bg.imageUid} />
-        </div>
-      )}
-      {!box.speaker.hidden && speaker !== '' && (
-        <div
-          className="preview-textbox-name"
-          style={{ ...rectStyle(box.speaker.rect), ...controlTextStyle(box.speaker) }}
-        >
-          <ControlBackground
-            project={project}
-            byId={byId}
-            host={host}
-            imageUid={box.speaker.imageUid}
-          />
-          <span>{speaker}</span>
-        </div>
-      )}
-      {!box.text.hidden && lines.length > 0 && (
-        <div
-          className="preview-textbox-text"
-          style={{ ...rectStyle(box.text.rect), ...controlTextStyle(box.text) }}
-        >
-          <ControlBackground project={project} byId={byId} host={host} imageUid={box.text.imageUid} />
-          <RevealText
-            lines={lines}
-            control={box.text}
-            registerFinish={registerFinish}
-          />
-        </div>
-      )}
+      {box.controls.map((control) => {
+        if (control.kind === 'image') {
+          return (
+            <div
+              key={control.uid}
+              className="preview-textbox-image"
+              style={rectStyle(control.rect)}
+            >
+              <ControlBackground
+                project={project}
+                byId={byId}
+                host={host}
+                imageUid={control.imageUid}
+              />
+            </div>
+          );
+        }
+        if (control.kind === 'portrait') {
+          // 单张：只画最后上场的那一个（新立绘盖掉旧的）；多张：所有上场的立绘平分这一格
+          const shown =
+            control.portraitMode === 'single' ? characters.slice(-1) : characters;
+          if (shown.length === 0) return null;
+          return (
+            <div
+              key={control.uid}
+              className="preview-portrait-row"
+              data-mode={control.portraitMode}
+              style={rectStyle(control.rect)}
+            >
+              {shown.map((character) => (
+                <PortraitSprite
+                  key={character.characterUid}
+                  project={project}
+                  byId={byId}
+                  host={host}
+                  character={character}
+                  language={language}
+                />
+              ))}
+            </div>
+          );
+        }
+        const text = control.content === 'speaker' ? speaker : lines.join('\n');
+        if (text === '') return null;
+        return (
+          <div
+            key={control.uid}
+            className="preview-textbox-text"
+            data-kind={control.kind}
+            data-content={control.content}
+            style={{ ...rectStyle(control.rect), ...controlTextStyle(control) }}
+          >
+            <RevealText
+              lines={control.content === 'speaker' ? [speaker] : lines}
+              control={control}
+              registerFinish={registerFinish}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -722,6 +751,7 @@ export function PreviewPlayer({
   const assetsReady = assets.library.available && assets.library.folder.trim() !== '';
 
   const current = state?.current ?? null;
+  const enteredCharacters = (state?.stage.characters ?? []).filter((character) => character.entered);
   /** 层级高的画在上层：DOM 顺序靠后的盖住前面的 */
   const visibleTextBoxes = (state?.stage.textBoxes ?? [])
     .filter((item) => item.visible)
@@ -798,19 +828,6 @@ export function PreviewPlayer({
                 </div>
               )}
 
-              {state.stage.characters
-                .filter((character) => character.entered)
-                .map((character) => (
-                  <CharacterSprite
-                    key={character.characterUid}
-                    project={project}
-                    byId={assets.library.byId}
-                    host={assets.host}
-                    character={character}
-                    language={language}
-                  />
-                ))}
-
               {visibleTextBoxes.map((item) => {
                 const box = previewTextBoxOf(project, item.textBoxUid);
                 if (box === undefined) return null;
@@ -825,6 +842,12 @@ export function PreviewPlayer({
                     scale={frameScale}
                     speaker={previewTextOf(item.speaker, language)}
                     lines={item.lines.map((line) => previewTextOf(line, language))}
+                    characters={enteredCharacters.filter(
+                      (character) =>
+                        project.characters.find((row) => row.uid === character.characterUid)
+                          ?.textBoxUid === box.uid,
+                    )}
+                    language={language}
                     registerFinish={mine ? registerRevealFinish : undefined}
                   />
                 );

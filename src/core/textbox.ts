@@ -4,8 +4,12 @@ import type {
   Rect,
   TextBoxAlign,
   TextBoxControl,
+  TextBoxControlKind,
+  TextBoxPortraitMode,
+  TextBoxPortraitPreview,
   TextBoxReveal,
   TextBoxRow,
+  TextBoxTextContent,
 } from './types';
 
 /** 排版用的设计稿尺寸：界面缩放时整块画布按比例缩，位置和尺寸都按这个尺寸算 */
@@ -84,15 +88,44 @@ export function nextTextBoxId(rows: readonly { id: string }[]): string {
   return `${TEXT_BOX_ID_PREFIX}${n}`;
 }
 
-/** 一个控件的默认值：背景图控件用这套，文字控件再覆盖 */
-export function createDefaultControl(rect: Rect): TextBoxControl {
+/** 控件类型（「添加控件」里能选的三种） */
+export const TEXT_BOX_CONTROL_KINDS = ['image', 'text', 'portrait'] as const;
+export const TEXT_BOX_CONTROL_LABELS: Record<TextBoxControlKind, string> = {
+  image: '图片',
+  text: '文本',
+  portrait: '立绘弹窗',
+};
+
+/** 文本控件显示什么 */
+export const TEXT_BOX_CONTENTS = ['speaker', 'line'] as const;
+export const TEXT_BOX_CONTENT_LABELS: Record<TextBoxTextContent, string> = {
+  speaker: '说话人名字',
+  line: '台词',
+};
+
+/** 立绘弹窗：单张 / 多张 */
+export const TEXT_BOX_PORTRAIT_MODES = ['single', 'multi'] as const;
+export const TEXT_BOX_PORTRAIT_MODE_LABELS: Record<TextBoxPortraitMode, string> = {
+  single: '仅展示单张',
+  multi: '多张同时展示',
+};
+
+/** 一个控件的默认值：三种控件共用这一套，各类型再覆盖自己那几项 */
+export function createControlBase(
+  rect: Rect,
+  kind: TextBoxControlKind,
+  name: string,
+): TextBoxControl {
   return {
+    uid: newUid(),
+    kind,
+    name,
     anchor: { ...DEFAULT_ANCHOR },
     rect: { ...rect },
     pivotX: DEFAULT_PIVOT,
     pivotY: DEFAULT_PIVOT,
-    hidden: false,
     imageUid: '',
+    content: 'line',
     fontFamily: '',
     fontSize: 0,
     color: '#000000',
@@ -105,13 +138,27 @@ export function createDefaultControl(rect: Rect): TextBoxControl {
     typeSpeed: DEFAULT_TYPE_SPEED,
     punctuationPause: DEFAULT_PUNCTUATION_PAUSE,
     multiLine: false,
+    portraitMode: 'single',
+    portraits: [],
   };
 }
 
-/** 新建一个文字控件：默认微软雅黑、白色，字号传进来 */
-export function createTextControl(rect: Rect, fontSize: number, sampleText: string): TextBoxControl {
+/** 新建一个图片控件 */
+export function createImageControl(rect: Rect, name = '图片'): TextBoxControl {
+  return createControlBase(rect, 'image', name);
+}
+
+/** 新建一个文字控件：默认微软雅黑、白色，字号与示例文本传进来 */
+export function createTextControl(
+  rect: Rect,
+  content: TextBoxTextContent,
+  fontSize: number,
+  sampleText: string,
+  name = '文本',
+): TextBoxControl {
   return {
-    ...createDefaultControl(rect),
+    ...createControlBase(rect, 'text', name),
+    content,
     fontFamily: DEFAULT_FONT_FAMILY,
     fontSize,
     color: DEFAULT_COLOR,
@@ -119,7 +166,45 @@ export function createTextControl(rect: Rect, fontSize: number, sampleText: stri
   };
 }
 
-/** 新建一条文本框：位置是默认的，名字可以传（列表里显示用） */
+/** 新建一个立绘弹窗控件：默认单张，先给一行空的预览角色 */
+export function createPortraitControl(rect: Rect, name = '立绘弹窗'): TextBoxControl {
+  return {
+    ...createControlBase(rect, 'portrait', name),
+    portraits: [{ characterUid: '', expression: '' }],
+  };
+}
+
+/** 每种控件加进来时的默认位置：图片贴底部整条，文本在框里，立绘在画面中间 */
+export function defaultRectFor(kind: TextBoxControlKind): Rect {
+  if (kind === 'image') return { ...DEFAULT_TEXT_BOX_RECT };
+  if (kind === 'text') return composeRect(DEFAULT_TEXT_BOX_RECT, DEFAULT_TEXT_RECT);
+  return { x: 0.3, y: 0.08, w: 0.4, h: 0.84 };
+}
+
+/** 按类型新建一个控件 */
+export function createControl(
+  kind: TextBoxControlKind,
+  rect: Rect,
+  name: string,
+): TextBoxControl {
+  if (kind === 'image') return createImageControl(rect, name);
+  if (kind === 'portrait') return createPortraitControl(rect, name);
+  return createTextControl(rect, 'line', 42, '这是一段示例台词。', name);
+}
+
+/** 新控件的默认名字：同类型往后排（图片 1、文本 2…） */
+export function nextControlName(
+  controls: readonly TextBoxControl[],
+  kind: TextBoxControlKind,
+): string {
+  const label = TEXT_BOX_CONTROL_LABELS[kind];
+  const taken = new Set(controls.map((control) => control.name));
+  let n = 1;
+  while (taken.has(`${label} ${n}`)) n += 1;
+  return `${label} ${n}`;
+}
+
+/** 新建一条文本框：默认摆一个背景图 + 人物名称 + 台词，名字可以传（列表里显示用） */
 export function createDefaultTextBox(name = '文本框 1', id = 'TB_1'): TextBoxRow {
   const box = { ...DEFAULT_TEXT_BOX_RECT };
   return {
@@ -128,9 +213,17 @@ export function createDefaultTextBox(name = '文本框 1', id = 'TB_1'): TextBox
     name,
     layer: DEFAULT_LAYER,
     rectSpace: 'canvas',
-    bg: createDefaultControl(box),
-    speaker: createTextControl(composeRect(box, DEFAULT_NAME_RECT), 40, '角色名'),
-    text: createTextControl(composeRect(box, DEFAULT_TEXT_RECT), 42, '这是一段示例台词。'),
+    controls: [
+      createImageControl(box, '背景图'),
+      createTextControl(composeRect(box, DEFAULT_NAME_RECT), 'speaker', 40, '角色名', '人物名称'),
+      createTextControl(
+        composeRect(box, DEFAULT_TEXT_RECT),
+        'line',
+        42,
+        '这是一段示例台词。',
+        '台词',
+      ),
+    ],
   };
 }
 
@@ -259,15 +352,38 @@ export function normalizeColor(value: unknown, fallback: string): string {
   return fallback;
 }
 
+function readControlKind(value: unknown, fallback: TextBoxControlKind): TextBoxControlKind {
+  return value === 'image' || value === 'text' || value === 'portrait' ? value : fallback;
+}
+
+function readContent(value: unknown, fallback: TextBoxTextContent): TextBoxTextContent {
+  return value === 'speaker' || value === 'line' ? value : fallback;
+}
+
+function readPortraitMode(value: unknown, fallback: TextBoxPortraitMode): TextBoxPortraitMode {
+  return value === 'single' || value === 'multi' ? value : fallback;
+}
+
+function readPortraits(raw: unknown, fallback: TextBoxPortraitPreview[]): TextBoxPortraitPreview[] {
+  if (!Array.isArray(raw)) return fallback.map((item) => ({ ...item }));
+  return raw.filter(isRecord).map((item) => ({
+    characterUid: asString(item.characterUid, ''),
+    expression: asString(item.expression, ''),
+  }));
+}
+
 function readControl(raw: unknown, fallback: TextBoxControl): TextBoxControl {
   const record = isRecord(raw) ? raw : {};
   return {
+    uid: asString(record.uid, '') === '' ? newUid() : (record.uid as string),
+    kind: readControlKind(record.kind, fallback.kind),
+    name: asString(record.name, fallback.name),
     anchor: readAnchor(record.anchor),
     rect: clampRect(record.rect, fallback.rect),
     pivotX: readPivot(record.pivotX, fallback.pivotX),
     pivotY: readPivot(record.pivotY, fallback.pivotY),
-    hidden: typeof record.hidden === 'boolean' ? record.hidden : fallback.hidden,
     imageUid: asString(record.imageUid, fallback.imageUid),
+    content: readContent(record.content, fallback.content),
     fontFamily: asString(record.fontFamily, fallback.fontFamily),
     fontSize: asNumber(record.fontSize, fallback.fontSize),
     color: normalizeColor(record.color, fallback.color),
@@ -292,6 +408,8 @@ function readControl(raw: unknown, fallback: TextBoxControl): TextBoxControl {
       PUNCTUATION_PAUSE_MAX,
     ),
     multiLine: typeof record.multiLine === 'boolean' ? record.multiLine : fallback.multiLine,
+    portraitMode: readPortraitMode(record.portraitMode, fallback.portraitMode),
+    portraits: readPortraits(record.portraits, fallback.portraits),
   };
 }
 
@@ -306,13 +424,10 @@ function readPivot(value: unknown, fallback: number): number {
 
 /**
  * 老项目里的文本框是「外框 + 名字 + 台词」三个矩形 + 一个共享的对齐 / 行距，
- * 现在每个控件都带自己的一套属性。这里把老数据摊成三个控件。
+ * 现在控件由用户自己增删。这里把老数据摊成三个控件：图片 + 人物名称 + 台词。
  */
-function readLegacyControls(
-  raw: Record<string, unknown>,
-  fallback: TextBoxRow,
-): { bg: TextBoxControl; speaker: TextBoxControl; text: TextBoxControl } {
-  const box = clampRect(raw.box, fallback.bg.rect);
+function readLegacyControls(raw: Record<string, unknown>, fallback: TextBoxRow): TextBoxControl[] {
+  const box = clampRect(raw.box, defaultRectFor('image'));
   const anchorsRaw = isRecord(raw.anchors) ? raw.anchors : {};
   // 更老的项目里名字 / 台词存的是「相对外框」，后来才改成相对画布
   const relative = raw.rectSpace !== 'canvas';
@@ -321,47 +436,59 @@ function readLegacyControls(
     return clampRect(composeRect(box, clampRect(value, inner)), absolute);
   };
   const align = readAlign(raw.align);
-  const lineHeight = clamp(
-    asNumber(raw.lineHeight, fallback.text.lineHeight),
-    LINE_HEIGHT_MIN,
-    LINE_HEIGHT_MAX,
-  );
-  const sampleName = asString(raw.sampleName, fallback.speaker.sampleText);
-  const sampleText = asString(raw.sampleText, fallback.text.sampleText);
+  const lineHeight = clamp(asNumber(raw.lineHeight, 1.5), LINE_HEIGHT_MIN, LINE_HEIGHT_MAX);
+  const sampleName = asString(raw.sampleName, '角色名');
+  const sampleText = asString(raw.sampleText, '这是一段示例台词。');
+  const fallbackImage = fallback.controls[0] ?? createImageControl(box);
+  const fallbackSpeaker = fallback.controls[1] ?? createTextControl(box, 'speaker', 40, sampleName);
+  const fallbackLine = fallback.controls[2] ?? createTextControl(box, 'line', 42, sampleText);
 
-  return {
-    bg: {
-      ...createDefaultControl(box),
+  return [
+    {
+      ...createImageControl(box, '背景图'),
       anchor: readAnchor(anchorsRaw.bg),
-      imageUid: asString(raw.imageUid, ''),
+      imageUid: asString(raw.imageUid, fallbackImage.imageUid),
     },
-    speaker: {
-      ...createTextControl(readPart(raw.nameRect, DEFAULT_NAME_RECT, fallback.speaker.rect), 40, sampleName),
+    {
+      ...createTextControl(
+        readPart(raw.nameRect, DEFAULT_NAME_RECT, fallbackSpeaker.rect),
+        'speaker',
+        40,
+        sampleName,
+        '人物名称',
+      ),
       anchor: readAnchor(anchorsRaw.name),
-      hidden: raw.showName === false,
       align,
       lineHeight,
     },
-    text: {
-      ...createTextControl(readPart(raw.textRect, DEFAULT_TEXT_RECT, fallback.text.rect), 42, sampleText),
+    {
+      ...createTextControl(
+        readPart(raw.textRect, DEFAULT_TEXT_RECT, fallbackLine.rect),
+        'line',
+        42,
+        sampleText,
+        '台词',
+      ),
       anchor: readAnchor(anchorsRaw.text),
       align,
       lineHeight,
     },
-  };
+  ];
 }
 
 function readTextBox(raw: Record<string, unknown>, index: number): TextBoxRow {
   const fallback = createDefaultTextBox(`文本框 ${index + 1}`);
   const uid = typeof raw.uid === 'string' && raw.uid !== '' ? raw.uid : fallback.uid;
   const name = typeof raw.name === 'string' && raw.name.trim() !== '' ? raw.name : fallback.name;
-  const controls =
-    isRecord(raw.bg) || isRecord(raw.speaker) || isRecord(raw.text)
-      ? {
-          bg: readControl(raw.bg, fallback.bg),
-          speaker: readControl(raw.speaker, fallback.speaker),
-          text: readControl(raw.text, fallback.text),
-        }
+  const three = [fallback.controls[0]!, fallback.controls[1]!, fallback.controls[2]!];
+  const controls = Array.isArray(raw.controls)
+    ? raw.controls.filter(isRecord).map((item, i) => readControl(item, three[i] ?? three[0]!))
+    : isRecord(raw.bg) || isRecord(raw.speaker) || isRecord(raw.text)
+      ? [
+          readControl(raw.bg, three[0]!),
+          readControl(raw.speaker, three[1]!),
+          readControl(raw.text, three[2]!),
+        ]
       : readLegacyControls(raw, fallback);
 
   return {
@@ -370,7 +497,7 @@ function readTextBox(raw: Record<string, unknown>, index: number): TextBoxRow {
     name,
     layer: Math.round(asNumber(raw.layer, DEFAULT_LAYER)),
     rectSpace: 'canvas',
-    ...controls,
+    controls,
   };
 }
 
