@@ -302,22 +302,22 @@ function TextStyleFields({
         </div>
       </div>
 
-      <label className="field">
+      <div className="field">
         <span>垂直排列</span>
-        <select
-          aria-label="垂直排列"
-          value={control.verticalAlign}
-          onChange={(event) =>
-            onChange({ verticalAlign: event.target.value as TextBoxControl['verticalAlign'] })
-          }
-        >
+        <div className="textbox-aligns">
           {TEXT_BOX_VERTICAL_ALIGNS.map((value) => (
-            <option key={value} value={value}>
+            <button
+              key={value}
+              type="button"
+              aria-label={`垂直排列：${TEXT_BOX_VERTICAL_ALIGN_LABELS[value]}`}
+              className={control.verticalAlign === value ? 'active' : ''}
+              onClick={() => onChange({ verticalAlign: value })}
+            >
               {TEXT_BOX_VERTICAL_ALIGN_LABELS[value]}
-            </option>
+            </button>
           ))}
-        </select>
-      </label>
+        </div>
+      </div>
 
       <label className="field">
         <span>行距（{control.lineHeight.toFixed(1)}）</span>
@@ -448,6 +448,8 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
   /** 拖动排序时正拖到哪一行上面（只用来高亮） */
   const [dropIndex, setDropIndex] = useState<number | null>(null);
   const dragFromRef = useRef<number>(-1);
+  /** 哪一行正在行内改名 */
+  const [editingUid, setEditingUid] = useState<string>('');
 
   const active = boxes.find((row) => row.uid === selectedUid) ?? boxes[0];
   const control =
@@ -625,6 +627,7 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
     if (active === undefined) return;
     const next = removeControl(project, active.uid, controlUid);
     setPendingRemoveControl(null);
+    setEditingUid('');
     const remaining = textBoxesOf(next).find((row) => row.uid === active.uid)?.controls ?? [];
     setSelectedControlUid(remaining[0]?.uid ?? '');
     onChange(next);
@@ -904,20 +907,58 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
                       <span className="textbox-part-grip" aria-hidden="true">
                         ⋮⋮
                       </span>
+                      {editingUid === item.uid ? (
+                        <input
+                          className="textbox-part-name"
+                          aria-label="控件名"
+                          autoFocus
+                          value={item.name}
+                          onChange={(event) => patchControl({ name: event.target.value })}
+                          onBlur={() => setEditingUid('')}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === 'Escape') setEditingUid('');
+                          }}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          role="tab"
+                          aria-selected={control?.uid === item.uid}
+                          className={
+                            control?.uid === item.uid
+                              ? 'textbox-part active'
+                              : dropIndex === index
+                                ? 'textbox-part drop'
+                                : 'textbox-part'
+                          }
+                          onClick={() => setSelectedControlUid(item.uid)}
+                        >
+                          {item.name.trim() === '' ? TEXT_BOX_CONTROL_LABELS[item.kind] : item.name}
+                        </button>
+                      )}
                       <button
                         type="button"
-                        role="tab"
-                        aria-selected={control?.uid === item.uid}
-                        className={
-                          control?.uid === item.uid
-                            ? 'textbox-part active'
-                            : dropIndex === index
-                              ? 'textbox-part drop'
-                              : 'textbox-part'
-                        }
-                        onClick={() => setSelectedControlUid(item.uid)}
+                        className="textbox-part-icon"
+                        aria-label={`重命名控件：${item.name || TEXT_BOX_CONTROL_LABELS[item.kind]}`}
+                        title="重命名"
+                        onClick={() => {
+                          setSelectedControlUid(item.uid);
+                          setEditingUid(item.uid);
+                        }}
                       >
-                        {item.name.trim() === '' ? TEXT_BOX_CONTROL_LABELS[item.kind] : item.name}
+                        ✎
+                      </button>
+                      <button
+                        type="button"
+                        className="textbox-part-icon danger"
+                        aria-label={`删除控件：${item.name || TEXT_BOX_CONTROL_LABELS[item.kind]}`}
+                        title="删除"
+                        onClick={() => {
+                          setSelectedControlUid(item.uid);
+                          setPendingRemoveControl(item.uid);
+                        }}
+                      >
+                        🗑
                       </button>
                     </div>
                   );
@@ -928,14 +969,6 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
                 <p className="textbox-section-hint">这个文本框还没有控件，用上面的「添加控件」加一个。</p>
               ) : (
                 <>
-                  <label className="field">
-                    <span>控件名（只在编辑界面显示）</span>
-                    <input
-                      value={control.name}
-                      onChange={(event) => patchControl({ name: event.target.value })}
-                    />
-                  </label>
-
                   <div className="textbox-anchor">
                     <span>锚点（{ANCHOR_LABELS[anchorIndex(control.anchor)]}）</span>
                     <div className="textbox-anchor-grid" role="group" aria-label="锚点">
@@ -1221,14 +1254,6 @@ export function TextBoxEditor({ project, assets, onChange }: Props) {
                       </div>
                     </>
                   )}
-
-                  <button
-                    type="button"
-                    className="danger textbox-remove"
-                    onClick={() => setPendingRemoveControl(control.uid)}
-                  >
-                    删除这个控件
-                  </button>
                 </>
               )}
             </div>

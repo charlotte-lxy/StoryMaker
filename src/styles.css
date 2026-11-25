@@ -5596,6 +5596,40 @@ tr.locale-form-note td {
   border-style: dashed;
 }
 
+.textbox-part-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  padding: 5px 8px;
+}
+
+.textbox-part-icon {
+  flex: 0 0 24px;
+  width: 24px;
+  padding: 0;
+  font-size: 12px;
+  line-height: 22px;
+  text-align: center;
+  color: var(--text-dim);
+  background: var(--control-bg);
+  border-color: var(--border);
+}
+
+.textbox-part-icon:hover {
+  color: var(--text);
+}
+
+.textbox-part-icon.danger {
+  color: #ffd9dc;
+  background: #5a1f24;
+  border-color: #7a2b30;
+}
+
+.textbox-part-icon.danger:hover {
+  background: #6f272d;
+  border-color: #8f343a;
+}
+
 .textbox-anchor {
   display: flex;
   flex-direction: column;

@@ -93,7 +93,10 @@ describe('文本框子模块', () => {
 
   it('控件名与文本框名称、ID 都写回项目', () => {
     const { onChange } = renderEditor();
-    fireEvent.change(screen.getByDisplayValue('背景图'), { target: { value: '底图' } });
+
+    // 控件名在控件列表里点铅笔改
+    fireEvent.click(screen.getByRole('button', { name: '重命名控件：背景图' }));
+    fireEvent.change(screen.getByLabelText('控件名'), { target: { value: '底图' } });
     expect(controlsOf(lastProject(onChange))[0].name).toBe('底图');
 
     fireEvent.change(screen.getByDisplayValue('文本框 1'), { target: { value: '旁白框' } });
@@ -105,7 +108,7 @@ describe('文本框子模块', () => {
 
   it('删除控件要先确认，确认后只掉那一个', () => {
     const { onChange } = renderEditor();
-    fireEvent.click(screen.getByText('删除这个控件'));
+    fireEvent.click(screen.getByRole('button', { name: '删除控件：背景图' }));
     fireEvent.click(screen.getByRole('button', { name: '删除' }));
     expect(controlsOf(lastProject(onChange))).toHaveLength(2);
   });
@@ -201,9 +204,8 @@ describe('文本框子模块', () => {
     fireEvent.click(screen.getByRole('button', { name: '居中' }));
     expect(controlByContent(lastProject(onChange), 'line').align).toBe('center');
 
-    fireEvent.change(screen.getByLabelText('垂直排列'), { target: { value: 'bottom' } });
+    fireEvent.click(screen.getByRole('button', { name: '垂直排列：下对齐' }));
     expect(controlByContent(lastProject(onChange), 'line').verticalAlign).toBe('bottom');
-
     const lineHeight = screen.getByRole('slider') as HTMLInputElement;
     fireEvent.change(lineHeight, { target: { value: '2' } });
     expect(controlByContent(lastProject(onChange), 'line').lineHeight).toBe(2);
